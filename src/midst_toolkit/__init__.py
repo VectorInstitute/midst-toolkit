@@ -1,11 +1,7 @@
-"""Top level module."""
-
-
 def hello() -> str:
-    """UV's hello world.
+    """Hello function.
 
-    Returns
-    -------
-        str: A friendly hello.
+    Returns:
+        str: Hello world
     """
     return "Hello from midst-toolkit!"

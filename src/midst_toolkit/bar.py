@@ -1,25 +1,10 @@
-"""bar module."""
-
-
 def bar(foo: str) -> str:
-    """Return input concatenated with 'bar'.
+    """Bar function.
 
-    Parameters
-    ----------
-    foo : str
-        Input string to be concatenated with 'bar'.
+    Args:
+        foo (str): Foo string
 
-    Returns
-    -------
-    str
-        Concatenated string.
-
-    Examples
-    --------
-    >>> bar("foo")
-    'barfoo'
-    >>> bar("baz")
-    'barbaz'
-
+    Returns:
+        str: A modified string
     """
     return f"bar{foo}"

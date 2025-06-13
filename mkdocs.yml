@@ -34,7 +34,7 @@ plugins:
       handlers:
         python:
           options:
-            docstring_style: numpy
+            docstring_style: google
             members_order: source
             separate_signature: true
             show_overloads: true

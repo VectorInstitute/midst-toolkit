@@ -64,6 +64,7 @@ extra_checks = true
 
 [tool.ruff]
 include = ["*.py", "pyproject.toml", "*.ipynb"]
+exclude = ["mypy_disallow_legacy_types.py"]
 line-length = 119
 
 [tool.ruff.format]
@@ -97,6 +98,8 @@ ignore = [
     "E501", # line too long
     "D203", # 1 blank line required before class docstring
     "D213", # Multi-line docstring summary should start at the second line
+    "D100", # Ignore module level docstrings requirement
+    "D104", # Ignore package level docstrings requirement
     "PLR2004", # Replace magic number with named constant
     "PLR0913", # Too many arguments
     "COM812", # Missing trailing comma
@@ -111,10 +114,9 @@ ignore-names = ["X*", "setUp"]
 
 [tool.ruff.lint.isort]
 lines-after-imports = 2
-line_length = 119
 
 [tool.ruff.lint.pydocstyle]
-convention = "numpy"
+convention = "google"
 
 [tool.ruff.lint.pycodestyle]
 max-doc-length = 119

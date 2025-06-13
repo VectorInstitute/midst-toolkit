@@ -1,4 +1,4 @@
-# AI Engineering template (with uv)
+# MIDST Toolkit
 
 ----------------------------------------------------------------------------------------
 
@@ -8,10 +8,9 @@
 [![codecov](https://codecov.io/github/VectorInstitute/midst-toolkit/graph/badge.svg?token=83MYFZ3UPA)](https://codecov.io/github/VectorInstitute/midst-toolkit)
 ![GitHub License](https://img.shields.io/github/license/VectorInstitute/midst-toolkit)
 
-A template repo for AI Engineering projects (using ``python``) and ``uv``. This
-template is like our original AI Engineering [template](https://github.com/VectorInstitute/aieng-template),
-however, unlike how that template uses poetry, this one uses uv for dependency
-management (as well as packaging and publishing).
+A toolkit for facilitating MIA resiliency testing on diffusion-model-based synthetic tabular data. Many of the attacks
+included in this toolkit are based on the most success ones used in the
+[2025 SaTML MIDST Competition](https://vectorinstitute.github.io/MIDST/).
 
 ## 🧑🏿‍💻 Developing
 
@@ -40,34 +39,3 @@ run:
 ```bash
 uv sync --no-group docs
 ```
-
-If you're coming from `poetry` then you'll notice that the virtual environment
-is actually stored in the project root folder and is by default named as `.venv`.
-The other important note is that while `poetry` uses a "flat" layout of the project,
-`uv` opts for the the "src" layout. (For more info, see [here](https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/))
-
-### Poetry to UV
-
-The table below provides the `uv` equivalent counterparts for some of the more
-common `poetry` commands.
-
-| Poetry                                               | UV                                          |
-|------------------------------------------------------|---------------------------------------------|
-| `poetry new <project-name>`  # creates new project   | `uv init <project-name>`                    |
-| `poetry install`  # installs existing project        | `uv sync`                                   |
-| `poetry install --with docs,test`                    | `uv sync --group docs --group test`         |
-| `poetry add numpy`                                   | `uv add numpy`                              |
-| `poetry add pytest pytest-asyncio --groups dev`      | `uv add pytest pytest-asyncio --groups dev` |
-| `poetry remove numpy`                                | `uv remove numpy`                           |
-| `poetry lock`                                        | `uv lock`                                   |
-| `poetry run <cmd>`  # runs cmd with the project venv | `uv run <cmd>`                              |
-| `poetry build`                                       | `uv build`                                  |
-| `poetry publish`                                     | `uv publish`                                |
-| `poetry cache clear pypi --all`                      | `uv cache clean`                            |
-
-For the full list of `uv` commands, you can visit the official [docs](https://docs.astral.sh/uv/reference/cli/#uv).
-
-### Tidbit
-
-If you're curious about what "uv" stands for, it appears to have been more or
-less chosen [randomly](https://github.com/astral-sh/uv/issues/1349#issuecomment-1986451785).

@@ -27,11 +27,17 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: 'v0.11.13'
     hooks:
-    - id: ruff
+    - id: ruff-check
       args: [--fix, --exit-non-zero-on-fix]
       types_or: [python, jupyter]
     - id: ruff-format
       types_or: [python, jupyter]
+
+  - repo: https://github.com/jsh9/pydoclint
+    rev: '0.6.6'
+    hooks:
+      - id: pydoclint
+        args: [--style=google, --check-return-types=True, --exclude=tests]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.16.0
@@ -70,6 +76,14 @@ repos:
       language: system
       pass_filenames: false
       always_run: true
+
+  - repo: local
+    hooks:
+      - id: mypy legacy type check
+        name: mypy legacy type check
+        entry: python mypy_disallow_legacy_types.py
+        language: python
+        pass_filenames: true
 
 ci:
     autofix_commit_msg: |
