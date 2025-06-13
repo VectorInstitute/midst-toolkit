@@ -5,6 +5,6 @@ def bar(foo: str) -> str:
         foo (str): Foo string
 
     Returns:
-        str: A modified string
+        str: A modified stringe
     """
     return f"bar{foo}"

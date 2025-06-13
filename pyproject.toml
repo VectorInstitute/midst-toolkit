@@ -125,8 +125,3 @@ max-doc-length = 119
 markers = [
     "integration_test: marks tests as integration tests",
 ]
-
-[tool.coverage]
-    [tool.coverage.run]
-    source=["midst_toolkit"]
-    omit=["tests/*", "*__init__.py"]

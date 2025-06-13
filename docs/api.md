@@ -2,21 +2,21 @@
 
 ## Top Level Module
 
-::: aieng_template_uv
+::: midst_toolkit
     options:
       show_root_heading: true
       show_root_full_path: true
 
 ## Foo Module
 
-::: aieng_template_uv.foo
+::: midst_toolkit.foo
     options:
       show_root_heading: true
       show_root_full_path: true
 
 ## Bar Module
 
-::: aieng_template_uv.bar
+::: midst_toolkit.bar
     options:
       show_root_heading: true
       show_root_full_path: true

@@ -135,12 +135,3 @@ The available workflows are:
 Publishing python package to PyPI. Create a `PYPI_API_TOKEN` and add it to the
 repository's actions [secret variables](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions)
 in order to publish PyPI packages when new software releases are created on Github.
-
-The test workflows also compute coverage and upload code coverage metrics to
-[codecov.io](https://app.codecov.io/gh/VectorInstitute/aieng-template). Create a
-`CODECOV_TOKEN` and add it to the repository's actions [secret variables](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions).
-
-!!! warning "codecov"
-    The [codecov](https://app.codecov.io/github/VectorInstitute) tool is subscribed under the free tier
-    which makes it usable only for public open-source repos. Hence, if you would like to develop in a
-    private repo, it is recommended to remove the codecov actions from the github workflow files.

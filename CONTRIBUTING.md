@@ -84,3 +84,39 @@ Optional[Union[typing1, typing2]] -> typing1 | typing2 | None
 
 There is a custom script that enforces this style. It is not infallible. So if there is an issue with it please fix or
 report it to us.
+
+## Tests
+
+All tests for the library are housed in the tests folder. The unit and integration tests are run using `pytest`. These
+tests are automatically run through GitHub integrations on PRs to the main branch of this repository. PRs that fail
+any of the tests will not be eligible to be merged until they are fixed.
+
+To run all tests in the tests folder one only needs to run (with the venv active)
+```bash
+pytest .
+```
+To run a specific test with pytest, one runs
+```bash
+pytest tests/checkpointing/test_best_checkpointer.py
+```
+
+If you use VS Code for development, you can setup the tests with the testing integration so that you can run
+debugging and other IDE features. Setup will vary depending on your VS Code environment, but in your .vscode
+folder your `settings.json` might look something like
+
+``` JSON
+{
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        ".",
+        "-p",
+        "test_*.py"
+    ],
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestArgs": [
+        "."
+    ]
+}
+```
