@@ -16,7 +16,7 @@ included in this toolkit are based on the most success ones used in the
 ### Installing dependencies
 
 The development environment can be set up using [uv](https://github.com/astral-sh/uv?tab=readme-ov-file#installation).
-Hence, make sure it is installed and then run:
+Hence, make sure it is installed and then run the following:
 
 ```bash
 uv sync
