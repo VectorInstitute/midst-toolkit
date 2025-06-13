@@ -2,8 +2,8 @@
 
 import pytest
 
-from aieng_template_uv.bar import bar as barfn
-from aieng_template_uv.foo import foo as foofn
+from midst_toolkit.bar import bar as barfn
+from midst_toolkit.foo import foo as foofn
 
 
 @pytest.mark.integration_test()

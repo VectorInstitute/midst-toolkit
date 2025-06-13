@@ -8,4 +8,4 @@ def hello() -> str:
     -------
         str: A friendly hello.
     """
-    return "Hello from aieng-template-uv!"
+    return "Hello from midst-toolkit!"

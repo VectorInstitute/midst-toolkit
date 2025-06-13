@@ -1,11 +1,11 @@
 [project]
-name = "aieng-template-uv"
+name = "midst-toolkit"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [ {name = "Vector AI Engineering", email = "ai_engineering@vectorinstitute.ai"}]
 license = "Apache-2.0"
-repository = "https://github.com/VectorInstitute/aieng-template-uv"
+repository = "https://github.com/VectorInstitute/midst-toolkit"
 requires-python = ">=3.12"
 dependencies = []
 
@@ -125,5 +125,5 @@ markers = [
 
 [tool.coverage]
     [tool.coverage.run]
-    source=["aieng_template"]
+    source=["midst_toolkit"]
     omit=["tests/*", "*__init__.py"]

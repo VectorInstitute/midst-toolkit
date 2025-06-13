@@ -2,11 +2,11 @@
 
 ----------------------------------------------------------------------------------------
 
-[![code checks](https://github.com/VectorInstitute/aieng-template-uv/actions/workflows/code_checks.yml/badge.svg)](https://github.com/VectorInstitute/aieng-template-uv/actions/workflows/code_checks.yml)
-[![integration tests](https://github.com/VectorInstitute/aieng-template-uv/actions/workflows/integration_tests.yml/badge.svg)](https://github.com/VectorInstitute/aieng-template-uv/actions/workflows/integration_tests.yml)
-[![docs](https://github.com/VectorInstitute/aieng-template-uv/actions/workflows/docs.yml/badge.svg)](https://github.com/VectorInstitute/aieng-template-uv/actions/workflows/docs.yml)
-[![codecov](https://codecov.io/github/VectorInstitute/aieng-template-uv/graph/badge.svg?token=83MYFZ3UPA)](https://codecov.io/github/VectorInstitute/aieng-template-uv)
-![GitHub License](https://img.shields.io/github/license/VectorInstitute/aieng-template-uv)
+[![code checks](https://github.com/VectorInstitute/midst-toolkit/actions/workflows/code_checks.yml/badge.svg)](https://github.com/VectorInstitute/midst-toolkit/actions/workflows/code_checks.yml)
+[![integration tests](https://github.com/VectorInstitute/midst-toolkit/actions/workflows/integration_tests.yml/badge.svg)](https://github.com/VectorInstitute/midst-toolkit/actions/workflows/integration_tests.yml)
+[![docs](https://github.com/VectorInstitute/midst-toolkit/actions/workflows/docs.yml/badge.svg)](https://github.com/VectorInstitute/midst-toolkit/actions/workflows/docs.yml)
+[![codecov](https://codecov.io/github/VectorInstitute/midst-toolkit/graph/badge.svg?token=83MYFZ3UPA)](https://codecov.io/github/VectorInstitute/midst-toolkit)
+![GitHub License](https://img.shields.io/github/license/VectorInstitute/midst-toolkit)
 
 A template repo for AI Engineering projects (using ``python``) and ``uv``. This
 template is like our original AI Engineering [template](https://github.com/VectorInstitute/aieng-template),
