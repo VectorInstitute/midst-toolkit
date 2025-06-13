@@ -5,7 +5,7 @@
 [![code checks](https://github.com/VectorInstitute/midst-toolkit/actions/workflows/code_checks.yml/badge.svg)](https://github.com/VectorInstitute/midst-toolkit/actions/workflows/code_checks.yml)
 [![integration tests](https://github.com/VectorInstitute/midst-toolkit/actions/workflows/integration_tests.yml/badge.svg)](https://github.com/VectorInstitute/midst-toolkit/actions/workflows/integration_tests.yml)
 [![docs](https://github.com/VectorInstitute/midst-toolkit/actions/workflows/docs.yml/badge.svg)](https://github.com/VectorInstitute/midst-toolkit/actions/workflows/docs.yml)
-![License](https://img.shields.io/github/license/VectorInstitute/midst-toolkit)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A toolkit for facilitating MIA resiliency testing on diffusion-model-based synthetic tabular data. Many of the attacks
 included in this toolkit are based on the most success ones used in the
