@@ -107,6 +107,7 @@ ignore = [
     "A001", #Ignore variable `input` is shadowing a Python builtin
     "A002", # Ignore variable `input` is shadowing a Python builtin in function
     "ERA001", # Found commented-out code (too many false positives with math comments)
+    "PLW2901", # `for` loop variable `target` overwritten by assignment target
 ]
 
 # Ignore import violations in all `__init__.py` files.
