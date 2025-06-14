@@ -105,6 +105,7 @@ ignore = [
     "PLR0913", # Too many arguments
     "COM812", # Missing trailing comma
     "A001", #Ignore variable `input` is shadowing a Python builtin
+    "ERA001", # Found commented-out code (too many false positives with math comments)
 ]
 
 # Ignore import violations in all `__init__.py` files.
