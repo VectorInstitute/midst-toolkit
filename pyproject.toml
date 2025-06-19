@@ -15,12 +15,12 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
-    "torch>=2.4.1",
+    "torch<=2.6.0",
     "urllib3>=2.5.0",
     "codecov>=2.1.13",
     "mypy>=1.14.1",
     "nbqa>=1.9.1",
-    "numpy>=1.24",
+    "numpy<2.3.0",
     "matplotlib>=3.10.1",
     "pandas>=2.0",
     "scikit-learn>=1.5.0",
