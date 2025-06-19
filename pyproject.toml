@@ -20,6 +20,10 @@ dev = [
     "codecov>=2.1.13",
     "mypy>=1.14.1",
     "nbqa>=1.9.1",
+    "numpy>=1.24",
+    "matplotlib>=3.10.1",
+    "pandas>=2.0",
+    "scikit-learn>=1.5.0",
     "pip-audit>=2.7.3",
     "pre-commit>=4.1.0",
     "pytest>=8.3.4",
@@ -43,30 +47,31 @@ docs = [
 default-groups = ["dev", "docs"]
 
 [tool.mypy]
-ignore_missing_imports = true
+follow_imports = "normal"
+ignore_missing_imports = false
 install_types = true
 pretty = true
+non_interactive = true
+disallow_untyped_defs = false
+no_implicit_optional = true
+check_untyped_defs = true
 namespace_packages = true
 explicit_package_bases = true
-non_interactive = true
 warn_unused_configs = true
-allow_any_generics = false
 allow_subclassing_any = false
 allow_untyped_calls = false
-allow_untyped_defs = false
 allow_incomplete_defs = false
-check_untyped_defs = true
 allow_untyped_decorators = false
 warn_redundant_casts = true
 warn_unused_ignores = true
-warn_return_any = true
 implicit_reexport = false
 strict_equality = true
 extra_checks = true
+mypy_path = "src"
 
 [tool.ruff]
-include = ["*.py", "pyproject.toml", "*.ipynb"]
-exclude = ["mypy_disallow_legacy_types.py"]
+include = ["*.py", "pyproject.toml"]
+exclude = ["mypy_disallow_legacy_types.py", "*.ipynb"]
 line-length = 119
 
 [tool.ruff.format]
@@ -93,6 +98,7 @@ select = [
     "N", # pep8-naming
     "ERA", # eradicate
     "PL", # pylint
+    "D213", # Multiline Docstrings start on newline
 ]
 fixable = ["A", "B", "COM", "C4", "RET", "SIM", "ICN", "Q", "RSE", "D", "E", "F", "I", "W", "N", "ERA", "PL"]
 ignore = [
@@ -100,6 +106,7 @@ ignore = [
     "E501", # line too long
     "D203", # 1 blank line required before class docstring
     "D213", # Multi-line docstring summary should start at the second line
+    "D101", # Ignore class level documentation requirement
     "D100", # Ignore module level docstrings requirement
     "D104", # Ignore package level docstrings requirement
     "D205", # 1 blank line required between summary line and description

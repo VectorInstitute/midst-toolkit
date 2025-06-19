@@ -6,7 +6,7 @@ from collections.abc import Set
 # List of files that we want to skip with this check. Currently empty.
 files_to_ignore: Set[str] = {"Empty"}
 file_types_to_ignore: Set[str] = {
-    ".png", ".pkl", ".pt", ".md", ".svg", ".ico", ".html", ".js", ".css", ".xml", ".xml.gz", ".inv"
+    ".png", ".pkl", ".pt", ".md", ".svg", ".ico", ".html", ".js", ".css", ".xml", ".xml.gz", ".inv", ".pth"
 }
 # List of disallowed types to search for that should no longer be imported from the typing library. These types
 # have been migrated to either collections.abc or into core python
@@ -55,6 +55,7 @@ def discover_legacy_imports(file_paths: list[str]) -> None:
     file_paths = filter_files_to_ignore(file_paths=file_paths)
     for file_path in file_paths:
         with open(file_path, mode="r") as file_handle:
+            print(file_path)
             file_contents = file_handle.read()
             same_line_match = re.search(same_line_import_re, file_contents, flags=re.MULTILINE)
             multi_line_match = re.search(multi_line_import_re, file_contents, flags=re.MULTILINE)

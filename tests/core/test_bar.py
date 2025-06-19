@@ -1,6 +1,6 @@
 """Test for bar module."""
 
-from midst_toolkit.bar import bar as barfn
+from midst_toolkit.core.bar import bar as barfn
 
 
 def test_barfn(my_test_number: int) -> None:
