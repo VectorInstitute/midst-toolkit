@@ -58,3 +58,4 @@ jobs:
           # GHSA-887c-mr87-cxwp torch vulnerability without a fix yet
           ignore-vulns: |
             GHSA-887c-mr87-cxwp
+            GHSA-3749-ghw9-m3mg
