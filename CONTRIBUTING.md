@@ -97,7 +97,7 @@ pytest .
 ```
 To run a specific test with pytest, one runs
 ```bash
-pytest tests/checkpointing/test_best_checkpointer.py
+pytest tests/core/test_bar.py
 ```
 
 If you use VS Code for development, you can setup the tests with the testing integration so that you can run

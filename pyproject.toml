@@ -15,6 +15,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    "torch>=2.4.1",
     "codecov>=2.1.13",
     "mypy>=1.14.1",
     "nbqa>=1.9.1",
