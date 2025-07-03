@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A toolkit for facilitating MIA resiliency testing on diffusion-model-based synthetic tabular data. Many of the attacks
-included in this toolkit are based on the most success ones used in the
+included in this toolkit are based on the most successful ones used in the
 [2025 SaTML MIDST Competition](https://vectorinstitute.github.io/MIDST/).
 
 ## 🧑🏿‍💻 Developing
