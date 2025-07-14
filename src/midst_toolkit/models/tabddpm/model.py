@@ -1,13 +1,165 @@
 import os
 import pickle
-from collections import defaultdict
+import logging
+import enum
+import math
+import hashlib
+from abc import ABC, abstractmethod
+from collections import defaultdict, Counter
+from copy import deepcopy
+from dataclasses import astuple, replace, dataclass
+from pathlib import Path
+from typing import Any, Dict, Literal, Optional, List, Union, Callable, Type, Tuple, cast
 
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder, MinMaxScaler
-from sklearn.preprocessing import QuantileTransformer
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from category_encoders import LeaveOneOutEncoder
+from torch import Tensor
+from sklearn.impute import SimpleImputer
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder, MinMaxScaler, StandardScaler, QuantileTransformer, OrdinalEncoder
 from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture, BayesianGaussianMixture
+from sklearn.model_selection import train_test_split
+
+from midst_toolkit.models.tabddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
+
+
+logger = logging.getLogger(__name__)
+
+
+Normalization = Literal["standard", "quantile", "minmax"]
+NumNanPolicy = Literal["drop-rows", "mean"]
+CatNanPolicy = Literal["most_frequent"]
+CatEncoding = Literal["one-hot", "counter"]
+YPolicy = Literal["default"]
+
+
+ArrayDict = Dict[str, np.ndarray]
+ModuleType = Union[str, Callable[..., nn.Module]]
+
+CAT_MISSING_VALUE = "__nan__"
+CAT_RARE_VALUE = "__rare__"
+
+
+class TaskType(enum.Enum):
+    BINCLASS = "binclass"
+    MULTICLASS = "multiclass"
+    REGRESSION = "regression"
+
+    def __str__(self) -> str:
+        return self.value
+
+@dataclass(frozen=True)
+class Transformations:
+    seed: int = 0
+    normalization: Optional[Normalization] = None
+    num_nan_policy: Optional[NumNanPolicy] = None
+    cat_nan_policy: Optional[CatNanPolicy] = None
+    cat_min_frequency: Optional[float] = None
+    cat_encoding: Optional[CatEncoding] = None
+    y_policy: Optional[YPolicy] = "default"
+
+
+@dataclass(frozen=False)
+class Dataset:
+    X_num: Optional[ArrayDict]
+    X_cat: Optional[ArrayDict]
+    y: ArrayDict
+    y_info: Dict[str, Any]
+    task_type: TaskType
+    n_classes: Optional[int]
+
+    @classmethod
+    def from_dir(cls, dir_: Union[Path, str]) -> "Dataset":
+        dir_ = Path(dir_)
+        splits = [
+            k for k in ["train", "val", "test"] if dir_.joinpath(f"y_{k}.npy").exists()
+        ]
+
+        def load(item) -> ArrayDict:
+            return {
+                x: cast(
+                    np.ndarray, np.load(dir_ / f"{item}_{x}.npy", allow_pickle=True)
+                )  # type: ignore[code]
+                for x in splits
+            }
+
+        if Path(dir_ / "info.json").exists():
+            info = util.load_json(dir_ / "info.json")
+        else:
+            info = None
+        return Dataset(
+            load("X_num") if dir_.joinpath("X_num_train.npy").exists() else None,
+            load("X_cat") if dir_.joinpath("X_cat_train.npy").exists() else None,
+            load("y"),
+            {},
+            TaskType(info["task_type"]),
+            info.get("n_classes"),
+        )
+
+    @property
+    def is_binclass(self) -> bool:
+        return self.task_type == TaskType.BINCLASS
+
+    @property
+    def is_multiclass(self) -> bool:
+        return self.task_type == TaskType.MULTICLASS
+
+    @property
+    def is_regression(self) -> bool:
+        return self.task_type == TaskType.REGRESSION
+
+    @property
+    def n_num_features(self) -> int:
+        return 0 if self.X_num is None else self.X_num["train"].shape[1]
+
+    @property
+    def n_cat_features(self) -> int:
+        return 0 if self.X_cat is None else self.X_cat["train"].shape[1]
+
+    @property
+    def n_features(self) -> int:
+        return self.n_num_features + self.n_cat_features
+
+    def size(self, part: Optional[str]) -> int:
+        return sum(map(len, self.y.values())) if part is None else len(self.y[part])
+
+    @property
+    def nn_output_dim(self) -> int:
+        if self.is_multiclass:
+            assert self.n_classes is not None
+            return self.n_classes
+        else:
+            return 1
+
+    def get_category_sizes(self, part: str) -> List[int]:
+        return [] if self.X_cat is None else get_category_sizes(self.X_cat[part])
+
+    def calculate_metrics(
+        self,
+        predictions: Dict[str, np.ndarray],
+        prediction_type: Optional[str],
+    ) -> Dict[str, Any]:
+        metrics = {
+            x: calculate_metrics_(
+                self.y[x], predictions[x], self.task_type, prediction_type, self.y_info
+            )
+            for x in predictions
+        }
+        if self.task_type == TaskType.REGRESSION:
+            score_key = "rmse"
+            score_sign = -1
+        else:
+            score_key = "accuracy"
+            score_sign = 1
+        for part_metrics in metrics.values():
+            part_metrics["score"] = score_sign * part_metrics[score_key]
+        return metrics
 
 
 def clava_clustering(tables, relation_order, save_dir, configs):
@@ -65,6 +217,314 @@ def clava_clustering(tables, relation_order, save_dir, configs):
             tables[child]["df"]["placeholder"] = list(range(len(tables[child]["df"])))
 
     return tables, all_group_lengths_prob_dicts
+
+
+def clava_training(tables, relation_order, save_dir, configs, device="cuda"):
+    models = {}
+    for parent, child in relation_order:
+        print(f"Training {parent} -> {child} model from scratch")
+        df_with_cluster = tables[child]["df"]
+        id_cols = [col for col in df_with_cluster.columns if "_id" in col]
+        df_without_id = df_with_cluster.drop(columns=id_cols)
+
+        result = child_training(
+            df_without_id,
+            tables[child]["domain"],
+            parent,
+            child,
+            configs,
+            device,
+        )
+
+        models[(parent, child)] = result
+        pickle.dump(
+            result,
+            open(os.path.join(save_dir, f"models/{parent}_{child}_ckpt.pkl"), "wb"),
+        )
+
+    return models
+
+
+def child_training(
+    child_df_with_cluster,
+    child_domain_dict,
+    parent_name,
+    child_name,
+    configs,
+    device="cuda",
+):
+    if parent_name is None:
+        y_col = "placeholder"
+        child_df_with_cluster["placeholder"] = list(range(len(child_df_with_cluster)))
+    else:
+        y_col = f"{parent_name}_{child_name}_cluster"
+    child_info = get_table_info(child_df_with_cluster, child_domain_dict, y_col)
+    child_model_params = get_model_params(
+        {
+            "d_layers": configs["diffusion"]["d_layers"],
+            "dropout": configs["diffusion"]["dropout"],
+        }
+    )
+    child_T_dict = get_T_dict()
+
+    child_result = train_model(
+        child_df_with_cluster,
+        child_info,
+        child_model_params,
+        child_T_dict,
+        configs["diffusion"]["iterations"],
+        configs["diffusion"]["batch_size"],
+        configs["diffusion"]["model_type"],
+        configs["diffusion"]["gaussian_loss_type"],
+        configs["diffusion"]["num_timesteps"],
+        configs["diffusion"]["scheduler"],
+        configs["diffusion"]["lr"],
+        configs["diffusion"]["weight_decay"],
+        device=device,
+    )
+
+    if parent_name is None:
+        child_result["classifier"] = None
+    elif configs["classifier"]["iterations"] > 0:
+        child_classifier = train_classifier(
+            child_df_with_cluster,
+            child_info,
+            child_model_params,
+            child_T_dict,
+            configs["classifier"]["iterations"],
+            configs["classifier"]["batch_size"],
+            configs["diffusion"]["gaussian_loss_type"],
+            configs["diffusion"]["num_timesteps"],
+            configs["diffusion"]["scheduler"],
+            cluster_col=y_col,
+            d_layers=configs["classifier"]["d_layers"],
+            dim_t=configs["classifier"]["dim_t"],
+            lr=configs["classifier"]["lr"],
+            device=device,
+        )
+        child_result["classifier"] = child_classifier
+
+    child_result["df_info"] = child_info
+    child_result["model_params"] = child_model_params
+    child_result["T_dict"] = child_T_dict
+    return child_result
+
+
+def train_model(
+    df,
+    df_info,
+    model_params,
+    T_dict,
+    steps,
+    batch_size,
+    model_type,
+    gaussian_loss_type,
+    num_timesteps,
+    scheduler,
+    lr,
+    weight_decay,
+    device="cuda",
+):
+    T = Transformations(**T_dict)
+    dataset, label_encoders, column_orders = make_dataset_from_df(
+        df,
+        T,
+        is_y_cond=model_params["is_y_cond"],
+        ratios=[0.99, 0.005, 0.005],
+        df_info=df_info,
+        std=0,
+    )
+    # print(dataset.n_features)
+    train_loader = prepare_fast_dataloader(
+        dataset, split="train", batch_size=batch_size, y_type="long"
+    )
+
+    num_numerical_features = (
+        dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
+    )
+
+    K = np.array(dataset.get_category_sizes("train"))
+    if len(K) == 0 or T_dict["cat_encoding"] == "one-hot":
+        K = np.array([0])
+    # print(K)
+
+    num_numerical_features = (
+        dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
+    )
+    d_in = np.sum(K) + num_numerical_features
+    model_params["d_in"] = d_in
+    # print(d_in)
+
+    print("Model params: {}".format(model_params))
+    model = get_model(model_type, model_params)
+    model.to(device)
+
+    train_loader = prepare_fast_dataloader(
+        dataset, split="train", batch_size=batch_size
+    )
+
+    diffusion = GaussianMultinomialDiffusion(
+        num_classes=K,
+        num_numerical_features=num_numerical_features,
+        denoise_fn=model,
+        gaussian_loss_type=gaussian_loss_type,
+        num_timesteps=num_timesteps,
+        scheduler=scheduler,
+        device=device,
+    )
+    diffusion.to(device)
+    diffusion.train()
+
+    trainer = Trainer(
+        diffusion,
+        train_loader,
+        lr=lr,
+        weight_decay=weight_decay,
+        steps=steps,
+        device=device,
+    )
+    trainer.run_loop()
+
+    if model_params["is_y_cond"] == "concat":
+        column_orders = column_orders[1:] + [column_orders[0]]
+    else:
+        column_orders = column_orders + [df_info["y_col"]]
+
+    return {
+        "diffusion": diffusion,
+        "label_encoders": label_encoders,
+        "dataset": dataset,
+        "column_orders": column_orders,
+    }
+
+
+def train_classifier(
+    df,
+    df_info,
+    model_params,
+    T_dict,
+    classifier_steps,
+    batch_size,
+    gaussian_loss_type,
+    num_timesteps,
+    scheduler,
+    device="cuda",
+    cluster_col="cluster",
+    d_layers=None,
+    dim_t=128,
+    lr=0.0001,
+):
+    T = Transformations(**T_dict)
+    dataset, label_encoders, column_orders = make_dataset_from_df(
+        df,
+        T,
+        is_y_cond=model_params["is_y_cond"],
+        ratios=[0.99, 0.005, 0.005],
+        df_info=df_info,
+        std=0,
+    )
+    print(dataset.n_features)
+    train_loader = prepare_fast_dataloader(
+        dataset, split="train", batch_size=batch_size, y_type="long"
+    )
+    val_loader = prepare_fast_dataloader(
+        dataset, split="val", batch_size=batch_size, y_type="long"
+    )
+    test_loader = prepare_fast_dataloader(
+        dataset, split="test", batch_size=batch_size, y_type="long"
+    )
+
+    eval_interval = 5
+    log_interval = 10
+
+    K = np.array(dataset.get_category_sizes("train"))
+    if len(K) == 0 or T_dict["cat_encoding"] == "one-hot":
+        K = np.array([0])
+    print(K)
+
+    num_numerical_features = (
+        dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
+    )
+    if model_params["is_y_cond"] == "concat":
+        num_numerical_features -= 1
+
+    classifier = Classifier(
+        d_in=num_numerical_features,
+        d_out=int(max(df[cluster_col].values) + 1),
+        dim_t=dim_t,
+        hidden_sizes=d_layers,
+    ).to(device)
+
+    classifier_optimizer = optim.AdamW(classifier.parameters(), lr=lr)
+
+    empty_diffusion = GaussianMultinomialDiffusion(
+        num_classes=K,
+        num_numerical_features=num_numerical_features,
+        denoise_fn=None,
+        gaussian_loss_type=gaussian_loss_type,
+        num_timesteps=num_timesteps,
+        scheduler=scheduler,
+        device=device,
+    )
+    empty_diffusion.to(device)
+
+    schedule_sampler = create_named_schedule_sampler("uniform", empty_diffusion)
+
+    classifier.train()
+    resume_step = 0
+    for step in range(classifier_steps):
+        logger.logkv("step", step + resume_step)
+        logger.logkv(
+            "samples",
+            (step + resume_step + 1) * batch_size,
+        )
+        numerical_forward_backward_log(
+            classifier,
+            classifier_optimizer,
+            train_loader,
+            dataset,
+            schedule_sampler,
+            empty_diffusion,
+            prefix="train",
+        )
+
+        classifier_optimizer.step()
+        if not step % eval_interval:
+            with torch.no_grad():
+                classifier.eval()
+                numerical_forward_backward_log(
+                    classifier,
+                    classifier_optimizer,
+                    val_loader,
+                    dataset,
+                    schedule_sampler,
+                    empty_diffusion,
+                    prefix="val",
+                )
+                classifier.train()
+
+        if not step % log_interval:
+            logger.dumpkvs()
+
+    # # test classifier
+    classifier.eval()
+
+    correct = 0
+    for step in range(3000):
+        test_x, test_y = next(test_loader)
+        test_y = test_y.long().to(device)
+        if model_params["is_y_cond"] == "concat":
+            test_x = test_x[:, 1:].to(device)
+        else:
+            test_x = test_x.to(device)
+        with torch.no_grad():
+            pred = classifier(test_x, timesteps=torch.zeros(test_x.shape[0]).to(device))
+            correct += (pred.argmax(dim=1) == test_y).sum().item()
+
+    acc = correct / (3000 * batch_size)
+    print(acc)
+
+    return classifier
 
 
 def pair_clustering_keep_id(
@@ -480,3 +940,1382 @@ def freq_to_prob(freq_dict):
     for key in freq_dict:
         prob_dict[key] = freq_dict[key] / sum(list(freq_dict.values()))
     return prob_dict
+
+
+def get_table_info(df, domain_dict, y_col):
+    cat_cols = []
+    num_cols = []
+    for col in df.columns:
+        if col in domain_dict and col != y_col:
+            if domain_dict[col]["type"] == "discrete":
+                cat_cols.append(col)
+            else:
+                num_cols.append(col)
+
+    df_info = {}
+    df_info["cat_cols"] = cat_cols
+    df_info["num_cols"] = num_cols
+    df_info["y_col"] = y_col
+    df_info["n_classes"] = 0
+    df_info["task_type"] = "multiclass"
+
+    return df_info
+
+
+def get_model_params(rtdl_params=None):
+    return {
+        "num_classes": 0,
+        "is_y_cond": "none",
+        "rtdl_params": {"d_layers": [512, 1024, 1024, 1024, 1024, 512], "dropout": 0.0}
+        if rtdl_params is None
+        else rtdl_params,
+    }
+
+
+def get_T_dict():
+    return {
+        "seed": 0,
+        "normalization": "quantile",
+        "num_nan_policy": None,
+        "cat_nan_policy": None,
+        "cat_min_frequency": None,
+        "cat_encoding": None,
+        "y_policy": "default",
+    }
+
+def make_dataset_from_df(df, T, is_y_cond, ratios=[0.7, 0.2, 0.1], df_info=None, std=0):
+    """
+    The order of the generated dataset: (y, X_num, X_cat)
+
+    is_y_cond:
+        concat: y is concatenated to X, the model learn a joint distribution of (y, X)
+        embedding: y is not concatenated to X. During computations, y is embedded
+            and added to the latent vector of X
+        none: y column is completely ignored
+
+    How does is_y_cond affect the generation of y?
+    is_y_cond:
+        concat: the model synthesizes (y, X) directly, so y is just the first column
+        embedding: y is first sampled using empirical distribution of y. The model only
+            synthesizes X. When returning the generated data, we return the generated X
+            and the sampled y. (y is sampled from empirical distribution, instead of being
+            generated by the model)
+            Note that in this way, y is still not independent of X, because the model has been
+            adding the embedding of y to the latent vector of X during computations.
+        none:
+            y is synthesized using y's empirical distribution. X is generated by the model.
+            In this case, y is completely independent of X.
+
+    Note: For now, n_classes has to be set to 0. This is because our matrix is the concatenation
+    of (X_num, X_cat). In this case, if we have is_y_cond == 'concat', we can guarantee that y
+    is the first column of the matrix.
+    However, if we have n_classes > 0, then y is not the first column of the matrix.
+    """
+    train_val_df, test_df = train_test_split(df, test_size=ratios[2], random_state=42)
+    train_df, val_df = train_test_split(
+        train_val_df, test_size=ratios[1] / (ratios[0] + ratios[1]), random_state=42
+    )
+
+    cat_column_orders = []
+    num_column_orders = []
+    index_to_column = list(df.columns)
+    column_to_index = {col: i for i, col in enumerate(index_to_column)}
+
+    if df_info["n_classes"] > 0:
+        X_cat = {} if df_info["cat_cols"] is not None or is_y_cond == "concat" else None
+        X_num = {} if df_info["num_cols"] is not None else None
+        y = {}
+
+        cat_cols_with_y = []
+        if df_info["cat_cols"] is not None:
+            cat_cols_with_y += df_info["cat_cols"]
+        if is_y_cond == "concat":
+            cat_cols_with_y = [df_info["y_col"]] + cat_cols_with_y
+
+        if len(cat_cols_with_y) > 0:
+            X_cat["train"] = train_df[cat_cols_with_y].to_numpy(dtype=np.str_)
+            X_cat["val"] = val_df[cat_cols_with_y].to_numpy(dtype=np.str_)
+            X_cat["test"] = test_df[cat_cols_with_y].to_numpy(dtype=np.str_)
+
+        y["train"] = train_df[df_info["y_col"]].values.astype(np.float32)
+        y["val"] = val_df[df_info["y_col"]].values.astype(np.float32)
+        y["test"] = test_df[df_info["y_col"]].values.astype(np.float32)
+
+        if df_info["num_cols"] is not None:
+            X_num["train"] = train_df[df_info["num_cols"]].values.astype(np.float32)
+            X_num["val"] = val_df[df_info["num_cols"]].values.astype(np.float32)
+            X_num["test"] = test_df[df_info["num_cols"]].values.astype(np.float32)
+
+        cat_column_orders = [column_to_index[col] for col in cat_cols_with_y]
+        num_column_orders = [column_to_index[col] for col in df_info["num_cols"]]
+
+    else:
+        X_cat = {} if df_info["cat_cols"] is not None else None
+        X_num = {} if df_info["num_cols"] is not None or is_y_cond == "concat" else None
+        y = {}
+
+        num_cols_with_y = []
+        if df_info["num_cols"] is not None:
+            num_cols_with_y += df_info["num_cols"]
+        if is_y_cond == "concat":
+            num_cols_with_y = [df_info["y_col"]] + num_cols_with_y
+
+        if len(num_cols_with_y) > 0:
+            X_num["train"] = train_df[num_cols_with_y].values.astype(np.float32)
+            X_num["val"] = val_df[num_cols_with_y].values.astype(np.float32)
+            X_num["test"] = test_df[num_cols_with_y].values.astype(np.float32)
+
+        y["train"] = train_df[df_info["y_col"]].values.astype(np.float32)
+        y["val"] = val_df[df_info["y_col"]].values.astype(np.float32)
+        y["test"] = test_df[df_info["y_col"]].values.astype(np.float32)
+
+        if df_info["cat_cols"] is not None:
+            X_cat["train"] = train_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+            X_cat["val"] = val_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+            X_cat["test"] = test_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+
+        cat_column_orders = [column_to_index[col] for col in df_info["cat_cols"]]
+        num_column_orders = [column_to_index[col] for col in num_cols_with_y]
+
+    column_orders = num_column_orders + cat_column_orders
+    column_orders = [index_to_column[index] for index in column_orders]
+
+    label_encoders = {}
+    if X_cat is not None and len(df_info["cat_cols"]) > 0:
+        X_cat_all = np.vstack((X_cat["train"], X_cat["val"], X_cat["test"]))
+        X_cat_converted = []
+        for col_index in range(X_cat_all.shape[1]):
+            label_encoder = LabelEncoder()
+            X_cat_converted.append(
+                label_encoder.fit_transform(X_cat_all[:, col_index]).astype(float)
+            )
+            if std > 0:
+                # add noise
+                X_cat_converted[-1] += np.random.normal(
+                    0, std, X_cat_converted[-1].shape
+                )
+            label_encoders[col_index] = label_encoder
+
+        X_cat_converted = np.vstack(X_cat_converted).T
+
+        train_num = X_cat["train"].shape[0]
+        val_num = X_cat["val"].shape[0]
+        test_num = X_cat["test"].shape[0]
+
+        X_cat["train"] = X_cat_converted[:train_num, :]
+        X_cat["val"] = X_cat_converted[train_num : train_num + val_num, :]
+        X_cat["test"] = X_cat_converted[train_num + val_num :, :]
+
+        if len(X_num) > 0:
+            X_num["train"] = np.concatenate((X_num["train"], X_cat["train"]), axis=1)
+            X_num["val"] = np.concatenate((X_num["val"], X_cat["val"]), axis=1)
+            X_num["test"] = np.concatenate((X_num["test"], X_cat["test"]), axis=1)
+        else:
+            X_num = X_cat
+            X_cat = None
+
+    D = Dataset(
+        X_num,
+        None,
+        y,
+        y_info={},
+        task_type=TaskType(df_info["task_type"]),
+        n_classes=df_info["n_classes"],
+    )
+
+    return transform_dataset(D, T, None), label_encoders, column_orders
+
+
+def prepare_fast_dataloader(
+    D: Dataset, split: str, batch_size: int, y_type: str = "float"
+):
+    if D.X_cat is not None:
+        if D.X_num is not None:
+            X = torch.from_numpy(
+                np.concatenate([D.X_num[split], D.X_cat[split]], axis=1)
+            ).float()
+        else:
+            X = torch.from_numpy(D.X_cat[split]).float()
+    else:
+        X = torch.from_numpy(D.X_num[split]).float()
+    if y_type == "float":
+        y = torch.from_numpy(D.y[split]).float()
+    else:
+        y = torch.from_numpy(D.y[split]).long()
+    dataloader = FastTensorDataLoader(
+        X, y, batch_size=batch_size, shuffle=(split == "train")
+    )
+    while True:
+        yield from dataloader
+
+
+def get_model(
+    model_name,
+    model_params,
+):
+    print(model_name)
+    if model_name == "mlp":
+        model = MLPDiffusion(**model_params)
+    elif model_name == "resnet":
+        model = ResNetDiffusion(**model_params)
+    else:
+        raise "Unknown model!"
+    return model
+
+
+def update_ema(target_params, source_params, rate=0.999):
+    """
+    Update target parameters to be closer to those of source parameters using
+    an exponential moving average.
+    :param target_params: the target parameter sequence.
+    :param source_params: the source parameter sequence.
+    :param rate: the EMA rate (closer to 1 means slower).
+    """
+    for targ, src in zip(target_params, source_params):
+        targ.detach().mul_(rate).add_(src.detach(), alpha=1 - rate)
+
+
+class ScheduleSampler(ABC):
+    """
+    A distribution over timesteps in the diffusion process, intended to reduce
+    variance of the objective.
+
+    By default, samplers perform unbiased importance sampling, in which the
+    objective's mean is unchanged.
+    However, subclasses may override sample() to change how the resampled
+    terms are reweighted, allowing for actual changes in the objective.
+    """
+
+    @abstractmethod
+    def weights(self):
+        """
+        Get a numpy array of weights, one per diffusion step.
+
+        The weights needn't be normalized, but must be positive.
+        """
+
+    def sample(self, batch_size, device):
+        """
+        Importance-sample timesteps for a batch.
+
+        :param batch_size: the number of timesteps.
+        :param device: the torch device to save to.
+        :return: a tuple (timesteps, weights):
+                 - timesteps: a tensor of timestep indices.
+                 - weights: a tensor of weights to scale the resulting losses.
+        """
+        w = self.weights()
+        p = w / np.sum(w)
+        indices_np = np.random.choice(len(p), size=(batch_size,), p=p)
+        indices = torch.from_numpy(indices_np).long().to(device)
+        weights_np = 1 / (len(p) * p[indices_np])
+        weights = torch.from_numpy(weights_np).float().to(device)
+        return indices, weights
+
+
+class UniformSampler(ScheduleSampler):
+    def __init__(self, diffusion):
+        self.diffusion = diffusion
+        self._weights = np.ones([diffusion.num_timesteps])
+
+    def weights(self):
+        return self._weights
+    
+
+class LossAwareSampler(ScheduleSampler):
+    def update_with_local_losses(self, local_ts, local_losses):
+        """
+        Update the reweighting using losses from a model.
+
+        Call this method from each rank with a batch of timesteps and the
+        corresponding losses for each of those timesteps.
+        This method will perform synchronization to make sure all of the ranks
+        maintain the exact same reweighting.
+
+        :param local_ts: an integer Tensor of timesteps.
+        :param local_losses: a 1D Tensor of losses.
+        """
+        batch_sizes = [
+            torch.tensor([0], dtype=torch.int32, device=local_ts.device)
+            for _ in range(torch.distributed.get_world_size())
+        ]
+        torch.distributed.all_gather(
+            batch_sizes,
+            torch.tensor([len(local_ts)], dtype=torch.int32, device=local_ts.device),
+        )
+
+        # Pad all_gather batches to be the maximum batch size.
+        batch_sizes = [x.item() for x in batch_sizes]
+        max_bs = max(batch_sizes)
+
+        timestep_batches = [torch.zeros(max_bs).to(local_ts) for bs in batch_sizes]
+        loss_batches = [torch.zeros(max_bs).to(local_losses) for bs in batch_sizes]
+        torch.distributed.all_gather(timestep_batches, local_ts)
+        torch.distributed.all_gather(loss_batches, local_losses)
+        timesteps = [
+            x.item() for y, bs in zip(timestep_batches, batch_sizes) for x in y[:bs]
+        ]
+        losses = [x.item() for y, bs in zip(loss_batches, batch_sizes) for x in y[:bs]]
+        self.update_with_all_losses(timesteps, losses)
+
+    @abstractmethod
+    def update_with_all_losses(self, ts, losses):
+        """
+        Update the reweighting using losses from a model.
+
+        Sub-classes should override this method to update the reweighting
+        using losses from the model.
+
+        This method directly updates the reweighting without synchronizing
+        between workers. It is called by update_with_local_losses from all
+        ranks with identical arguments. Thus, it should have deterministic
+        behavior to maintain state across workers.
+
+        :param ts: a list of int timesteps.
+        :param losses: a list of float losses, one per timestep.
+        """
+
+class LossSecondMomentResampler(LossAwareSampler):
+    def __init__(self, diffusion, history_per_term=10, uniform_prob=0.001):
+        self.diffusion = diffusion
+        self.history_per_term = history_per_term
+        self.uniform_prob = uniform_prob
+        self._loss_history = np.zeros(
+            [diffusion.num_timesteps, history_per_term], dtype=np.float64
+        )
+        self._loss_counts = np.zeros([diffusion.num_timesteps], dtype=np.int)
+
+    def weights(self):
+        if not self._warmed_up():
+            return np.ones([self.diffusion.num_timesteps], dtype=np.float64)
+        weights = np.sqrt(np.mean(self._loss_history**2, axis=-1))
+        weights /= np.sum(weights)
+        weights *= 1 - self.uniform_prob
+        weights += self.uniform_prob / len(weights)
+        return weights
+
+    def update_with_all_losses(self, ts, losses):
+        for t, loss in zip(ts, losses):
+            if self._loss_counts[t] == self.history_per_term:
+                # Shift out the oldest loss term.
+                self._loss_history[t, :-1] = self._loss_history[t, 1:]
+                self._loss_history[t, -1] = loss
+            else:
+                self._loss_history[t, self._loss_counts[t]] = loss
+                self._loss_counts[t] += 1
+
+    def _warmed_up(self):
+        return (self._loss_counts == self.history_per_term).all()
+
+
+def create_named_schedule_sampler(name, diffusion):
+    """
+    Create a ScheduleSampler from a library of pre-defined samplers.
+
+    :param name: the name of the sampler.
+    :param diffusion: the diffusion object to sample for.
+    """
+    if name == "uniform":
+        return UniformSampler(diffusion)
+    elif name == "loss-second-moment":
+        return LossSecondMomentResampler(diffusion)
+    else:
+        raise NotImplementedError(f"unknown schedule sampler: {name}")
+
+
+def split_microbatches(microbatch, *args):
+    bs = len(args[0])
+    if microbatch == -1 or microbatch >= bs:
+        yield tuple(args)
+    else:
+        for i in range(0, bs, microbatch):
+            yield tuple(x[i : i + microbatch] if x is not None else None for x in args)
+
+
+def compute_top_k(logits, labels, k, reduction="mean"):
+    _, top_ks = torch.topk(logits, k, dim=-1)
+    if reduction == "mean":
+        return (top_ks == labels[:, None]).float().sum(dim=-1).mean().item()
+    elif reduction == "none":
+        return (top_ks == labels[:, None]).float().sum(dim=-1)
+
+
+
+def log_loss_dict(diffusion, ts, losses):
+    for key, values in losses.items():
+        logger.logkv_mean(key, values.mean().item())
+        # Log the quantiles (four quartiles, in particular).
+        for sub_t, sub_loss in zip(ts.cpu().numpy(), values.detach().cpu().numpy()):
+            quartile = int(4 * sub_t / diffusion.num_timesteps)
+            logger.logkv_mean(f"{key}_q{quartile}", sub_loss)
+
+
+def numerical_forward_backward_log(
+    classifier,
+    optimizer,
+    data_loader,
+    dataset,
+    schedule_sampler,
+    diffusion,
+    prefix="train",
+    remove_first_col=False,
+    device="cuda",
+):
+    batch, labels = next(data_loader)
+    labels = labels.long().to(device)
+
+    if remove_first_col:
+        # Remove the first column of the batch, which is the label.
+        batch = batch[:, 1:]
+
+    num_batch = batch[:, : dataset.n_num_features].to(device)
+
+    t, _ = schedule_sampler.sample(num_batch.shape[0], device)
+    batch = diffusion.gaussian_q_sample(num_batch, t).to(device)
+
+    for i, (sub_batch, sub_labels, sub_t) in enumerate(
+        split_microbatches(-1, batch, labels, t)
+    ):
+        logits = classifier(sub_batch, timesteps=sub_t)
+        loss = F.cross_entropy(logits, sub_labels, reduction="none")
+
+        losses = {}
+        losses[f"{prefix}_loss"] = loss.detach()
+        losses[f"{prefix}_acc@1"] = compute_top_k(
+            logits, sub_labels, k=1, reduction="none"
+        )
+        if logits.shape[1] >= 5:
+            losses[f"{prefix}_acc@5"] = compute_top_k(
+                logits, sub_labels, k=5, reduction="none"
+            )
+        log_loss_dict(diffusion, sub_t, losses)
+        del losses
+        loss = loss.mean()
+        if loss.requires_grad:
+            if i == 0:
+                optimizer.zero_grad()
+            loss.backward(loss * len(sub_batch) / len(batch))
+
+
+def transform_dataset(
+    dataset: Dataset,
+    transformations: Transformations,
+    cache_dir: Optional[Path],
+    transform_cols_num: int = 0,
+) -> Dataset:
+    # WARNING: the order of transformations matters. Moreover, the current
+    # implementation is not ideal in that sense.
+    if cache_dir is not None:
+        transformations_md5 = hashlib.md5(
+            str(transformations).encode("utf-8")
+        ).hexdigest()
+        transformations_str = "__".join(map(str, astuple(transformations)))
+        cache_path = (
+            cache_dir / f"cache__{transformations_str}__{transformations_md5}.pickle"
+        )
+        if cache_path.exists():
+            cache_transformations, value = load_pickle(cache_path)
+            if transformations == cache_transformations:
+                print(
+                    f"Using cached features: {cache_dir.name + '/' + cache_path.name}"
+                )
+                return value
+            else:
+                raise RuntimeError(f"Hash collision for {cache_path}")
+    else:
+        cache_path = None
+
+    if dataset.X_num is not None:
+        dataset = num_process_nans(dataset, transformations.num_nan_policy)
+
+    num_transform = None
+    cat_transform = None
+    X_num = dataset.X_num
+
+    if X_num is not None and transformations.normalization is not None:
+        X_num, num_transform = normalize(
+            X_num,
+            transformations.normalization,
+            transformations.seed,
+            return_normalizer=True,
+        )
+        num_transform = num_transform
+
+    if dataset.X_cat is None:
+        assert transformations.cat_nan_policy is None
+        assert transformations.cat_min_frequency is None
+        # assert transformations.cat_encoding is None
+        X_cat = None
+    else:
+        X_cat = cat_process_nans(dataset.X_cat, transformations.cat_nan_policy)
+        if transformations.cat_min_frequency is not None:
+            X_cat = cat_drop_rare(X_cat, transformations.cat_min_frequency)
+        X_cat, is_num, cat_transform = cat_encode(
+            X_cat,
+            transformations.cat_encoding,
+            dataset.y["train"],
+            transformations.seed,
+            return_encoder=True,
+        )
+        if is_num:
+            X_num = (
+                X_cat
+                if X_num is None
+                else {x: np.hstack([X_num[x], X_cat[x]]) for x in X_num}
+            )
+            X_cat = None
+
+    y, y_info = build_target(dataset.y, transformations.y_policy, dataset.task_type)
+
+    dataset = replace(dataset, X_num=X_num, X_cat=X_cat, y=y, y_info=y_info)
+    dataset.num_transform = num_transform
+    dataset.cat_transform = cat_transform
+
+    if cache_path is not None:
+        dump_pickle((transformations, dataset), cache_path)
+    # if return_transforms:
+    # return dataset, num_transform, cat_transform
+    return dataset
+
+
+def load_pickle(path: Union[Path, str], **kwargs) -> Any:
+    return pickle.loads(Path(path).read_bytes(), **kwargs)
+
+
+def dump_pickle(x: Any, path: Union[Path, str], **kwargs) -> None:
+    Path(path).write_bytes(pickle.dumps(x, **kwargs))
+
+
+def num_process_nans(dataset: Dataset, policy: Optional[NumNanPolicy]) -> Dataset:
+    assert dataset.X_num is not None
+    nan_masks = {k: np.isnan(v) for k, v in dataset.X_num.items()}
+    if not any(x.any() for x in nan_masks.values()):  # type: ignore[code]
+        assert policy is None
+        return dataset
+
+    assert policy is not None
+    if policy == "drop-rows":
+        valid_masks = {k: ~v.any(1) for k, v in nan_masks.items()}
+        assert valid_masks[
+            "test"
+        ].all(), "Cannot drop test rows, since this will affect the final metrics."
+        new_data = {}
+        for data_name in ["X_num", "X_cat", "y"]:
+            data_dict = getattr(dataset, data_name)
+            if data_dict is not None:
+                new_data[data_name] = {
+                    k: v[valid_masks[k]] for k, v in data_dict.items()
+                }
+        dataset = replace(dataset, **new_data)
+    elif policy == "mean":
+        new_values = np.nanmean(dataset.X_num["train"], axis=0)
+        X_num = deepcopy(dataset.X_num)
+        for k, v in X_num.items():
+            num_nan_indices = np.where(nan_masks[k])
+            v[num_nan_indices] = np.take(new_values, num_nan_indices[1])
+        dataset = replace(dataset, X_num=X_num)
+    else:
+        assert util.raise_unknown("policy", policy)
+    return dataset
+
+
+# Inspired by: https://github.com/yandex-research/rtdl/blob/a4c93a32b334ef55d2a0559a4407c8306ffeeaee/lib/data.py#L20
+def normalize(
+    X: ArrayDict,
+    normalization: Normalization,
+    seed: Optional[int],
+    return_normalizer: bool = False,
+) -> ArrayDict:
+    X_train = X["train"]
+    if normalization == "standard":
+        normalizer = StandardScaler()
+    elif normalization == "minmax":
+        normalizer = MinMaxScaler()
+    elif normalization == "quantile":
+        normalizer = QuantileTransformer(
+            output_distribution="normal",
+            n_quantiles=max(min(X["train"].shape[0] // 30, 1000), 10),
+            subsample=int(1e9),
+            random_state=seed,
+        )
+        # noise = 1e-3
+        # if noise > 0:
+        #     assert seed is not None
+        #     stds = np.std(X_train, axis=0, keepdims=True)
+        #     noise_std = noise / np.maximum(stds, noise)  # type: ignore[code]
+        #     X_train = X_train + noise_std * np.random.default_rng(seed).standard_normal(
+        #         X_train.shape
+        #     )
+    else:
+        ValueError(f"Unknown normalization: {normalization}")
+    normalizer.fit(X_train)
+    if return_normalizer:
+        return {k: normalizer.transform(v) for k, v in X.items()}, normalizer
+    return {k: normalizer.transform(v) for k, v in X.items()}
+
+
+def cat_process_nans(X: ArrayDict, policy: Optional[CatNanPolicy]) -> ArrayDict:
+    assert X is not None
+    nan_masks = {k: v == CAT_MISSING_VALUE for k, v in X.items()}
+    if any(x.any() for x in nan_masks.values()):  # type: ignore[code]
+        if policy is None:
+            X_new = X
+        elif policy == "most_frequent":
+            imputer = SimpleImputer(missing_values=CAT_MISSING_VALUE, strategy=policy)  # type: ignore[code]
+            imputer.fit(X["train"])
+            X_new = {k: cast(np.ndarray, imputer.transform(v)) for k, v in X.items()}
+        else:
+            ValueError(f"Unknown cat_nan_policy: {policy}")
+    else:
+        assert policy is None
+        X_new = X
+    return X_new
+
+
+def cat_drop_rare(X: ArrayDict, min_frequency: float) -> ArrayDict:
+    assert 0.0 < min_frequency < 1.0
+    min_count = round(len(X["train"]) * min_frequency)
+    X_new = {x: [] for x in X}
+    for column_idx in range(X["train"].shape[1]):
+        counter = Counter(X["train"][:, column_idx].tolist())
+        popular_categories = {k for k, v in counter.items() if v >= min_count}
+        for part in X_new:
+            X_new[part].append(
+                [
+                    (x if x in popular_categories else CAT_RARE_VALUE)
+                    for x in X[part][:, column_idx].tolist()
+                ]
+            )
+    return {k: np.array(v).T for k, v in X_new.items()}
+
+
+def cat_encode(
+    X: ArrayDict,
+    encoding: Optional[CatEncoding],
+    y_train: Optional[np.ndarray],
+    seed: Optional[int],
+    return_encoder: bool = False,
+) -> Tuple[ArrayDict, bool, Optional[Any]]:  # (X, is_converted_to_numerical)
+    if encoding != "counter":
+        y_train = None
+
+    # Step 1. Map strings to 0-based ranges
+
+    if encoding is None:
+        unknown_value = np.iinfo("int64").max - 3
+        oe = OrdinalEncoder(
+            handle_unknown="use_encoded_value",  # type: ignore[code]
+            unknown_value=unknown_value,  # type: ignore[code]
+            dtype="int64",  # type: ignore[code]
+        ).fit(X["train"])
+        encoder = make_pipeline(oe)
+        encoder.fit(X["train"])
+        X = {k: encoder.transform(v) for k, v in X.items()}
+        max_values = X["train"].max(axis=0)
+        for part in X.keys():
+            if part == "train":
+                continue
+            for column_idx in range(X[part].shape[1]):
+                X[part][X[part][:, column_idx] == unknown_value, column_idx] = (
+                    max_values[column_idx] + 1
+                )
+        if return_encoder:
+            return (X, False, encoder)
+        return (X, False)
+
+    # Step 2. Encode.
+
+    elif encoding == "one-hot":
+        ohe = OneHotEncoder(
+            handle_unknown="ignore",
+            sparse=False,
+            dtype=np.float32,  # type: ignore[code]
+        )
+        encoder = make_pipeline(ohe)
+
+        # encoder.steps.append(('ohe', ohe))
+        encoder.fit(X["train"])
+        X = {k: encoder.transform(v) for k, v in X.items()}
+    elif encoding == "counter":
+        assert y_train is not None
+        assert seed is not None
+        loe = LeaveOneOutEncoder(sigma=0.1, random_state=seed, return_df=False)
+        encoder.steps.append(("loe", loe))
+        encoder.fit(X["train"], y_train)
+        X = {k: encoder.transform(v).astype("float32") for k, v in X.items()}  # type: ignore[code]
+        if not isinstance(X["train"], pd.DataFrame):
+            X = {k: v.values for k, v in X.items()}  # type: ignore[code]
+    else:
+        util.raise_unknown("encoding", encoding)
+
+    if return_encoder:
+        return X, True, encoder  # type: ignore[code]
+    return (X, True)
+
+
+def build_target(
+    y: ArrayDict, policy: Optional[YPolicy], task_type: TaskType
+) -> Tuple[ArrayDict, Dict[str, Any]]:
+    info: Dict[str, Any] = {"policy": policy}
+    if policy is None:
+        pass
+    elif policy == "default":
+        if task_type == TaskType.REGRESSION:
+            mean, std = float(y["train"].mean()), float(y["train"].std())
+            y = {k: (v - mean) / std for k, v in y.items()}
+            info["mean"] = mean
+            info["std"] = std
+    else:
+        util.raise_unknown("policy", policy)
+    return y, info
+
+
+class Trainer:
+    def __init__(
+        self,
+        diffusion,
+        train_iter,
+        lr,
+        weight_decay,
+        steps,
+        device=torch.device("cuda:1"),
+    ):
+        self.diffusion = diffusion
+        self.ema_model = deepcopy(self.diffusion._denoise_fn)
+        for param in self.ema_model.parameters():
+            param.detach_()
+
+        self.train_iter = train_iter
+        self.steps = steps
+        self.init_lr = lr
+        self.optimizer = torch.optim.AdamW(
+            self.diffusion.parameters(), lr=lr, weight_decay=weight_decay
+        )
+        self.device = device
+        self.loss_history = pd.DataFrame(columns=["step", "mloss", "gloss", "loss"])
+        self.log_every = 100
+        self.print_every = 500
+        self.ema_every = 1000
+
+    def _anneal_lr(self, step):
+        frac_done = step / self.steps
+        lr = self.init_lr * (1 - frac_done)
+        for param_group in self.optimizer.param_groups:
+            param_group["lr"] = lr
+
+    def _run_step(self, x, out_dict):
+        x = x.to(self.device)
+        for k in out_dict:
+            out_dict[k] = out_dict[k].long().to(self.device)
+        self.optimizer.zero_grad()
+        loss_multi, loss_gauss = self.diffusion.mixed_loss(x, out_dict)
+        loss = loss_multi + loss_gauss
+        loss.backward()
+        self.optimizer.step()
+
+        return loss_multi, loss_gauss
+
+    def run_loop(self):
+        step = 0
+        curr_loss_multi = 0.0
+        curr_loss_gauss = 0.0
+
+        curr_count = 0
+        while step < self.steps:
+            x, out_dict = next(self.train_iter)
+            out_dict = {"y": out_dict}
+            batch_loss_multi, batch_loss_gauss = self._run_step(x, out_dict)
+
+            self._anneal_lr(step)
+
+            curr_count += len(x)
+            curr_loss_multi += batch_loss_multi.item() * len(x)
+            curr_loss_gauss += batch_loss_gauss.item() * len(x)
+
+            if (step + 1) % self.log_every == 0:
+                mloss = np.around(curr_loss_multi / curr_count, 4)
+                gloss = np.around(curr_loss_gauss / curr_count, 4)
+                if (step + 1) % self.print_every == 0:
+                    print(
+                        f"Step {(step + 1)}/{self.steps} MLoss: {mloss} GLoss: {gloss} Sum: {mloss + gloss}"
+                    )
+                self.loss_history.loc[len(self.loss_history)] = [
+                    step + 1,
+                    mloss,
+                    gloss,
+                    mloss + gloss,
+                ]
+                curr_count = 0
+                curr_loss_gauss = 0.0
+                curr_loss_multi = 0.0
+
+            update_ema(
+                self.ema_model.parameters(), self.diffusion._denoise_fn.parameters()
+            )
+
+            step += 1
+
+class Classifier(nn.Module):
+    def __init__(
+        self,
+        d_in,
+        d_out,
+        dim_t,
+        hidden_sizes,
+        dropout_prob=0.5,
+        num_heads=2,
+        num_layers=1,
+    ):
+        super(Classifier, self).__init__()
+
+        self.dim_t = dim_t
+        self.proj = nn.Linear(d_in, dim_t)
+
+        self.transformer_layer = nn.Transformer(
+            d_model=dim_t, nhead=num_heads, num_encoder_layers=num_layers
+        )
+
+        self.time_embed = nn.Sequential(
+            nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t)
+        )
+
+        # Create a list to hold the layers
+        layers = []
+
+        # Add input layer
+        layers.append(nn.Linear(dim_t, hidden_sizes[0]))
+        layers.append(nn.ReLU())
+        layers.append(nn.BatchNorm1d(hidden_sizes[0]))  # Batch Normalization
+        layers.append(nn.Dropout(p=dropout_prob))
+
+        # Add hidden layers with batch normalization and different activation
+        for i in range(len(hidden_sizes) - 1):
+            layers.append(nn.Linear(hidden_sizes[i], hidden_sizes[i + 1]))
+            layers.append(nn.LeakyReLU())  # Different activation
+            layers.append(nn.BatchNorm1d(hidden_sizes[i + 1]))  # Batch Normalization
+            layers.append(nn.Dropout(p=dropout_prob))
+
+        # Add output layer
+        layers.append(nn.Linear(hidden_sizes[-1], d_out))
+
+        # Create a Sequential model from the list of layers
+        self.model = nn.Sequential(*layers)
+
+    def forward(self, x, timesteps):
+        emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
+        x = self.proj(x) + emb
+        # x = self.transformer_layer(x, x)
+        x = self.model(x)
+        return x
+
+
+class FastTensorDataLoader:
+    """
+    A DataLoader-like object for a set of tensors that can be much faster than
+    TensorDataset + DataLoader because dataloader grabs individual indices of
+    the dataset and calls cat (slow).
+    Source: https://discuss.pytorch.org/t/dataloader-much-slower-than-manual-batching/27014/6
+    """
+
+    def __init__(self, *tensors, batch_size=32, shuffle=False):
+        """
+        Initialize a FastTensorDataLoader.
+        :param *tensors: tensors to store. Must have the same length @ dim 0.
+        :param batch_size: batch size to load.
+        :param shuffle: if True, shuffle the data *in-place* whenever an
+            iterator is created out of this object.
+        :returns: A FastTensorDataLoader.
+        """
+        assert all(t.shape[0] == tensors[0].shape[0] for t in tensors)
+        self.tensors = tensors
+
+        self.dataset_len = self.tensors[0].shape[0]
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+
+        # Calculate # batches
+        n_batches, remainder = divmod(self.dataset_len, self.batch_size)
+        if remainder > 0:
+            n_batches += 1
+        self.n_batches = n_batches
+
+    def __iter__(self):
+        if self.shuffle:
+            r = torch.randperm(self.dataset_len)
+            self.tensors = [t[r] for t in self.tensors]
+        self.i = 0
+        return self
+
+    def __next__(self):
+        if self.i >= self.dataset_len:
+            raise StopIteration
+        batch = tuple(t[self.i : self.i + self.batch_size] for t in self.tensors)
+        self.i += self.batch_size
+        return batch
+
+    def __len__(self):
+        return self.n_batches
+    
+
+def timestep_embedding(timesteps, dim, max_period=10000):
+    """
+    Create sinusoidal timestep embeddings.
+
+    :param timesteps: a 1-D Tensor of N indices, one per batch element.
+                      These may be fractional.
+    :param dim: the dimension of the output.
+    :param max_period: controls the minimum frequency of the embeddings.
+    :return: an [N x dim] Tensor of positional embeddings.
+    """
+    half = dim // 2
+    freqs = torch.exp(
+        -math.log(max_period)
+        * torch.arange(start=0, end=half, dtype=torch.float32)
+        / half
+    ).to(device=timesteps.device)
+    args = timesteps[:, None].float() * freqs[None]
+    embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
+    if dim % 2:
+        embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
+    return embedding
+
+class MLP(nn.Module):
+    """The MLP model used in [gorishniy2021revisiting].
+
+    The following scheme describes the architecture:
+
+    .. code-block:: text
+
+          MLP: (in) -> Block -> ... -> Block -> Linear -> (out)
+        Block: (in) -> Linear -> Activation -> Dropout -> (out)
+
+    Examples:
+        .. testcode::
+
+            x = torch.randn(4, 2)
+            module = MLP.make_baseline(x.shape[1], [3, 5], 0.1, 1)
+            assert module(x).shape == (len(x), 1)
+
+    References:
+        * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov, Artem Babenko, "Revisiting Deep Learning Models for Tabular Data", 2021
+    """
+
+    class Block(nn.Module):
+        """The main building block of `MLP`."""
+
+        def __init__(
+            self,
+            *,
+            d_in: int,
+            d_out: int,
+            bias: bool,
+            activation: ModuleType,
+            dropout: float,
+        ) -> None:
+            super().__init__()
+            self.linear = nn.Linear(d_in, d_out, bias)
+            self.activation = _make_nn_module(activation)
+            self.dropout = nn.Dropout(dropout)
+
+        def forward(self, x: Tensor) -> Tensor:
+            return self.dropout(self.activation(self.linear(x)))
+
+    def __init__(
+        self,
+        *,
+        d_in: int,
+        d_layers: List[int],
+        dropouts: Union[float, List[float]],
+        activation: Union[str, Callable[[], nn.Module]],
+        d_out: int,
+    ) -> None:
+        """
+        Note:
+            `make_baseline` is the recommended constructor.
+        """
+        super().__init__()
+        if isinstance(dropouts, float):
+            dropouts = [dropouts] * len(d_layers)
+        assert len(d_layers) == len(dropouts)
+        assert activation not in ["ReGLU", "GEGLU"]
+
+        self.blocks = nn.ModuleList(
+            [
+                MLP.Block(
+                    d_in=d_layers[i - 1] if i else d_in,
+                    d_out=d,
+                    bias=True,
+                    activation=activation,
+                    dropout=dropout,
+                )
+                for i, (d, dropout) in enumerate(zip(d_layers, dropouts))
+            ]
+        )
+        self.head = nn.Linear(d_layers[-1] if d_layers else d_in, d_out)
+
+    @classmethod
+    def make_baseline(
+        cls: Type["MLP"],
+        d_in: int,
+        d_layers: List[int],
+        dropout: float,
+        d_out: int,
+    ) -> "MLP":
+        """Create a "baseline" `MLP`.
+
+        This variation of MLP was used in [gorishniy2021revisiting]. Features:
+
+        * :code:`Activation` = :code:`ReLU`
+        * all linear layers except for the first one and the last one are of the same dimension
+        * the dropout rate is the same for all dropout layers
+
+        Args:
+            d_in: the input size
+            d_layers: the dimensions of the linear layers. If there are more than two
+                layers, then all of them except for the first and the last ones must
+                have the same dimension. Valid examples: :code:`[]`, :code:`[8]`,
+                :code:`[8, 16]`, :code:`[2, 2, 2, 2]`, :code:`[1, 2, 2, 4]`. Invalid
+                example: :code:`[1, 2, 3, 4]`.
+            dropout: the dropout rate for all hidden layers
+            d_out: the output size
+        Returns:
+            MLP
+
+        References:
+            * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov, Artem Babenko, "Revisiting Deep Learning Models for Tabular Data", 2021
+        """
+        assert isinstance(dropout, float)
+        if len(d_layers) > 2:
+            assert len(set(d_layers[1:-1])) == 1, (
+                "if d_layers contains more than two elements, then"
+                " all elements except for the first and the last ones must be equal."
+            )
+        return MLP(
+            d_in=d_in,
+            d_layers=d_layers,  # type: ignore
+            dropouts=dropout,
+            activation="ReLU",
+            d_out=d_out,
+        )
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = x.float()
+        for block in self.blocks:
+            x = block(x)
+        x = self.head(x)
+        return x
+
+
+class ResNet(nn.Module):
+    """The ResNet model used in [gorishniy2021revisiting].
+    The following scheme describes the architecture:
+    .. code-block:: text
+        ResNet: (in) -> Linear -> Block -> ... -> Block -> Head -> (out)
+                 |-> Norm -> Linear -> Activation -> Dropout -> Linear -> Dropout ->|
+                 |                                                                  |
+         Block: (in) ------------------------------------------------------------> Add -> (out)
+          Head: (in) -> Norm -> Activation -> Linear -> (out)
+    Examples:
+        .. testcode::
+            x = torch.randn(4, 2)
+            module = ResNet.make_baseline(
+                d_in=x.shape[1],
+                n_blocks=2,
+                d_main=3,
+                d_hidden=4,
+                dropout_first=0.25,
+                dropout_second=0.0,
+                d_out=1
+            )
+            assert module(x).shape == (len(x), 1)
+    References:
+        * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov, Artem Babenko, "Revisiting Deep Learning Models for Tabular Data", 2021
+    """
+
+    class Block(nn.Module):
+        """The main building block of `ResNet`."""
+
+        def __init__(
+            self,
+            *,
+            d_main: int,
+            d_hidden: int,
+            bias_first: bool,
+            bias_second: bool,
+            dropout_first: float,
+            dropout_second: float,
+            normalization: ModuleType,
+            activation: ModuleType,
+            skip_connection: bool,
+        ) -> None:
+            super().__init__()
+            self.normalization = _make_nn_module(normalization, d_main)
+            self.linear_first = nn.Linear(d_main, d_hidden, bias_first)
+            self.activation = _make_nn_module(activation)
+            self.dropout_first = nn.Dropout(dropout_first)
+            self.linear_second = nn.Linear(d_hidden, d_main, bias_second)
+            self.dropout_second = nn.Dropout(dropout_second)
+            self.skip_connection = skip_connection
+
+        def forward(self, x: Tensor) -> Tensor:
+            x_input = x
+            x = self.normalization(x)
+            x = self.linear_first(x)
+            x = self.activation(x)
+            x = self.dropout_first(x)
+            x = self.linear_second(x)
+            x = self.dropout_second(x)
+            if self.skip_connection:
+                x = x_input + x
+            return x
+
+    class Head(nn.Module):
+        """The final module of `ResNet`."""
+
+        def __init__(
+            self,
+            *,
+            d_in: int,
+            d_out: int,
+            bias: bool,
+            normalization: ModuleType,
+            activation: ModuleType,
+        ) -> None:
+            super().__init__()
+            self.normalization = _make_nn_module(normalization, d_in)
+            self.activation = _make_nn_module(activation)
+            self.linear = nn.Linear(d_in, d_out, bias)
+
+        def forward(self, x: Tensor) -> Tensor:
+            if self.normalization is not None:
+                x = self.normalization(x)
+            x = self.activation(x)
+            x = self.linear(x)
+            return x
+
+    def __init__(
+        self,
+        *,
+        d_in: int,
+        n_blocks: int,
+        d_main: int,
+        d_hidden: int,
+        dropout_first: float,
+        dropout_second: float,
+        normalization: ModuleType,
+        activation: ModuleType,
+        d_out: int,
+    ) -> None:
+        """
+        Note:
+            `make_baseline` is the recommended constructor.
+        """
+        super().__init__()
+
+        self.first_layer = nn.Linear(d_in, d_main)
+        if d_main is None:
+            d_main = d_in
+        self.blocks = nn.Sequential(
+            *[
+                ResNet.Block(
+                    d_main=d_main,
+                    d_hidden=d_hidden,
+                    bias_first=True,
+                    bias_second=True,
+                    dropout_first=dropout_first,
+                    dropout_second=dropout_second,
+                    normalization=normalization,
+                    activation=activation,
+                    skip_connection=True,
+                )
+                for _ in range(n_blocks)
+            ]
+        )
+        self.head = ResNet.Head(
+            d_in=d_main,
+            d_out=d_out,
+            bias=True,
+            normalization=normalization,
+            activation=activation,
+        )
+
+    @classmethod
+    def make_baseline(
+        cls: Type["ResNet"],
+        *,
+        d_in: int,
+        n_blocks: int,
+        d_main: int,
+        d_hidden: int,
+        dropout_first: float,
+        dropout_second: float,
+        d_out: int,
+    ) -> "ResNet":
+        """Create a "baseline" `ResNet`.
+        This variation of ResNet was used in [gorishniy2021revisiting]. Features:
+        * :code:`Activation` = :code:`ReLU`
+        * :code:`Norm` = :code:`BatchNorm1d`
+        Args:
+            d_in: the input size
+            n_blocks: the number of Blocks
+            d_main: the input size (or, equivalently, the output size) of each Block
+            d_hidden: the output size of the first linear layer in each Block
+            dropout_first: the dropout rate of the first dropout layer in each Block.
+            dropout_second: the dropout rate of the second dropout layer in each Block.
+        References:
+            * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov, Artem Babenko, "Revisiting Deep Learning Models for Tabular Data", 2021
+        """
+        return cls(
+            d_in=d_in,
+            n_blocks=n_blocks,
+            d_main=d_main,
+            d_hidden=d_hidden,
+            dropout_first=dropout_first,
+            dropout_second=dropout_second,
+            normalization="BatchNorm1d",
+            activation="ReLU",
+            d_out=d_out,
+        )
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = x.float()
+        x = self.first_layer(x)
+        x = self.blocks(x)
+        x = self.head(x)
+        return x
+
+
+#### For diffusion
+
+
+class MLPDiffusion(nn.Module):
+    def __init__(self, d_in, num_classes, is_y_cond, rtdl_params, dim_t=128):
+        super().__init__()
+        self.dim_t = dim_t
+        self.num_classes = num_classes
+        self.is_y_cond = is_y_cond
+
+        # d0 = rtdl_params['d_layers'][0]
+
+        rtdl_params["d_in"] = dim_t
+        rtdl_params["d_out"] = d_in
+
+        self.mlp = MLP.make_baseline(**rtdl_params)
+
+        if self.num_classes > 0 and is_y_cond == "embedding":
+            self.label_emb = nn.Embedding(self.num_classes, dim_t)
+        elif self.num_classes == 0 and is_y_cond == "embedding":
+            self.label_emb = nn.Linear(1, dim_t)
+
+        self.proj = nn.Linear(d_in, dim_t)
+        self.time_embed = nn.Sequential(
+            nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t)
+        )
+
+    def forward(self, x, timesteps, y=None):
+        emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
+        if self.is_y_cond == "embedding" and y is not None:
+            if self.num_classes > 0:
+                y = y.squeeze()
+            else:
+                y = y.resize_(y.size(0), 1).float()
+            emb += F.silu(self.label_emb(y))
+        x = self.proj(x) + emb
+        return self.mlp(x)
+
+
+class ResNetDiffusion(nn.Module):
+    def __init__(self, d_in, num_classes, rtdl_params, dim_t=256, is_y_cond=None):
+        super().__init__()
+        self.dim_t = dim_t
+        self.num_classes = num_classes
+
+        rtdl_params["d_in"] = d_in
+        rtdl_params["d_out"] = d_in
+        rtdl_params["emb_d"] = dim_t
+        self.resnet = ResNet.make_baseline(**rtdl_params)
+
+        if self.num_classes > 0 and is_y_cond == "embedding":
+            self.label_emb = nn.Embedding(self.num_classes, dim_t)
+        elif self.num_classes == 0 and is_y_cond == "embedding":
+            self.label_emb = nn.Linear(1, dim_t)
+
+        self.time_embed = nn.Sequential(
+            nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t)
+        )
+
+    def forward(self, x, timesteps, y=None):
+        emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
+        if y is not None and self.num_classes > 0:
+            emb += self.label_emb(y.squeeze())
+        return self.resnet(x, emb)
+
+
+def reglu(x: Tensor) -> Tensor:
+    """The ReGLU activation function from [1].
+    References:
+        [1] Noam Shazeer, "GLU Variants Improve Transformer", 2020
+    """
+    assert x.shape[-1] % 2 == 0
+    a, b = x.chunk(2, dim=-1)
+    return a * F.relu(b)
+
+
+def geglu(x: Tensor) -> Tensor:
+    """The GEGLU activation function from [1].
+    References:
+        [1] Noam Shazeer, "GLU Variants Improve Transformer", 2020
+    """
+    assert x.shape[-1] % 2 == 0
+    a, b = x.chunk(2, dim=-1)
+    return a * F.gelu(b)
+
+
+class ReGLU(nn.Module):
+    """The ReGLU activation function from [shazeer2020glu].
+
+    Examples:
+        .. testcode::
+
+            module = ReGLU()
+            x = torch.randn(3, 4)
+            assert module(x).shape == (3, 2)
+
+    References:
+        * [shazeer2020glu] Noam Shazeer, "GLU Variants Improve Transformer", 2020
+    """
+
+    def forward(self, x: Tensor) -> Tensor:
+        return reglu(x)
+
+
+class GEGLU(nn.Module):
+    """The GEGLU activation function from [shazeer2020glu].
+
+    Examples:
+        .. testcode::
+
+            module = GEGLU()
+            x = torch.randn(3, 4)
+            assert module(x).shape == (3, 2)
+
+    References:
+        * [shazeer2020glu] Noam Shazeer, "GLU Variants Improve Transformer", 2020
+    """
+
+    def forward(self, x: Tensor) -> Tensor:
+        return geglu(x)
+
+
+def _make_nn_module(module_type: ModuleType, *args) -> nn.Module:
+    return (
+        (
+            ReGLU()
+            if module_type == "ReGLU"
+            else GEGLU()
+            if module_type == "GEGLU"
+            else getattr(nn, module_type)(*args)
+        )
+        if isinstance(module_type, str)
+        else module_type(*args)
+    )
