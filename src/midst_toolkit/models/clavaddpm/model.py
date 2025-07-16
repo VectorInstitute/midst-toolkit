@@ -577,8 +577,9 @@ def train_classifier(
                 )
                 classifier.train()
 
-        if not step % log_interval:
-            logger.dumpkvs()
+        # Removed because it's too verbose
+        # if not step % log_interval:
+            # logger.dumpkvs()
 
     # # test classifier
     classifier.eval()
