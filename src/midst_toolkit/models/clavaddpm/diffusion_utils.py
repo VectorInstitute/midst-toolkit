@@ -21,17 +21,10 @@ def normal_kl(mean1, logvar1, mean2, logvar2):
 
     # Force variances to be Tensors. Broadcasting helps convert scalars to
     # Tensors, but it does not work for torch.exp().
-    logvar1, logvar2 = [
-        x if isinstance(x, torch.Tensor) else torch.tensor(x).to(tensor)
-        for x in (logvar1, logvar2)
-    ]
+    logvar1, logvar2 = [x if isinstance(x, torch.Tensor) else torch.tensor(x).to(tensor) for x in (logvar1, logvar2)]
 
     return 0.5 * (
-        -1.0
-        + logvar2
-        - logvar1
-        + torch.exp(logvar1 - logvar2)
-        + ((mean1 - mean2) ** 2) * torch.exp(-logvar2)
+        -1.0 + logvar2 - logvar1 + torch.exp(logvar1 - logvar2) + ((mean1 - mean2) ** 2) * torch.exp(-logvar2)
     )
 
 
@@ -40,9 +33,7 @@ def approx_standard_normal_cdf(x):
     A fast approximation of the cumulative distribution function of the
     standard normal.
     """
-    return 0.5 * (
-        1.0 + torch.tanh(np.sqrt(2.0 / np.pi) * (x + 0.044715 * torch.pow(x, 3)))
-    )
+    return 0.5 * (1.0 + torch.tanh(np.sqrt(2.0 / np.pi) * (x + 0.044715 * torch.pow(x, 3))))
 
 
 def discretized_gaussian_log_likelihood(x, *, means, log_scales):
@@ -69,9 +60,7 @@ def discretized_gaussian_log_likelihood(x, *, means, log_scales):
     log_probs = torch.where(
         x < -0.999,
         log_cdf_plus,
-        torch.where(
-            x > 0.999, log_one_minus_cdf_min, torch.log(cdf_delta.clamp(min=1e-12))
-        ),
+        torch.where(x > 0.999, log_one_minus_cdf_min, torch.log(cdf_delta.clamp(min=1e-12))),
     )
     assert log_probs.shape == x.shape
     return log_probs
@@ -168,17 +157,13 @@ def log_sub_exp(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
 
 @torch.jit.script
 def sliced_logsumexp(x, slices):
-    lse = torch.logcumsumexp(
-        torch.nn.functional.pad(x, [1, 0, 0, 0], value=-float("inf")), dim=-1
-    )
+    lse = torch.logcumsumexp(torch.nn.functional.pad(x, [1, 0, 0, 0], value=-float("inf")), dim=-1)
 
     slice_starts = slices[:-1]
     slice_ends = slices[1:]
 
     slice_lse = log_sub_exp(lse[:, slice_ends], lse[:, slice_starts])
-    slice_lse_repeated = torch.repeat_interleave(
-        slice_lse, slice_ends - slice_starts, dim=-1
-    )
+    slice_lse_repeated = torch.repeat_interleave(slice_lse, slice_ends - slice_starts, dim=-1)
     return slice_lse_repeated
 
 

@@ -1,8 +1,8 @@
-import os
 import json
+import os
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 
 def load_multi_table(data_dir, verbose=True):
@@ -63,9 +63,7 @@ def get_info_from_domain(data_df, domain_dict):
 def pipeline_process_data(name, data_df, info, ratio=0.9, save=False, verbose=True):
     num_data = data_df.shape[0]
 
-    column_names = (
-        info["column_names"] if info["column_names"] else data_df.columns.tolist()
-    )
+    column_names = info["column_names"] if info["column_names"] else data_df.columns.tolist()
 
     num_col_idx = info["num_col_idx"]
     cat_col_idx = info["cat_col_idx"]
@@ -84,9 +82,7 @@ def pipeline_process_data(name, data_df, info, ratio=0.9, save=False, verbose=Tr
     num_test = num_data - num_train
 
     if ratio < 1:
-        train_df, test_df, seed = train_val_test_split(
-            data_df, cat_columns, num_train, num_test
-        )
+        train_df, test_df, seed = train_val_test_split(data_df, cat_columns, num_train, num_test)
     else:
         train_df = data_df.copy()
 
@@ -223,9 +219,7 @@ def pipeline_process_data(name, data_df, info, ratio=0.9, save=False, verbose=Tr
                 train_df.shape, test_df.shape, data_df.shape
             )
         else:
-            str_shape = "Table name: {}, Total dataframe shape: {}".format(
-                name, data_df.shape
-            )
+            str_shape = "Table name: {}, Total dataframe shape: {}".format(name, data_df.shape)
 
         str_shape += ", Numerical data shape: {}".format(X_num_train.shape)
         str_shape += ", Categorical data shape: {}".format(X_cat_train.shape)
@@ -262,9 +256,8 @@ def pipeline_process_data(name, data_df, info, ratio=0.9, save=False, verbose=Tr
 
     return data, info
 
-def get_column_name_mapping(
-    data_df, num_col_idx, cat_col_idx, target_col_idx, column_names=None
-):
+
+def get_column_name_mapping(data_df, num_col_idx, cat_col_idx, target_col_idx, column_names=None):
     if not column_names:
         column_names = np.array(data_df.columns.tolist())
 
@@ -296,6 +289,7 @@ def get_column_name_mapping(
 
     return idx_mapping, inverse_idx_mapping, idx_name_mapping
 
+
 def train_val_test_split(data_df, cat_columns, num_train=0, num_test=0):
     total_num = data_df.shape[0]
     idx = np.arange(total_num)
@@ -320,7 +314,6 @@ def train_val_test_split(data_df, cat_columns, num_train=0, num_test=0):
 
         if flag == 0:
             break
-        else:
-            seed += 1
+        seed += 1
 
     return train_df, test_df, seed

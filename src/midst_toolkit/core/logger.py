@@ -14,6 +14,7 @@ import warnings
 from collections import defaultdict
 from contextlib import contextmanager
 
+
 DEBUG = 10
 INFO = 20
 WARN = 30
@@ -38,9 +39,7 @@ class HumanOutputFormat(KVWriter, SeqWriter):
             self.file = open(filename_or_file, "wt")
             self.own_file = True
         else:
-            assert hasattr(filename_or_file, "read"), (
-                "expected file or str, got %s" % filename_or_file
-            )
+            assert hasattr(filename_or_file, "read"), "expected file or str, got %s" % filename_or_file
             self.file = filename_or_file
             self.own_file = False
 
@@ -58,18 +57,14 @@ class HumanOutputFormat(KVWriter, SeqWriter):
         if len(key2str) == 0:
             print("WARNING: tried to write empty key-value dict")
             return
-        else:
-            keywidth = max(map(len, key2str.keys()))
-            valwidth = max(map(len, key2str.values()))
+        keywidth = max(map(len, key2str.keys()))
+        valwidth = max(map(len, key2str.values()))
 
         # Write out the data
         dashes = "-" * (keywidth + valwidth + 7)
         lines = [dashes]
         for key, val in sorted(key2str.items(), key=lambda kv: kv[0].lower()):
-            lines.append(
-                "| %s%s | %s%s |"
-                % (key, " " * (keywidth - len(key)), val, " " * (valwidth - len(val)))
-            )
+            lines.append("| %s%s | %s%s |" % (key, " " * (keywidth - len(key)), val, " " * (valwidth - len(val))))
         lines.append(dashes)
         self.file.write("\n".join(lines) + "\n")
 
@@ -174,9 +169,7 @@ class TensorBoardOutputFormat(KVWriter):
 
         summary = self.tf.Summary(value=[summary_val(k, v) for k, v in kvs.items()])
         event = self.event_pb2.Event(wall_time=time.time(), summary=summary)
-        event.step = (
-            self.step
-        )  # is there any reason why you'd want to specify the step?
+        event.step = self.step  # is there any reason why you'd want to specify the step?
         self.writer.WriteEvent(event)
         self.writer.Flush()
         self.step += 1
@@ -191,16 +184,15 @@ def make_output_format(format, ev_dir, log_suffix=""):
     os.makedirs(ev_dir, exist_ok=True)
     if format == "stdout":
         return HumanOutputFormat(sys.stdout)
-    elif format == "log":
+    if format == "log":
         return HumanOutputFormat(osp.join(ev_dir, "log%s.txt" % log_suffix))
-    elif format == "json":
+    if format == "json":
         return JSONOutputFormat(osp.join(ev_dir, "progress%s.json" % log_suffix))
-    elif format == "csv":
+    if format == "csv":
         return CSVOutputFormat(osp.join(ev_dir, "progress%s.csv" % log_suffix))
-    elif format == "tensorboard":
+    if format == "tensorboard":
         return TensorBoardOutputFormat(osp.join(ev_dir, "tb%s" % log_suffix))
-    else:
-        raise ValueError("Unknown format specified: %s" % (format,))
+    raise ValueError("Unknown format specified: %s" % (format,))
 
 
 # ================================================================
@@ -357,10 +349,7 @@ class Logger(object):
         else:
             d = mpi_weighted_mean(
                 self.comm,
-                {
-                    name: (val, self.name2cnt.get(name, 1))
-                    for (name, val) in self.name2val.items()
-                },
+                {name: (val, self.name2cnt.get(name, 1)) for (name, val) in self.name2val.items()},
             )
             if self.comm.rank != 0:
                 d["dummy"] = 1  # so we don't get a warning about empty dict
@@ -425,17 +414,12 @@ def mpi_weighted_mean(comm, local_name2valcount):
                     val = float(val)
                 except ValueError:
                     if comm.rank == 0:
-                        warnings.warn(
-                            "WARNING: tried to compute mean on non-float {}={}".format(
-                                name, val
-                            )
-                        )
+                        warnings.warn("WARNING: tried to compute mean on non-float {}={}".format(name, val))
                 else:
                     name2sum[name] += val * count
                     name2count[name] += count
         return {name: name2sum[name] / name2count[name] for name in name2sum}
-    else:
-        return {}
+    return {}
 
 
 def configure(dir=None, format_strs=None, comm=None, log_suffix=""):

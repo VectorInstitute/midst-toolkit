@@ -1,10 +1,9 @@
-import os
-import shutil
+import pytest
 
 from midst_toolkit.core.data_loaders import load_multi_table
 from midst_toolkit.models.clavaddpm.model import clava_clustering, clava_training
-
 from tests.integration.utils import start_save_dir
+
 
 CLUSTERING_CONFIG = {
     "parent_scale": 1.0,
@@ -33,6 +32,8 @@ CLASSIFIER_CONFIG = {
     "iterations": 1000,
 }
 
+
+@pytest.mark.integration_test()
 def test_train_single_table():
     configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG}
     save_dir = "tests/integration/models/clavaddpm/results/"
@@ -45,6 +46,7 @@ def test_train_single_table():
     assert models
 
 
+@pytest.mark.integration_test()
 def test_train_multi_table():
     configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG, "classifier": CLASSIFIER_CONFIG}
     save_dir = "tests/integration/models/clavaddpm/results/"
@@ -57,6 +59,7 @@ def test_train_multi_table():
     assert models
 
 
+@pytest.mark.integration_test()
 def test_clustering_reload():
     configs = {"clustering": CLUSTERING_CONFIG}
     save_dir = "tests/integration/models/clavaddpm/results/"
@@ -71,5 +74,3 @@ def test_clustering_reload():
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, save_dir, configs)
 
     assert all_group_lengths_prob_dicts
-
-

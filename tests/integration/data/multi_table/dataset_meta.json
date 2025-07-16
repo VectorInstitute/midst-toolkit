@@ -1,7 +1,7 @@
 {
     "relation_order": [
         ["account", "trans"]
-    ], 
+    ],
     "tables": {
         "account": {
             "children": ["trans"],

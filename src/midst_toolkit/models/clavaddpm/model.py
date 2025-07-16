@@ -1,35 +1,40 @@
-import os
-import json
-import pickle
 import enum
-import math
 import hashlib
+import json
+import math
+import os
+import pickle
 from abc import ABC, abstractmethod
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from copy import deepcopy
-from dataclasses import astuple, replace, dataclass
+from dataclasses import astuple, dataclass, replace
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional, List, Union, Callable, Type, Tuple, cast
+from typing import Any, Callable, Literal, Self, cast
 
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
 from category_encoders import LeaveOneOutEncoder
-from torch import Tensor
 from scipy.special import expit, softmax
-from sklearn.metrics import roc_auc_score, r2_score, mean_squared_error, classification_report
-from sklearn.impute import SimpleImputer
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder, MinMaxScaler, StandardScaler, QuantileTransformer, OrdinalEncoder
 from sklearn.cluster import KMeans
-from sklearn.mixture import GaussianMixture, BayesianGaussianMixture
+from sklearn.impute import SimpleImputer
+from sklearn.metrics import classification_report, mean_squared_error, r2_score, roc_auc_score
+from sklearn.mixture import BayesianGaussianMixture, GaussianMixture
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import (
+    LabelEncoder,
+    MinMaxScaler,
+    OneHotEncoder,
+    OrdinalEncoder,
+    QuantileTransformer,
+    StandardScaler,
+)
+from torch import Tensor, nn, optim
 
-from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 from midst_toolkit.core import logger
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 
 
 Normalization = Literal["standard", "quantile", "minmax"]
@@ -39,8 +44,8 @@ CatEncoding = Literal["one-hot", "counter"]
 YPolicy = Literal["default"]
 
 
-ArrayDict = Dict[str, np.ndarray]
-ModuleType = Union[str, Callable[..., nn.Module]]
+ArrayDict = dict[str, np.ndarray]
+ModuleType = str | Callable[..., nn.Module]
 
 CAT_MISSING_VALUE = "__nan__"
 CAT_RARE_VALUE = "__rare__"
@@ -53,7 +58,7 @@ class TaskType(enum.Enum):
 
     def __str__(self) -> str:
         return self.value
-    
+
 
 class PredictionType(enum.Enum):
     LOGITS = "logits"
@@ -63,35 +68,33 @@ class PredictionType(enum.Enum):
 @dataclass(frozen=True)
 class Transformations:
     seed: int = 0
-    normalization: Optional[Normalization] = None
-    num_nan_policy: Optional[NumNanPolicy] = None
-    cat_nan_policy: Optional[CatNanPolicy] = None
-    cat_min_frequency: Optional[float] = None
-    cat_encoding: Optional[CatEncoding] = None
-    y_policy: Optional[YPolicy] = "default"
+    normalization: Normalization | None = None
+    num_nan_policy: NumNanPolicy | None = None
+    cat_nan_policy: CatNanPolicy | None = None
+    cat_min_frequency: float | None = None
+    cat_encoding: CatEncoding | None = None
+    y_policy: YPolicy | None = "default"
 
 
 @dataclass(frozen=False)
 class Dataset:
-    X_num: Optional[ArrayDict]
-    X_cat: Optional[ArrayDict]
+    X_num: ArrayDict | None
+    X_cat: ArrayDict | None
     y: ArrayDict
-    y_info: Dict[str, Any]
+    y_info: dict[str, Any]
     task_type: TaskType
-    n_classes: Optional[int]
+    n_classes: int | None
+    cat_transform: OneHotEncoder | None = None
+    num_transform: StandardScaler | None = None
 
     @classmethod
-    def from_dir(cls, dir_: Union[Path, str]) -> "Dataset":
+    def from_dir(cls, dir_: Path | str) -> "Dataset":
         dir_ = Path(dir_)
-        splits = [
-            k for k in ["train", "val", "test"] if dir_.joinpath(f"y_{k}.npy").exists()
-        ]
+        splits = [k for k in ["train", "val", "test"] if dir_.joinpath(f"y_{k}.npy").exists()]
 
         def load(item) -> ArrayDict:
             return {
-                x: cast(
-                    np.ndarray, np.load(dir_ / f"{item}_{x}.npy", allow_pickle=True)
-                )  # type: ignore[code]
+                x: cast(np.ndarray, np.load(dir_ / f"{item}_{x}.npy", allow_pickle=True))  # type: ignore[code]
                 for x in splits
             }
 
@@ -132,7 +135,7 @@ class Dataset:
     def n_features(self) -> int:
         return self.n_num_features + self.n_cat_features
 
-    def size(self, part: Optional[str]) -> int:
+    def size(self, part: str | None) -> int:
         return sum(map(len, self.y.values())) if part is None else len(self.y[part])
 
     @property
@@ -140,21 +143,18 @@ class Dataset:
         if self.is_multiclass:
             assert self.n_classes is not None
             return self.n_classes
-        else:
-            return 1
+        return 1
 
-    def get_category_sizes(self, part: str) -> List[int]:
+    def get_category_sizes(self, part: str) -> list[int]:
         return [] if self.X_cat is None else get_category_sizes(self.X_cat[part])
 
     def calculate_metrics(
         self,
-        predictions: Dict[str, np.ndarray],
-        prediction_type: Optional[str],
-    ) -> Dict[str, Any]:
+        predictions: dict[str, np.ndarray],
+        prediction_type: str | None,
+    ) -> dict[str, Any]:
         metrics = {
-            x: calculate_metrics(
-                self.y[x], predictions[x], self.task_type, prediction_type, self.y_info
-            )
+            x: calculate_metrics(self.y[x], predictions[x], self.task_type, prediction_type, self.y_info)
             for x in predictions
         }
         if self.task_type == TaskType.REGRESSION:
@@ -166,9 +166,9 @@ class Dataset:
         for part_metrics in metrics.values():
             part_metrics["score"] = score_sign * part_metrics[score_key]
         return metrics
-    
 
-def get_category_sizes(X: Union[torch.Tensor, np.ndarray]) -> List[int]:
+
+def get_category_sizes(X: torch.Tensor | np.ndarray) -> list[int]:
     XT = X.T.cpu().tolist() if isinstance(X, torch.Tensor) else X.T.tolist()
     return [len(set(x)) for x in XT]
 
@@ -176,10 +176,10 @@ def get_category_sizes(X: Union[torch.Tensor, np.ndarray]) -> List[int]:
 def calculate_metrics(
     y_true: np.ndarray,
     y_pred: np.ndarray,
-    task_type: Union[str, TaskType],
-    prediction_type: Optional[Union[str, PredictionType]],
-    y_info: Dict[str, Any],
-) -> Dict[str, Any]:
+    task_type: str | TaskType,
+    prediction_type: str | PredictionType | None,
+    y_info: dict[str, Any],
+) -> dict[str, Any]:
     # Example: calculate_metrics(y_true, y_pred, 'binclass', 'logits', {})
     task_type = TaskType(task_type)
     if prediction_type is not None:
@@ -193,17 +193,13 @@ def calculate_metrics(
         result = {"rmse": rmse, "r2": r2}
     else:
         labels, probs = _get_labels_and_probs(y_pred, task_type, prediction_type)
-        result = cast(
-            Dict[str, Any], classification_report(y_true, labels, output_dict=True)
-        )
+        result = cast(dict[str, Any], classification_report(y_true, labels, output_dict=True))
         if task_type == TaskType.BINCLASS:
             result["roc_auc"] = roc_auc_score(y_true, probs)
     return result
 
 
-def calculate_rmse(
-    y_true: np.ndarray, y_pred: np.ndarray, std: Optional[float]
-) -> float:
+def calculate_rmse(y_true: np.ndarray, y_pred: np.ndarray, std: float | None) -> float:
     rmse = mean_squared_error(y_true, y_pred) ** 0.5
     if std is not None:
         rmse *= std
@@ -211,19 +207,15 @@ def calculate_rmse(
 
 
 def _get_labels_and_probs(
-    y_pred: np.ndarray, task_type: TaskType, prediction_type: Optional[PredictionType]
-) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+    y_pred: np.ndarray, task_type: TaskType, prediction_type: PredictionType | None
+) -> tuple[np.ndarray, np.ndarray | None]:
     assert task_type in (TaskType.BINCLASS, TaskType.MULTICLASS)
 
     if prediction_type is None:
         return y_pred, None
 
     if prediction_type == PredictionType.LOGITS:
-        probs = (
-            expit(y_pred)
-            if task_type == TaskType.BINCLASS
-            else softmax(y_pred, axis=1)
-        )
+        probs = expit(y_pred) if task_type == TaskType.BINCLASS else softmax(y_pred, axis=1)
     elif prediction_type == PredictionType.PROBS:
         probs = y_pred
     else:
@@ -241,9 +233,7 @@ def clava_clustering(tables, relation_order, save_dir, configs):
     # Clustering
     if os.path.exists(os.path.join(save_dir, "cluster_ckpt.pkl")):
         print("Clustering checkpoint found, loading...")
-        cluster_ckpt = pickle.load(
-            open(os.path.join(save_dir, "cluster_ckpt.pkl"), "rb")
-        )
+        cluster_ckpt = pickle.load(open(os.path.join(save_dir, "cluster_ckpt.pkl"), "rb"))
         tables = cluster_ckpt["tables"]
         all_group_lengths_prob_dicts = cluster_ckpt["all_group_lengths_prob_dicts"]
     else:
@@ -280,9 +270,7 @@ def clava_clustering(tables, relation_order, save_dir, configs):
             "tables": tables,
             "all_group_lengths_prob_dicts": all_group_lengths_prob_dicts,
         }
-        pickle.dump(
-            cluster_ckpt, open(os.path.join(save_dir, "cluster_ckpt.pkl"), "wb")
-        )
+        pickle.dump(cluster_ckpt, open(os.path.join(save_dir, "cluster_ckpt.pkl"), "wb"))
 
     for parent, child in relation_order:
         if parent is None:
@@ -407,22 +395,16 @@ def train_model(
         std=0,
     )
     # print(dataset.n_features)
-    train_loader = prepare_fast_dataloader(
-        dataset, split="train", batch_size=batch_size, y_type="long"
-    )
+    train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size, y_type="long")
 
-    num_numerical_features = (
-        dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
-    )
+    num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
 
     K = np.array(dataset.get_category_sizes("train"))
     if len(K) == 0 or T_dict["cat_encoding"] == "one-hot":
         K = np.array([0])
     # print(K)
 
-    num_numerical_features = (
-        dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
-    )
+    num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
     d_in = np.sum(K) + num_numerical_features
     model_params["d_in"] = d_in
     # print(d_in)
@@ -431,9 +413,7 @@ def train_model(
     model = get_model(model_type, model_params)
     model.to(device)
 
-    train_loader = prepare_fast_dataloader(
-        dataset, split="train", batch_size=batch_size
-    )
+    train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size)
 
     diffusion = GaussianMultinomialDiffusion(
         num_classes=K,
@@ -496,15 +476,9 @@ def train_classifier(
         std=0,
     )
     print(dataset.n_features)
-    train_loader = prepare_fast_dataloader(
-        dataset, split="train", batch_size=batch_size, y_type="long"
-    )
-    val_loader = prepare_fast_dataloader(
-        dataset, split="val", batch_size=batch_size, y_type="long"
-    )
-    test_loader = prepare_fast_dataloader(
-        dataset, split="test", batch_size=batch_size, y_type="long"
-    )
+    train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size, y_type="long")
+    val_loader = prepare_fast_dataloader(dataset, split="val", batch_size=batch_size, y_type="long")
+    test_loader = prepare_fast_dataloader(dataset, split="test", batch_size=batch_size, y_type="long")
 
     eval_interval = 5
     log_interval = 10
@@ -514,9 +488,7 @@ def train_classifier(
         K = np.array([0])
     print(K)
 
-    num_numerical_features = (
-        dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
-    )
+    num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
     if model_params["is_y_cond"] == "concat":
         num_numerical_features -= 1
 
@@ -579,7 +551,7 @@ def train_classifier(
 
         # Removed because it's too verbose
         # if not step % log_interval:
-            # logger.dumpkvs()
+        # logger.dumpkvs()
 
     # # test classifier
     classifier.eval()
@@ -657,9 +629,7 @@ def pair_clustering_keep_id(
     )
 
     # sort parent data by primary key
-    sorted_parent_data = parent_data[
-        np.argsort(parent_data[:, parent_primary_key_index])
-    ]
+    sorted_parent_data = parent_data[np.argsort(parent_data[:, parent_primary_key_index])]
 
     group_lengths = []
     unique_group_ids = sorted_parent_data[:, parent_primary_key_index]
@@ -673,10 +643,7 @@ def pair_clustering_keep_id(
     group_lengths = np.array(group_lengths, dtype=int)
 
     sorted_parent_data_repeated = np.repeat(sorted_parent_data, group_lengths, axis=0)
-    assert (
-        sorted_parent_data_repeated[:, parent_primary_key_index]
-        == sorted_child_data[:, foreing_key_index]
-    ).all()
+    assert (sorted_parent_data_repeated[:, parent_primary_key_index] == sorted_child_data[:, foreing_key_index]).all()
 
     child_group_data = get_group_data(
         sorted_child_data,
@@ -685,25 +652,13 @@ def pair_clustering_keep_id(
         ],
     )
 
-    sorted_child_num_data = sorted_child_data[
-        :, [col_index for col_index, col in child_num_cols]
-    ]
-    sorted_child_cat_data = sorted_child_data[
-        :, [col_index for col_index, col in child_cat_cols]
-    ]
-    sorted_parent_num_data = sorted_parent_data_repeated[
-        :, [col_index for col_index, col in parent_num_cols]
-    ]
-    sorted_parent_cat_data = sorted_parent_data_repeated[
-        :, [col_index for col_index, col in parent_cat_cols]
-    ]
+    sorted_child_num_data = sorted_child_data[:, [col_index for col_index, col in child_num_cols]]
+    sorted_child_cat_data = sorted_child_data[:, [col_index for col_index, col in child_cat_cols]]
+    sorted_parent_num_data = sorted_parent_data_repeated[:, [col_index for col_index, col in parent_num_cols]]
+    sorted_parent_cat_data = sorted_parent_data_repeated[:, [col_index for col_index, col in parent_cat_cols]]
 
-    joint_num_matrix = np.concatenate(
-        [sorted_child_num_data, sorted_parent_num_data], axis=1
-    )
-    joint_cat_matrix = np.concatenate(
-        [sorted_child_cat_data, sorted_parent_cat_data], axis=1
-    )
+    joint_num_matrix = np.concatenate([sorted_child_num_data, sorted_parent_num_data], axis=1)
+    joint_cat_matrix = np.concatenate([sorted_child_cat_data, sorted_parent_cat_data], axis=1)
 
     if joint_cat_matrix.shape[1] > 0:
         joint_cat_matrix_p_index = sorted_child_cat_data.shape[1]
@@ -716,9 +671,7 @@ def pair_clustering_keep_id(
             if len(np.unique(joint_cat_matrix[:, i])) > 1000:
                 continue
             label_encoder = LabelEncoder()
-            cat_converted.append(
-                label_encoder.fit_transform(joint_cat_matrix[:, i]).astype(float)
-            )
+            cat_converted.append(label_encoder.fit_transform(joint_cat_matrix[:, i]).astype(float))
             label_encoders.append(label_encoder)
 
         cat_converted = np.vstack(cat_converted).T
@@ -733,39 +686,27 @@ def pair_clustering_keep_id(
             encoded_column = encoder.fit_transform(column)
             cat_one_hot = np.concatenate((cat_one_hot, encoded_column), axis=1)
 
-        cat_one_hot[:, joint_cat_matrix_p_index:] = (
-            parent_scale * cat_one_hot[:, joint_cat_matrix_p_index:]
-        )
+        cat_one_hot[:, joint_cat_matrix_p_index:] = parent_scale * cat_one_hot[:, joint_cat_matrix_p_index:]
 
     # Perform quantile normalization using QuantileTransformer
     num_quantile = quantile_normalize_sklearn(joint_num_matrix)
     num_min_max = min_max_normalize_sklearn(joint_num_matrix)
 
-    key_quantile = quantile_normalize_sklearn(
-        sorted_parent_data_repeated[:, parent_primary_key_index].reshape(-1, 1)
-    )
-    key_min_max = min_max_normalize_sklearn(
-        sorted_parent_data_repeated[:, parent_primary_key_index].reshape(-1, 1)
-    )
+    key_quantile = quantile_normalize_sklearn(sorted_parent_data_repeated[:, parent_primary_key_index].reshape(-1, 1))
+    key_min_max = min_max_normalize_sklearn(sorted_parent_data_repeated[:, parent_primary_key_index].reshape(-1, 1))
 
     # key_scaled = key_scaler * key_quantile
     key_scaled = key_scale * key_min_max
 
-    num_quantile[:, joint_num_matrix_p_index:] = (
-        parent_scale * num_quantile[:, joint_num_matrix_p_index:]
-    )
-    num_min_max[:, joint_num_matrix_p_index:] = (
-        parent_scale * num_min_max[:, joint_num_matrix_p_index:]
-    )
+    num_quantile[:, joint_num_matrix_p_index:] = parent_scale * num_quantile[:, joint_num_matrix_p_index:]
+    num_min_max[:, joint_num_matrix_p_index:] = parent_scale * num_min_max[:, joint_num_matrix_p_index:]
 
     if joint_cat_matrix.shape[1] > 0:
         cluster_data = np.concatenate((num_min_max, cat_one_hot, key_scaled), axis=1)
     else:
         cluster_data = np.concatenate((num_min_max, key_scaled), axis=1)
 
-    child_group_lengths = np.array(
-        [len(group) for group in child_group_data], dtype=int
-    )
+    child_group_lengths = np.array([len(group) for group in child_group_data], dtype=int)
     num_clusters = min(num_clusters, len(cluster_data))
 
     # print('clustering')
@@ -803,9 +744,7 @@ def pair_clustering_keep_id(
         cluster_labels = gmm.predict(cluster_data)
 
     if clustering_method == "variational":
-        group_cluster_labels, agree_rates = aggregate_and_sample(
-            cluster_labels, child_group_lengths
-        )
+        group_cluster_labels, agree_rates = aggregate_and_sample(cluster_labels, child_group_lengths)
     else:
         # voting to determine the cluster label for each parent
         group_cluster_labels = []
@@ -813,12 +752,8 @@ def pair_clustering_keep_id(
         agree_rates = []
         for group_length in child_group_lengths:
             # First, determine the most common label in the current group
-            most_common_label_count = np.max(
-                np.bincount(cluster_labels[curr_index : curr_index + group_length])
-            )
-            group_cluster_label = np.argmax(
-                np.bincount(cluster_labels[curr_index : curr_index + group_length])
-            )
+            most_common_label_count = np.max(np.bincount(cluster_labels[curr_index : curr_index + group_length]))
+            group_cluster_label = np.argmax(np.bincount(cluster_labels[curr_index : curr_index + group_length]))
             group_cluster_labels.append(group_cluster_label)
 
             # Compute agree rate using the most common label count
@@ -832,14 +767,10 @@ def pair_clustering_keep_id(
     average_agree_rate = np.mean(agree_rates)
     print("Average agree rate: ", average_agree_rate)
 
-    group_assignment = np.repeat(
-        group_cluster_labels, child_group_lengths, axis=0
-    ).reshape((-1, 1))
+    group_assignment = np.repeat(group_cluster_labels, child_group_lengths, axis=0).reshape((-1, 1))
 
     # obtain the child data with clustering
-    sorted_child_data_with_cluster = np.concatenate(
-        [sorted_child_data, group_assignment], axis=1
-    )
+    sorted_child_data_with_cluster = np.concatenate([sorted_child_data, group_assignment], axis=1)
 
     group_labels_list = group_cluster_labels
     group_lengths_list = child_group_lengths.tolist()
@@ -873,9 +804,7 @@ def pair_clustering_keep_id(
     for i in range(len(sorted_child_data)):
         parent_id = sorted_child_data[i, foreing_key_index]
         if parent_id in parent_id_to_cluster:
-            assert (
-                parent_id_to_cluster[parent_id] == sorted_child_data_with_cluster[i, -1]
-            )
+            assert parent_id_to_cluster[parent_id] == sorted_child_data_with_cluster[i, -1]
             continue
         parent_id_to_cluster[parent_id] = sorted_child_data_with_cluster[i, -1]
 
@@ -884,16 +813,12 @@ def pair_clustering_keep_id(
     parent_data_clusters = []
     for i in range(len(parent_data)):
         if parent_data[i, parent_primary_key_index] in parent_id_to_cluster:
-            parent_data_clusters.append(
-                parent_id_to_cluster[parent_data[i, parent_primary_key_index]]
-            )
+            parent_data_clusters.append(parent_id_to_cluster[parent_data[i, parent_primary_key_index]])
         else:
             parent_data_clusters.append(max_cluster_label + 1)
 
     parent_data_clusters = np.array(parent_data_clusters).reshape(-1, 1)
-    parent_data_with_cluster = np.concatenate(
-        [parent_data, parent_data_clusters], axis=1
-    )
+    parent_data_with_cluster = np.concatenate([parent_data, parent_data_clusters], axis=1)
     parent_df_with_cluster = pd.DataFrame(
         parent_data_with_cluster, columns=original_parent_cols + [relation_cluster_name]
     )
@@ -990,9 +915,7 @@ def aggregate_and_sample(cluster_probabilities, child_group_lengths):
 
     for group_length in child_group_lengths:
         # Aggregate the probability distributions by taking the mean
-        group_probability_distribution = np.mean(
-            cluster_probabilities[curr_index : curr_index + group_length], axis=0
-        )
+        group_probability_distribution = np.mean(cluster_probabilities[curr_index : curr_index + group_length], axis=0)
 
         # Sample the label from the aggregated distribution
         group_cluster_label = np.random.choice(
@@ -1088,9 +1011,7 @@ def make_dataset_from_df(df, T, is_y_cond, ratios=[0.7, 0.2, 0.1], df_info=None,
     However, if we have n_classes > 0, then y is not the first column of the matrix.
     """
     train_val_df, test_df = train_test_split(df, test_size=ratios[2], random_state=42)
-    train_df, val_df = train_test_split(
-        train_val_df, test_size=ratios[1] / (ratios[0] + ratios[1]), random_state=42
-    )
+    train_df, val_df = train_test_split(train_val_df, test_size=ratios[1] / (ratios[0] + ratios[1]), random_state=42)
 
     cat_column_orders = []
     num_column_orders = []
@@ -1162,14 +1083,10 @@ def make_dataset_from_df(df, T, is_y_cond, ratios=[0.7, 0.2, 0.1], df_info=None,
         X_cat_converted = []
         for col_index in range(X_cat_all.shape[1]):
             label_encoder = LabelEncoder()
-            X_cat_converted.append(
-                label_encoder.fit_transform(X_cat_all[:, col_index]).astype(float)
-            )
+            X_cat_converted.append(label_encoder.fit_transform(X_cat_all[:, col_index]).astype(float))
             if std > 0:
                 # add noise
-                X_cat_converted[-1] += np.random.normal(
-                    0, std, X_cat_converted[-1].shape
-                )
+                X_cat_converted[-1] += np.random.normal(0, std, X_cat_converted[-1].shape)
             label_encoders[col_index] = label_encoder
 
         X_cat_converted = np.vstack(X_cat_converted).T
@@ -1202,14 +1119,10 @@ def make_dataset_from_df(df, T, is_y_cond, ratios=[0.7, 0.2, 0.1], df_info=None,
     return transform_dataset(D, T, None), label_encoders, column_orders
 
 
-def prepare_fast_dataloader(
-    D: Dataset, split: str, batch_size: int, y_type: str = "float"
-):
+def prepare_fast_dataloader(D: Dataset, split: str, batch_size: int, y_type: str = "float"):
     if D.X_cat is not None:
         if D.X_num is not None:
-            X = torch.from_numpy(
-                np.concatenate([D.X_num[split], D.X_cat[split]], axis=1)
-            ).float()
+            X = torch.from_numpy(np.concatenate([D.X_num[split], D.X_cat[split]], axis=1)).float()
         else:
             X = torch.from_numpy(D.X_cat[split]).float()
     else:
@@ -1218,9 +1131,7 @@ def prepare_fast_dataloader(
         y = torch.from_numpy(D.y[split]).float()
     else:
         y = torch.from_numpy(D.y[split]).long()
-    dataloader = FastTensorDataLoader(
-        X, y, batch_size=batch_size, shuffle=(split == "train")
-    )
+    dataloader = FastTensorDataLoader(X, y, batch_size=batch_size, shuffle=(split == "train"))
     while True:
         yield from dataloader
 
@@ -1239,7 +1150,7 @@ def get_model(
     return model
 
 
-def update_ema(target_params, source_params, rate=0.999):
+def update_ema(target_params: list[Tensor], source_params: list[Tensor], rate: float = 0.999) -> None:
     """
     Update target parameters to be closer to those of source parameters using
     an exponential moving average.
@@ -1296,7 +1207,7 @@ class UniformSampler(ScheduleSampler):
 
     def weights(self):
         return self._weights
-    
+
 
 class LossAwareSampler(ScheduleSampler):
     def update_with_local_losses(self, local_ts, local_losses):
@@ -1328,9 +1239,7 @@ class LossAwareSampler(ScheduleSampler):
         loss_batches = [torch.zeros(max_bs).to(local_losses) for bs in batch_sizes]
         torch.distributed.all_gather(timestep_batches, local_ts)
         torch.distributed.all_gather(loss_batches, local_losses)
-        timesteps = [
-            x.item() for y, bs in zip(timestep_batches, batch_sizes) for x in y[:bs]
-        ]
+        timesteps = [x.item() for y, bs in zip(timestep_batches, batch_sizes) for x in y[:bs]]
         losses = [x.item() for y, bs in zip(loss_batches, batch_sizes) for x in y[:bs]]
         self.update_with_all_losses(timesteps, losses)
 
@@ -1357,9 +1266,7 @@ class LossSecondMomentResampler(LossAwareSampler):
         self.diffusion = diffusion
         self.history_per_term = history_per_term
         self.uniform_prob = uniform_prob
-        self._loss_history = np.zeros(
-            [diffusion.num_timesteps, history_per_term], dtype=np.float64
-        )
+        self._loss_history = np.zeros([diffusion.num_timesteps, history_per_term], dtype=np.float64)
         self._loss_counts = np.zeros([diffusion.num_timesteps], dtype=np.int)
 
     def weights(self):
@@ -1394,10 +1301,9 @@ def create_named_schedule_sampler(name, diffusion):
     """
     if name == "uniform":
         return UniformSampler(diffusion)
-    elif name == "loss-second-moment":
+    if name == "loss-second-moment":
         return LossSecondMomentResampler(diffusion)
-    else:
-        raise NotImplementedError(f"unknown schedule sampler: {name}")
+    raise NotImplementedError(f"unknown schedule sampler: {name}")
 
 
 def split_microbatches(microbatch, *args):
@@ -1413,9 +1319,8 @@ def compute_top_k(logits, labels, k, reduction="mean"):
     _, top_ks = torch.topk(logits, k, dim=-1)
     if reduction == "mean":
         return (top_ks == labels[:, None]).float().sum(dim=-1).mean().item()
-    elif reduction == "none":
+    if reduction == "none":
         return (top_ks == labels[:, None]).float().sum(dim=-1)
-
 
 
 def log_loss_dict(diffusion, ts, losses):
@@ -1450,21 +1355,15 @@ def numerical_forward_backward_log(
     t, _ = schedule_sampler.sample(num_batch.shape[0], device)
     batch = diffusion.gaussian_q_sample(num_batch, t).to(device)
 
-    for i, (sub_batch, sub_labels, sub_t) in enumerate(
-        split_microbatches(-1, batch, labels, t)
-    ):
+    for i, (sub_batch, sub_labels, sub_t) in enumerate(split_microbatches(-1, batch, labels, t)):
         logits = classifier(sub_batch, timesteps=sub_t)
         loss = F.cross_entropy(logits, sub_labels, reduction="none")
 
         losses = {}
         losses[f"{prefix}_loss"] = loss.detach()
-        losses[f"{prefix}_acc@1"] = compute_top_k(
-            logits, sub_labels, k=1, reduction="none"
-        )
+        losses[f"{prefix}_acc@1"] = compute_top_k(logits, sub_labels, k=1, reduction="none")
         if logits.shape[1] >= 5:
-            losses[f"{prefix}_acc@5"] = compute_top_k(
-                logits, sub_labels, k=5, reduction="none"
-            )
+            losses[f"{prefix}_acc@5"] = compute_top_k(logits, sub_labels, k=5, reduction="none")
         log_loss_dict(diffusion, sub_t, losses)
         del losses
         loss = loss.mean()
@@ -1477,28 +1376,21 @@ def numerical_forward_backward_log(
 def transform_dataset(
     dataset: Dataset,
     transformations: Transformations,
-    cache_dir: Optional[Path],
+    cache_dir: Path | None,
     transform_cols_num: int = 0,
 ) -> Dataset:
     # WARNING: the order of transformations matters. Moreover, the current
     # implementation is not ideal in that sense.
     if cache_dir is not None:
-        transformations_md5 = hashlib.md5(
-            str(transformations).encode("utf-8")
-        ).hexdigest()
+        transformations_md5 = hashlib.md5(str(transformations).encode("utf-8")).hexdigest()
         transformations_str = "__".join(map(str, astuple(transformations)))
-        cache_path = (
-            cache_dir / f"cache__{transformations_str}__{transformations_md5}.pickle"
-        )
+        cache_path = cache_dir / f"cache__{transformations_str}__{transformations_md5}.pickle"
         if cache_path.exists():
             cache_transformations, value = load_pickle(cache_path)
             if transformations == cache_transformations:
-                print(
-                    f"Using cached features: {cache_dir.name + '/' + cache_path.name}"
-                )
+                print(f"Using cached features: {cache_dir.name + '/' + cache_path.name}")
                 return value
-            else:
-                raise RuntimeError(f"Hash collision for {cache_path}")
+            raise RuntimeError(f"Hash collision for {cache_path}")
     else:
         cache_path = None
 
@@ -1535,11 +1427,7 @@ def transform_dataset(
             return_encoder=True,
         )
         if is_num:
-            X_num = (
-                X_cat
-                if X_num is None
-                else {x: np.hstack([X_num[x], X_cat[x]]) for x in X_num}
-            )
+            X_num = X_cat if X_num is None else {x: np.hstack([X_num[x], X_cat[x]]) for x in X_num}
             X_cat = None
 
     y, y_info = build_target(dataset.y, transformations.y_policy, dataset.task_type)
@@ -1555,39 +1443,35 @@ def transform_dataset(
     return dataset
 
 
-def load_pickle(path: Union[Path, str], **kwargs) -> Any:
+def load_pickle(path: Path | str, **kwargs: Any) -> Any:
     return pickle.loads(Path(path).read_bytes(), **kwargs)
 
 
-def dump_pickle(x: Any, path: Union[Path, str], **kwargs) -> None:
+def dump_pickle(x: Any, path: Path | str, **kwargs: Any) -> None:
     Path(path).write_bytes(pickle.dumps(x, **kwargs))
 
 
-def num_process_nans(dataset: Dataset, policy: Optional[NumNanPolicy]) -> Dataset:
+def num_process_nans(dataset: Dataset, policy: NumNanPolicy | None) -> Dataset:
     assert dataset.X_num is not None
     nan_masks = {k: np.isnan(v) for k, v in dataset.X_num.items()}
-    if not any(x.any() for x in nan_masks.values()):  # type: ignore[code]
+    if not any(x.any() for x in nan_masks.values()):
         assert policy is None
         return dataset
 
     assert policy is not None
     if policy == "drop-rows":
         valid_masks = {k: ~v.any(1) for k, v in nan_masks.items()}
-        assert valid_masks[
-            "test"
-        ].all(), "Cannot drop test rows, since this will affect the final metrics."
+        assert valid_masks["test"].all(), "Cannot drop test rows, since this will affect the final metrics."
         new_data = {}
         for data_name in ["X_num", "X_cat", "y"]:
             data_dict = getattr(dataset, data_name)
             if data_dict is not None:
-                new_data[data_name] = {
-                    k: v[valid_masks[k]] for k, v in data_dict.items()
-                }
-        dataset = replace(dataset, **new_data)
+                new_data[data_name] = {k: v[valid_masks[k]] for k, v in data_dict.items()}
+        dataset = replace(dataset, **new_data)  # type: ignore[arg-type]
     elif policy == "mean":
-        new_values = np.nanmean(dataset.X_num["train"], axis=0)
+        new_values = np.nanmean(dataset.X_num["train"], axis=0)  # type: ignore[index]
         X_num = deepcopy(dataset.X_num)
-        for k, v in X_num.items():
+        for k, v in X_num.items():  # type: ignore[union-attr]
             num_nan_indices = np.where(nan_masks[k])
             v[num_nan_indices] = np.take(new_values, num_nan_indices[1])
         dataset = replace(dataset, X_num=X_num)
@@ -1600,9 +1484,9 @@ def num_process_nans(dataset: Dataset, policy: Optional[NumNanPolicy]) -> Datase
 def normalize(
     X: ArrayDict,
     normalization: Normalization,
-    seed: Optional[int],
+    seed: int | None,
     return_normalizer: bool = False,
-) -> ArrayDict:
+) -> ArrayDict | tuple[ArrayDict, StandardScaler | MinMaxScaler | QuantileTransformer]:
     X_train = X["train"]
     if normalization == "standard":
         normalizer = StandardScaler()
@@ -1631,14 +1515,14 @@ def normalize(
     return {k: normalizer.transform(v) for k, v in X.items()}
 
 
-def cat_process_nans(X: ArrayDict, policy: Optional[CatNanPolicy]) -> ArrayDict:
+def cat_process_nans(X: ArrayDict, policy: CatNanPolicy | None) -> ArrayDict:
     assert X is not None
     nan_masks = {k: v == CAT_MISSING_VALUE for k, v in X.items()}
-    if any(x.any() for x in nan_masks.values()):  # type: ignore[code]
+    if any(x.any() for x in nan_masks.values()):
         if policy is None:
             X_new = X
         elif policy == "most_frequent":
-            imputer = SimpleImputer(missing_values=CAT_MISSING_VALUE, strategy=policy)  # type: ignore[code]
+            imputer = SimpleImputer(missing_values=CAT_MISSING_VALUE, strategy=policy)
             imputer.fit(X["train"])
             X_new = {k: cast(np.ndarray, imputer.transform(v)) for k, v in X.items()}
         else:
@@ -1652,27 +1536,24 @@ def cat_process_nans(X: ArrayDict, policy: Optional[CatNanPolicy]) -> ArrayDict:
 def cat_drop_rare(X: ArrayDict, min_frequency: float) -> ArrayDict:
     assert 0.0 < min_frequency < 1.0
     min_count = round(len(X["train"]) * min_frequency)
-    X_new = {x: [] for x in X}
+    X_new: dict[str, list[Any]] = {x: [] for x in X}
     for column_idx in range(X["train"].shape[1]):
         counter = Counter(X["train"][:, column_idx].tolist())
         popular_categories = {k for k, v in counter.items() if v >= min_count}
         for part in X_new:
             X_new[part].append(
-                [
-                    (x if x in popular_categories else CAT_RARE_VALUE)
-                    for x in X[part][:, column_idx].tolist()
-                ]
+                [(x if x in popular_categories else CAT_RARE_VALUE) for x in X[part][:, column_idx].tolist()]
             )
     return {k: np.array(v).T for k, v in X_new.items()}
 
 
 def cat_encode(
     X: ArrayDict,
-    encoding: Optional[CatEncoding],
-    y_train: Optional[np.ndarray],
-    seed: Optional[int],
+    encoding: CatEncoding | None,
+    y_train: np.ndarray | None,
+    seed: int | None,
     return_encoder: bool = False,
-) -> Tuple[ArrayDict, bool, Optional[Any]]:  # (X, is_converted_to_numerical)
+) -> tuple[ArrayDict, bool, Any | None]:  # (X, is_converted_to_numerical)
     if encoding != "counter":
         y_train = None
 
@@ -1681,9 +1562,9 @@ def cat_encode(
     if encoding is None:
         unknown_value = np.iinfo("int64").max - 3
         oe = OrdinalEncoder(
-            handle_unknown="use_encoded_value",  # type: ignore[code]
-            unknown_value=unknown_value,  # type: ignore[code]
-            dtype="int64",  # type: ignore[code]
+            handle_unknown="use_encoded_value",
+            unknown_value=unknown_value,
+            dtype="int64",
         ).fit(X["train"])
         encoder = make_pipeline(oe)
         encoder.fit(X["train"])
@@ -1693,20 +1574,18 @@ def cat_encode(
             if part == "train":
                 continue
             for column_idx in range(X[part].shape[1]):
-                X[part][X[part][:, column_idx] == unknown_value, column_idx] = (
-                    max_values[column_idx] + 1
-                )
+                X[part][X[part][:, column_idx] == unknown_value, column_idx] = max_values[column_idx] + 1
         if return_encoder:
-            return (X, False, encoder)
-        return (X, False)
+            return X, False, encoder
+        return X, False, None
 
     # Step 2. Encode.
 
-    elif encoding == "one-hot":
+    if encoding == "one-hot":
         ohe = OneHotEncoder(
             handle_unknown="ignore",
             sparse=False,
-            dtype=np.float32,  # type: ignore[code]
+            dtype=np.float32,
         )
         encoder = make_pipeline(ohe)
 
@@ -1719,21 +1598,19 @@ def cat_encode(
         loe = LeaveOneOutEncoder(sigma=0.1, random_state=seed, return_df=False)
         encoder.steps.append(("loe", loe))
         encoder.fit(X["train"], y_train)
-        X = {k: encoder.transform(v).astype("float32") for k, v in X.items()}  # type: ignore[code]
+        X = {k: encoder.transform(v).astype("float32") for k, v in X.items()}
         if not isinstance(X["train"], pd.DataFrame):
-            X = {k: v.values for k, v in X.items()}  # type: ignore[code]
+            X = {k: v.values for k, v in X.items()}  # type: ignore[attr-defined]
     else:
         ValueError(f"Unknown encoding: {encoding}")
 
     if return_encoder:
-        return X, True, encoder  # type: ignore[code]
-    return (X, True)
+        return X, True, encoder
+    return X, True, None
 
 
-def build_target(
-    y: ArrayDict, policy: Optional[YPolicy], task_type: TaskType
-) -> Tuple[ArrayDict, Dict[str, Any]]:
-    info: Dict[str, Any] = {"policy": policy}
+def build_target(y: ArrayDict, policy: YPolicy | None, task_type: TaskType) -> tuple[ArrayDict, dict[str, Any]]:
+    info: dict[str, Any] = {"policy": policy}
     if policy is None:
         pass
     elif policy == "default":
@@ -1765,22 +1642,20 @@ class Trainer:
         self.train_iter = train_iter
         self.steps = steps
         self.init_lr = lr
-        self.optimizer = torch.optim.AdamW(
-            self.diffusion.parameters(), lr=lr, weight_decay=weight_decay
-        )
+        self.optimizer = torch.optim.AdamW(self.diffusion.parameters(), lr=lr, weight_decay=weight_decay)
         self.device = device
         self.loss_history = pd.DataFrame(columns=["step", "mloss", "gloss", "loss"])
         self.log_every = 100
         self.print_every = 500
         self.ema_every = 1000
 
-    def _anneal_lr(self, step):
+    def _anneal_lr(self, step: int) -> None:
         frac_done = step / self.steps
         lr = self.init_lr * (1 - frac_done)
         for param_group in self.optimizer.param_groups:
             param_group["lr"] = lr
 
-    def _run_step(self, x, out_dict):
+    def _run_step(self, x: Tensor, out_dict: dict[str, Tensor]) -> tuple[Tensor, Tensor]:
         x = x.to(self.device)
         for k in out_dict:
             out_dict[k] = out_dict[k].long().to(self.device)
@@ -1813,9 +1688,7 @@ class Trainer:
                 mloss = np.around(curr_loss_multi / curr_count, 4)
                 gloss = np.around(curr_loss_gauss / curr_count, 4)
                 if (step + 1) % self.print_every == 0:
-                    print(
-                        f"Step {(step + 1)}/{self.steps} MLoss: {mloss} GLoss: {gloss} Sum: {mloss + gloss}"
-                    )
+                    print(f"Step {(step + 1)}/{self.steps} MLoss: {mloss} GLoss: {gloss} Sum: {mloss + gloss}")
                 self.loss_history.loc[len(self.loss_history)] = [
                     step + 1,
                     mloss,
@@ -1826,11 +1699,10 @@ class Trainer:
                 curr_loss_gauss = 0.0
                 curr_loss_multi = 0.0
 
-            update_ema(
-                self.ema_model.parameters(), self.diffusion._denoise_fn.parameters()
-            )
+            update_ema(self.ema_model.parameters(), self.diffusion._denoise_fn.parameters())
 
             step += 1
+
 
 class Classifier(nn.Module):
     def __init__(
@@ -1848,16 +1720,12 @@ class Classifier(nn.Module):
         self.dim_t = dim_t
         self.proj = nn.Linear(d_in, dim_t)
 
-        self.transformer_layer = nn.Transformer(
-            d_model=dim_t, nhead=num_heads, num_encoder_layers=num_layers
-        )
+        self.transformer_layer = nn.Transformer(d_model=dim_t, nhead=num_heads, num_encoder_layers=num_layers)
 
-        self.time_embed = nn.Sequential(
-            nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t)
-        )
+        self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
 
         # Create a list to hold the layers
-        layers = []
+        layers: list[nn.Module] = []
 
         # Add input layer
         layers.append(nn.Linear(dim_t, hidden_sizes[0]))
@@ -1919,7 +1787,7 @@ class FastTensorDataLoader:
     def __iter__(self):
         if self.shuffle:
             r = torch.randperm(self.dataset_len)
-            self.tensors = [t[r] for t in self.tensors]
+            self.tensors = [t[r] for t in self.tensors]  # type: ignore[assignment]
         self.i = 0
         return self
 
@@ -1932,9 +1800,9 @@ class FastTensorDataLoader:
 
     def __len__(self):
         return self.n_batches
-    
 
-def timestep_embedding(timesteps, dim, max_period=10000):
+
+def timestep_embedding(timesteps: Tensor, dim: int, max_period: int = 10000) -> Tensor:
     """
     Create sinusoidal timestep embeddings.
 
@@ -1945,16 +1813,15 @@ def timestep_embedding(timesteps, dim, max_period=10000):
     :return: an [N x dim] Tensor of positional embeddings.
     """
     half = dim // 2
-    freqs = torch.exp(
-        -math.log(max_period)
-        * torch.arange(start=0, end=half, dtype=torch.float32)
-        / half
-    ).to(device=timesteps.device)
+    freqs = torch.exp(-math.log(max_period) * torch.arange(start=0, end=half, dtype=torch.float32) / half).to(
+        device=timesteps.device
+    )
     args = timesteps[:, None].float() * freqs[None]
     embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
     if dim % 2:
         embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
     return embedding
+
 
 class MLP(nn.Module):
     """The MLP model used in [gorishniy2021revisiting].
@@ -2001,9 +1868,9 @@ class MLP(nn.Module):
         self,
         *,
         d_in: int,
-        d_layers: List[int],
-        dropouts: Union[float, List[float]],
-        activation: Union[str, Callable[[], nn.Module]],
+        d_layers: list[int],
+        dropouts: float | list[float],
+        activation: str | Callable[[], nn.Module],
         d_out: int,
     ) -> None:
         """
@@ -2032,12 +1899,12 @@ class MLP(nn.Module):
 
     @classmethod
     def make_baseline(
-        cls: Type["MLP"],
+        cls,
         d_in: int,
-        d_layers: List[int],
+        d_layers: list[int],
         dropout: float,
         d_out: int,
-    ) -> "MLP":
+    ) -> Self:
         """Create a "baseline" `MLP`.
 
         This variation of MLP was used in [gorishniy2021revisiting]. Features:
@@ -2067,9 +1934,9 @@ class MLP(nn.Module):
                 "if d_layers contains more than two elements, then"
                 " all elements except for the first and the last ones must be equal."
             )
-        return MLP(
+        return cls(
             d_in=d_in,
-            d_layers=d_layers,  # type: ignore
+            d_layers=d_layers,
             dropouts=dropout,
             activation="ReLU",
             d_out=d_out,
@@ -2092,6 +1959,7 @@ class ResNet(nn.Module):
                  |                                                                  |
          Block: (in) ------------------------------------------------------------> Add -> (out)
           Head: (in) -> Norm -> Activation -> Linear -> (out)
+
     Examples:
         .. testcode::
             x = torch.randn(4, 2)
@@ -2105,6 +1973,7 @@ class ResNet(nn.Module):
                 d_out=1
             )
             assert module(x).shape == (len(x), 1)
+
     References:
         * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov, Artem Babenko, "Revisiting Deep Learning Models for Tabular Data", 2021
     """
@@ -2218,7 +2087,7 @@ class ResNet(nn.Module):
 
     @classmethod
     def make_baseline(
-        cls: Type["ResNet"],
+        cls,
         *,
         d_in: int,
         n_blocks: int,
@@ -2227,7 +2096,7 @@ class ResNet(nn.Module):
         dropout_first: float,
         dropout_second: float,
         d_out: int,
-    ) -> "ResNet":
+    ) -> Self:
         """Create a "baseline" `ResNet`.
         This variation of ResNet was used in [gorishniy2021revisiting]. Features:
         * :code:`Activation` = :code:`ReLU`
@@ -2239,6 +2108,7 @@ class ResNet(nn.Module):
             d_hidden: the output size of the first linear layer in each Block
             dropout_first: the dropout rate of the first dropout layer in each Block.
             dropout_second: the dropout rate of the second dropout layer in each Block.
+
         References:
             * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov, Artem Babenko, "Revisiting Deep Learning Models for Tabular Data", 2021
         """
@@ -2279,15 +2149,14 @@ class MLPDiffusion(nn.Module):
 
         self.mlp = MLP.make_baseline(**rtdl_params)
 
+        self.label_emb: nn.Embedding | nn.Linear
         if self.num_classes > 0 and is_y_cond == "embedding":
             self.label_emb = nn.Embedding(self.num_classes, dim_t)
         elif self.num_classes == 0 and is_y_cond == "embedding":
             self.label_emb = nn.Linear(1, dim_t)
 
         self.proj = nn.Linear(d_in, dim_t)
-        self.time_embed = nn.Sequential(
-            nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t)
-        )
+        self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
 
     def forward(self, x, timesteps, y=None):
         emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
@@ -2312,14 +2181,13 @@ class ResNetDiffusion(nn.Module):
         rtdl_params["emb_d"] = dim_t
         self.resnet = ResNet.make_baseline(**rtdl_params)
 
+        self.label_emb: nn.Embedding | nn.Linear
         if self.num_classes > 0 and is_y_cond == "embedding":
             self.label_emb = nn.Embedding(self.num_classes, dim_t)
         elif self.num_classes == 0 and is_y_cond == "embedding":
             self.label_emb = nn.Linear(1, dim_t)
 
-        self.time_embed = nn.Sequential(
-            nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t)
-        )
+        self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
 
     def forward(self, x, timesteps, y=None):
         emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
@@ -2330,6 +2198,7 @@ class ResNetDiffusion(nn.Module):
 
 def reglu(x: Tensor) -> Tensor:
     """The ReGLU activation function from [1].
+
     References:
         [1] Noam Shazeer, "GLU Variants Improve Transformer", 2020
     """
@@ -2340,6 +2209,7 @@ def reglu(x: Tensor) -> Tensor:
 
 def geglu(x: Tensor) -> Tensor:
     """The GEGLU activation function from [1].
+
     References:
         [1] Noam Shazeer, "GLU Variants Improve Transformer", 2020
     """
@@ -2384,15 +2254,9 @@ class GEGLU(nn.Module):
         return geglu(x)
 
 
-def _make_nn_module(module_type: ModuleType, *args) -> nn.Module:
+def _make_nn_module(module_type: ModuleType, *args) -> nn.Module:  # type: ignore[no-untyped-def]
     return (
-        (
-            ReGLU()
-            if module_type == "ReGLU"
-            else GEGLU()
-            if module_type == "GEGLU"
-            else getattr(nn, module_type)(*args)
-        )
+        (ReGLU() if module_type == "ReGLU" else GEGLU() if module_type == "GEGLU" else getattr(nn, module_type)(*args))
         if isinstance(module_type, str)
         else module_type(*args)
     )
