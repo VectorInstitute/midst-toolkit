@@ -26,10 +26,8 @@ from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture, BayesianGaussianMixture
 from sklearn.model_selection import train_test_split
 
-from midst_toolkit.models.tabddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
-
-
-logger = logging.getLogger(__name__)
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
+from midst_toolkit.core import logger
 
 
 Normalization = Literal["standard", "quantile", "minmax"]
@@ -486,6 +484,7 @@ def train_classifier(
             schedule_sampler,
             empty_diffusion,
             prefix="train",
+            device=device,
         )
 
         classifier_optimizer.step()
@@ -500,6 +499,7 @@ def train_classifier(
                     schedule_sampler,
                     empty_diffusion,
                     prefix="val",
+                    device=device,
                 )
                 classifier.train()
 
@@ -1646,7 +1646,7 @@ def cat_encode(
         if not isinstance(X["train"], pd.DataFrame):
             X = {k: v.values for k, v in X.items()}  # type: ignore[code]
     else:
-        util.raise_unknown("encoding", encoding)
+        ValueError(f"Unknown encoding: {encoding}")
 
     if return_encoder:
         return X, True, encoder  # type: ignore[code]
@@ -1666,7 +1666,7 @@ def build_target(
             info["mean"] = mean
             info["std"] = std
     else:
-        util.raise_unknown("policy", policy)
+        ValueError(f"Unknown policy: {policy}")
     return y, info
 
 

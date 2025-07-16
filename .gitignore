@@ -13,7 +13,7 @@ wheels/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
-tests/unit/models/tabddpm/results/
+tests/integration/models/clavaddpm/results/
 
 # Vscode
 .vscode
