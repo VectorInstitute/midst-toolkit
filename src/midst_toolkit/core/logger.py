@@ -3,6 +3,8 @@ Logger copied from OpenAI baselines to avoid extra RL-based dependencies:
 https://github.com/openai/baselines/blob/ea25b9e8b234e6ee1bca43083f8f3cf974143998/baselines/logger.py
 """
 
+# TODO is this file necessary at all?
+
 import datetime
 import json
 import os
@@ -13,6 +15,7 @@ import time
 import warnings
 from collections import defaultdict
 from contextlib import contextmanager
+from typing import Any
 
 
 DEBUG = 10
@@ -200,7 +203,7 @@ def make_output_format(format, ev_dir, log_suffix=""):
 # ================================================================
 
 
-def logkv(key, val):
+def logkv(key: str, val: Any) -> None:
     """
     Log a value of some diagnostic
     Call this once for each diagnostic quantity, each iteration
@@ -209,7 +212,7 @@ def logkv(key, val):
     get_current().logkv(key, val)
 
 
-def logkv_mean(key, val):
+def logkv_mean(key: str, val: Any) -> None:
     """
     The same as logkv(), but if called many times, values averaged.
     """

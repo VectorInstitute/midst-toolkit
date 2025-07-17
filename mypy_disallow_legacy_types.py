@@ -17,6 +17,7 @@ disallowed_types = [
     "Dict",
     "Sequence",
     "Set",
+    "Callable",
     "Iterable",
     "Hashable",
     "Generator",

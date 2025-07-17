@@ -6,10 +6,11 @@ import os
 import pickle
 from abc import ABC, abstractmethod
 from collections import Counter, defaultdict
+from collections.abc import Callable, Generator
 from copy import deepcopy
 from dataclasses import astuple, dataclass, replace
 from pathlib import Path
-from typing import Any, Callable, Literal, Self, cast
+from typing import Any, Literal, Self, cast
 
 import numpy as np
 import pandas as pd
@@ -92,11 +93,8 @@ class Dataset:
         dir_ = Path(dir_)
         splits = [k for k in ["train", "val", "test"] if dir_.joinpath(f"y_{k}.npy").exists()]
 
-        def load(item) -> ArrayDict:
-            return {
-                x: cast(np.ndarray, np.load(dir_ / f"{item}_{x}.npy", allow_pickle=True))  # type: ignore[code]
-                for x in splits
-            }
+        def load(item: str) -> ArrayDict:
+            return {x: cast(np.ndarray, np.load(dir_ / f"{item}_{x}.npy", allow_pickle=True)) for x in splits}
 
         if Path(dir_ / "info.json").exists():
             info = json.loads(Path(dir_ / "info.json").read_text())
@@ -219,7 +217,7 @@ def _get_labels_and_probs(
     elif prediction_type == PredictionType.PROBS:
         probs = y_pred
     else:
-        ValueError(f"Unknown prediction_type: {prediction_type}")
+        raise ValueError(f"Unknown prediction_type: {prediction_type}")
 
     assert probs is not None
     labels = np.round(probs) if task_type == TaskType.BINCLASS else probs.argmax(axis=1)
@@ -306,13 +304,13 @@ def clava_training(tables, relation_order, save_dir, configs, device="cuda"):
 
 
 def child_training(
-    child_df_with_cluster,
-    child_domain_dict,
-    parent_name,
-    child_name,
-    configs,
-    device="cuda",
-):
+    child_df_with_cluster: pd.DataFrame,
+    child_domain_dict: dict[str, Any],
+    parent_name: str | None,
+    child_name: str,
+    configs: dict[str, Any],
+    device: str = "cuda",
+) -> dict[str, Any]:
     if parent_name is None:
         y_col = "placeholder"
         child_df_with_cluster["placeholder"] = list(range(len(child_df_with_cluster)))
@@ -371,20 +369,20 @@ def child_training(
 
 
 def train_model(
-    df,
-    df_info,
-    model_params,
-    T_dict,
-    steps,
-    batch_size,
-    model_type,
-    gaussian_loss_type,
-    num_timesteps,
-    scheduler,
-    lr,
-    weight_decay,
-    device="cuda",
-):
+    df: pd.DataFrame,
+    df_info: pd.DataFrame,
+    model_params: dict[str, Any],
+    T_dict: dict[str, Any],
+    steps: int,
+    batch_size: int,
+    model_type: str,
+    gaussian_loss_type: str,
+    num_timesteps: int,
+    scheduler: str,
+    lr: float,
+    weight_decay: float,
+    device: str = "cuda",
+) -> dict[str, Any]:
     T = Transformations(**T_dict)
     dataset, label_encoders, column_orders = make_dataset_from_df(
         df,
@@ -450,22 +448,72 @@ def train_model(
     }
 
 
+class Classifier(nn.Module):
+    def __init__(
+        self,
+        d_in: int,
+        d_out: int,
+        dim_t: int,
+        hidden_sizes: list[int],
+        dropout_prob: float = 0.5,
+        num_heads: int = 2,
+        num_layers: int = 1,
+    ):
+        super(Classifier, self).__init__()
+
+        self.dim_t = dim_t
+        self.proj = nn.Linear(d_in, dim_t)
+
+        self.transformer_layer = nn.Transformer(d_model=dim_t, nhead=num_heads, num_encoder_layers=num_layers)
+
+        self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
+
+        # Create a list to hold the layers
+        layers: list[nn.Module] = []
+
+        # Add input layer
+        layers.append(nn.Linear(dim_t, hidden_sizes[0]))
+        layers.append(nn.ReLU())
+        layers.append(nn.BatchNorm1d(hidden_sizes[0]))  # Batch Normalization
+        layers.append(nn.Dropout(p=dropout_prob))
+
+        # Add hidden layers with batch normalization and different activation
+        for i in range(len(hidden_sizes) - 1):
+            layers.append(nn.Linear(hidden_sizes[i], hidden_sizes[i + 1]))
+            layers.append(nn.LeakyReLU())  # Different activation
+            layers.append(nn.BatchNorm1d(hidden_sizes[i + 1]))  # Batch Normalization
+            layers.append(nn.Dropout(p=dropout_prob))
+
+        # Add output layer
+        layers.append(nn.Linear(hidden_sizes[-1], d_out))
+
+        # Create a Sequential model from the list of layers
+        self.model = nn.Sequential(*layers)
+
+    def forward(self, x, timesteps):
+        emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
+        x = self.proj(x) + emb
+        # x = self.transformer_layer(x, x)
+        x = self.model(x)
+        return x
+
+
 def train_classifier(
-    df,
-    df_info,
-    model_params,
-    T_dict,
-    classifier_steps,
-    batch_size,
-    gaussian_loss_type,
-    num_timesteps,
-    scheduler,
-    device="cuda",
-    cluster_col="cluster",
-    d_layers=None,
-    dim_t=128,
-    lr=0.0001,
-):
+    df: pd.DataFrame,
+    df_info: pd.DataFrame,
+    model_params: dict[str, Any],
+    T_dict: dict[str, Any],
+    classifier_steps: int,
+    batch_size: int,
+    gaussian_loss_type: str,
+    num_timesteps: int,
+    scheduler: str,
+    d_layers: list[int],
+    device: str = "cuda",
+    cluster_col: str = "cluster",
+    dim_t: int = 128,
+    lr: float = 0.0001,
+) -> Classifier:
     T = Transformations(**T_dict)
     dataset, label_encoders, column_orders = make_dataset_from_df(
         df,
@@ -575,19 +623,19 @@ def train_classifier(
 
 
 def pair_clustering_keep_id(
-    child_df,
-    child_domain_dict,
-    parent_df,
-    parent_domain_dict,
-    child_primary_key,
-    parent_primary_key,
-    num_clusters,
-    parent_scale,
-    key_scale,
-    parent_name,
-    child_name,
-    clustering_method="kmeans",
-):
+    child_df: pd.DataFrame,
+    child_domain_dict: dict[str, Any],
+    parent_df: pd.DataFrame,
+    parent_domain_dict: dict[str, Any],
+    child_primary_key: str,
+    parent_primary_key: str,
+    num_clusters: int,
+    parent_scale: float,
+    key_scale: float,
+    parent_name: str,
+    child_name: str,
+    clustering_method: str = "kmeans",
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[int, dict[int, float]]]:
     original_child_cols = list(child_df.columns)
     original_parent_cols = list(parent_df.columns)
 
@@ -640,9 +688,9 @@ def pair_clustering_keep_id(
         else:
             group_lengths.append(len(child_group_data_dict[group_id]))
 
-    group_lengths = np.array(group_lengths, dtype=int)
+    group_lengths_np = np.array(group_lengths, dtype=int)
 
-    sorted_parent_data_repeated = np.repeat(sorted_parent_data, group_lengths, axis=0)
+    sorted_parent_data_repeated = np.repeat(sorted_parent_data, group_lengths_np, axis=0)
     assert (sorted_parent_data_repeated[:, parent_primary_key_index] == sorted_child_data[:, foreing_key_index]).all()
 
     child_group_data = get_group_data(
@@ -674,15 +722,15 @@ def pair_clustering_keep_id(
             cat_converted.append(label_encoder.fit_transform(joint_cat_matrix[:, i]).astype(float))
             label_encoders.append(label_encoder)
 
-        cat_converted = np.vstack(cat_converted).T
+        cat_converted_transposed = np.vstack(cat_converted).T
 
         # Initialize an empty array to store the encoded values
-        cat_one_hot = np.empty((cat_converted.shape[0], 0))
+        cat_one_hot = np.empty((cat_converted_transposed.shape[0], 0))
 
         # Loop through each column in the data and encode it
-        for col in range(cat_converted.shape[1]):
+        for col in range(cat_converted_transposed.shape[1]):
             encoder = OneHotEncoder(sparse_output=False)
-            column = cat_converted[:, col].reshape(-1, 1)
+            column = cat_converted_transposed[:, col].reshape(-1, 1)
             encoded_column = encoder.fit_transform(column)
             cat_one_hot = np.concatenate((cat_one_hot, encoded_column), axis=1)
 
@@ -754,7 +802,7 @@ def pair_clustering_keep_id(
             # First, determine the most common label in the current group
             most_common_label_count = np.max(np.bincount(cluster_labels[curr_index : curr_index + group_length]))
             group_cluster_label = np.argmax(np.bincount(cluster_labels[curr_index : curr_index + group_length]))
-            group_cluster_labels.append(group_cluster_label)
+            group_cluster_labels.append(int(group_cluster_label))
 
             # Compute agree rate using the most common label count
             agree_rate = most_common_label_count / group_length
@@ -775,14 +823,14 @@ def pair_clustering_keep_id(
     group_labels_list = group_cluster_labels
     group_lengths_list = child_group_lengths.tolist()
 
-    group_lengths_dict = {}
+    group_lengths_dict: dict[int, dict[int, int]] = {}
     for i in range(len(group_labels_list)):
         group_label = group_labels_list[i]
         if group_label not in group_lengths_dict:
             group_lengths_dict[group_label] = defaultdict(int)
         group_lengths_dict[group_label][group_lengths_list[i]] += 1
 
-    group_lengths_prob_dicts = {}
+    group_lengths_prob_dicts: dict[int, dict[int, float]] = {}
     for group_label, freq_dict in group_lengths_dict.items():
         group_lengths_prob_dicts[group_label] = freq_to_prob(freq_dict)
 
@@ -800,7 +848,7 @@ def pair_clustering_keep_id(
         how="left",
     )
 
-    parent_id_to_cluster = {}
+    parent_id_to_cluster: dict[Any, Any] = {}
     for i in range(len(sorted_child_data)):
         parent_id = sorted_child_data[i, foreing_key_index]
         if parent_id in parent_id_to_cluster:
@@ -817,18 +865,18 @@ def pair_clustering_keep_id(
         else:
             parent_data_clusters.append(max_cluster_label + 1)
 
-    parent_data_clusters = np.array(parent_data_clusters).reshape(-1, 1)
-    parent_data_with_cluster = np.concatenate([parent_data, parent_data_clusters], axis=1)
+    parent_data_clusters_np = np.array(parent_data_clusters).reshape(-1, 1)
+    parent_data_with_cluster = np.concatenate([parent_data, parent_data_clusters_np], axis=1)
     parent_df_with_cluster = pd.DataFrame(
         parent_data_with_cluster, columns=original_parent_cols + [relation_cluster_name]
     )
 
     new_col_entry = {
         "type": "discrete",
-        "size": len(set(parent_data_clusters.flatten())),
+        "size": len(set(parent_data_clusters_np.flatten())),
     }
 
-    print("Number of cluster centers: ", len(set(parent_data_clusters.flatten())))
+    print("Number of cluster centers: ", len(set(parent_data_clusters_np.flatten())))
 
     parent_domain_dict[relation_cluster_name] = new_col_entry.copy()
     child_domain_dict[relation_cluster_name] = new_col_entry.copy()
@@ -837,12 +885,12 @@ def pair_clustering_keep_id(
 
 
 def get_group_data_dict(
-    np_data,
-    group_id_attrs=[
+    np_data: np.ndarray,
+    group_id_attrs: list[int] = [
         0,
     ],
-):
-    group_data_dict = {}
+) -> dict[tuple[Any, ...], list[np.ndarray]]:
+    group_data_dict: dict[tuple[Any, ...], list[np.ndarray]] = {}
     data_len = len(np_data)
     for i in range(data_len):
         row_id = tuple(np_data[i, group_id_attrs])
@@ -854,11 +902,11 @@ def get_group_data_dict(
 
 
 def get_group_data(
-    np_data,
-    group_id_attrs=[
+    np_data: np.ndarray,
+    group_id_attrs: list[int] = [
         0,
     ],
-):
+) -> np.ndarray:
     group_data_list = []
     data_len = len(np_data)
     i = 0
@@ -871,14 +919,12 @@ def get_group_data(
             i += 1
             if i >= data_len:
                 break
-        group = np.array(group)
-        group_data_list.append(group)
-    group_data_list = np.array(group_data_list, dtype=object)
+        group_data_list.append(np.array(group))
 
-    return group_data_list
+    return np.array(group_data_list, dtype=object)
 
 
-def quantile_normalize_sklearn(matrix):
+def quantile_normalize_sklearn(matrix: np.ndarray) -> np.ndarray:
     transformer = QuantileTransformer(
         output_distribution="normal", random_state=42
     )  # Change output_distribution as needed
@@ -894,7 +940,7 @@ def quantile_normalize_sklearn(matrix):
     return normalized_data
 
 
-def min_max_normalize_sklearn(matrix):
+def min_max_normalize_sklearn(matrix: np.ndarray) -> np.ndarray:
     scaler = MinMaxScaler(feature_range=(-1, 1))
 
     normalized_data = np.empty((matrix.shape[0], 0))
@@ -908,7 +954,10 @@ def min_max_normalize_sklearn(matrix):
     return normalized_data
 
 
-def aggregate_and_sample(cluster_probabilities, child_group_lengths):
+def aggregate_and_sample(
+    cluster_probabilities: np.ndarray,
+    child_group_lengths: np.ndarray,
+) -> tuple[list[int], list[float]]:
     group_cluster_labels = []
     curr_index = 0
     agree_rates = []
@@ -933,14 +982,14 @@ def aggregate_and_sample(cluster_probabilities, child_group_lengths):
     return group_cluster_labels, agree_rates
 
 
-def freq_to_prob(freq_dict):
-    prob_dict = {}
+def freq_to_prob(freq_dict: dict[int, int]) -> dict[int, float]:
+    prob_dict: dict[Any, float] = {}
     for key in freq_dict:
         prob_dict[key] = freq_dict[key] / sum(list(freq_dict.values()))
     return prob_dict
 
 
-def get_table_info(df, domain_dict, y_col):
+def get_table_info(df: pd.DataFrame, domain_dict: dict[str, Any], y_col: str) -> dict[str, Any]:
     cat_cols = []
     num_cols = []
     for col in df.columns:
@@ -950,7 +999,7 @@ def get_table_info(df, domain_dict, y_col):
             else:
                 num_cols.append(col)
 
-    df_info = {}
+    df_info: dict[str, Any] = {}
     df_info["cat_cols"] = cat_cols
     df_info["num_cols"] = num_cols
     df_info["y_col"] = y_col
@@ -960,7 +1009,7 @@ def get_table_info(df, domain_dict, y_col):
     return df_info
 
 
-def get_model_params(rtdl_params=None):
+def get_model_params(rtdl_params: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "num_classes": 0,
         "is_y_cond": "none",
@@ -970,7 +1019,7 @@ def get_model_params(rtdl_params=None):
     }
 
 
-def get_T_dict():
+def get_T_dict() -> dict[str, Any]:
     return {
         "seed": 0,
         "normalization": "quantile",
@@ -982,7 +1031,14 @@ def get_T_dict():
     }
 
 
-def make_dataset_from_df(df, T, is_y_cond, ratios=[0.7, 0.2, 0.1], df_info=None, std=0):
+def make_dataset_from_df(
+    df: pd.DataFrame,
+    T: Transformations,
+    is_y_cond: str,
+    df_info: pd.DataFrame,
+    ratios: list[float] = [0.7, 0.2, 0.1],
+    std: float = 0,
+) -> tuple[Dataset, dict[int, LabelEncoder], list[int]]:
     """
     The order of the generated dataset: (y, X_num, X_cat)
 
@@ -1019,8 +1075,8 @@ def make_dataset_from_df(df, T, is_y_cond, ratios=[0.7, 0.2, 0.1], df_info=None,
     column_to_index = {col: i for i, col in enumerate(index_to_column)}
 
     if df_info["n_classes"] > 0:
-        X_cat = {} if df_info["cat_cols"] is not None or is_y_cond == "concat" else None
-        X_num = {} if df_info["num_cols"] is not None else None
+        X_cat: dict[str, np.ndarray] | None = {} if df_info["cat_cols"] is not None or is_y_cond == "concat" else None
+        X_num: dict[str, np.ndarray] | None = {} if df_info["num_cols"] is not None else None
         y = {}
 
         cat_cols_with_y = []
@@ -1030,18 +1086,18 @@ def make_dataset_from_df(df, T, is_y_cond, ratios=[0.7, 0.2, 0.1], df_info=None,
             cat_cols_with_y = [df_info["y_col"]] + cat_cols_with_y
 
         if len(cat_cols_with_y) > 0:
-            X_cat["train"] = train_df[cat_cols_with_y].to_numpy(dtype=np.str_)
-            X_cat["val"] = val_df[cat_cols_with_y].to_numpy(dtype=np.str_)
-            X_cat["test"] = test_df[cat_cols_with_y].to_numpy(dtype=np.str_)
+            X_cat["train"] = train_df[cat_cols_with_y].to_numpy(dtype=np.str_)  # type: ignore[index]
+            X_cat["val"] = val_df[cat_cols_with_y].to_numpy(dtype=np.str_)  # type: ignore[index]
+            X_cat["test"] = test_df[cat_cols_with_y].to_numpy(dtype=np.str_)  # type: ignore[index]
 
         y["train"] = train_df[df_info["y_col"]].values.astype(np.float32)
         y["val"] = val_df[df_info["y_col"]].values.astype(np.float32)
         y["test"] = test_df[df_info["y_col"]].values.astype(np.float32)
 
         if df_info["num_cols"] is not None:
-            X_num["train"] = train_df[df_info["num_cols"]].values.astype(np.float32)
-            X_num["val"] = val_df[df_info["num_cols"]].values.astype(np.float32)
-            X_num["test"] = test_df[df_info["num_cols"]].values.astype(np.float32)
+            X_num["train"] = train_df[df_info["num_cols"]].values.astype(np.float32)  # type: ignore[index]
+            X_num["val"] = val_df[df_info["num_cols"]].values.astype(np.float32)  # type: ignore[index]
+            X_num["test"] = test_df[df_info["num_cols"]].values.astype(np.float32)  # type: ignore[index]
 
         cat_column_orders = [column_to_index[col] for col in cat_cols_with_y]
         num_column_orders = [column_to_index[col] for col in df_info["num_cols"]]
@@ -1058,18 +1114,18 @@ def make_dataset_from_df(df, T, is_y_cond, ratios=[0.7, 0.2, 0.1], df_info=None,
             num_cols_with_y = [df_info["y_col"]] + num_cols_with_y
 
         if len(num_cols_with_y) > 0:
-            X_num["train"] = train_df[num_cols_with_y].values.astype(np.float32)
-            X_num["val"] = val_df[num_cols_with_y].values.astype(np.float32)
-            X_num["test"] = test_df[num_cols_with_y].values.astype(np.float32)
+            X_num["train"] = train_df[num_cols_with_y].values.astype(np.float32)  # type: ignore[index]
+            X_num["val"] = val_df[num_cols_with_y].values.astype(np.float32)  # type: ignore[index]
+            X_num["test"] = test_df[num_cols_with_y].values.astype(np.float32)  # type: ignore[index]
 
         y["train"] = train_df[df_info["y_col"]].values.astype(np.float32)
         y["val"] = val_df[df_info["y_col"]].values.astype(np.float32)
         y["test"] = test_df[df_info["y_col"]].values.astype(np.float32)
 
         if df_info["cat_cols"] is not None:
-            X_cat["train"] = train_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
-            X_cat["val"] = val_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
-            X_cat["test"] = test_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+            X_cat["train"] = train_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)  # type: ignore[index]
+            X_cat["val"] = val_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)  # type: ignore[index]
+            X_cat["test"] = test_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)  # type: ignore[index]
 
         cat_column_orders = [column_to_index[col] for col in df_info["cat_cols"]]
         num_column_orders = [column_to_index[col] for col in num_cols_with_y]
@@ -1089,17 +1145,17 @@ def make_dataset_from_df(df, T, is_y_cond, ratios=[0.7, 0.2, 0.1], df_info=None,
                 X_cat_converted[-1] += np.random.normal(0, std, X_cat_converted[-1].shape)
             label_encoders[col_index] = label_encoder
 
-        X_cat_converted = np.vstack(X_cat_converted).T
+        X_cat_converted = np.vstack(X_cat_converted).T  # type: ignore[assignment]
 
         train_num = X_cat["train"].shape[0]
         val_num = X_cat["val"].shape[0]
         test_num = X_cat["test"].shape[0]
 
-        X_cat["train"] = X_cat_converted[:train_num, :]
-        X_cat["val"] = X_cat_converted[train_num : train_num + val_num, :]
-        X_cat["test"] = X_cat_converted[train_num + val_num :, :]
+        X_cat["train"] = X_cat_converted[:train_num, :]  # type: ignore[call-overload]
+        X_cat["val"] = X_cat_converted[train_num : train_num + val_num, :]  # type: ignore[call-overload]
+        X_cat["test"] = X_cat_converted[train_num + val_num :, :]  # type: ignore[call-overload]
 
-        if len(X_num) > 0:
+        if X_num and len(X_num) > 0:
             X_num["train"] = np.concatenate((X_num["train"], X_cat["train"]), axis=1)
             X_num["val"] = np.concatenate((X_num["val"], X_cat["val"]), axis=1)
             X_num["test"] = np.concatenate((X_num["test"], X_cat["test"]), axis=1)
@@ -1119,13 +1175,19 @@ def make_dataset_from_df(df, T, is_y_cond, ratios=[0.7, 0.2, 0.1], df_info=None,
     return transform_dataset(D, T, None), label_encoders, column_orders
 
 
-def prepare_fast_dataloader(D: Dataset, split: str, batch_size: int, y_type: str = "float"):
+def prepare_fast_dataloader(
+    D: Dataset,
+    split: str,
+    batch_size: int,
+    y_type: str = "float",
+) -> Generator[tuple[Tensor, ...]]:
     if D.X_cat is not None:
         if D.X_num is not None:
             X = torch.from_numpy(np.concatenate([D.X_num[split], D.X_cat[split]], axis=1)).float()
         else:
             X = torch.from_numpy(D.X_cat[split]).float()
     else:
+        assert D.X_num is not None
         X = torch.from_numpy(D.X_num[split]).float()
     if y_type == "float":
         y = torch.from_numpy(D.y[split]).float()
@@ -1137,17 +1199,16 @@ def prepare_fast_dataloader(D: Dataset, split: str, batch_size: int, y_type: str
 
 
 def get_model(
-    model_name,
-    model_params,
-):
+    model_name: str,
+    model_params: dict[str, Any],
+) -> nn.Module:
     print(model_name)
     if model_name == "mlp":
-        model = MLPDiffusion(**model_params)
-    elif model_name == "resnet":
-        model = ResNetDiffusion(**model_params)
-    else:
-        raise "Unknown model!"
-    return model
+        return MLPDiffusion(**model_params)
+    if model_name == "resnet":
+        return ResNetDiffusion(**model_params)
+
+    raise ValueError("Unknown model!")
 
 
 def update_ema(target_params: list[Tensor], source_params: list[Tensor], rate: float = 0.999) -> None:
@@ -1174,14 +1235,14 @@ class ScheduleSampler(ABC):
     """
 
     @abstractmethod
-    def weights(self):
+    def weights(self) -> Tensor:
         """
         Get a numpy array of weights, one per diffusion step.
 
         The weights needn't be normalized, but must be positive.
         """
 
-    def sample(self, batch_size, device):
+    def sample(self, batch_size: int, device: str) -> tuple[Tensor, Tensor]:
         """
         Importance-sample timesteps for a batch.
 
@@ -1191,7 +1252,7 @@ class ScheduleSampler(ABC):
                  - timesteps: a tensor of timestep indices.
                  - weights: a tensor of weights to scale the resulting losses.
         """
-        w = self.weights()
+        w = self.weights().cpu().numpy()
         p = w / np.sum(w)
         indices_np = np.random.choice(len(p), size=(batch_size,), p=p)
         indices = torch.from_numpy(indices_np).long().to(device)
@@ -1201,16 +1262,16 @@ class ScheduleSampler(ABC):
 
 
 class UniformSampler(ScheduleSampler):
-    def __init__(self, diffusion):
+    def __init__(self, diffusion: GaussianMultinomialDiffusion):
         self.diffusion = diffusion
-        self._weights = np.ones([diffusion.num_timesteps])
+        self._weights = torch.from_numpy(np.ones([diffusion.num_timesteps]))
 
-    def weights(self):
+    def weights(self) -> Tensor:
         return self._weights
 
 
 class LossAwareSampler(ScheduleSampler):
-    def update_with_local_losses(self, local_ts, local_losses):
+    def update_with_local_losses(self, local_ts: Tensor, local_losses: Tensor) -> None:
         """
         Update the reweighting using losses from a model.
 
@@ -1232,8 +1293,7 @@ class LossAwareSampler(ScheduleSampler):
         )
 
         # Pad all_gather batches to be the maximum batch size.
-        batch_sizes = [x.item() for x in batch_sizes]
-        max_bs = max(batch_sizes)
+        max_bs = max([int(x.item()) for x in batch_sizes])
 
         timestep_batches = [torch.zeros(max_bs).to(local_ts) for bs in batch_sizes]
         loss_batches = [torch.zeros(max_bs).to(local_losses) for bs in batch_sizes]
@@ -1244,7 +1304,7 @@ class LossAwareSampler(ScheduleSampler):
         self.update_with_all_losses(timesteps, losses)
 
     @abstractmethod
-    def update_with_all_losses(self, ts, losses):
+    def update_with_all_losses(self, ts: list[int], losses: list[float]) -> None:
         """
         Update the reweighting using losses from a model.
 
@@ -1262,12 +1322,17 @@ class LossAwareSampler(ScheduleSampler):
 
 
 class LossSecondMomentResampler(LossAwareSampler):
-    def __init__(self, diffusion, history_per_term=10, uniform_prob=0.001):
+    def __init__(
+        self,
+        diffusion: GaussianMultinomialDiffusion,
+        history_per_term: int = 10,
+        uniform_prob: float = 0.001,
+    ):
         self.diffusion = diffusion
         self.history_per_term = history_per_term
         self.uniform_prob = uniform_prob
         self._loss_history = np.zeros([diffusion.num_timesteps, history_per_term], dtype=np.float64)
-        self._loss_counts = np.zeros([diffusion.num_timesteps], dtype=np.int)
+        self._loss_counts = np.zeros([diffusion.num_timesteps], dtype=np.uint)
 
     def weights(self):
         if not self._warmed_up():
@@ -1278,7 +1343,7 @@ class LossSecondMomentResampler(LossAwareSampler):
         weights += self.uniform_prob / len(weights)
         return weights
 
-    def update_with_all_losses(self, ts, losses):
+    def update_with_all_losses(self, ts: list[int], losses: list[float]) -> None:
         for t, loss in zip(ts, losses):
             if self._loss_counts[t] == self.history_per_term:
                 # Shift out the oldest loss term.
@@ -1288,11 +1353,11 @@ class LossSecondMomentResampler(LossAwareSampler):
                 self._loss_history[t, self._loss_counts[t]] = loss
                 self._loss_counts[t] += 1
 
-    def _warmed_up(self):
+    def _warmed_up(self) -> bool:
         return (self._loss_counts == self.history_per_term).all()
 
 
-def create_named_schedule_sampler(name, diffusion):
+def create_named_schedule_sampler(name: str, diffusion: GaussianMultinomialDiffusion) -> ScheduleSampler:
     """
     Create a ScheduleSampler from a library of pre-defined samplers.
 
@@ -1306,24 +1371,31 @@ def create_named_schedule_sampler(name, diffusion):
     raise NotImplementedError(f"unknown schedule sampler: {name}")
 
 
-def split_microbatches(microbatch, *args):
-    bs = len(args[0])
+def split_microbatches(
+    microbatch: int,
+    batch: Tensor,
+    labels: Tensor,
+    t: Tensor,
+) -> Generator[tuple[Tensor, Tensor, Tensor]]:
+    bs = len(batch)
     if microbatch == -1 or microbatch >= bs:
-        yield tuple(args)
+        yield batch, labels, t
     else:
         for i in range(0, bs, microbatch):
-            yield tuple(x[i : i + microbatch] if x is not None else None for x in args)
+            yield batch[i : i + microbatch], labels[i : i + microbatch], t[i : i + microbatch]
 
 
-def compute_top_k(logits, labels, k, reduction="mean"):
+def compute_top_k(logits: Tensor, labels: Tensor, k: int, reduction: str = "mean") -> Tensor:
     _, top_ks = torch.topk(logits, k, dim=-1)
     if reduction == "mean":
-        return (top_ks == labels[:, None]).float().sum(dim=-1).mean().item()
+        return (top_ks == labels[:, None]).float().sum(dim=-1).mean()
     if reduction == "none":
         return (top_ks == labels[:, None]).float().sum(dim=-1)
 
+    raise ValueError(f"reduction should be one of ['mean', 'none']: {reduction}")
 
-def log_loss_dict(diffusion, ts, losses):
+
+def log_loss_dict(diffusion: GaussianMultinomialDiffusion, ts: Tensor, losses: dict[str, Tensor]) -> None:
     for key, values in losses.items():
         logger.logkv_mean(key, values.mean().item())
         # Log the quantiles (four quartiles, in particular).
@@ -1333,16 +1405,16 @@ def log_loss_dict(diffusion, ts, losses):
 
 
 def numerical_forward_backward_log(
-    classifier,
-    optimizer,
-    data_loader,
-    dataset,
-    schedule_sampler,
-    diffusion,
-    prefix="train",
-    remove_first_col=False,
-    device="cuda",
-):
+    classifier: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    data_loader: Generator[tuple[Tensor, ...]],
+    dataset: Dataset,
+    schedule_sampler: ScheduleSampler,
+    diffusion: GaussianMultinomialDiffusion,
+    prefix: str = "train",
+    remove_first_col: bool = False,
+    device: str = "cuda",
+) -> None:
     batch, labels = next(data_loader)
     labels = labels.long().to(device)
 
@@ -1370,7 +1442,7 @@ def numerical_forward_backward_log(
         if loss.requires_grad:
             if i == 0:
                 optimizer.zero_grad()
-            loss.backward(loss * len(sub_batch) / len(batch))
+            loss.backward(loss * len(sub_batch) / len(batch))  # type: ignore[no-untyped-call]
 
 
 def transform_dataset(
@@ -1402,7 +1474,7 @@ def transform_dataset(
     X_num = dataset.X_num
 
     if X_num is not None and transformations.normalization is not None:
-        X_num, num_transform = normalize(
+        X_num, num_transform = normalize(  # type: ignore[assignment]
             X_num,
             transformations.normalization,
             transformations.seed,
@@ -1476,7 +1548,7 @@ def num_process_nans(dataset: Dataset, policy: NumNanPolicy | None) -> Dataset:
             v[num_nan_indices] = np.take(new_values, num_nan_indices[1])
         dataset = replace(dataset, X_num=X_num)
     else:
-        ValueError(f"Unknown policy: {policy}")
+        raise ValueError(f"Unknown policy: {policy}")
     return dataset
 
 
@@ -1508,7 +1580,7 @@ def normalize(
         #         X_train.shape
         #     )
     else:
-        ValueError(f"Unknown normalization: {normalization}")
+        raise ValueError(f"Unknown normalization: {normalization}")
     normalizer.fit(X_train)
     if return_normalizer:
         return {k: normalizer.transform(v) for k, v in X.items()}, normalizer
@@ -1526,7 +1598,7 @@ def cat_process_nans(X: ArrayDict, policy: CatNanPolicy | None) -> ArrayDict:
             imputer.fit(X["train"])
             X_new = {k: cast(np.ndarray, imputer.transform(v)) for k, v in X.items()}
         else:
-            ValueError(f"Unknown cat_nan_policy: {policy}")
+            raise ValueError(f"Unknown cat_nan_policy: {policy}")
     else:
         assert policy is None
         X_new = X
@@ -1602,7 +1674,7 @@ def cat_encode(
         if not isinstance(X["train"], pd.DataFrame):
             X = {k: v.values for k, v in X.items()}  # type: ignore[attr-defined]
     else:
-        ValueError(f"Unknown encoding: {encoding}")
+        raise ValueError(f"Unknown encoding: {encoding}")
 
     if return_encoder:
         return X, True, encoder
@@ -1620,19 +1692,19 @@ def build_target(y: ArrayDict, policy: YPolicy | None, task_type: TaskType) -> t
             info["mean"] = mean
             info["std"] = std
     else:
-        ValueError(f"Unknown policy: {policy}")
+        raise ValueError(f"Unknown policy: {policy}")
     return y, info
 
 
 class Trainer:
     def __init__(
         self,
-        diffusion,
-        train_iter,
-        lr,
-        weight_decay,
-        steps,
-        device=torch.device("cuda:1"),
+        diffusion: GaussianMultinomialDiffusion,
+        train_iter: Generator[tuple[Tensor, ...]],
+        lr: float,
+        weight_decay: float,
+        steps: int,
+        device: str = "cuda",
     ):
         self.diffusion = diffusion
         self.ema_model = deepcopy(self.diffusion._denoise_fn)
@@ -1662,20 +1734,20 @@ class Trainer:
         self.optimizer.zero_grad()
         loss_multi, loss_gauss = self.diffusion.mixed_loss(x, out_dict)
         loss = loss_multi + loss_gauss
-        loss.backward()
+        loss.backward()  # type: ignore[no-untyped-call]
         self.optimizer.step()
 
         return loss_multi, loss_gauss
 
-    def run_loop(self):
+    def run_loop(self) -> None:
         step = 0
         curr_loss_multi = 0.0
         curr_loss_gauss = 0.0
 
         curr_count = 0
         while step < self.steps:
-            x, out_dict = next(self.train_iter)
-            out_dict = {"y": out_dict}
+            x, out = next(self.train_iter)
+            out_dict = {"y": out}
             batch_loss_multi, batch_loss_gauss = self._run_step(x, out_dict)
 
             self._anneal_lr(step)
@@ -1704,56 +1776,6 @@ class Trainer:
             step += 1
 
 
-class Classifier(nn.Module):
-    def __init__(
-        self,
-        d_in,
-        d_out,
-        dim_t,
-        hidden_sizes,
-        dropout_prob=0.5,
-        num_heads=2,
-        num_layers=1,
-    ):
-        super(Classifier, self).__init__()
-
-        self.dim_t = dim_t
-        self.proj = nn.Linear(d_in, dim_t)
-
-        self.transformer_layer = nn.Transformer(d_model=dim_t, nhead=num_heads, num_encoder_layers=num_layers)
-
-        self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
-
-        # Create a list to hold the layers
-        layers: list[nn.Module] = []
-
-        # Add input layer
-        layers.append(nn.Linear(dim_t, hidden_sizes[0]))
-        layers.append(nn.ReLU())
-        layers.append(nn.BatchNorm1d(hidden_sizes[0]))  # Batch Normalization
-        layers.append(nn.Dropout(p=dropout_prob))
-
-        # Add hidden layers with batch normalization and different activation
-        for i in range(len(hidden_sizes) - 1):
-            layers.append(nn.Linear(hidden_sizes[i], hidden_sizes[i + 1]))
-            layers.append(nn.LeakyReLU())  # Different activation
-            layers.append(nn.BatchNorm1d(hidden_sizes[i + 1]))  # Batch Normalization
-            layers.append(nn.Dropout(p=dropout_prob))
-
-        # Add output layer
-        layers.append(nn.Linear(hidden_sizes[-1], d_out))
-
-        # Create a Sequential model from the list of layers
-        self.model = nn.Sequential(*layers)
-
-    def forward(self, x, timesteps):
-        emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
-        x = self.proj(x) + emb
-        # x = self.transformer_layer(x, x)
-        x = self.model(x)
-        return x
-
-
 class FastTensorDataLoader:
     """
     A DataLoader-like object for a set of tensors that can be much faster than
@@ -1762,7 +1784,7 @@ class FastTensorDataLoader:
     Source: https://discuss.pytorch.org/t/dataloader-much-slower-than-manual-batching/27014/6
     """
 
-    def __init__(self, *tensors, batch_size=32, shuffle=False):
+    def __init__(self, *tensors: Tensor, batch_size: int = 32, shuffle: bool = False):
         """
         Initialize a FastTensorDataLoader.
         :param *tensors: tensors to store. Must have the same length @ dim 0.
@@ -2136,7 +2158,14 @@ class ResNet(nn.Module):
 
 
 class MLPDiffusion(nn.Module):
-    def __init__(self, d_in, num_classes, is_y_cond, rtdl_params, dim_t=128):
+    def __init__(
+        self,
+        d_in: int,
+        num_classes: int,
+        is_y_cond: str,
+        rtdl_params: dict[str, Any],
+        dim_t: int = 128,
+    ):
         super().__init__()
         self.dim_t = dim_t
         self.num_classes = num_classes
@@ -2171,7 +2200,14 @@ class MLPDiffusion(nn.Module):
 
 
 class ResNetDiffusion(nn.Module):
-    def __init__(self, d_in, num_classes, rtdl_params, dim_t=256, is_y_cond=None):
+    def __init__(
+        self,
+        d_in: int,
+        num_classes: int,
+        rtdl_params: dict[str, Any],
+        dim_t: int = 256,
+        is_y_cond: str | None = None,
+    ):
         super().__init__()
         self.dim_t = dim_t
         self.num_classes = num_classes

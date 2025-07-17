@@ -4,10 +4,13 @@ and https://github.com/ehoogeboom/multinomial_diffusion
 """
 
 import math
+from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 import torch
 import torch.nn.functional as F
+from torch import Tensor
 
 from midst_toolkit.models.clavaddpm.diffusion_utils import (
     FoundNANsError,
@@ -183,7 +186,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         log_variance = extract(self.log_1_min_cumprod_alpha, t, x_start.shape)
         return mean, variance, log_variance
 
-    def gaussian_q_sample(self, x_start, t, noise=None):
+    def gaussian_q_sample(self, x_start: Tensor, t: Tensor, noise: Tensor | None = None) -> Tensor:
         if noise is None:
             noise = torch.randn_like(x_start)
         assert noise.shape == x_start.shape
@@ -366,14 +369,14 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
 
     def gaussian_p_sample(
         self,
-        model_out,
-        x,
-        t,
-        clip_denoised=False,
-        denoised_fn=None,
-        model_kwargs=None,
-        cond_fn=None,
-    ):
+        model_out: Tensor,
+        x: Tensor,
+        t: Tensor,
+        clip_denoised: bool = False,
+        denoised_fn: Callable | None = None,
+        model_kwargs: dict[str, Any] | None = None,
+        cond_fn: Callable | None = None,
+    ) -> dict[str, Tensor]:
         out = self.gaussian_p_mean_variance(
             model_out,
             x,
@@ -471,7 +474,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         return log_model_pred
 
     @torch.no_grad()
-    def p_sample(self, model_out, log_x, t, out_dict):
+    def p_sample(self, model_out: Tensor, log_x: Tensor, t: Tensor, out_dict: dict[str, Tensor]) -> Tensor:
         model_log_prob = self.p_pred(model_out, log_x=log_x, t=t, out_dict=out_dict)
         out = self.log_sample_categorical(model_log_prob)
         return out
@@ -631,7 +634,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
 
         return -loss
 
-    def mixed_loss(self, x, out_dict):
+    def mixed_loss(self, x: Tensor, out_dict: dict[str, Tensor]) -> tuple[Tensor, Tensor]:
         b = x.shape[0]
         device = x.device
         t, pt = self.sample_time(b, device, "uniform")
@@ -877,7 +880,13 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         return out
 
     @torch.no_grad()
-    def sample_ddim(self, num_samples, y_dist, model_kwargs=None, cond_fn=None):
+    def sample_ddim(
+        self,
+        num_samples: int,
+        y_dist: Tensor,
+        model_kwargs: dict[str, Any] | None = None,
+        cond_fn: Callable | None = None,
+    ) -> tuple[Tensor, dict[str, Tensor]]:
         b = num_samples
         device = self.log_alpha.device
         z_norm = torch.randn((b, self.num_numerical_features), device=device)
@@ -950,7 +959,13 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         return sample, out_dict
 
     @torch.no_grad()
-    def sample(self, num_samples, y_dist, model_kwargs=None, cond_fn=None):
+    def sample(
+        self,
+        num_samples: int,
+        y_dist: Tensor,
+        model_kwargs: dict[str, Any] | None = None,
+        cond_fn: Callable | None = None,
+    ) -> tuple[Tensor, dict[str, Tensor]]:
         b = num_samples
         device = self.log_alpha.device
         z_norm = torch.randn((b, self.num_numerical_features), device=device)

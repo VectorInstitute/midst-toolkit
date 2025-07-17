@@ -3,6 +3,7 @@ from inspect import isfunction
 import numpy as np
 import torch
 import torch.nn.functional as F
+from torch import Tensor
 
 
 def normal_kl(mean1, logvar1, mean2, logvar2):
@@ -87,7 +88,7 @@ def mean_flat(tensor):
     return tensor.mean(dim=list(range(1, len(tensor.shape))))
 
 
-def ohe_to_categories(ohe, K):
+def ohe_to_categories(ohe: Tensor, K: Tensor) -> Tensor:
     K = torch.from_numpy(K)
     indices = torch.cat([torch.zeros((1,)), K.cumsum(dim=0)], dim=0).int().tolist()
     res = []
