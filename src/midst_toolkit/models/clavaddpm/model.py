@@ -6,7 +6,7 @@ import os
 import pickle
 from abc import ABC, abstractmethod
 from collections import Counter, defaultdict
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterator
 from copy import deepcopy
 from dataclasses import astuple, dataclass, replace
 from pathlib import Path
@@ -16,6 +16,8 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
+
+# ruff: noqa: N812
 from category_encoders import LeaveOneOutEncoder
 from scipy.special import expit, softmax
 from sklearn.cluster import KMeans
@@ -100,6 +102,8 @@ class Dataset:
             info = json.loads(Path(dir_ / "info.json").read_text())
         else:
             info = None
+        # ruff: noqa: SIM108
+
         return Dataset(
             load("X_num") if dir_.joinpath("X_num_train.npy").exists() else None,
             load("X_cat") if dir_.joinpath("X_cat_train.npy").exists() else None,
@@ -232,6 +236,7 @@ def clava_clustering(tables, relation_order, save_dir, configs):
     if os.path.exists(os.path.join(save_dir, "cluster_ckpt.pkl")):
         print("Clustering checkpoint found, loading...")
         cluster_ckpt = pickle.load(open(os.path.join(save_dir, "cluster_ckpt.pkl"), "rb"))
+        # ruff: noqa: SIM115
         tables = cluster_ckpt["tables"]
         all_group_lengths_prob_dicts = cluster_ckpt["all_group_lengths_prob_dicts"]
     else:
@@ -269,6 +274,7 @@ def clava_clustering(tables, relation_order, save_dir, configs):
             "all_group_lengths_prob_dicts": all_group_lengths_prob_dicts,
         }
         pickle.dump(cluster_ckpt, open(os.path.join(save_dir, "cluster_ckpt.pkl"), "wb"))
+        # ruff: noqa: SIM115
 
     for parent, child in relation_order:
         if parent is None:
@@ -298,6 +304,7 @@ def clava_training(tables, relation_order, save_dir, configs, device="cuda"):
         pickle.dump(
             result,
             open(os.path.join(save_dir, f"models/{parent}_{child}_ckpt.pkl"), "wb"),
+            # ruff: noqa: SIM115
         )
 
     return models
@@ -420,7 +427,7 @@ def train_model(
         gaussian_loss_type=gaussian_loss_type,
         num_timesteps=num_timesteps,
         scheduler=scheduler,
-        device=device,
+        device=torch.device(device),
     )
     diffusion.to(device)
     diffusion.train()
@@ -494,8 +501,7 @@ class Classifier(nn.Module):
         emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
         x = self.proj(x) + emb
         # x = self.transformer_layer(x, x)
-        x = self.model(x)
-        return x
+        return self.model(x)
 
 
 def train_classifier(
@@ -529,7 +535,7 @@ def train_classifier(
     test_loader = prepare_fast_dataloader(dataset, split="test", batch_size=batch_size, y_type="long")
 
     eval_interval = 5
-    log_interval = 10
+    # log_interval = 10
 
     K = np.array(dataset.get_category_sizes("train"))
     if len(K) == 0 or T_dict["cat_encoding"] == "one-hot":
@@ -552,11 +558,11 @@ def train_classifier(
     empty_diffusion = GaussianMultinomialDiffusion(
         num_classes=K,
         num_numerical_features=num_numerical_features,
-        denoise_fn=None,
+        denoise_fn=None,  # type: ignore[arg-type]
         gaussian_loss_type=gaussian_loss_type,
         num_timesteps=num_timesteps,
         scheduler=scheduler,
-        device=device,
+        device=torch.device(device),
     )
     empty_diffusion.to(device)
 
@@ -605,13 +611,10 @@ def train_classifier(
     classifier.eval()
 
     correct = 0
-    for step in range(3000):
+    for _ in range(3000):
         test_x, test_y = next(test_loader)
         test_y = test_y.long().to(device)
-        if model_params["is_y_cond"] == "concat":
-            test_x = test_x[:, 1:].to(device)
-        else:
-            test_x = test_x.to(device)
+        test_x = test_x[:, 1:].to(device) if model_params["is_y_cond"] == "concat" else test_x.to(device)
         with torch.no_grad():
             pred = classifier(test_x, timesteps=torch.zeros(test_x.shape[0]).to(device))
             correct += (pred.argmax(dim=1) == test_y).sum().item()
@@ -683,6 +686,7 @@ def pair_clustering_keep_id(
     unique_group_ids = sorted_parent_data[:, parent_primary_key_index]
     for group_id in unique_group_ids:
         group_id = tuple([group_id])
+        # ruff: noqa: C409
         if group_id not in child_group_data_dict:
             group_lengths.append(0)
         else:
@@ -740,7 +744,8 @@ def pair_clustering_keep_id(
     num_quantile = quantile_normalize_sklearn(joint_num_matrix)
     num_min_max = min_max_normalize_sklearn(joint_num_matrix)
 
-    key_quantile = quantile_normalize_sklearn(sorted_parent_data_repeated[:, parent_primary_key_index].reshape(-1, 1))
+    # key_quantile =
+    #   quantile_normalize_sklearn(sorted_parent_data_repeated[:, parent_primary_key_index].reshape(-1, 1))
     key_min_max = min_max_normalize_sklearn(sorted_parent_data_repeated[:, parent_primary_key_index].reshape(-1, 1))
 
     # key_scaled = key_scaler * key_quantile
@@ -886,10 +891,11 @@ def pair_clustering_keep_id(
 
 def get_group_data_dict(
     np_data: np.ndarray,
-    group_id_attrs: list[int] = [
-        0,
-    ],
+    group_id_attrs: list[int] | None = None,
 ) -> dict[tuple[Any, ...], list[np.ndarray]]:
+    if group_id_attrs is None:
+        group_id_attrs = [0]
+
     group_data_dict: dict[tuple[Any, ...], list[np.ndarray]] = {}
     data_len = len(np_data)
     for i in range(data_len):
@@ -903,10 +909,11 @@ def get_group_data_dict(
 
 def get_group_data(
     np_data: np.ndarray,
-    group_id_attrs: list[int] = [
-        0,
-    ],
+    group_id_attrs: list[int] | None = None,
 ) -> np.ndarray:
+    if group_id_attrs is None:
+        group_id_attrs = [0]
+
     group_data_list = []
     data_len = len(np_data)
     i = 0
@@ -984,8 +991,8 @@ def aggregate_and_sample(
 
 def freq_to_prob(freq_dict: dict[int, int]) -> dict[int, float]:
     prob_dict: dict[Any, float] = {}
-    for key in freq_dict:
-        prob_dict[key] = freq_dict[key] / sum(list(freq_dict.values()))
+    for key, freq in freq_dict.items():
+        prob_dict[key] = freq / sum(list(freq_dict.values()))
     return prob_dict
 
 
@@ -1020,6 +1027,7 @@ def get_model_params(rtdl_params: dict[str, Any] | None = None) -> dict[str, Any
 
 
 def get_T_dict() -> dict[str, Any]:
+    # ruff: noqa: N802
     return {
         "seed": 0,
         "normalization": "quantile",
@@ -1032,15 +1040,16 @@ def get_T_dict() -> dict[str, Any]:
 
 
 def make_dataset_from_df(
+    # ruff: noqa: PLR0915, PLR0912
     df: pd.DataFrame,
     T: Transformations,
     is_y_cond: str,
     df_info: pd.DataFrame,
-    ratios: list[float] = [0.7, 0.2, 0.1],
+    ratios: list[float] | None = None,
     std: float = 0,
 ) -> tuple[Dataset, dict[int, LabelEncoder], list[int]]:
     """
-    The order of the generated dataset: (y, X_num, X_cat)
+    The order of the generated dataset: (y, X_num, X_cat).
 
     is_y_cond:
         concat: y is concatenated to X, the model learn a joint distribution of (y, X)
@@ -1066,6 +1075,9 @@ def make_dataset_from_df(
     is the first column of the matrix.
     However, if we have n_classes > 0, then y is not the first column of the matrix.
     """
+    if ratios is None:
+        ratios = [0.7, 0.2, 0.1]
+
     train_val_df, test_df = train_test_split(df, test_size=ratios[2], random_state=42)
     train_df, val_df = train_test_split(train_val_df, test_size=ratios[1] / (ratios[0] + ratios[1]), random_state=42)
 
@@ -1149,7 +1161,7 @@ def make_dataset_from_df(
 
         train_num = X_cat["train"].shape[0]
         val_num = X_cat["val"].shape[0]
-        test_num = X_cat["test"].shape[0]
+        # test_num = X_cat["test"].shape[0]
 
         X_cat["train"] = X_cat_converted[:train_num, :]  # type: ignore[call-overload]
         X_cat["val"] = X_cat_converted[train_num : train_num + val_num, :]  # type: ignore[call-overload]
@@ -1164,6 +1176,7 @@ def make_dataset_from_df(
             X_cat = None
 
     D = Dataset(
+        # ruff: noqa: N806
         X_num,
         None,
         y,
@@ -1177,6 +1190,7 @@ def make_dataset_from_df(
 
 def prepare_fast_dataloader(
     D: Dataset,
+    # ruff: noqa: N803
     split: str,
     batch_size: int,
     y_type: str = "float",
@@ -1189,10 +1203,7 @@ def prepare_fast_dataloader(
     else:
         assert D.X_num is not None
         X = torch.from_numpy(D.X_num[split]).float()
-    if y_type == "float":
-        y = torch.from_numpy(D.y[split]).float()
-    else:
-        y = torch.from_numpy(D.y[split]).long()
+    y = torch.from_numpy(D.y[split]).float() if y_type == "float" else torch.from_numpy(D.y[split]).long()
     dataloader = FastTensorDataLoader(X, y, batch_size=batch_size, shuffle=(split == "train"))
     while True:
         yield from dataloader
@@ -1211,7 +1222,11 @@ def get_model(
     raise ValueError("Unknown model!")
 
 
-def update_ema(target_params: list[Tensor], source_params: list[Tensor], rate: float = 0.999) -> None:
+def update_ema(
+    target_params: Iterator[nn.Parameter],
+    source_params: Iterator[nn.Parameter],
+    rate: float = 0.999,
+) -> None:
     """
     Update target parameters to be closer to those of source parameters using
     an exponential moving average.
@@ -1480,7 +1495,6 @@ def transform_dataset(
             transformations.seed,
             return_normalizer=True,
         )
-        num_transform = num_transform
 
     if dataset.X_cat is None:
         assert transformations.cat_nan_policy is None
@@ -1516,14 +1530,17 @@ def transform_dataset(
 
 
 def load_pickle(path: Path | str, **kwargs: Any) -> Any:
+    # ruff: noqa: D103
     return pickle.loads(Path(path).read_bytes(), **kwargs)
 
 
 def dump_pickle(x: Any, path: Path | str, **kwargs: Any) -> None:
+    # ruff: noqa: D103
     Path(path).write_bytes(pickle.dumps(x, **kwargs))
 
 
 def num_process_nans(dataset: Dataset, policy: NumNanPolicy | None) -> Dataset:
+    # ruff: noqa: D103
     assert dataset.X_num is not None
     nan_masks = {k: np.isnan(v) for k, v in dataset.X_num.items()}
     if not any(x.any() for x in nan_masks.values()):
@@ -1559,6 +1576,7 @@ def normalize(
     seed: int | None,
     return_normalizer: bool = False,
 ) -> ArrayDict | tuple[ArrayDict, StandardScaler | MinMaxScaler | QuantileTransformer]:
+    # ruff: noqa: D103
     X_train = X["train"]
     if normalization == "standard":
         normalizer = StandardScaler()
@@ -1588,6 +1606,7 @@ def normalize(
 
 
 def cat_process_nans(X: ArrayDict, policy: CatNanPolicy | None) -> ArrayDict:
+    # ruff: noqa: D103
     assert X is not None
     nan_masks = {k: v == CAT_MISSING_VALUE for k, v in X.items()}
     if any(x.any() for x in nan_masks.values()):
@@ -1606,13 +1625,14 @@ def cat_process_nans(X: ArrayDict, policy: CatNanPolicy | None) -> ArrayDict:
 
 
 def cat_drop_rare(X: ArrayDict, min_frequency: float) -> ArrayDict:
+    # ruff: noqa: D103
     assert 0.0 < min_frequency < 1.0
     min_count = round(len(X["train"]) * min_frequency)
     X_new: dict[str, list[Any]] = {x: [] for x in X}
     for column_idx in range(X["train"].shape[1]):
         counter = Counter(X["train"][:, column_idx].tolist())
         popular_categories = {k for k, v in counter.items() if v >= min_count}
-        for part in X_new:
+        for part, _ in X_new.items():
             X_new[part].append(
                 [(x if x in popular_categories else CAT_RARE_VALUE) for x in X[part][:, column_idx].tolist()]
             )
@@ -1626,6 +1646,7 @@ def cat_encode(
     seed: int | None,
     return_encoder: bool = False,
 ) -> tuple[ArrayDict, bool, Any | None]:  # (X, is_converted_to_numerical)
+    # ruff: noqa: D103
     if encoding != "counter":
         y_train = None
 
@@ -1642,7 +1663,7 @@ def cat_encode(
         encoder.fit(X["train"])
         X = {k: encoder.transform(v) for k, v in X.items()}
         max_values = X["train"].max(axis=0)
-        for part in X.keys():
+        for part in X:
             if part == "train":
                 continue
             for column_idx in range(X[part].shape[1]):
@@ -1682,6 +1703,7 @@ def cat_encode(
 
 
 def build_target(y: ArrayDict, policy: YPolicy | None, task_type: TaskType) -> tuple[ArrayDict, dict[str, Any]]:
+    # ruff: noqa: D103
     info: dict[str, Any] = {"policy": policy}
     if policy is None:
         pass
@@ -1729,8 +1751,8 @@ class Trainer:
 
     def _run_step(self, x: Tensor, out_dict: dict[str, Tensor]) -> tuple[Tensor, Tensor]:
         x = x.to(self.device)
-        for k in out_dict:
-            out_dict[k] = out_dict[k].long().to(self.device)
+        for k, v in out_dict.items():
+            out_dict[k] = v.long().to(self.device)
         self.optimizer.zero_grad()
         loss_multi, loss_gauss = self.diffusion.mixed_loss(x, out_dict)
         loss = loss_multi + loss_gauss
@@ -1778,6 +1800,8 @@ class Trainer:
 
 class FastTensorDataLoader:
     """
+    Defines a faster dataloader for PyTorch tensors.
+
     A DataLoader-like object for a set of tensors that can be much faster than
     TensorDataset + DataLoader because dataloader grabs individual indices of
     the dataset and calls cat (slow).
@@ -1807,6 +1831,7 @@ class FastTensorDataLoader:
         self.n_batches = n_batches
 
     def __iter__(self):
+        # ruff: noqa: D105
         if self.shuffle:
             r = torch.randperm(self.dataset_len)
             self.tensors = [t[r] for t in self.tensors]  # type: ignore[assignment]
@@ -1814,6 +1839,7 @@ class FastTensorDataLoader:
         return self
 
     def __next__(self):
+        # ruff: noqa: D105
         if self.i >= self.dataset_len:
             raise StopIteration
         batch = tuple(t[self.i : self.i + self.batch_size] for t in self.tensors)
@@ -1821,6 +1847,7 @@ class FastTensorDataLoader:
         return batch
 
     def __len__(self):
+        # ruff: noqa: D105
         return self.n_batches
 
 
@@ -1863,7 +1890,8 @@ class MLP(nn.Module):
             assert module(x).shape == (len(x), 1)
 
     References:
-        * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov, Artem Babenko, "Revisiting Deep Learning Models for Tabular Data", 2021
+        * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov,
+        Artem Babenko, "Revisiting Deep Learning Models for Tabular Data", 2021
     """
 
     class Block(nn.Module):
@@ -1948,7 +1976,8 @@ class MLP(nn.Module):
             MLP
 
         References:
-            * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov, Artem Babenko, "Revisiting Deep Learning Models for Tabular Data", 2021
+            * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov,
+            Artem Babenko, "Revisiting Deep Learning Models for Tabular Data", 2021
         """
         assert isinstance(dropout, float)
         if len(d_layers) > 2:
@@ -1968,12 +1997,13 @@ class MLP(nn.Module):
         x = x.float()
         for block in self.blocks:
             x = block(x)
-        x = self.head(x)
-        return x
+        return self.head(x)
 
 
 class ResNet(nn.Module):
-    """The ResNet model used in [gorishniy2021revisiting].
+    """
+    The ResNet model used in [gorishniy2021revisiting].
+
     The following scheme describes the architecture:
     .. code-block:: text
         ResNet: (in) -> Linear -> Block -> ... -> Block -> Head -> (out)
@@ -1997,7 +2027,8 @@ class ResNet(nn.Module):
             assert module(x).shape == (len(x), 1)
 
     References:
-        * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov, Artem Babenko, "Revisiting Deep Learning Models for Tabular Data", 2021
+        * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov,
+        Artem Babenko, "Revisiting Deep Learning Models for Tabular Data", 2021
     """
 
     class Block(nn.Module):
@@ -2058,8 +2089,7 @@ class ResNet(nn.Module):
             if self.normalization is not None:
                 x = self.normalization(x)
             x = self.activation(x)
-            x = self.linear(x)
-            return x
+            return self.linear(x)
 
     def __init__(
         self,
@@ -2132,7 +2162,8 @@ class ResNet(nn.Module):
             dropout_second: the dropout rate of the second dropout layer in each Block.
 
         References:
-            * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov, Artem Babenko, "Revisiting Deep Learning Models for Tabular Data", 2021
+            * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov,
+            Artem Babenko, "Revisiting Deep Learning Models for Tabular Data", 2021
         """
         return cls(
             d_in=d_in,
@@ -2150,8 +2181,7 @@ class ResNet(nn.Module):
         x = x.float()
         x = self.first_layer(x)
         x = self.blocks(x)
-        x = self.head(x)
-        return x
+        return self.head(x)
 
 
 #### For diffusion
@@ -2190,10 +2220,7 @@ class MLPDiffusion(nn.Module):
     def forward(self, x, timesteps, y=None):
         emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
         if self.is_y_cond == "embedding" and y is not None:
-            if self.num_classes > 0:
-                y = y.squeeze()
-            else:
-                y = y.resize_(y.size(0), 1).float()
+            y = y.squeeze() if self.num_classes > 0 else y.resize_(y.size(0), 1).float()
             emb += F.silu(self.label_emb(y))
         x = self.proj(x) + emb
         return self.mlp(x)
@@ -2208,6 +2235,7 @@ class ResNetDiffusion(nn.Module):
         dim_t: int = 256,
         is_y_cond: str | None = None,
     ):
+        # ruff: noqa: D107
         super().__init__()
         self.dim_t = dim_t
         self.num_classes = num_classes
@@ -2226,6 +2254,7 @@ class ResNetDiffusion(nn.Module):
         self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
 
     def forward(self, x, timesteps, y=None):
+        # ruff: noqa: D102
         emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
         if y is not None and self.num_classes > 0:
             emb += self.label_emb(y.squeeze())
@@ -2269,6 +2298,7 @@ class ReGLU(nn.Module):
     """
 
     def forward(self, x: Tensor) -> Tensor:
+        # ruff: noqa: D102
         return reglu(x)
 
 
@@ -2287,6 +2317,7 @@ class GEGLU(nn.Module):
     """
 
     def forward(self, x: Tensor) -> Tensor:
+        # ruff: noqa: D102
         return geglu(x)
 
 

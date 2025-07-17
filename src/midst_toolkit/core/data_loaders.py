@@ -1,5 +1,6 @@
 import json
 import os
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -9,7 +10,7 @@ def load_multi_table(data_dir, verbose=True):
     dataset_meta = json.load(open(os.path.join(data_dir, "dataset_meta.json"), "r"))
 
     relation_order = dataset_meta["relation_order"]
-    relation_order_reversed = relation_order[::-1]
+    # relation_order_reversed = relation_order[::-1]
 
     tables = {}
 
@@ -21,6 +22,7 @@ def load_multi_table(data_dir, verbose=True):
         tables[table] = {
             "df": train_df,
             "domain": json.load(open(os.path.join(data_dir, f"{table}_domain.json"))),
+            # ruff: noqa: SIM115
             "children": meta["children"],
             "parents": meta["parents"],
         }
@@ -42,8 +44,9 @@ def load_multi_table(data_dir, verbose=True):
     return tables, relation_order, dataset_meta
 
 
-def get_info_from_domain(data_df, domain_dict):
-    info = {}
+def get_info_from_domain(data_df: pd.DataFrame, domain_dict: dict[str, Any]) -> dict[str, Any]:
+    # ruff: noqa: D103
+    info: dict[str, Any] = {}
     info["num_col_idx"] = []
     info["cat_col_idx"] = []
     columns = data_df.columns.tolist()
@@ -60,7 +63,16 @@ def get_info_from_domain(data_df, domain_dict):
     return info
 
 
-def pipeline_process_data(name, data_df, info, ratio=0.9, save=False, verbose=True):
+def pipeline_process_data(
+    # ruff: noqa: PLR0915, PLR0912
+    name: str,
+    data_df: pd.DataFrame,
+    info: dict[str, Any],
+    ratio: float = 0.9,
+    save: bool = False,
+    verbose: bool = True,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    # ruff: noqa: D103
     num_data = data_df.shape[0]
 
     column_names = info["column_names"] if info["column_names"] else data_df.columns.tolist()
@@ -91,7 +103,7 @@ def pipeline_process_data(name, data_df, info, ratio=0.9, save=False, verbose=Tr
     if ratio < 1:
         test_df.columns = range(len(test_df.columns))
 
-    col_info = {}
+    col_info: dict[Any, Any] = {}
 
     for col_idx in num_col_idx:
         col_info[col_idx] = {}
@@ -181,7 +193,7 @@ def pipeline_process_data(name, data_df, info, ratio=0.9, save=False, verbose=Tr
     info["inverse_idx_mapping"] = inverse_idx_mapping
     info["idx_name_mapping"] = idx_name_mapping
 
-    metadata = {"columns": {}}
+    metadata: dict[str, Any] = {"columns": {}}
     task_type = info["task_type"]
     num_col_idx = info["num_col_idx"]
     cat_col_idx = info["cat_col_idx"]
@@ -257,9 +269,16 @@ def pipeline_process_data(name, data_df, info, ratio=0.9, save=False, verbose=Tr
     return data, info
 
 
-def get_column_name_mapping(data_df, num_col_idx, cat_col_idx, target_col_idx, column_names=None):
+def get_column_name_mapping(
+    data_df: pd.DataFrame,
+    num_col_idx: list[int],
+    cat_col_idx: list[int],
+    target_col_idx: list[int],
+    column_names: list[str] | None = None,
+) -> tuple[dict[int, int], dict[int, int], dict[int, str]]:
+    # ruff: noqa: D103
     if not column_names:
-        column_names = np.array(data_df.columns.tolist())
+        column_names = data_df.columns.tolist()
 
     idx_mapping = {}
 
@@ -290,7 +309,13 @@ def get_column_name_mapping(data_df, num_col_idx, cat_col_idx, target_col_idx, c
     return idx_mapping, inverse_idx_mapping, idx_name_mapping
 
 
-def train_val_test_split(data_df, cat_columns, num_train=0, num_test=0):
+def train_val_test_split(
+    data_df: pd.DataFrame,
+    cat_columns: list[str],
+    num_train: int = 0,
+    num_test: int = 0,
+) -> tuple[pd.DataFrame, pd.DataFrame, int]:
+    # ruff: noqa: D103
     total_num = data_df.shape[0]
     idx = np.arange(total_num)
 
