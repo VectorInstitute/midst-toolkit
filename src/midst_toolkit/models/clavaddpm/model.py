@@ -1,4 +1,3 @@
-import enum
 import hashlib
 import json
 import math
@@ -9,6 +8,7 @@ from collections import Counter, defaultdict
 from collections.abc import Callable, Generator, Iterator
 from copy import deepcopy
 from dataclasses import astuple, dataclass, replace
+from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Self, cast
 
@@ -54,7 +54,7 @@ CAT_MISSING_VALUE = "__nan__"
 CAT_RARE_VALUE = "__rare__"
 
 
-class TaskType(enum.Enum):
+class TaskType(Enum):
     BINCLASS = "binclass"
     MULTICLASS = "multiclass"
     REGRESSION = "regression"
@@ -63,7 +63,7 @@ class TaskType(enum.Enum):
         return self.value
 
 
-class PredictionType(enum.Enum):
+class PredictionType(Enum):
     LOGITS = "logits"
     PROBS = "probs"
 

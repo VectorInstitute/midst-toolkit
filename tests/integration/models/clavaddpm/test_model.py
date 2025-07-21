@@ -1,8 +1,10 @@
+import os
+import tempfile
+
 import pytest
 
 from midst_toolkit.core.data_loaders import load_multi_table
 from midst_toolkit.models.clavaddpm.model import clava_clustering, clava_training
-from tests.integration.utils import start_save_dir
 
 
 CLUSTERING_CONFIG = {
@@ -35,42 +37,42 @@ CLASSIFIER_CONFIG = {
 
 @pytest.mark.integration_test()
 def test_train_single_table():
-    configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG}
-    save_dir = "tests/integration/models/clavaddpm/results/"
-    start_save_dir(save_dir)
+    with tempfile.TemporaryDirectory() as save_dir:
+        os.makedirs(os.path.join(save_dir, "models"))
 
-    tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/single_table/")
-    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, save_dir, configs)
-    models = clava_training(tables, relation_order, save_dir, configs, device="cpu")
+        configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG}
 
-    assert models
+        tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/single_table/")
+        models = clava_training(tables, relation_order, save_dir, configs, device="cpu")
+
+        assert models
 
 
 @pytest.mark.integration_test()
 def test_train_multi_table():
-    configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG, "classifier": CLASSIFIER_CONFIG}
-    save_dir = "tests/integration/models/clavaddpm/results/"
-    start_save_dir(save_dir)
+    with tempfile.TemporaryDirectory() as save_dir:
+        os.makedirs(os.path.join(save_dir, "models"))
 
-    tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/multi_table/")
-    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, save_dir, configs)
-    models = clava_training(tables, relation_order, save_dir, configs, device="cpu")
+        configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG, "classifier": CLASSIFIER_CONFIG}
 
-    assert models
+        tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/multi_table/")
+        tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, save_dir, configs)
+        models = clava_training(tables, relation_order, save_dir, configs, device="cpu")
+
+        assert models
 
 
 @pytest.mark.integration_test()
 def test_clustering_reload():
-    configs = {"clustering": CLUSTERING_CONFIG}
-    save_dir = "tests/integration/models/clavaddpm/results/"
-    start_save_dir(save_dir)
+    with tempfile.TemporaryDirectory() as save_dir:
+        configs = {"clustering": CLUSTERING_CONFIG}
 
-    tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/multi_table/")
-    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, save_dir, configs)
+        tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/multi_table/")
+        tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, save_dir, configs)
 
-    assert all_group_lengths_prob_dicts
+        assert all_group_lengths_prob_dicts
 
-    # loading from previously saved clustering
-    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, save_dir, configs)
+        # loading from previously saved clustering
+        tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, save_dir, configs)
 
-    assert all_group_lengths_prob_dicts
+        assert all_group_lengths_prob_dicts

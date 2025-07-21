@@ -7,16 +7,37 @@
       show_root_heading: true
       show_root_full_path: true
 
-## Foo Module
+## Data Loaders Module
 
-::: midst_toolkit.core.foo
+::: midst_toolkit.core.data_loaders
     options:
       show_root_heading: true
       show_root_full_path: true
 
-## Bar Module
+## Logger Module
 
-::: midst_toolkit.core.bar
+::: midst_toolkit.core.logger
+    options:
+      show_root_heading: true
+      show_root_full_path: true
+
+## Diffusion Utils Module
+
+::: midst_toolkit.models.clavaddpm.diffusion_utils
+    options:
+      show_root_heading: true
+      show_root_full_path: true
+
+## Gaussian Multinomial Diffusion Module
+
+::: midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion
+    options:
+      show_root_heading: true
+      show_root_full_path: true
+
+## ClavaDDPM Model Module
+
+::: midst_toolkit.models.clavaddpm.model
     options:
       show_root_heading: true
       show_root_full_path: true
