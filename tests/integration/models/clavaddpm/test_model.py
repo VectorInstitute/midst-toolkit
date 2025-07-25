@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from midst_toolkit.core.data_loaders import load_multi_table
-from midst_toolkit.models.clavaddpm.model import clava_clustering, clava_training
+from midst_toolkit.models.clavaddpm.train import clava_clustering, clava_training
 
 
 CLUSTERING_CONFIG = {
