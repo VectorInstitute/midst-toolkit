@@ -1,5 +1,8 @@
+"""Defines the training functions for the ClavaDDPM model."""
+
 import os
 import pickle
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -8,6 +11,7 @@ import torch
 from torch import optim
 
 from midst_toolkit.core import logger
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 from midst_toolkit.models.clavaddpm.model import (
     Classifier,
     Transformations,
@@ -21,18 +25,53 @@ from midst_toolkit.models.clavaddpm.model import (
     pair_clustering_keep_id,
     prepare_fast_dataloader,
 )
-from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 from midst_toolkit.models.clavaddpm.trainer import Trainer
 
 
-def clava_clustering(tables, relation_order, save_dir, configs):
+Tables = dict[str, dict[str, Any]]
+RelationOrder = list[tuple[str, str]]
+Configs = dict[str, Any]
+
+
+def clava_clustering(
+    tables: Tables,
+    relation_order: RelationOrder,
+    save_dir: Path,
+    configs: Configs,
+) -> tuple[dict[str, Any], dict[tuple[str, str], dict[int, float]]]:
+    """
+    Clustering function for the mutli-table function of theClavaDDPM model.
+
+    Args:
+        tables: Definition of the tables and their relations. Example:
+            {
+                "table1": {
+                    "children": ["table2"],
+                    "parents": []
+                },
+                "table2": {
+                    "children": [],
+                    "parents": ["table1"]
+                }
+            }
+        relation_order: List of tuples of parent and child tables. Example:
+            [("table1", "table2")]
+        save_dir: Directory to save the clustering checkpoint.
+        configs: Dictionary of configurations. The following config keys are required:
+            {
+                num_clusters = int | dict,
+                parent_scale = float,
+                clustering_method = str["kmeans" | "both" | "variational" | "gmm"],
+            }
+
+    """
     relation_order_reversed = relation_order[::-1]
     all_group_lengths_prob_dicts = {}
 
     # Clustering
-    if os.path.exists(os.path.join(save_dir, "cluster_ckpt.pkl")):
+    if os.path.exists(save_dir / "cluster_ckpt.pkl"):
         print("Clustering checkpoint found, loading...")
-        cluster_ckpt = pickle.load(open(os.path.join(save_dir, "cluster_ckpt.pkl"), "rb"))
+        cluster_ckpt = pickle.load(open(save_dir / "cluster_ckpt.pkl", "rb"))
         # ruff: noqa: SIM115
         tables = cluster_ckpt["tables"]
         all_group_lengths_prob_dicts = cluster_ckpt["all_group_lengths_prob_dicts"]
@@ -40,10 +79,10 @@ def clava_clustering(tables, relation_order, save_dir, configs):
         for parent, child in relation_order_reversed:
             if parent is not None:
                 print(f"Clustering {parent} -> {child}")
-                if isinstance(configs["clustering"]["num_clusters"], dict):
-                    num_clusters = configs["clustering"]["num_clusters"][child]
+                if isinstance(configs["num_clusters"], dict):
+                    num_clusters = configs["num_clusters"][child]
                 else:
-                    num_clusters = configs["clustering"]["num_clusters"]
+                    num_clusters = configs["num_clusters"]
                 (
                     parent_df_with_cluster,
                     child_df_with_cluster,
@@ -56,11 +95,11 @@ def clava_clustering(tables, relation_order, save_dir, configs):
                     f"{child}_id",
                     f"{parent}_id",
                     num_clusters,
-                    configs["clustering"]["parent_scale"],
+                    configs["parent_scale"],
                     1,  # not used for now
                     parent,
                     child,
-                    clustering_method=configs["clustering"]["clustering_method"],
+                    clustering_method=configs["clustering_method"],
                 )
                 tables[parent]["df"] = parent_df_with_cluster
                 tables[child]["df"] = child_df_with_cluster
@@ -70,7 +109,7 @@ def clava_clustering(tables, relation_order, save_dir, configs):
             "tables": tables,
             "all_group_lengths_prob_dicts": all_group_lengths_prob_dicts,
         }
-        pickle.dump(cluster_ckpt, open(os.path.join(save_dir, "cluster_ckpt.pkl"), "wb"))
+        pickle.dump(cluster_ckpt, open(save_dir / "cluster_ckpt.pkl", "wb"))
         # ruff: noqa: SIM115
 
     for parent, child in relation_order:

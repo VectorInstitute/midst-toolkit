@@ -1,3 +1,5 @@
+"""Trainer class for the ClavaDDPM model."""
+
 from collections.abc import Generator, Iterator
 from copy import deepcopy
 

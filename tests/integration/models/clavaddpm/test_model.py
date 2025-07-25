@@ -38,7 +38,7 @@ CLASSIFIER_CONFIG = {
 @pytest.mark.integration_test()
 def test_train_single_table(tmp_path: Path):
     os.makedirs(tmp_path / "models")
-    configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG}
+    configs = {"diffusion": DIFFUSION_CONFIG}
 
     tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/single_table/")
     models = clava_training(tables, relation_order, tmp_path, configs, device="cpu")
@@ -49,10 +49,10 @@ def test_train_single_table(tmp_path: Path):
 @pytest.mark.integration_test()
 def test_train_multi_table(tmp_path: Path):
     os.makedirs(tmp_path / "models")
-    configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG, "classifier": CLASSIFIER_CONFIG}
+    configs = {"diffusion": DIFFUSION_CONFIG, "classifier": CLASSIFIER_CONFIG}
 
     tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/multi_table/")
-    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, configs)
+    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
     models = clava_training(tables, relation_order, tmp_path, configs, device="cpu")
 
     assert models
@@ -61,14 +61,13 @@ def test_train_multi_table(tmp_path: Path):
 @pytest.mark.integration_test()
 def test_clustering_reload(tmp_path: Path):
     os.makedirs(tmp_path / "models")
-    configs = {"clustering": CLUSTERING_CONFIG}
 
     tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/multi_table/")
-    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, configs)
+    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
 
     assert all_group_lengths_prob_dicts
 
     # loading from previously saved clustering
-    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, configs)
+    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
 
     assert all_group_lengths_prob_dicts
