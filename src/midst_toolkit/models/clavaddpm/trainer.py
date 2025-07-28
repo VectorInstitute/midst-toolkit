@@ -21,6 +21,18 @@ class Trainer:
         steps: int,
         device: str = "cuda",
     ):
+        """
+        Trainer class for the ClavaDDPM model.
+
+        Args:
+            diffusion: The diffusion model.
+            train_iter: The training iterator. It should yield a tuple of tensors. The first tensor is the input
+                tensor and the second tensor is the output tensor.
+            lr: The learning rate.
+            weight_decay: The weight decay.
+            steps: The number of steps to train.
+            device: The device to use. Default is `"cuda"`.
+        """
         self.diffusion = diffusion
         self.ema_model = deepcopy(self.diffusion._denoise_fn)
         for param in self.ema_model.parameters():
@@ -37,12 +49,25 @@ class Trainer:
         self.ema_every = 1000
 
     def _anneal_lr(self, step: int) -> None:
+        """
+        Anneal the learning rate.
+
+        Args:
+            step: The current step.
+        """
         frac_done = step / self.steps
         lr = self.init_lr * (1 - frac_done)
         for param_group in self.optimizer.param_groups:
             param_group["lr"] = lr
 
     def _run_step(self, x: Tensor, out_dict: dict[str, Tensor]) -> tuple[Tensor, Tensor]:
+        """
+        Run a single step of the training loop.
+
+        Args:
+            x: The input tensor.
+            out_dict: The output dictionary.
+        """
         x = x.to(self.device)
         for k, v in out_dict.items():
             out_dict[k] = v.long().to(self.device)
@@ -55,6 +80,7 @@ class Trainer:
         return loss_multi, loss_gauss
 
     def run_loop(self) -> None:
+        """Run the training loop."""
         step = 0
         curr_loss_multi = 0.0
         curr_loss_gauss = 0.0
@@ -99,9 +125,11 @@ def update_ema(
     """
     Update target parameters to be closer to those of source parameters using
     an exponential moving average.
-    :param target_params: the target parameter sequence.
-    :param source_params: the source parameter sequence.
-    :param rate: the EMA rate (closer to 1 means slower).
+
+    Args:
+        target_params: the target parameter sequence.
+        source_params: the source parameter sequence.
+        rate: the EMA rate (closer to 1 means slower).
     """
     for targ, src in zip(target_params, source_params):
         targ.detach().mul_(rate).add_(src.detach(), alpha=1 - rate)

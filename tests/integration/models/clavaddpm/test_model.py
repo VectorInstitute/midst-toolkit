@@ -37,7 +37,7 @@ CLASSIFIER_CONFIG = {
 @pytest.mark.integration_test()
 def test_train_single_table(tmp_path: Path):
     tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/single_table/")
-    models = clava_training(tables, relation_order, tmp_path, DIFFUSION_CONFIG, {}, device="cpu")
+    models = clava_training(tables, relation_order, tmp_path, DIFFUSION_CONFIG, None, device="cpu")
 
     assert models
 
@@ -46,7 +46,7 @@ def test_train_single_table(tmp_path: Path):
 def test_train_multi_table(tmp_path: Path):
     tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/multi_table/")
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
-    models = clava_training(tables, relation_order, tmp_path, DIFFUSION_CONFIG, None, device="cpu")
+    models = clava_training(tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device="cpu")
 
     assert models
 
