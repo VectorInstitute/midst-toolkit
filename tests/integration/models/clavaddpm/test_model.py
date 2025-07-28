@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 import pytest
@@ -37,31 +36,23 @@ CLASSIFIER_CONFIG = {
 
 @pytest.mark.integration_test()
 def test_train_single_table(tmp_path: Path):
-    os.makedirs(tmp_path / "models")
-    configs = {"diffusion": DIFFUSION_CONFIG}
-
     tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/single_table/")
-    models = clava_training(tables, relation_order, tmp_path, configs, device="cpu")
+    models = clava_training(tables, relation_order, tmp_path, DIFFUSION_CONFIG, {}, device="cpu")
 
     assert models
 
 
 @pytest.mark.integration_test()
 def test_train_multi_table(tmp_path: Path):
-    os.makedirs(tmp_path / "models")
-    configs = {"diffusion": DIFFUSION_CONFIG, "classifier": CLASSIFIER_CONFIG}
-
     tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/multi_table/")
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
-    models = clava_training(tables, relation_order, tmp_path, configs, device="cpu")
+    models = clava_training(tables, relation_order, tmp_path, DIFFUSION_CONFIG, None, device="cpu")
 
     assert models
 
 
 @pytest.mark.integration_test()
 def test_clustering_reload(tmp_path: Path):
-    os.makedirs(tmp_path / "models")
-
     tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/multi_table/")
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
 
