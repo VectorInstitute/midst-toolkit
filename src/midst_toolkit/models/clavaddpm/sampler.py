@@ -1,3 +1,14 @@
+"""Samplers for the ClavaDDPM model."""
+
+from abc import ABC, abstractmethod
+
+import numpy as np
+import torch
+from torch import Tensor
+
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
+
+
 class ScheduleSampler(ABC):
     """
     A distribution over timesteps in the diffusion process, intended to reduce
@@ -21,11 +32,14 @@ class ScheduleSampler(ABC):
         """
         Importance-sample timesteps for a batch.
 
-        :param batch_size: the number of timesteps.
-        :param device: the torch device to save to.
-        :return: a tuple (timesteps, weights):
-                 - timesteps: a tensor of timestep indices.
-                 - weights: a tensor of weights to scale the resulting losses.
+        Args:
+            batch_size: The number of timesteps.
+            device: The torch device to save to.
+
+        Returns:
+            A tuple (timesteps, weights):
+                - timesteps: a tensor of timestep indices.
+                - weights: a tensor of weights to scale the resulting losses.
         """
         w = self.weights().cpu().numpy()
         p = w / np.sum(w)
@@ -38,10 +52,17 @@ class ScheduleSampler(ABC):
 
 class UniformSampler(ScheduleSampler):
     def __init__(self, diffusion: GaussianMultinomialDiffusion):
+        """
+        Initialize the UniformSampler.
+
+        Args:
+            diffusion: The diffusion object.
+        """
         self.diffusion = diffusion
         self._weights = torch.from_numpy(np.ones([diffusion.num_timesteps]))
 
     def weights(self) -> Tensor:
+        """Return the weights."""
         return self._weights
 
 
@@ -55,8 +76,9 @@ class LossAwareSampler(ScheduleSampler):
         This method will perform synchronization to make sure all of the ranks
         maintain the exact same reweighting.
 
-        :param local_ts: an integer Tensor of timesteps.
-        :param local_losses: a 1D Tensor of losses.
+        Args:
+            local_ts: An integer Tensor of timesteps.
+            local_losses: A 1D Tensor of losses.
         """
         batch_sizes = [
             torch.tensor([0], dtype=torch.int32, device=local_ts.device)
@@ -91,8 +113,9 @@ class LossAwareSampler(ScheduleSampler):
         ranks with identical arguments. Thus, it should have deterministic
         behavior to maintain state across workers.
 
-        :param ts: a list of int timesteps.
-        :param losses: a list of float losses, one per timestep.
+        Args:
+            ts: A list of int timesteps.
+            losses: A list of float losses, one per timestep.
         """
 
 
@@ -103,6 +126,14 @@ class LossSecondMomentResampler(LossAwareSampler):
         history_per_term: int = 10,
         uniform_prob: float = 0.001,
     ):
+        """
+        Initialize the LossSecondMomentResampler.
+
+        Args:
+            diffusion: The diffusion object.
+            history_per_term: The number of losses to keep for each timestep.
+            uniform_prob: The probability of sampling a uniform timestep.
+        """
         self.diffusion = diffusion
         self.history_per_term = history_per_term
         self.uniform_prob = uniform_prob
@@ -110,6 +141,11 @@ class LossSecondMomentResampler(LossAwareSampler):
         self._loss_counts = np.zeros([diffusion.num_timesteps], dtype=np.uint)
 
     def weights(self):
+        """
+        Return the weights.
+
+        Warms up the sampler if it's not warmed up.
+        """
         if not self._warmed_up():
             return np.ones([self.diffusion.num_timesteps], dtype=np.float64)
         weights = np.sqrt(np.mean(self._loss_history**2, axis=-1))
@@ -119,6 +155,13 @@ class LossSecondMomentResampler(LossAwareSampler):
         return weights
 
     def update_with_all_losses(self, ts: list[int], losses: list[float]) -> None:
+        """
+        Update the reweighting using losses from the model.
+
+        Args:
+            ts: The timesteps.
+            losses: The losses.
+        """
         for t, loss in zip(ts, losses):
             if self._loss_counts[t] == self.history_per_term:
                 # Shift out the oldest loss term.
@@ -129,6 +172,13 @@ class LossSecondMomentResampler(LossAwareSampler):
                 self._loss_counts[t] += 1
 
     def _warmed_up(self) -> bool:
+        """
+        Check if the sampler is warmed up by checking if the loss counts are equal
+        to the history per term.
+
+        Returns:
+            True if the sampler is warmed up, False otherwise.
+        """
         return (self._loss_counts == self.history_per_term).all()
 
 
@@ -136,8 +186,9 @@ def create_named_schedule_sampler(name: str, diffusion: GaussianMultinomialDiffu
     """
     Create a ScheduleSampler from a library of pre-defined samplers.
 
-    :param name: the name of the sampler.
-    :param diffusion: the diffusion object to sample for.
+    Args:
+        name: The name of the sampler.
+        diffusion: The diffusion object to sample for.
     """
     if name == "uniform":
         return UniformSampler(diffusion)

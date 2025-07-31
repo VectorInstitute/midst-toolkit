@@ -2,7 +2,6 @@ import hashlib
 import json
 import math
 import pickle
-from abc import ABC, abstractmethod
 from collections import Counter
 from collections.abc import Callable, Generator
 from copy import deepcopy
@@ -32,9 +31,6 @@ from sklearn.preprocessing import (
     StandardScaler,
 )
 from torch import Tensor, nn
-
-from midst_toolkit.core import logger
-from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 
 
 Normalization = Literal["standard", "quantile", "minmax"]
@@ -498,80 +494,6 @@ def get_model(
         return ResNetDiffusion(**model_params)
 
     raise ValueError("Unknown model!")
-
-
-def split_microbatches(
-    microbatch: int,
-    batch: Tensor,
-    labels: Tensor,
-    t: Tensor,
-) -> Generator[tuple[Tensor, Tensor, Tensor]]:
-    bs = len(batch)
-    if microbatch == -1 or microbatch >= bs:
-        yield batch, labels, t
-    else:
-        for i in range(0, bs, microbatch):
-            yield batch[i : i + microbatch], labels[i : i + microbatch], t[i : i + microbatch]
-
-
-def compute_top_k(logits: Tensor, labels: Tensor, k: int, reduction: str = "mean") -> Tensor:
-    _, top_ks = torch.topk(logits, k, dim=-1)
-    if reduction == "mean":
-        return (top_ks == labels[:, None]).float().sum(dim=-1).mean()
-    if reduction == "none":
-        return (top_ks == labels[:, None]).float().sum(dim=-1)
-
-    raise ValueError(f"reduction should be one of ['mean', 'none']: {reduction}")
-
-
-def log_loss_dict(diffusion: GaussianMultinomialDiffusion, ts: Tensor, losses: dict[str, Tensor]) -> None:
-    for key, values in losses.items():
-        logger.logkv_mean(key, values.mean().item())
-        # Log the quantiles (four quartiles, in particular).
-        for sub_t, sub_loss in zip(ts.cpu().numpy(), values.detach().cpu().numpy()):
-            quartile = int(4 * sub_t / diffusion.num_timesteps)
-            logger.logkv_mean(f"{key}_q{quartile}", sub_loss)
-
-
-def numerical_forward_backward_log(
-    classifier: nn.Module,
-    optimizer: torch.optim.Optimizer,
-    data_loader: Generator[tuple[Tensor, ...]],
-    dataset: Dataset,
-    schedule_sampler: ScheduleSampler,
-    diffusion: GaussianMultinomialDiffusion,
-    prefix: str = "train",
-    remove_first_col: bool = False,
-    device: str = "cuda",
-) -> None:
-    batch, labels = next(data_loader)
-    labels = labels.long().to(device)
-
-    if remove_first_col:
-        # Remove the first column of the batch, which is the label.
-        batch = batch[:, 1:]
-
-    num_batch = batch[:, : dataset.n_num_features].to(device)
-
-    t, _ = schedule_sampler.sample(num_batch.shape[0], device)
-    batch = diffusion.gaussian_q_sample(num_batch, t).to(device)
-
-    for i, (sub_batch, sub_labels, sub_t) in enumerate(split_microbatches(-1, batch, labels, t)):
-        logits = classifier(sub_batch, timesteps=sub_t)
-        loss = F.cross_entropy(logits, sub_labels, reduction="none")
-
-        losses = {}
-        losses[f"{prefix}_loss"] = loss.detach()
-        losses[f"{prefix}_acc@1"] = compute_top_k(logits, sub_labels, k=1, reduction="none")
-        if logits.shape[1] >= 5:
-            losses[f"{prefix}_acc@5"] = compute_top_k(logits, sub_labels, k=5, reduction="none")
-        log_loss_dict(diffusion, sub_t, losses)
-        del losses
-        loss = loss.mean()
-        if loss.requires_grad:
-            if i == 0:
-                optimizer.zero_grad()
-            loss.backward(loss * len(sub_batch) / len(batch))  # type: ignore[no-untyped-call]
 
 
 def transform_dataset(
