@@ -1,5 +1,6 @@
 """Defines the training functions for the ClavaDDPM model."""
 
+import logging
 import os
 import pickle
 from pathlib import Path
@@ -25,7 +26,11 @@ from midst_toolkit.models.clavaddpm.model import (
     pair_clustering_keep_id,
     prepare_fast_dataloader,
 )
-from midst_toolkit.models.clavaddpm.trainer import Trainer
+from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
+
+
+logging.basicConfig(level=logging.INFO)
+LOGGER = logging.getLogger(__name__)
 
 
 Tables = dict[str, dict[str, Any]]
@@ -144,7 +149,7 @@ def clava_training(
             }
         relation_order: List of tuples of parent and child tables. Example:
             [("table1", "table2"), ("table1", "table3")]
-        save_dir: Directory to save the clustering checkpoint.
+        save_dir: Directory to save the ClavaDDPM models.
         diffusion_config: Dictionary of configurations for the diffusion model. The following config keys are required:
             {
                 d_layers = list[int],
@@ -192,8 +197,13 @@ def clava_training(
         models[(parent, child)] = result
 
         target_folder = save_dir / "models"
+        target_file = target_folder / f"{parent}_{child}_ckpt.pkl"
+
+        create_message = f"Creating {target_folder}. " if not target_folder.exists() else ""
+        LOGGER.info(f"{create_message}Saving {parent} -> {child} model to {target_file}")
+
         target_folder.mkdir(parents=True, exist_ok=True)
-        with open(target_folder / f"{parent}_{child}_ckpt.pkl", "wb") as f:
+        with open(target_file, "wb") as f:
             pickle.dump(result, f)
 
     return models
@@ -359,22 +369,17 @@ def train_model(
         df_info=df_info,
         std=0,
     )
-    # print(dataset.n_features)
     train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size, y_type="long")
-
-    num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
 
     K = np.array(dataset.get_category_sizes("train"))
     # ruff: noqa: N806
     if len(K) == 0 or T_dict["cat_encoding"] == "one-hot":
         K = np.array([0])
         # ruff: noqa: N806
-    # print(K)
 
     num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
     d_in = np.sum(K) + num_numerical_features
     model_params["d_in"] = d_in
-    # print(d_in)
 
     print("Model params: {}".format(model_params))
     model = get_model(model_type, model_params)
@@ -394,7 +399,7 @@ def train_model(
     diffusion.to(device)
     diffusion.train()
 
-    trainer = Trainer(
+    trainer = ClavaDDPMTrainer(
         diffusion,
         train_loader,
         lr=lr,
@@ -472,7 +477,6 @@ def train_classifier(
     test_loader = prepare_fast_dataloader(dataset, split="test", batch_size=batch_size, y_type="long")
 
     eval_interval = 5
-    # log_interval = 10
 
     K = np.array(dataset.get_category_sizes("train"))
     # ruff: noqa: N806
@@ -541,10 +545,6 @@ def train_classifier(
                     device=device,
                 )
                 classifier.train()
-
-        # Removed because it's too verbose
-        # if not step % log_interval:
-        # logger.dumpkvs()
 
     # # test classifier
     classifier.eval()

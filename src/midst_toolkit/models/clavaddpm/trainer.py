@@ -11,7 +11,7 @@ from torch import Tensor, nn
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 
 
-class Trainer:
+class ClavaDDPMTrainer:
     def __init__(
         self,
         diffusion: GaussianMultinomialDiffusion,
@@ -60,19 +60,24 @@ class Trainer:
         for param_group in self.optimizer.param_groups:
             param_group["lr"] = lr
 
-    def _run_step(self, x: Tensor, out_dict: dict[str, Tensor]) -> tuple[Tensor, Tensor]:
+    def _run_step(self, x: Tensor, target: dict[str, Tensor]) -> tuple[Tensor, Tensor]:
         """
         Run a single step of the training loop.
 
         Args:
             x: The input tensor.
-            out_dict: The output dictionary.
+            target: The target dictionary (model output).
+
+        Returns:
+            A tuple with 2 values:
+                - The multi-class loss.
+                - The Gaussian loss.
         """
         x = x.to(self.device)
-        for k, v in out_dict.items():
-            out_dict[k] = v.long().to(self.device)
+        for k, v in target.items():
+            target[k] = v.long().to(self.device)
         self.optimizer.zero_grad()
-        loss_multi, loss_gauss = self.diffusion.mixed_loss(x, out_dict)
+        loss_multi, loss_gauss = self.diffusion.mixed_loss(x, target)
         loss = loss_multi + loss_gauss
         loss.backward()  # type: ignore[no-untyped-call]
         self.optimizer.step()
