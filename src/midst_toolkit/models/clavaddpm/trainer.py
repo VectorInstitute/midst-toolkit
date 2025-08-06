@@ -60,13 +60,13 @@ class ClavaDDPMTrainer:
         for param_group in self.optimizer.param_groups:
             param_group["lr"] = lr
 
-    def _run_step(self, x: Tensor, target: dict[str, Tensor]) -> tuple[Tensor, Tensor]:
+    def _train_step(self, x: Tensor, y: Tensor) -> tuple[Tensor, Tensor]:
         """
         Run a single step of the training loop.
 
         Args:
             x: The input tensor.
-            target: The target dictionary (model output).
+            y: The output tensor.
 
         Returns:
             A tuple with 2 values:
@@ -74,6 +74,7 @@ class ClavaDDPMTrainer:
                 - The Gaussian loss.
         """
         x = x.to(self.device)
+        target = {"y": y}
         for k, v in target.items():
             target[k] = v.long().to(self.device)
         self.optimizer.zero_grad()
@@ -84,7 +85,7 @@ class ClavaDDPMTrainer:
 
         return loss_multi, loss_gauss
 
-    def run_loop(self) -> None:
+    def train(self) -> None:
         """Run the training loop."""
         step = 0
         curr_loss_multi = 0.0
@@ -93,8 +94,7 @@ class ClavaDDPMTrainer:
         curr_count = 0
         while step < self.steps:
             x, out = next(self.train_iter)
-            out_dict = {"y": out}
-            batch_loss_multi, batch_loss_gauss = self._run_step(x, out_dict)
+            batch_loss_multi, batch_loss_gauss = self._train_step(x, out)
 
             self._anneal_lr(step)
 

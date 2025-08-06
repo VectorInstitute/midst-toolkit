@@ -45,7 +45,7 @@ def clava_clustering(
     configs: Configs,
 ) -> tuple[dict[str, Any], dict[tuple[str, str], dict[int, float]]]:
     """
-    Clustering function for the mutli-table function of theClavaDDPM model.
+    Clustering function for the mutli-table function of the ClavaDDPM model.
 
     Args:
         tables: Definition of the tables and their relations. Example:
@@ -69,6 +69,10 @@ def clava_clustering(
                 clustering_method = str["kmeans" | "both" | "variational" | "gmm"],
             }
 
+    Returns:
+        A tuple with 2 values:
+            - The tables dictionary.
+            - The dictionary with the group lengths probability for all the parent-child pairs.
     """
     relation_order_reversed = relation_order[::-1]
     all_group_lengths_prob_dicts = {}
@@ -76,8 +80,10 @@ def clava_clustering(
     # Clustering
     if os.path.exists(save_dir / "cluster_ckpt.pkl"):
         print("Clustering checkpoint found, loading...")
-        cluster_ckpt = pickle.load(open(save_dir / "cluster_ckpt.pkl", "rb"))
-        # ruff: noqa: SIM115
+
+        with open(save_dir / "cluster_ckpt.pkl", "rb") as f:
+            cluster_ckpt = pickle.load(f)
+
         tables = cluster_ckpt["tables"]
         all_group_lengths_prob_dicts = cluster_ckpt["all_group_lengths_prob_dicts"]
     else:
@@ -114,8 +120,8 @@ def clava_clustering(
             "tables": tables,
             "all_group_lengths_prob_dicts": all_group_lengths_prob_dicts,
         }
-        pickle.dump(cluster_ckpt, open(save_dir / "cluster_ckpt.pkl", "wb"))
-        # ruff: noqa: SIM115
+        with open(save_dir / "cluster_ckpt.pkl", "wb") as f:
+            pickle.dump(cluster_ckpt, f)
 
     for parent, child in relation_order:
         if parent is None:
@@ -259,6 +265,9 @@ def child_training(
         Dictionary of the training results.
     """
     if parent_name is None:
+        # If there is no parent for this child table, just set a placeholder
+        # for its column name. This can happen on single table training or
+        # when the table is on the top level of the hierarchy.
         y_col = "placeholder"
         child_df_with_cluster["placeholder"] = list(range(len(child_df_with_cluster)))
     else:
@@ -311,6 +320,8 @@ def child_training(
                 device=device,
             )
             child_result["classifier"] = child_classifier
+        else:
+            LOGGER.warning("Skipping classifier training since classifier_config['iterations'] <= 0")
 
     child_result["df_info"] = child_info
     child_result["model_params"] = child_model_params
@@ -406,7 +417,7 @@ def train_model(
         steps=steps,
         device=device,
     )
-    trainer.run_loop()
+    trainer.train()
 
     if model_params["is_y_cond"] == "concat":
         column_orders = column_orders[1:] + [column_orders[0]]
@@ -454,11 +465,11 @@ def train_classifier(
         d_layers: List of the hidden sizes of the classifier.
         device: Device to use for training. Default is `"cuda"`.
         cluster_col: Name of the cluster column. Default is `"cluster"`.
-        dim_t: Dimension of the transformer. Default is 128.
+        dim_t: Dimension of the timestamp. Default is 128.
         lr: Learning rate to use for the classifier. Default is 0.0001.
 
     Returns:
-        The classifier model.
+        The trained classifier model.
     """
     T = Transformations(**T_dict)
     # ruff: noqa: N806
