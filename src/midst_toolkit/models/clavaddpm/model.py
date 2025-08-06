@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 
 from midst_toolkit.models.clavaddpm.dataset import Dataset
-from midst_toolkit.models.clavaddpm.params import ModuleType
+from midst_toolkit.models.clavaddpm.typing import ModuleType
 
 
 class Classifier(nn.Module):
