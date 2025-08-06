@@ -369,7 +369,6 @@ def train_model(
         df_info=df_info,
         std=0,
     )
-    train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size, y_type="long")
 
     K = np.array(dataset.get_category_sizes("train"))
     # ruff: noqa: N806
