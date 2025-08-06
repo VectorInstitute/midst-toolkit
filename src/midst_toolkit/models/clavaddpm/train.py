@@ -24,9 +24,9 @@ from midst_toolkit.models.clavaddpm.model import (
     make_dataset_from_df,
     prepare_fast_dataloader,
 )
-from midst_toolkit.models.clavaddpm.params import Configs, RelationOrder, Tables
 from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, create_named_schedule_sampler
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
+from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
 
 
 logging.basicConfig(level=logging.INFO)
@@ -168,6 +168,9 @@ def child_training(
         Dictionary of the training results.
     """
     if parent_name is None:
+        # If there is no parent for this child table, just set a placeholder
+        # for its column name. This can happen on single table training or
+        # when the table is on the top level of the hierarchy.
         y_col = "placeholder"
         child_df_with_cluster["placeholder"] = list(range(len(child_df_with_cluster)))
     else:
@@ -220,6 +223,8 @@ def child_training(
                 device=device,
             )
             child_result["classifier"] = child_classifier
+        else:
+            LOGGER.warning("Skipping classifier training since classifier_config['iterations'] <= 0")
 
     child_result["df_info"] = child_info
     child_result["model_params"] = child_model_params
@@ -315,7 +320,7 @@ def train_model(
         steps=steps,
         device=device,
     )
-    trainer.run_loop()
+    trainer.train()
 
     if model_params["is_y_cond"] == "concat":
         column_orders = column_orders[1:] + [column_orders[0]]
@@ -363,11 +368,11 @@ def train_classifier(
         d_layers: List of the hidden sizes of the classifier.
         device: Device to use for training. Default is `"cuda"`.
         cluster_col: Name of the cluster column. Default is `"cluster"`.
-        dim_t: Dimension of the transformer. Default is 128.
+        dim_t: Dimension of the timestamp. Default is 128.
         lr: Learning rate to use for the classifier. Default is 0.0001.
 
     Returns:
-        The classifier model.
+        The trained classifier model.
     """
     T = Transformations(**T_dict)
     # ruff: noqa: N806

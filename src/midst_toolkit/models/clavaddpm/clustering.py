@@ -12,7 +12,7 @@ from sklearn.cluster import KMeans
 from sklearn.mixture import BayesianGaussianMixture, GaussianMixture
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler, OneHotEncoder, QuantileTransformer
 
-from midst_toolkit.models.clavaddpm.params import Configs, RelationOrder, Tables
+from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
 
 
 def clava_clustering(
@@ -20,9 +20,9 @@ def clava_clustering(
     relation_order: RelationOrder,
     save_dir: Path,
     configs: Configs,
-) -> tuple[Tables, dict[tuple[str, str], dict[int, float]]]:
+) -> tuple[dict[str, Any], dict[tuple[str, str], dict[int, float]]]:
     """
-    Clustering function for the mutli-table function of theClavaDDPM model.
+    Clustering function for the mutli-table function of the ClavaDDPM model.
 
     Args:
         tables: Definition of the tables and their relations. Example:
@@ -47,7 +47,9 @@ def clava_clustering(
             }
 
     Returns:
-        Tuple of the tables and the dictionary of group lengths and probabilities.
+        A tuple with 2 values:
+            - The tables dictionary.
+            - The dictionary with the group lengths probability for all the parent-child pairs.
     """
     relation_order_reversed = relation_order[::-1]
     all_group_lengths_prob_dicts = {}
@@ -55,8 +57,10 @@ def clava_clustering(
     # Clustering
     if os.path.exists(save_dir / "cluster_ckpt.pkl"):
         print("Clustering checkpoint found, loading...")
-        cluster_ckpt = pickle.load(open(save_dir / "cluster_ckpt.pkl", "rb"))
-        # ruff: noqa: SIM115
+
+        with open(save_dir / "cluster_ckpt.pkl", "rb") as f:
+            cluster_ckpt = pickle.load(f)
+
         tables = cluster_ckpt["tables"]
         all_group_lengths_prob_dicts = cluster_ckpt["all_group_lengths_prob_dicts"]
     else:
@@ -93,8 +97,8 @@ def clava_clustering(
             "tables": tables,
             "all_group_lengths_prob_dicts": all_group_lengths_prob_dicts,
         }
-        pickle.dump(cluster_ckpt, open(save_dir / "cluster_ckpt.pkl", "wb"))
-        # ruff: noqa: SIM115
+        with open(save_dir / "cluster_ckpt.pkl", "wb") as f:
+            pickle.dump(cluster_ckpt, f)
 
     for parent, child in relation_order:
         if parent is None:
