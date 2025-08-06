@@ -256,7 +256,6 @@ def _pair_clustering_keep_id(
     child_group_lengths = np.array([len(group) for group in child_group_data], dtype=int)
     num_clusters = min(num_clusters, len(cluster_data))
 
-    # print('clustering')
     if clustering_method == "kmeans":
         kmeans = KMeans(n_clusters=num_clusters, n_init="auto", init="k-means++")
         kmeans.fit(cluster_data)
