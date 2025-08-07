@@ -839,6 +839,8 @@ def make_dataset_from_df(
     return transform_dataset(D, T, None), label_encoders, column_orders
 
 
+# TODO: can this be refactored in a way it does not return a generator but
+# rather an instance of FastTensorDataLoader and the generator is returned later?
 def prepare_fast_dataloader(
     D: Dataset,
     # ruff: noqa: N803

@@ -447,6 +447,7 @@ def train_classifier(
     cluster_col: str = "cluster",
     dim_t: int = 128,
     learning_rate: float = 0.0001,
+    classifier_evaluation_interval: int = 5,
 ) -> Classifier:
     """
     Training function for the classifier model.
@@ -466,6 +467,8 @@ def train_classifier(
         cluster_col: Name of the cluster column. Default is `"cluster"`.
         dim_t: Dimension of the timestamp. Default is 128.
         learning_rate: Learning rate to use for the optimizer in the classifier. Default is 0.0001.
+        classifier_evaluation_interval: The amount of classifier_steps to wait
+            until the next evaluation of the classifier. Default is 5.
 
     Returns:
         The trained classifier model.
@@ -485,8 +488,6 @@ def train_classifier(
     val_loader = prepare_fast_dataloader(dataset, split="val", batch_size=batch_size, y_type="long")
     test_loader = prepare_fast_dataloader(dataset, split="test", batch_size=batch_size, y_type="long")
 
-    eval_interval = 5
-
     category_sizes = np.array(dataset.get_category_sizes("train"))
     # ruff: noqa: N806
     if len(category_sizes) == 0 or transformations_dict["cat_encoding"] == "one-hot":
@@ -494,13 +495,19 @@ def train_classifier(
         # ruff: noqa: N806
     print(category_sizes)
 
-    num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
+    # TODO: understand what's going on here
+    if dataset.X_num is None:
+        LOGGER.warning("dataset.X_num is None. num_numerical_features will be set to 0")
+        num_numerical_features = 0
+    else:
+        num_numerical_features = dataset.X_num["train"].shape[1]
+
     if model_params["is_y_cond"] == "concat":
         num_numerical_features -= 1
 
     classifier = Classifier(
         d_in=num_numerical_features,
-        d_out=int(max(data_frame[cluster_col].values) + 1),
+        d_out=int(max(data_frame[cluster_col].values) + 1),  # TODO: add a comment why we need to add 1
         dim_t=dim_t,
         hidden_sizes=d_layers,
     ).to(device)
@@ -521,12 +528,11 @@ def train_classifier(
     schedule_sampler = create_named_schedule_sampler("uniform", empty_diffusion)
 
     classifier.train()
-    resume_step = 0
     for step in range(classifier_steps):
-        logger.logkv("step", step + resume_step)
+        logger.logkv("step", step)
         logger.logkv(
             "samples",
-            (step + resume_step + 1) * batch_size,
+            (step + 1) * batch_size,
         )
         numerical_forward_backward_log(
             classifier,
@@ -540,7 +546,7 @@ def train_classifier(
         )
 
         classifier_optimizer.step()
-        if not step % eval_interval:
+        if not step % classifier_evaluation_interval:
             with torch.no_grad():
                 classifier.eval()
                 numerical_forward_backward_log(
@@ -555,10 +561,11 @@ def train_classifier(
                 )
                 classifier.train()
 
-    # # test classifier
+    # test classifier
     classifier.eval()
 
     correct = 0
+    # TODO: why 3000 iterations? Why not just run through the test_loader once? Maybe it's a probabilistic classifier?
     for _ in range(3000):
         test_x, test_y = next(test_loader)
         test_y = test_y.long().to(device)

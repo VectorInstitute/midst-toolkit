@@ -14,7 +14,7 @@ from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import Gaussi
 class ClavaDDPMTrainer:
     def __init__(
         self,
-        diffusion: GaussianMultinomialDiffusion,
+        diffusion_model: GaussianMultinomialDiffusion,
         train_iter: Generator[tuple[Tensor, ...]],
         lr: float,
         weight_decay: float,
@@ -25,7 +25,7 @@ class ClavaDDPMTrainer:
         Trainer class for the ClavaDDPM model.
 
         Args:
-            diffusion: The diffusion model.
+            diffusion_model: The diffusion model.
             train_iter: The training iterator. It should yield a tuple of tensors. The first tensor is the input
                 tensor and the second tensor is the output tensor.
             lr: The learning rate.
@@ -33,15 +33,15 @@ class ClavaDDPMTrainer:
             steps: The number of steps to train.
             device: The device to use. Default is `"cuda"`.
         """
-        self.diffusion = diffusion
-        self.ema_model = deepcopy(self.diffusion._denoise_fn)
+        self.diffusion_model = diffusion_model
+        self.ema_model = deepcopy(self.diffusion_model._denoise_fn)
         for param in self.ema_model.parameters():
             param.detach_()
 
         self.train_iter = train_iter
         self.steps = steps
         self.init_lr = lr
-        self.optimizer = torch.optim.AdamW(self.diffusion.parameters(), lr=lr, weight_decay=weight_decay)
+        self.optimizer = torch.optim.AdamW(self.diffusion_model.parameters(), lr=lr, weight_decay=weight_decay)
         self.device = device
         self.loss_history = pd.DataFrame(columns=["step", "mloss", "gloss", "loss"])
         self.log_every = 100
@@ -78,7 +78,7 @@ class ClavaDDPMTrainer:
         for k, v in target.items():
             target[k] = v.long().to(self.device)
         self.optimizer.zero_grad()
-        loss_multi, loss_gauss = self.diffusion.mixed_loss(x, target)
+        loss_multi, loss_gauss = self.diffusion_model.mixed_loss(x, target)
         loss = loss_multi + loss_gauss
         loss.backward()  # type: ignore[no-untyped-call]
         self.optimizer.step()
@@ -93,6 +93,8 @@ class ClavaDDPMTrainer:
 
         curr_count = 0
         while step < self.steps:
+            # TODO: improve this design. If self.steps is larger than self.train_iter,
+            # it will lead to a StopIteration error.
             x, out = next(self.train_iter)
             batch_loss_multi, batch_loss_gauss = self._train_step(x, out)
 
@@ -102,11 +104,14 @@ class ClavaDDPMTrainer:
             curr_loss_multi += batch_loss_multi.item() * len(x)
             curr_loss_gauss += batch_loss_gauss.item() * len(x)
 
+            # TODO: improve this code, starting by moving it into a function for better readability and modularity.
             if (step + 1) % self.log_every == 0:
                 mloss = np.around(curr_loss_multi / curr_count, 4)
                 gloss = np.around(curr_loss_gauss / curr_count, 4)
                 if (step + 1) % self.print_every == 0:
                     print(f"Step {(step + 1)}/{self.steps} MLoss: {mloss} GLoss: {gloss} Sum: {mloss + gloss}")
+
+                # TODO: switch this for a concat for better code readability
                 self.loss_history.loc[len(self.loss_history)] = [
                     step + 1,
                     mloss,
@@ -117,7 +122,7 @@ class ClavaDDPMTrainer:
                 curr_loss_gauss = 0.0
                 curr_loss_multi = 0.0
 
-            update_ema(self.ema_model.parameters(), self.diffusion._denoise_fn.parameters())
+            update_ema(self.ema_model.parameters(), self.diffusion_model._denoise_fn.parameters())
 
             step += 1
 
@@ -137,4 +142,6 @@ def update_ema(
         rate: the EMA rate (closer to 1 means slower).
     """
     for targ, src in zip(target_params, source_params):
+        # TODO: is this doing anything at all? The detach functions will create new tensors,
+        # so this will not modify the original tensors, and this function does not return anything.
         targ.detach().mul_(rate).add_(src.detach(), alpha=1 - rate)
