@@ -268,6 +268,7 @@ def child_training(
         # If there is no parent for this child table, just set a placeholder
         # for its column name. This can happen on single table training or
         # when the table is on the top level of the hierarchy.
+        # TODO: find a better name for this variable
         y_col = "placeholder"
         child_df_with_cluster["placeholder"] = list(range(len(child_df_with_cluster)))
     else:
@@ -316,7 +317,7 @@ def child_training(
                 cluster_col=y_col,
                 d_layers=classifier_config["d_layers"],
                 dim_t=classifier_config["dim_t"],
-                lr=classifier_config["lr"],
+                learning_rate=classifier_config["lr"],
                 device=device,
             )
             child_result["classifier"] = child_classifier
@@ -330,18 +331,17 @@ def child_training(
 
 
 def train_model(
-    df: pd.DataFrame,
-    df_info: pd.DataFrame,
+    data_frame: pd.DataFrame,
+    data_frame_info: pd.DataFrame,
     model_params: dict[str, Any],
-    T_dict: dict[str, Any],
-    # ruff: noqa: N803
+    transformations_dict: dict[str, Any],
     steps: int,
     batch_size: int,
     model_type: str,
     gaussian_loss_type: str,
     num_timesteps: int,
     scheduler: str,
-    lr: float,
+    learning_rate: float,
     weight_decay: float,
     device: str = "cuda",
 ) -> dict[str, Any]:
@@ -349,18 +349,18 @@ def train_model(
     Training function for the diffusion model.
 
     Args:
-        df: DataFrame to train the model on.
-        df_info: Dictionary of the table information.
+        data_frame: DataFrame to train the model on.
+        data_frame_info: Dictionary of the table information.
         model_params: Dictionary of the model parameters.
-        T_dict: Dictionary of the transformations.
+        transformations_dict: Dictionary of the transformations.
         steps: Number of steps to train the model.
         batch_size: Batch size to use for training.
         model_type: Type of the model to use.
         gaussian_loss_type: Type of the gaussian loss to use.
         num_timesteps: Number of timesteps to use for the diffusion model.
         scheduler: Scheduler to use for the diffusion model.
-        lr: Learning rate to use for the diffusion model.
-        weight_decay: Weight decay to use for the diffusion model.
+        learning_rate: Learning rate to use for the optimizer in the diffusion model.
+        weight_decay: Weight decay to use for the optimizer in the diffusion model.
         device: Device to use for training. Default is `"cuda"`.
 
     Returns:
@@ -370,25 +370,25 @@ def train_model(
             - dataset: The dataset.
             - column_orders: The column orders.
     """
-    T = Transformations(**T_dict)
+    transformations = Transformations(**transformations_dict)
     # ruff: noqa: N806
     dataset, label_encoders, column_orders = make_dataset_from_df(
-        df,
-        T,
+        data_frame,
+        transformations,
         is_y_cond=model_params["is_y_cond"],
         ratios=[0.99, 0.005, 0.005],
-        df_info=df_info,
+        df_info=data_frame_info,
         std=0,
     )
 
-    K = np.array(dataset.get_category_sizes("train"))
+    category_sizes = np.array(dataset.get_category_sizes("train"))
     # ruff: noqa: N806
-    if len(K) == 0 or T_dict["cat_encoding"] == "one-hot":
-        K = np.array([0])
+    if len(category_sizes) == 0 or transformations_dict["cat_encoding"] == "one-hot":
+        category_sizes = np.array([0])
         # ruff: noqa: N806
 
     num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
-    d_in = np.sum(K) + num_numerical_features
+    d_in = np.sum(category_sizes) + num_numerical_features
     model_params["d_in"] = d_in
 
     print("Model params: {}".format(model_params))
@@ -398,7 +398,7 @@ def train_model(
     train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size)
 
     diffusion = GaussianMultinomialDiffusion(
-        num_classes=K,
+        num_classes=category_sizes,
         num_numerical_features=num_numerical_features,
         denoise_fn=model,
         gaussian_loss_type=gaussian_loss_type,
@@ -412,7 +412,7 @@ def train_model(
     trainer = ClavaDDPMTrainer(
         diffusion,
         train_loader,
-        lr=lr,
+        lr=learning_rate,
         weight_decay=weight_decay,
         steps=steps,
         device=device,
@@ -422,7 +422,7 @@ def train_model(
     if model_params["is_y_cond"] == "concat":
         column_orders = column_orders[1:] + [column_orders[0]]
     else:
-        column_orders = column_orders + [df_info["y_col"]]
+        column_orders = column_orders + [data_frame_info["y_col"]]
 
     return {
         "diffusion": diffusion,
@@ -433,11 +433,10 @@ def train_model(
 
 
 def train_classifier(
-    df: pd.DataFrame,
-    df_info: pd.DataFrame,
+    data_frame: pd.DataFrame,
+    data_frame_info: pd.DataFrame,
     model_params: dict[str, Any],
-    T_dict: dict[str, Any],
-    # ruff: noqa: N803
+    transformations_dict: dict[str, Any],
     classifier_steps: int,
     batch_size: int,
     gaussian_loss_type: str,
@@ -447,16 +446,16 @@ def train_classifier(
     device: str = "cuda",
     cluster_col: str = "cluster",
     dim_t: int = 128,
-    lr: float = 0.0001,
+    learning_rate: float = 0.0001,
 ) -> Classifier:
     """
     Training function for the classifier model.
 
     Args:
-        df: DataFrame to train the model on.
-        df_info: Dictionary of the table information.
+        data_frame: DataFrame to train the model on.
+        data_frame_info: Dictionary of the table information.
         model_params: Dictionary of the model parameters.
-        T_dict: Dictionary of the transformations.
+        transformations_dict: Dictionary of the transformations.
         classifier_steps: Number of steps to train the classifier.
         batch_size: Batch size to use for training.
         gaussian_loss_type: Type of the gaussian loss to use.
@@ -466,19 +465,19 @@ def train_classifier(
         device: Device to use for training. Default is `"cuda"`.
         cluster_col: Name of the cluster column. Default is `"cluster"`.
         dim_t: Dimension of the timestamp. Default is 128.
-        lr: Learning rate to use for the classifier. Default is 0.0001.
+        learning_rate: Learning rate to use for the optimizer in the classifier. Default is 0.0001.
 
     Returns:
         The trained classifier model.
     """
-    T = Transformations(**T_dict)
+    transformations = Transformations(**transformations_dict)
     # ruff: noqa: N806
     dataset, label_encoders, column_orders = make_dataset_from_df(
-        df,
-        T,
+        data_frame,
+        transformations,
         is_y_cond=model_params["is_y_cond"],
         ratios=[0.99, 0.005, 0.005],
-        df_info=df_info,
+        df_info=data_frame_info,
         std=0,
     )
     print(dataset.n_features)
@@ -488,12 +487,12 @@ def train_classifier(
 
     eval_interval = 5
 
-    K = np.array(dataset.get_category_sizes("train"))
+    category_sizes = np.array(dataset.get_category_sizes("train"))
     # ruff: noqa: N806
-    if len(K) == 0 or T_dict["cat_encoding"] == "one-hot":
-        K = np.array([0])
+    if len(category_sizes) == 0 or transformations_dict["cat_encoding"] == "one-hot":
+        category_sizes = np.array([0])
         # ruff: noqa: N806
-    print(K)
+    print(category_sizes)
 
     num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
     if model_params["is_y_cond"] == "concat":
@@ -501,15 +500,15 @@ def train_classifier(
 
     classifier = Classifier(
         d_in=num_numerical_features,
-        d_out=int(max(df[cluster_col].values) + 1),
+        d_out=int(max(data_frame[cluster_col].values) + 1),
         dim_t=dim_t,
         hidden_sizes=d_layers,
     ).to(device)
 
-    classifier_optimizer = optim.AdamW(classifier.parameters(), lr=lr)
+    classifier_optimizer = optim.AdamW(classifier.parameters(), lr=learning_rate)
 
     empty_diffusion = GaussianMultinomialDiffusion(
-        num_classes=K,
+        num_classes=category_sizes,
         num_numerical_features=num_numerical_features,
         denoise_fn=None,  # type: ignore[arg-type]
         gaussian_loss_type=gaussian_loss_type,
