@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -33,6 +34,240 @@ CLASSIFIER_CONFIG = {
     "batch_size": 24,
     "iterations": 1000,
 }
+
+
+@pytest.mark.integration_test()
+def test_load_single_table():
+    tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/single_table/")
+
+    assert list(tables.keys()) == ["trans"]
+
+    assert tables["trans"]["df"].columns.tolist() == [
+        "trans_date",
+        "trans_type",
+        "operation",
+        "amount",
+        "balance",
+        "k_symbol",
+        "bank",
+        "account",
+    ]
+    assert tables["trans"]["df"].shape == (99, 8)
+    with open("tests/integration/data/multi_table/trans_domain.json", "r") as f:
+        assert tables["trans"]["domain"] == json.load(f)
+    assert tables["trans"]["children"] == []
+    assert tables["trans"]["parents"] == []
+    assert tables["trans"]["original_cols"] == [
+        "trans_date",
+        "trans_type",
+        "operation",
+        "amount",
+        "balance",
+        "k_symbol",
+        "bank",
+        "account",
+    ]
+    assert tables["trans"]["original_df"].columns.tolist() == [
+        "trans_date",
+        "trans_type",
+        "operation",
+        "amount",
+        "balance",
+        "k_symbol",
+        "bank",
+        "account",
+    ]
+    assert tables["trans"]["info"] == {
+        "num_col_idx": [0, 3, 4, 7],
+        "cat_col_idx": [1, 2, 5, 6],
+        "target_col_idx": [],
+        "task_type": "None",
+        "column_names": ["trans_date", "trans_type", "operation", "amount", "balance", "k_symbol", "bank", "account"],
+        "column_info": {
+            0: {},
+            1: {},
+            2: {},
+            3: {},
+            4: {},
+            5: {},
+            6: {},
+            7: {},
+            "type": "categorical",
+            "max": 92881422.0,
+            "min": 0.0,
+            "categorizes": [0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+        },
+        "train_num": 99,
+        "idx_mapping": {0: 0, 1: 4, 2: 5, 3: 1, 4: 2, 5: 6, 6: 7, 7: 3},
+        "inverse_idx_mapping": {0: 0, 1: 3, 2: 4, 3: 7, 4: 1, 5: 2, 6: 5, 7: 6},
+        "idx_name_mapping": {
+            0: "trans_date",
+            1: "trans_type",
+            2: "operation",
+            3: "amount",
+            4: "balance",
+            5: "k_symbol",
+            6: "bank",
+            7: "account",
+        },
+        "metadata": {
+            "columns": {
+                0: {"sdtype": "numerical", "computer_representation": "Float"},
+                1: {"sdtype": "categorical"},
+                2: {"sdtype": "categorical"},
+                3: {"sdtype": "numerical", "computer_representation": "Float"},
+                4: {"sdtype": "numerical", "computer_representation": "Float"},
+                5: {"sdtype": "categorical"},
+                6: {"sdtype": "categorical"},
+                7: {"sdtype": "numerical", "computer_representation": "Float"},
+            },
+        },
+    }
+
+    assert relation_order == [[None, "trans"]]
+    assert dataset_meta["relation_order"] == [[None, "trans"]]
+    assert dataset_meta["tables"] == {"trans": {"children": [], "parents": []}}
+
+
+@pytest.mark.integration_test()
+def test_load_multi_table():
+    tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/multi_table/")
+
+    assert list(tables.keys()) == ["account", "trans"]
+
+    assert tables["account"]["df"].columns.tolist() == ["account_id", "district_id", "frequency", "account_date"]
+    assert tables["account"]["df"].shape == (9, 4)
+    with open("tests/integration/data/multi_table/account_domain.json", "r") as f:
+        assert tables["account"]["domain"] == json.load(f)
+    assert tables["account"]["children"] == ["trans"]
+    assert tables["account"]["parents"] == []
+    assert tables["account"]["original_cols"] == ["account_id", "district_id", "frequency", "account_date"]
+    assert tables["account"]["original_df"].columns.tolist() == [
+        "account_id",
+        "district_id",
+        "frequency",
+        "account_date",
+    ]
+    assert tables["account"]["info"] == {
+        "num_col_idx": [1],
+        "cat_col_idx": [0],
+        "target_col_idx": [],
+        "task_type": "None",
+        "column_names": ["frequency", "account_date"],
+        "column_info": {
+            0: {},
+            1: {},
+            "type": "categorical",
+            "max": 36.0,
+            "min": 2.0,
+            "categorizes": [0, 1],
+        },
+        "train_num": 9,
+        "idx_mapping": {0: 1, 1: 0},
+        "inverse_idx_mapping": {1: 0, 0: 1},
+        "idx_name_mapping": {0: "frequency", 1: "account_date"},
+        "metadata": {
+            "columns": {
+                0: {"sdtype": "categorical"},
+                1: {"sdtype": "numerical", "computer_representation": "Float"},
+            },
+        },
+    }
+
+    assert tables["trans"]["df"].columns.tolist() == [
+        "trans_id",
+        "account_id",
+        "trans_date",
+        "trans_type",
+        "operation",
+        "amount",
+        "balance",
+        "k_symbol",
+        "bank",
+        "account",
+    ]
+    assert tables["trans"]["df"].shape == (143, 10)
+    with open("tests/integration/data/multi_table/trans_domain.json", "r") as f:
+        assert tables["trans"]["domain"] == json.load(f)
+    assert tables["trans"]["children"] == []
+    assert tables["trans"]["parents"] == ["account"]
+    assert tables["trans"]["original_cols"] == [
+        "trans_id",
+        "account_id",
+        "trans_date",
+        "trans_type",
+        "operation",
+        "amount",
+        "balance",
+        "k_symbol",
+        "bank",
+        "account",
+    ]
+    assert tables["trans"]["original_df"].columns.tolist() == [
+        "trans_id",
+        "account_id",
+        "trans_date",
+        "trans_type",
+        "operation",
+        "amount",
+        "balance",
+        "k_symbol",
+        "bank",
+        "account",
+    ]
+    assert tables["trans"]["info"] == {
+        "num_col_idx": [0, 3, 4, 7],
+        "cat_col_idx": [1, 2, 5, 6],
+        "target_col_idx": [],
+        "task_type": "None",
+        "column_names": ["trans_date", "trans_type", "operation", "amount", "balance", "k_symbol", "bank", "account"],
+        "column_info": {
+            0: {},
+            1: {},
+            2: {},
+            3: {},
+            4: {},
+            5: {},
+            6: {},
+            7: {},
+            "type": "categorical",
+            "max": 95059883.0,
+            "min": 0.0,
+            "categorizes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+        },
+        "train_num": 143,
+        "idx_mapping": {0: 0, 1: 4, 2: 5, 3: 1, 4: 2, 5: 6, 6: 7, 7: 3},
+        "inverse_idx_mapping": {0: 0, 1: 3, 2: 4, 3: 7, 4: 1, 5: 2, 6: 5, 7: 6},
+        "idx_name_mapping": {
+            0: "trans_date",
+            1: "trans_type",
+            2: "operation",
+            3: "amount",
+            4: "balance",
+            5: "k_symbol",
+            6: "bank",
+            7: "account",
+        },
+        "metadata": {
+            "columns": {
+                0: {"sdtype": "numerical", "computer_representation": "Float"},
+                1: {"sdtype": "categorical"},
+                2: {"sdtype": "categorical"},
+                3: {"sdtype": "numerical", "computer_representation": "Float"},
+                4: {"sdtype": "numerical", "computer_representation": "Float"},
+                5: {"sdtype": "categorical"},
+                6: {"sdtype": "categorical"},
+                7: {"sdtype": "numerical", "computer_representation": "Float"},
+            },
+        },
+    }
+
+    assert relation_order == [["account", "trans"]]
+    assert dataset_meta["relation_order"] == [["account", "trans"]]
+    assert dataset_meta["tables"] == {
+        "account": {"children": ["trans"], "parents": []},
+        "trans": {"children": [], "parents": ["account"]},
+    }
 
 
 @pytest.mark.integration_test()
