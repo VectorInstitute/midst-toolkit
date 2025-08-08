@@ -1,13 +1,13 @@
 import json
 import os
+import pickle
 import platform
 from pathlib import Path
 
 import pytest
-from torch import nn
 
 from midst_toolkit.core.data_loaders import load_multi_table
-from midst_toolkit.models.clavaddpm.model import clava_clustering, clava_training
+from midst_toolkit.models.clavaddpm.model import clava_clustering, clava_training, sample_from_diffusion
 from tests.utils.random import set_all_random_seeds, unset_all_random_seeds
 
 
@@ -20,7 +20,7 @@ CLUSTERING_CONFIG = {
 DIFFUSION_CONFIG = {
     "d_layers": [512, 1024, 1024, 1024, 1024, 512],
     "dropout": 0.0,
-    "num_timesteps": 2000,
+    "num_timesteps": 100,
     "model_type": "mlp",
     "iterations": 1000,
     "batch_size": 24,
@@ -242,14 +242,35 @@ def test_load_multi_table():
 
 @pytest.mark.integration_test()
 def test_train_single_table(tmp_path: Path):
+    set_all_random_seeds()
+
     os.makedirs(tmp_path / "models")
     configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG}
 
     tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/single_table/")
     tables, models = clava_training(tables, relation_order, tmp_path, configs, device="cpu")
 
+    with open(tmp_path / "models" / "None_trans_ckpt.pkl", "rb") as f:
+        table_info = pickle.load(f)["table_info"]
+
+    sample_scale = 1
     key = (None, "trans")
-    assert isinstance(models[key]["diffusion"], nn.Module)
+    child_generated = sample_from_diffusion(
+        meta_info=table_info[key],
+        df_info=models[key]["df_info"],
+        diffusion=models[key]["diffusion"],
+        label_encoders=models[key]["label_encoders"],
+        sample_size=int(sample_scale * table_info[key]["size"]),
+        model_params=models[key]["model_params"],
+        T_dict=models[key]["T_dict"],
+        sample_batch_size=DIFFUSION_CONFIG["batch_size"],
+    )
+
+    print(child_generated)
+
+    assert child_generated
+
+    unset_all_random_seeds()
 
 
 @pytest.mark.integration_test()
