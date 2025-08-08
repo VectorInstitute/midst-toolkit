@@ -4,6 +4,7 @@ import platform
 from pathlib import Path
 
 import pytest
+from torch import nn
 
 from midst_toolkit.core.data_loaders import load_multi_table
 from midst_toolkit.models.clavaddpm.model import clava_clustering, clava_training
@@ -245,9 +246,10 @@ def test_train_single_table(tmp_path: Path):
     configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG}
 
     tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/single_table/")
-    models = clava_training(tables, relation_order, tmp_path, configs, device="cpu")
+    tables, models = clava_training(tables, relation_order, tmp_path, configs, device="cpu")
 
-    assert models
+    key = (None, "trans")
+    assert isinstance(models[key]["diffusion"], nn.Module)
 
 
 @pytest.mark.integration_test()
