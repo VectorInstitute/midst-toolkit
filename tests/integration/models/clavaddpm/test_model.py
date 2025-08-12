@@ -250,7 +250,7 @@ def test_train_single_table(tmp_path: Path):
     configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG}
 
     # Act
-    tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/single_table/")
+    tables, relation_order, _ = load_multi_table("tests/integration/data/single_table/")
     tables, models = clava_training(tables, relation_order, tmp_path, configs, device="cpu")
 
     # Assert
@@ -270,9 +270,9 @@ def test_train_single_table(tmp_path: Path):
     with open("tests/integration/data/single_table/assertion_data/syntetic_data.json", "r") as f:
         expected_results = json.load(f)
 
-    # Assert the synthetic samples are within the expected values
+    # Assert the synthetic samples are within the expected values.
     # For X_gen, we are checking if the standard deviations of each row
-    # are within a pre-defined range with some percentage of tolerance
+    # are within a pre-defined range with some percentage of tolerance.
     assert np.allclose(X_gen.std(axis=1, ddof=0), expected_results["X_gen_std"], rtol=0.05, atol=0)
     assert all(y_gen == expected_results["y_gen"])
 
@@ -288,17 +288,17 @@ def test_train_multi_table(tmp_path: Path):
     os.makedirs(tmp_path / "models")
     configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG, "classifier": CLASSIFIER_CONFIG}
 
-    tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/multi_table/")
-    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, configs)
+    tables, relation_order, _ = load_multi_table("tests/integration/data/multi_table/")
+    tables, _ = clava_clustering(tables, relation_order, tmp_path, configs)
     models = clava_training(tables, relation_order, tmp_path, configs, device="cpu")
 
     # Assert
-    with open(tmp_path / "models" / "None_trans_ckpt.pkl", "rb") as f:
+    with open(tmp_path / "models" / "account_trans_ckpt.pkl", "rb") as f:
         table_info = pickle.load(f)["table_info"]
 
     sample_size = 5
-    key = (None, "trans")
-    x_gen_tensor, y_gen_tensor = models[key]["diffusion"].sample_all(
+    key = ("account", "trans")
+    x_gen_tensor, y_gen_tensor = models[1][key]["diffusion"].sample_all(
         sample_size,
         DIFFUSION_CONFIG["batch_size"],
         table_info[key]["empirical_class_dist"].float(),
@@ -309,9 +309,10 @@ def test_train_multi_table(tmp_path: Path):
     with open("tests/integration/data/multi_table/assertion_data/syntetic_data.json", "r") as f:
         expected_results = json.load(f)
 
-    # Assert the synthetic samples are within the expected values
+    # Assert the synthetic samples are within the expected values.
     # For X_gen, we are checking if the standard deviations of each row
-    # are within a pre-defined range with some percentage of tolerance
+    # are within a pre-defined range with some percentage of tolerance.
+    print(X_gen.std(axis=1, ddof=0))
     assert np.allclose(X_gen.std(axis=1, ddof=0), expected_results["X_gen_std"], rtol=0.05, atol=0)
     assert all(y_gen == expected_results["y_gen"])
 
