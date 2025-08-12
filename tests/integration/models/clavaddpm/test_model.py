@@ -299,9 +299,6 @@ def test_clustering_reload(tmp_path: Path):
     account_original_df_as_float = tables["account"]["original_df"].astype(float)
     assert account_df_no_clustering.equals(account_original_df_as_float)
 
-    print(tables["account"]["df"]["account_trans_cluster"].tolist())
-    print(tables["trans"]["df"]["account_trans_cluster"].tolist())
-
     if _is_apple_silicon():
         # TODO: Figure out if there is a good way of testing the clustering results
         # on multiple platforms. https://app.clickup.com/t/868f43wp0

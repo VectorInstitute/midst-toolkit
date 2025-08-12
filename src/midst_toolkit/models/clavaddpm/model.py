@@ -2411,6 +2411,10 @@ def sample_from_diffusion(
         ddim=False,
     )
     X_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
+
+    print(X_gen)
+    print(y_gen)
+
     num_numerical_features_sample = num_numerical_features + int(
         meta_info["is_regression"] and not model_params["is_y_cond"]
     )
