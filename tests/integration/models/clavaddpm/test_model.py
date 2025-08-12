@@ -253,14 +253,14 @@ def test_train_single_table(tmp_path: Path):
     with open(tmp_path / "models" / "None_trans_ckpt.pkl", "rb") as f:
         table_info = pickle.load(f)["table_info"]
 
-    sample_scale = 1
+    sample_size = 5
     key = (None, "trans")
     child_generated = sample_from_diffusion(
         meta_info=table_info[key],
         df_info=models[key]["df_info"],
         diffusion=models[key]["diffusion"],
         label_encoders=models[key]["label_encoders"],
-        sample_size=int(sample_scale * table_info[key]["size"]),
+        sample_size=sample_size,
         model_params=models[key]["model_params"],
         T_dict=models[key]["T_dict"],
         sample_batch_size=DIFFUSION_CONFIG["batch_size"],
