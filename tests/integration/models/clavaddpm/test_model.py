@@ -4,10 +4,11 @@ import pickle
 import platform
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from midst_toolkit.core.data_loaders import load_multi_table
-from midst_toolkit.models.clavaddpm.model import clava_clustering, clava_training, sample_from_diffusion
+from midst_toolkit.models.clavaddpm.model import clava_clustering, clava_training
 from tests.utils.random import set_all_random_seeds, unset_all_random_seeds
 
 
@@ -242,33 +243,38 @@ def test_load_multi_table():
 
 @pytest.mark.integration_test()
 def test_train_single_table(tmp_path: Path):
+    # Setup
     set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
     os.makedirs(tmp_path / "models")
     configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG}
 
+    # Act
     tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/single_table/")
     tables, models = clava_training(tables, relation_order, tmp_path, configs, device="cpu")
 
+    # Assert
     with open(tmp_path / "models" / "None_trans_ckpt.pkl", "rb") as f:
         table_info = pickle.load(f)["table_info"]
 
     sample_size = 5
     key = (None, "trans")
-    child_generated = sample_from_diffusion(
-        meta_info=table_info[key],
-        df_info=models[key]["df_info"],
-        diffusion=models[key]["diffusion"],
-        label_encoders=models[key]["label_encoders"],
-        sample_size=sample_size,
-        model_params=models[key]["model_params"],
-        T_dict=models[key]["T_dict"],
-        sample_batch_size=DIFFUSION_CONFIG["batch_size"],
+    x_gen_tensor, y_gen_tensor = models[key]["diffusion"].sample_all(
+        sample_size,
+        DIFFUSION_CONFIG["batch_size"],
+        table_info[key]["empirical_class_dist"].float(),
+        ddim=False,
     )
+    X_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
 
-    print(child_generated)
+    with open("tests/integration/data/single_table/assertion_data/syntetic_trans_data.json", "r") as f:
+        expected_results = json.load(f)
 
-    assert child_generated
+    # Assert the synthetic samples are within the expected values
+    # For X_gen, we are checking if the standard deviations of each row
+    # are within a pre-defined range with some percentage of tolerance
+    assert np.allclose(X_gen.std(axis=1, ddof=0), expected_results["X_gen_std"], rtol=0.05, atol=0)
+    assert all(y_gen == expected_results["y_gen"])
 
     unset_all_random_seeds()
 
@@ -287,17 +293,25 @@ def test_train_multi_table(tmp_path: Path):
 
 @pytest.mark.integration_test()
 def test_clustering_reload(tmp_path: Path):
+    # Setup
     set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
     os.makedirs(tmp_path / "models")
     configs = {"clustering": CLUSTERING_CONFIG}
 
+    # Act
     tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/multi_table/")
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, configs)
 
+    # Assert
     account_df_no_clustering = tables["account"]["df"].drop(columns=["account_trans_cluster"])
     account_original_df_as_float = tables["account"]["original_df"].astype(float)
     assert account_df_no_clustering.equals(account_original_df_as_float)
+
+    print(tables["account"]["df"]["account_trans_cluster"].tolist())
+    print(tables["trans"]["df"]["account_trans_cluster"].tolist())
+
+    assert account_df_no_clustering == account_original_df_as_float
 
     if _is_apple_silicon():
         # TODO: Figure out if there is a good way of testing the clustering results
