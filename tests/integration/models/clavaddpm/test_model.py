@@ -287,7 +287,7 @@ def test_train_multi_table(tmp_path: Path):
 
 @pytest.mark.integration_test()
 def test_clustering_reload(tmp_path: Path):
-    set_all_random_seeds()
+    set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
     os.makedirs(tmp_path / "models")
     configs = {"clustering": CLUSTERING_CONFIG}
@@ -298,6 +298,9 @@ def test_clustering_reload(tmp_path: Path):
     account_df_no_clustering = tables["account"]["df"].drop(columns=["account_trans_cluster"])
     account_original_df_as_float = tables["account"]["original_df"].astype(float)
     assert account_df_no_clustering.equals(account_original_df_as_float)
+
+    print(tables["account"]["df"]["account_trans_cluster"].tolist())
+    print(tables["trans"]["df"]["account_trans_cluster"].tolist())
 
     if _is_apple_silicon():
         # TODO: Figure out if there is a good way of testing the clustering results
