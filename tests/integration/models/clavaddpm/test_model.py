@@ -309,10 +309,12 @@ def test_train_multi_table(tmp_path: Path):
     with open("tests/integration/data/multi_table/assertion_data/syntetic_data.json", "r") as f:
         expected_results = json.load(f)
 
+    print(X_gen)
+    print(y_gen)
+
     # Assert the synthetic samples are within the expected values.
     # For X_gen, we are checking if the standard deviations of each row
     # are within a pre-defined range with some percentage of tolerance.
-    print(X_gen.std(axis=1, ddof=0))
     assert np.allclose(X_gen.std(axis=1, ddof=0), expected_results["X_gen_std"], rtol=0.05, atol=0)
     assert all(y_gen == expected_results["y_gen"])
 
