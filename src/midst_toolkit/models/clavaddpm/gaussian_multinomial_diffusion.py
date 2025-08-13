@@ -430,7 +430,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
 
         out = p_mean_var.copy()
         out["pred_xstart"] = self._predict_xstart_from_eps(x, t, eps)
-        out["mean"], _, _ = self.q_posterior_mean_variance(x_start=out["pred_xstart"], x_t=x, t=t)  # type: ignore[operator]
+        out["mean"], _, _ = self.q_posterior_mean_variance(x_start=out["pred_xstart"], x_t=x, t=t)
         return out
 
     def gaussian_p_sample(
