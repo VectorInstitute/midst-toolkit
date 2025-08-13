@@ -272,12 +272,13 @@ def test_train_single_table(tmp_path: Path):
 
     print(X_gen)
     print(expected_results["X_gen"])
+    print(dict(models[key]["diffusion"].named_parameters()))
 
-    if _is_apple_silicon():
-        # TODO: Figure out if there is a good way of testing the synthetic data results
-        # on multiple platforms. https://app.clickup.com/t/868f43wp0
-        assert np.allclose(X_gen, expected_results["X_gen"])
-        assert np.allclose(y_gen, expected_results["y_gen"])
+    # if _is_apple_silicon():
+    # TODO: Figure out if there is a good way of testing the synthetic data results
+    # on multiple platforms. https://app.clickup.com/t/868f43wp0
+    assert np.allclose(X_gen, expected_results["X_gen"])
+    assert np.allclose(y_gen, expected_results["y_gen"])
 
     unset_all_random_seeds()
 
