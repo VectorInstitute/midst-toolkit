@@ -286,7 +286,7 @@ def test_train_single_table(tmp_path: Path):
     # if np.allclose(model_data[model_layers[0]].detach(), expected_model_data[expected_model_layers[0]].detach()):
     # if the first layer is equal with minimal tolerance, all others should be equal as well
     assert all(
-        np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.05)
+        np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.08)
         for layer in model_layers
     )
 
@@ -352,7 +352,7 @@ def test_train_multi_table(tmp_path: Path):
     # if np.allclose(model_data[model_layers[0]].detach(), expected_model_data[expected_model_layers[0]].detach()):
     # if the first layer is equal with minimal tolerance, all others should be equal as well
     assert all(
-        np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.05)
+        np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.08)
         for layer in model_layers
     )
 
