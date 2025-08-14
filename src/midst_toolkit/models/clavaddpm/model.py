@@ -443,14 +443,8 @@ def train_model(
     )
     diffusion.to(device)
 
-    print("++++++++++++++++++++++++ BEFORE ++++++++++++++++++++++++++")
-    print(diffusion.state_dict())
-
     if initial_state_file_path is not None:
         diffusion.load_state_dict(torch.load(initial_state_file_path, weights_only=True))
-
-    print("++++++++++++++++++++++++ AFTER ++++++++++++++++++++++++++")
-    print(diffusion.state_dict())
 
     diffusion.train()
 
