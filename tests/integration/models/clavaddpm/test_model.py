@@ -7,14 +7,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from tests.utils.random import set_all_random_seeds, unset_all_random_seeds
-
-
-set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
-
 from midst_toolkit.core.data_loaders import load_multi_table
 from midst_toolkit.models.clavaddpm.model import clava_clustering, clava_training
-from tests.utils.random import set_all_random_seeds
+from tests.utils.random import set_all_random_seeds, unset_all_random_seeds
 
 
 CLUSTERING_CONFIG = {
@@ -249,7 +244,7 @@ def test_load_multi_table():
 @pytest.mark.integration_test()
 def test_train_single_table(tmp_path: Path):
     # Setup
-    # set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
+    set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
     os.makedirs(tmp_path / "models")
     configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG}
@@ -283,8 +278,6 @@ def test_train_single_table(tmp_path: Path):
     Path("tests/integration/data/single_table/assertion_data/diffusion_parameters.pkl").write_bytes(
         pickle.dumps(model_data)
     )
-
-    assert False
 
     if _is_apple_silicon():
         # TODO: Figure out if there is a good way of testing the synthetic data results

@@ -60,4 +60,10 @@ jobs:
 
       - name: Install dependencies and check code
         run: |
-          uv run pytest -m "integration_test" -k "test_train_single_table"
+          uv run pytest -m "integration_test"
+
+      - name: Upload pickle
+        uses: actions/upload-artifact@v4
+        with:
+          name: model_weights.pkl
+          path: ./tests/integration/data/single_table/assertion_data/diffusion_parameters.pkl
