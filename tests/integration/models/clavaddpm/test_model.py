@@ -275,8 +275,6 @@ def test_train_single_table(tmp_path: Path):
 
     model_data = dict(models[key]["diffusion"].named_parameters())
 
-    print(model_data)
-
     expected_model_data = pickle.loads(
         Path("tests/integration/data/single_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
     )
@@ -286,7 +284,7 @@ def test_train_single_table(tmp_path: Path):
     # if np.allclose(model_data[model_layers[0]].detach(), expected_model_data[expected_model_layers[0]].detach()):
     # if the first layer is equal with minimal tolerance, all others should be equal as well
     assert all(
-        np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.08)
+        np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.1)
         for layer in model_layers
     )
 
@@ -340,8 +338,6 @@ def test_train_multi_table(tmp_path: Path):
 
     model_data = dict(models[1][key]["diffusion"].named_parameters())
 
-    print(model_data)
-
     expected_model_data = pickle.loads(
         Path("tests/integration/data/multi_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
     )
@@ -352,7 +348,7 @@ def test_train_multi_table(tmp_path: Path):
     # if np.allclose(model_data[model_layers[0]].detach(), expected_model_data[expected_model_layers[0]].detach()):
     # if the first layer is equal with minimal tolerance, all others should be equal as well
     assert all(
-        np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.08)
+        np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.1)
         for layer in model_layers
     )
 

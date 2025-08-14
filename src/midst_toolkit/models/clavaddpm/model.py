@@ -443,8 +443,6 @@ def train_model(
     )
     diffusion.to(device)
 
-    print(diffusion.state_dict())
-
     if initial_state_dict is not None:
         diffusion.load_state_dict(initial_state_dict)
 
