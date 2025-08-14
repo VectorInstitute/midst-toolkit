@@ -270,20 +270,31 @@ def test_train_single_table(tmp_path: Path):
     with open("tests/integration/data/single_table/assertion_data/syntetic_data.json", "r") as f:
         expected_results = json.load(f)
 
-    print(X_gen)
-    print(expected_results["X_gen"])
     model_data = dict(models[key]["diffusion"].named_parameters())
-    print(model_data)
 
-    Path("tests/integration/data/single_table/assertion_data/diffusion_parameters.pkl").write_bytes(
-        pickle.dumps(model_data)
+    expected_model_data = pickle.loads(
+        Path("tests/integration/data/single_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
     )
 
-    if _is_apple_silicon():
+    model_layers = list(model_data.keys())
+    expected_model_layers = list(expected_model_data.keys())
+    if np.allclose(model_data[model_layers[0]].detach(), expected_model_data[expected_model_layers[0]].detach()):
+        # if the first layer is equal with minimal tolerance, all others should be equal as well
+        assert all(
+            np.allclose(model_data[layer].detach(), expected_model_data[layer].detach()) for layer in model_layers
+        )
+
         # TODO: Figure out if there is a good way of testing the synthetic data results
         # on multiple platforms. https://app.clickup.com/t/868f43wp0
         assert np.allclose(X_gen, expected_results["X_gen"])
         assert np.allclose(y_gen, expected_results["y_gen"])
+
+    else:
+        # Otherwise, set a tolerance that would work across platforms
+        assert all(
+            np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.1)
+            for layer in model_layers
+        )
 
     unset_all_random_seeds()
 
@@ -318,8 +329,18 @@ def test_train_multi_table(tmp_path: Path):
     with open("tests/integration/data/multi_table/assertion_data/syntetic_data.json", "r") as f:
         expected_results = json.load(f)
 
-    print(X_gen)
-    print(expected_results["X_gen"])
+    model_data = dict(models[key]["diffusion"].named_parameters())
+
+    Path("tests/integration/data/multi_table/assertion_data/diffusion_parameters.pkl").write_bytes(
+        pickle.dumps(model_data)
+    )
+
+    # expected_model_data = pickle.loads(
+    #     Path("tests/integration/data/multi_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
+    # )
+
+    # model_layers = list(model_data.keys())
+    # expected_model_layers = list(expected_model_data.keys())
 
     if _is_apple_silicon():
         # TODO: Figure out if there is a good way of testing the synthetic data results
