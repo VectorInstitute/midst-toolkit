@@ -251,31 +251,24 @@ def test_train_single_table(tmp_path: Path):
 
     # Act
     tables, relation_order, _ = load_multi_table("tests/integration/data/single_table/")
-    tables, models = clava_training(
-        tables,
-        relation_order,
-        tmp_path,
-        configs,
-        device="cpu",
-        initial_state_file_path="tests/integration/data/diffusion_initial_state.pth",
-    )
+    tables, models = clava_training(tables, relation_order, tmp_path, configs, device="cpu")
 
     # Assert
-    # with open(tmp_path / "models" / "None_trans_ckpt.pkl", "rb") as f:
-    #     table_info = pickle.load(f)["table_info"]
+    with open(tmp_path / "models" / "None_trans_ckpt.pkl", "rb") as f:
+        table_info = pickle.load(f)["table_info"]
 
-    # sample_size = 5
+    sample_size = 5
     key = (None, "trans")
-    # x_gen_tensor, y_gen_tensor = models[key]["diffusion"].sample_all(
-    #     sample_size,
-    #     DIFFUSION_CONFIG["batch_size"],
-    #     table_info[key]["empirical_class_dist"].float(),
-    #     ddim=False,
-    # )
-    # X_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
+    x_gen_tensor, y_gen_tensor = models[key]["diffusion"].sample_all(
+        sample_size,
+        DIFFUSION_CONFIG["batch_size"],
+        table_info[key]["empirical_class_dist"].float(),
+        ddim=False,
+    )
+    X_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
 
-    # with open("tests/integration/data/single_table/assertion_data/syntetic_data.json", "r") as f:
-    #     expected_results = json.load(f)
+    with open("tests/integration/data/single_table/assertion_data/syntetic_data.json", "r") as f:
+        expected_results = json.load(f)
 
     model_data = dict(models[key]["diffusion"].named_parameters())
 
@@ -284,25 +277,25 @@ def test_train_single_table(tmp_path: Path):
     )
 
     model_layers = list(model_data.keys())
-    # expected_model_layers = list(expected_model_data.keys())
-    # if np.allclose(model_data[model_layers[0]].detach(), expected_model_data[expected_model_layers[0]].detach()):
-    # if the first layer is equal with minimal tolerance, all others should be equal as well
-    assert all(
-        np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.08)
-        for layer in model_layers
-    )
+    expected_model_layers = list(expected_model_data.keys())
+    if np.allclose(model_data[model_layers[0]].detach(), expected_model_data[expected_model_layers[0]].detach()):
+        # if the first layer is equal with minimal tolerance, all others should be equal as well
+        assert all(
+            np.allclose(model_data[layer].detach(), expected_model_data[layer].detach()) for layer in model_layers
+        )
 
-    # TODO: Figure out if there is a good way of testing the synthetic data results
-    # on multiple platforms. https://app.clickup.com/t/868f43wp0
-    #     assert np.allclose(X_gen, expected_results["X_gen"])
-    #     assert np.allclose(y_gen, expected_results["y_gen"])
+        # TODO: Figure out if there is a good way of testing the synthetic data results
+        # on multiple platforms. https://app.clickup.com/t/868f43wp0
+        assert np.allclose(X_gen, expected_results["X_gen"])
+        assert np.allclose(y_gen, expected_results["y_gen"])
 
-    # else:
-    #     # Otherwise, set a tolerance that would work across platforms
-    #     assert all(
-    #         np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.1)
-    #         for layer in model_layers
-    #     )
+    else:
+        # Otherwise, set a tolerance that would work across platforms
+        # TODO: Figure out a way to set a lower tolerance
+        assert all(
+            np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.1)
+            for layer in model_layers
+        )
 
     unset_all_random_seeds()
 
@@ -318,31 +311,24 @@ def test_train_multi_table(tmp_path: Path):
 
     tables, relation_order, _ = load_multi_table("tests/integration/data/multi_table/")
     tables, _ = clava_clustering(tables, relation_order, tmp_path, configs)
-    models = clava_training(
-        tables,
-        relation_order,
-        tmp_path,
-        configs,
-        device="cpu",
-        initial_state_file_path="tests/integration/data/diffusion_initial_state.pth",
-    )
+    models = clava_training(tables, relation_order, tmp_path, configs, device="cpu")
 
     # Assert
-    # with open(tmp_path / "models" / "account_trans_ckpt.pkl", "rb") as f:
-    #     table_info = pickle.load(f)["table_info"]
+    with open(tmp_path / "models" / "account_trans_ckpt.pkl", "rb") as f:
+        table_info = pickle.load(f)["table_info"]
 
-    # sample_size = 5
+    sample_size = 5
     key = ("account", "trans")
-    # x_gen_tensor, y_gen_tensor = models[1][key]["diffusion"].sample_all(
-    #     sample_size,
-    #     DIFFUSION_CONFIG["batch_size"],
-    #     table_info[key]["empirical_class_dist"].float(),
-    #     ddim=False,
-    # )
-    # X_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
+    x_gen_tensor, y_gen_tensor = models[1][key]["diffusion"].sample_all(
+        sample_size,
+        DIFFUSION_CONFIG["batch_size"],
+        table_info[key]["empirical_class_dist"].float(),
+        ddim=False,
+    )
+    X_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
 
-    # with open("tests/integration/data/multi_table/assertion_data/syntetic_data.json", "r") as f:
-    #     expected_results = json.load(f)
+    with open("tests/integration/data/multi_table/assertion_data/syntetic_data.json", "r") as f:
+        expected_results = json.load(f)
 
     model_data = dict(models[1][key]["diffusion"].named_parameters())
 
@@ -351,26 +337,26 @@ def test_train_multi_table(tmp_path: Path):
     )
 
     model_layers = list(model_data.keys())
-    # expected_model_layers = list(expected_model_data.keys())
+    expected_model_layers = list(expected_model_data.keys())
 
-    # if np.allclose(model_data[model_layers[0]].detach(), expected_model_data[expected_model_layers[0]].detach()):
-    # if the first layer is equal with minimal tolerance, all others should be equal as well
-    assert all(
-        np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.08)
-        for layer in model_layers
-    )
+    if np.allclose(model_data[model_layers[0]].detach(), expected_model_data[expected_model_layers[0]].detach()):
+        # if the first layer is equal with minimal tolerance, all others should be equal as well
+        assert all(
+            np.allclose(model_data[layer].detach(), expected_model_data[layer].detach()) for layer in model_layers
+        )
 
-    #     # TODO: Figure out if there is a good way of testing the synthetic data results
-    #     # on multiple platforms. https://app.clickup.com/t/868f43wp0
-    #     assert np.allclose(X_gen, expected_results["X_gen"])
-    #     assert np.allclose(y_gen, expected_results["y_gen"])
+        # TODO: Figure out if there is a good way of testing the synthetic data results
+        # on multiple platforms. https://app.clickup.com/t/868f43wp0
+        assert np.allclose(X_gen, expected_results["X_gen"])
+        assert np.allclose(y_gen, expected_results["y_gen"])
 
-    # else:
-    #     # Otherwise, set a tolerance that would work across platforms
-    #     assert all(
-    #         np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.1)
-    #         for layer in model_layers
-    #     )
+    else:
+        # Otherwise, set a tolerance that would work across platforms
+        # TODO: Figure out a way to set a lower tolerance
+        assert all(
+            np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.1)
+            for layer in model_layers
+        )
 
     unset_all_random_seeds()
 

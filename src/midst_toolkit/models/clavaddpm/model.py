@@ -283,7 +283,7 @@ def clava_clustering(tables, relation_order, save_dir, configs):
     return tables, all_group_lengths_prob_dicts
 
 
-def clava_training(tables, relation_order, save_dir, configs, device="cuda", initial_state_file_path=None):
+def clava_training(tables, relation_order, save_dir, configs, device="cuda"):
     models = {}
     for parent, child in relation_order:
         print(f"Training {parent} -> {child} model from scratch")
@@ -298,7 +298,6 @@ def clava_training(tables, relation_order, save_dir, configs, device="cuda", ini
             child,
             configs,
             device,
-            initial_state_file_path,
         )
 
         models[(parent, child)] = result
@@ -354,7 +353,6 @@ def child_training(
         configs["diffusion"]["lr"],
         configs["diffusion"]["weight_decay"],
         device=device,
-        initial_state_file_path=initial_state_file_path,
     )
 
     if parent_name is None:
@@ -398,7 +396,6 @@ def train_model(
     lr: float,
     weight_decay: float,
     device: str = "cuda",
-    initial_state_file_path: Path | None = None,
 ) -> dict[str, Any]:
     T = Transformations(**T_dict)
     dataset, label_encoders, column_orders = make_dataset_from_df(
@@ -442,10 +439,6 @@ def train_model(
         device=torch.device(device),
     )
     diffusion.to(device)
-
-    if initial_state_file_path is not None:
-        diffusion.load_state_dict(torch.load(initial_state_file_path, weights_only=True))
-
     diffusion.train()
 
     trainer = Trainer(
