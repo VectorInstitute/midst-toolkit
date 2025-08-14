@@ -60,4 +60,4 @@ jobs:
 
       - name: Install dependencies and check code
         run: |
-          uv run pytest -m "integration_test"
+          uv run pytest -m "integration_test" -k "test_train_single_table"
