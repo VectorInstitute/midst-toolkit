@@ -248,12 +248,16 @@ def test_train_single_table(tmp_path: Path):
 
     os.makedirs(tmp_path / "models")
     configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG}
-    initial_state_dict = pickle.loads(Path("tests/integration/data/diffusion_initial_state.pkl").read_bytes())
 
     # Act
     tables, relation_order, _ = load_multi_table("tests/integration/data/single_table/")
     tables, models = clava_training(
-        tables, relation_order, tmp_path, configs, device="cpu", initial_state_dict=initial_state_dict
+        tables,
+        relation_order,
+        tmp_path,
+        configs,
+        device="cpu",
+        initial_state_file_path="tests/integration/data/diffusion_initial_state.pth",
     )
 
     # Assert
@@ -284,7 +288,7 @@ def test_train_single_table(tmp_path: Path):
     # if np.allclose(model_data[model_layers[0]].detach(), expected_model_data[expected_model_layers[0]].detach()):
     # if the first layer is equal with minimal tolerance, all others should be equal as well
     assert all(
-        np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.1)
+        np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.05)
         for layer in model_layers
     )
 
@@ -311,12 +315,16 @@ def test_train_multi_table(tmp_path: Path):
     # Act
     os.makedirs(tmp_path / "models")
     configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG, "classifier": CLASSIFIER_CONFIG}
-    initial_state_dict = pickle.loads(Path("tests/integration/data/diffusion_initial_state.pkl").read_bytes())
 
     tables, relation_order, _ = load_multi_table("tests/integration/data/multi_table/")
     tables, _ = clava_clustering(tables, relation_order, tmp_path, configs)
     models = clava_training(
-        tables, relation_order, tmp_path, configs, device="cpu", initial_state_dict=initial_state_dict
+        tables,
+        relation_order,
+        tmp_path,
+        configs,
+        device="cpu",
+        initial_state_file_path="tests/integration/data/diffusion_initial_state.pth",
     )
 
     # Assert
@@ -348,7 +356,7 @@ def test_train_multi_table(tmp_path: Path):
     # if np.allclose(model_data[model_layers[0]].detach(), expected_model_data[expected_model_layers[0]].detach()):
     # if the first layer is equal with minimal tolerance, all others should be equal as well
     assert all(
-        np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.1)
+        np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.05)
         for layer in model_layers
     )
 
