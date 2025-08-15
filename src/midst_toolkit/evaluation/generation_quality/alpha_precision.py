@@ -23,7 +23,7 @@ def synthcity_alpha_precision_metrics(
         naive_only: If True, then only the "naive" metrics are reported. Defaults to True.
 
     Returns:
-        A dictionary containing the computed scores using the AlphaPrecision class in the Synthcity library.
+        A dictionary containing the computed scores using the AlphaPrecision class in the Synthcity library
     """
     # Wrap the dataframes in a Synthcity compatible dataloader
     real_data_loader = GenericDataLoader(real_data)
