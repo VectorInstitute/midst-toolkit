@@ -1,6 +1,0 @@
-Metric Name: delta_precision_alpha_OC	 Metric Value: 0.972538441890166
-Metric Name: delta_coverage_beta_OC	 Metric Value: 0.4709851851851852
-Metric Name: authenticity_OC	 Metric Value: 0.512
-Metric Name: delta_precision_alpha_naive	 Metric Value: 0.05994074074074074
-Metric Name: delta_coverage_beta_naive	 Metric Value: 0.005229629629629584
-Metric Name: authenticity_naive	 Metric Value: 0.9905185185185185
