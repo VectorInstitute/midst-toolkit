@@ -9,6 +9,7 @@ from midst_toolkit.evaluation.generation_quality.utils import (
     extract_columns_based_on_meta_info,
     one_hot_encode_categoricals_and_merge_with_numerical,
 )
+from tests.utils.architecture import is_apple_silicon
 
 
 SYNTHETIC_DATA_PATH = "tests/assets/synthetic_data.csv"
@@ -40,9 +41,17 @@ def test_alpha_precision_evaluation() -> None:
     )
 
     quality_results = synthcity_alpha_precision_metrics(real_dataframe, synthetic_dataframe, naive_only=False)
-    assert pytest.approx(0.972538441890166, abs=1e-8) == quality_results["delta_precision_alpha_OC"]
-    assert pytest.approx(0.4709851851851852, abs=1e-8) == quality_results["delta_coverage_beta_OC"]
-    assert pytest.approx(0.512, abs=1e-8) == quality_results["authenticity_OC"]
-    assert pytest.approx(0.05994074074074074, abs=1e-8) == quality_results["delta_precision_alpha_naive"]
-    assert pytest.approx(0.005229629629629584, abs=1e-8) == quality_results["delta_coverage_beta_naive"]
-    assert pytest.approx(0.9905185185185185, abs=1e-8) == quality_results["authenticity_naive"]
+    if is_apple_silicon():
+        assert pytest.approx(0.972538441890166, abs=1e-8) == quality_results["delta_precision_alpha_OC"]
+        assert pytest.approx(0.4709851851851852, abs=1e-8) == quality_results["delta_coverage_beta_OC"]
+        assert pytest.approx(0.512, abs=1e-8) == quality_results["authenticity_OC"]
+        assert pytest.approx(0.05994074074074074, abs=1e-8) == quality_results["delta_precision_alpha_naive"]
+        assert pytest.approx(0.005229629629629584, abs=1e-8) == quality_results["delta_coverage_beta_naive"]
+        assert pytest.approx(0.9905185185185185, abs=1e-8) == quality_results["authenticity_naive"]
+    else:
+        assert pytest.approx(0.9732668369518944, abs=1e-8) == quality_results["delta_precision_alpha_OC"]
+        assert pytest.approx(0.47238271604938276, abs=1e-8) == quality_results["delta_coverage_beta_OC"]
+        assert pytest.approx(0.5102592592592593, abs=1e-8) == quality_results["authenticity_OC"]
+        assert pytest.approx(0.05994074074074074, abs=1e-8) == quality_results["delta_precision_alpha_naive"]
+        assert pytest.approx(0.005229629629629584, abs=1e-8) == quality_results["delta_coverage_beta_naive"]
+        assert pytest.approx(0.9905185185185185, abs=1e-8) == quality_results["authenticity_naive"]
