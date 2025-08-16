@@ -45,27 +45,22 @@ def validate_shape(x: np.ndarray, n_dim: int) -> np.ndarray:
 
 
 class FeatureEncoder(TransformerMixin, BaseEstimator):  # type: ignore
-    n_dim_in: int = 1
-    n_dim_out: int = 2
-    n_features_out: int
-    feature_name_in: str
-    feature_names_out: list[str]
-    feature_types_out: list[str]
-    categorical: bool = False  # used by get_feature_types_out
-
-    def __init__(self, n_dim_in: int | None = None, n_dim_out: int | None = None) -> None:
+    def __init__(self, n_dim_in: int = 1, n_dim_out: int = 2) -> None:
         """
         Base feature encoder with sklearn-style API.
 
         Args:
-            n_dim_in: Size of the input to the feature encoder. Defaults to None.
-            n_dim_out: Size of the output from the feature encoder. Defaults to None.
+            n_dim_in: Size of the input to the feature encoder. Defaults to 1.
+            n_dim_out: Size of the output from the feature encoder. Defaults to 2.
         """
         super().__init__()
-        if n_dim_in is not None:
-            self.n_dim_in = n_dim_in
-        if n_dim_out is not None:
-            self.n_dim_out = n_dim_out
+        self.n_dim_in = n_dim_in
+        self.n_dim_out = n_dim_out
+        self.n_features_out: int
+        self.feature_name_in: str
+        self.feature_names_out: list[str]
+        self.feature_types_out: list[str]
+        self.categorical: bool = False
 
     def fit(self, x: pd.Series, y: Any = None, **kwargs: Any) -> FeatureEncoder:
         """
