@@ -1,4 +1,5 @@
 import pytest
+import torch
 
 from midst_toolkit.data_processing.midst_data_processing import (
     load_midst_data,
@@ -17,6 +18,8 @@ META_INFO_PATH = "tests/assets/meta_info.json"
 
 
 def test_alpha_precision_evaluation() -> None:
+    torch.manual_seed(1)
+
     real_data, synthetic_data, meta_info = load_midst_data(REAL_DATA_PATH, SYNTHETIC_DATA_PATH, META_INFO_PATH)
 
     numerical_real_data, categorical_real_data = extract_columns_based_on_meta_info(real_data, meta_info)
@@ -46,3 +49,6 @@ def test_alpha_precision_evaluation() -> None:
     assert pytest.approx(0.05994074074074074, abs=1e-8) == quality_results["delta_precision_alpha_naive"]
     assert pytest.approx(0.005229629629629584, abs=1e-8) == quality_results["delta_coverage_beta_naive"]
     assert pytest.approx(0.9905185185185185, abs=1e-8) == quality_results["authenticity_naive"]
+
+    # unset seed to be safe
+    torch.seed()
