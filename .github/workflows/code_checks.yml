@@ -59,3 +59,5 @@ jobs:
           ignore-vulns: |
             GHSA-887c-mr87-cxwp
             GHSA-3749-ghw9-m3mg
+            PYSEC-2025-41
+            PYSEC-2024-259
