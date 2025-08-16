@@ -148,10 +148,8 @@ class FeatureEncoder(TransformerMixin, BaseEstimator):  # type: ignore
         """Wraps sklearn transformer to FeatureEncoder."""
 
         class WrappedEncoder(FeatureEncoder):
-            n_dim_in = 2  # most sklearn transformers accept 2D input
-
-            def __init__(self, *args: Any, **kwargs: Any) -> None:
-                self.encoder = encoder_class(*args, **kwargs)
+            def __init__(self, n_dim_in: int = 2, *args: Any, **kwargs: Any) -> None:
+                self.encoder = encoder_class(n_dim_in, *args, **kwargs)
 
             def _fit(self, x: np.ndarray, **kwargs: Any) -> FeatureEncoder:
                 self.encoder.fit(x, **kwargs)
