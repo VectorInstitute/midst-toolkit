@@ -1,7 +1,7 @@
-# stdlib
+from __future__ import annotations
+
 from typing import Any
 
-# third party
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -42,9 +42,6 @@ def validate_shape(x: np.ndarray, n_dim: int) -> np.ndarray:
             raise ValueError("array must be 2D")
         return x
     raise ValueError("n_dim must be 1 or 2")
-
-
-FeatureEncoder = Any  # tried to use ForwardRef but it didn't work under mypy
 
 
 class FeatureEncoder(TransformerMixin, BaseEstimator):  # type: ignore
@@ -155,7 +152,7 @@ class FeatureEncoder(TransformerMixin, BaseEstimator):  # type: ignore
     def wraps(cls: type, encoder_class: TransformerMixin, **params: Any) -> type[FeatureEncoder]:
         """Wraps sklearn transformer to FeatureEncoder."""
 
-        class WrappedEncoder(FeatureEncoder):  # type: ignore
+        class WrappedEncoder(FeatureEncoder):
             n_dim_in = 2  # most sklearn transformers accept 2D input
 
             def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -190,7 +187,7 @@ MinMaxScaler = FeatureEncoder.wraps(MinMaxScaler)
 RobustScaler = FeatureEncoder.wraps(RobustScaler)
 
 
-class DatetimeEncoder(FeatureEncoder):  # type: ignore
+class DatetimeEncoder(FeatureEncoder):
     """Datetime variables encoder."""
 
     n_dim_out = 1

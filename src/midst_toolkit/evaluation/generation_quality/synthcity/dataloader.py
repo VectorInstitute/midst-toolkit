@@ -194,8 +194,8 @@ class GenericDataLoader(DataLoader):
 
         Args:
             data: The dataset. Either a Pandas DataFrame, list, or a Numpy Array.
-            sensitive_features:  Name of sensitive features.. Defaults to [].
-            important_features: Only relevant for SurvivalGAN method. Defaults to [].
+            sensitive_features:  Name of sensitive features.. Defaults to None.
+            important_features: Only relevant for SurvivalGAN method. Defaults to None.
             target_column: The feature name that provides labels for downstream tasks. Defaults to None.
             fairness_column:  Optional fairness column label, used for fairness benchmarking. Defaults to None.
             domain_column: Optional domain label, used for domain adaptation algorithms. Defaults to None.
