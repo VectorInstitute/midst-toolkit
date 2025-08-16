@@ -183,7 +183,15 @@ RobustScaler = FeatureEncoder.wraps(RobustScaler)
 class DatetimeEncoder(FeatureEncoder):
     """Datetime variables encoder."""
 
-    n_dim_out = 1
+    def __init__(self, n_dim_in: int = 1, n_dim_out: int = 1):
+        """
+        Datetime variables encoder.
+
+        Args:
+            n_dim_in: Size of the input to the feature encoder. Defaults to 1.
+            n_dim_out: Size of the output from the feature encoder. Defaults to 1.
+        """
+        super().__init__(n_dim_in, n_dim_out)
 
     def _transform(self, x: np.ndarray) -> np.ndarray:
         return pd.to_numeric(x).astype(float)
