@@ -19,6 +19,7 @@ META_INFO_PATH = "tests/assets/meta_info.json"
 
 
 def test_alpha_precision_evaluation() -> None:
+    # TODO: Change to set all random seeds when merged.
     torch.manual_seed(1)
 
     real_data, synthetic_data, meta_info = load_midst_data(REAL_DATA_PATH, SYNTHETIC_DATA_PATH, META_INFO_PATH)

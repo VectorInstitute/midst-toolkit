@@ -25,35 +25,16 @@ class DataLoader(metaclass=ABCMeta):
         """
         Base class for all data loaders.
 
-        Each derived class must implement the following methods:
-            unpack() - a method that unpacks the columns and returns features and labels (X, y).
-            decorate() - a method that creates a new instance of DataLoader by decorating the input data with the
-                same DataLoader properties (e.g. sensitive features, target column, etc.)
-            dataframe() - a method that returns the pandas dataframe that contains all features and samples
-            numpy() - a method that returns the numpy array that contains all features and samples
-            info() - a method that returns a dictionary of DataLoader information
-            __len__() - a method that returns the number of samples in the DataLoader
-            satisfies() - a method that tests if the current DataLoader satisfies the constraint provided
-            match() - a method that returns a new DataLoader where the provided constraints are met
-            from_info() - a static method that creates a DataLoader from the data and the information dictionary
-            sample() - returns a new DataLoader that contains a random subset of N samples
-            drop() - returns a new DataLoader with a list of columns dropped
-            __getitem__() - getting features by names
-            __setitem__() - setting features by names
-            train() - returns a DataLoader containing the training set
-            test() - returns a DataLoader containing the testing set
-            fillna() - returns a DataLoader with NaN filled by the provided number(s)
-
         Args:
             data_type: The type of DataLoader, currently supports "generic"
             data: The object that contains the data
             static_features: List of feature names that are static features (as opposed to temporal features).
-                Defaults to [].
+                Defaults to None.
             temporal_features: List of feature names that are temporal features, i.e. observed over time.
-                Defaults to [].
-            sensitive_features: Name of sensitive features. Defaults to [].
-            important_features: Only relevant for SurvivalGAN method. Defaults to [].
-            outcome_features: The feature name that provides labels for downstream tasks. Defaults to [].
+                Defaults to None.
+            sensitive_features: Name of sensitive features. Defaults to None.
+            important_features: Only relevant for SurvivalGAN method. Defaults to None.
+            outcome_features: The feature name that provides labels for downstream tasks. Defaults to None.
             train_size: Proportion of data to be used for training, versus evaluation. Defaults to 0.8.
             random_state: Random state for sampling from the dataloaders. Defaults to 0.
         """
@@ -74,12 +55,15 @@ class DataLoader(metaclass=ABCMeta):
 
     @abstractmethod
     def unpack(self, as_numpy: bool = False, pad: bool = False) -> Any:
-        """Split out the inputs and targets if they exist, etc."""
+        """A method that unpacks the columns and returns features and labels (X, y)."""
         ...
 
     @abstractmethod
     def decorate(self, data: Any) -> DataLoader:
-        """Decorator."""
+        """
+        A method that creates a new instance of DataLoader by decorating the input data with the same DataLoader
+        properties (e.g. sensitive features, target column, etc.).
+        """
         ...
 
     def type(self) -> str:
@@ -100,12 +84,12 @@ class DataLoader(metaclass=ABCMeta):
 
     @abstractmethod
     def dataframe(self) -> pd.DataFrame:
-        """Return the data as a dataframe."""
+        """A method that returns the pandas dataframe that contains all features and samples."""
         ...
 
     @abstractmethod
     def numpy(self) -> np.ndarray:
-        """Return the data as a numpy array."""
+        """A method that returns the numpy array that contains all features and samples."""
         ...
 
     @property
@@ -115,28 +99,28 @@ class DataLoader(metaclass=ABCMeta):
 
     @abstractmethod
     def info(self) -> dict:
-        """Get information about the dataloader."""
+        """A method that returns a dictionary of DataLoader information."""
         ...
 
     @abstractmethod
     def __len__(self) -> int:
-        """Return the length of the dataloader."""
+        """A method that returns the number of samples in the DataLoader."""
         ...
 
     @staticmethod
     @abstractmethod
     def from_info(data: pd.DataFrame, info: dict) -> DataLoader:
-        """Reconstruct the dataloader from info and data."""
+        """A static method that creates a DataLoader from the data and the information dictionary."""
         ...
 
     @abstractmethod
     def sample(self, count: int, random_state: int = 0) -> DataLoader:
-        """Sample a number of rows of data (count)."""
+        """Returns a new DataLoader that contains a random subset of N samples."""
         ...
 
     @abstractmethod
     def drop(self, columns: list | None) -> DataLoader:
-        """Drop a set of columns from the data."""
+        """Returns a new DataLoader with a list of columns dropped."""
         ...
 
     @abstractmethod
@@ -151,12 +135,12 @@ class DataLoader(metaclass=ABCMeta):
 
     @abstractmethod
     def train(self) -> DataLoader:
-        """Access the train split in the dataloader."""
+        """Returns a DataLoader containing the training set."""
         ...
 
     @abstractmethod
     def test(self) -> DataLoader:
-        """Access the test split in the dataloader."""
+        """Returns a DataLoader containing the test set."""
         ...
 
     def __repr__(self, *args: Any, **kwargs: Any) -> str:
@@ -169,7 +153,7 @@ class DataLoader(metaclass=ABCMeta):
 
     @abstractmethod
     def fillna(self, value: Any) -> DataLoader:
-        """Define how to fill undefined values (imputation)."""
+        """Returns a DataLoader with NaN filled by the provided number(s)."""
         ...
 
     @abstractmethod
@@ -274,10 +258,7 @@ class GenericDataLoader(DataLoader):
         return out
 
     def unpack(self, as_numpy: bool = False, pad: bool = False) -> Any:
-        """
-        Drop the target column from the input and split it into its own dataframe. Return as a numpy array if
-        specified.
-        """
+        """A method that unpacks the columns and returns features and labels (X, y)."""
         x = self.data.drop(columns=[self.target_column])
         y = self.data[self.target_column]
 
@@ -286,15 +267,15 @@ class GenericDataLoader(DataLoader):
         return x, y
 
     def dataframe(self) -> pd.DataFrame:
-        """Return the data."""
+        """A method that returns the pandas dataframe that contains all features and samples."""
         return self.data
 
     def numpy(self) -> np.ndarray:
-        """Return the data as a numpy array."""
+        """A method that returns the numpy array that contains all features and samples."""
         return self.dataframe().values
 
     def info(self) -> dict:
-        """Provide data needed to reconstruct the dataloader."""
+        """A method that returns a dictionary of DataLoader information."""
         return {
             "data_type": self.data_type,
             "len": len(self),
@@ -309,11 +290,14 @@ class GenericDataLoader(DataLoader):
         }
 
     def __len__(self) -> int:
-        """Return the length of the dataloader."""
+        """A method that returns the number of samples in the DataLoader."""
         return len(self.data)
 
     def decorate(self, data: Any) -> DataLoader:
-        """No idea."""
+        """
+        A method that creates a new instance of DataLoader by decorating the input data with the same DataLoader
+        properties (e.g. sensitive features, target column, etc.).
+        """
         return GenericDataLoader(
             data,
             sensitive_features=self.sensitive_features,
@@ -326,16 +310,16 @@ class GenericDataLoader(DataLoader):
         )
 
     def sample(self, count: int, random_state: int = 0) -> DataLoader:
-        """Sample a specific number of rows from the dataloader."""
+        """Returns a new DataLoader that contains a random subset of N samples."""
         return self.decorate(self.data.sample(count, random_state=random_state))
 
     def drop(self, columns: list | None = None) -> DataLoader:
-        """Drop the set of specified columns."""
+        """Returns a new DataLoader with a list of columns dropped."""
         return self.decorate(self.data.drop(columns=(columns if columns else [])))
 
     @staticmethod
     def from_info(data: pd.DataFrame, info: dict) -> GenericDataLoader:
-        """Reconstruct the Dataloader from the info and data provided."""
+        """A static method that creates a DataLoader from the data and the information dictionary."""
         if not isinstance(data, pd.DataFrame):
             raise ValueError(f"Invalid data type {type(data)}")
 
@@ -373,17 +357,17 @@ class GenericDataLoader(DataLoader):
         )
 
     def train(self) -> DataLoader:
-        """Get the training split as a dataloader."""
+        """Returns a DataLoader containing the training set."""
         train_data, _ = self._train_test_split()
         return self.decorate(train_data.reset_index(drop=True))
 
     def test(self) -> DataLoader:
-        """Get the testing split as a dataloader."""
+        """Returns a DataLoader containing the training set."""
         _, test_data = self._train_test_split()
         return self.decorate(test_data.reset_index(drop=True))
 
     def fillna(self, value: Any) -> DataLoader:
-        """Define how to imput missing values."""
+        """Returns a DataLoader with NaN filled by the provided number(s)."""
         self.data = self.data.fillna(value)
         return self
 

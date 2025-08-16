@@ -1,17 +1,9 @@
 # Copyright (c) 2021, Ahmed M. Alaa
 # Licensed under the BSD 3-clause license (see LICENSE.txt)
 
-# future
-from __future__ import absolute_import, division, print_function
-
-# third party
 import torch
 from torch import nn
 
-
-torch.manual_seed(1)
-
-# Global variables
 
 ACTIVATION_DICT = {
     "ReLU": torch.nn.ReLU(),
