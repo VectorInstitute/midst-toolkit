@@ -40,7 +40,7 @@ def test_alpha_precision_evaluation() -> None:
     )
 
     quality_results = synthcity_alpha_precision_metrics(real_dataframe, synthetic_dataframe, naive_only=False)
-    assert pytest.approx(0.972538441890166, abs=1e-3) == quality_results["delta_precision_alpha_OC"]
+    assert pytest.approx(0.972538441890166, abs=1e-8) == quality_results["delta_precision_alpha_OC"]
     assert pytest.approx(0.4709851851851852, abs=1e-8) == quality_results["delta_coverage_beta_OC"]
     assert pytest.approx(0.512, abs=1e-8) == quality_results["authenticity_OC"]
     assert pytest.approx(0.05994074074074074, abs=1e-8) == quality_results["delta_precision_alpha_naive"]

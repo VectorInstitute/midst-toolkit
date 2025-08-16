@@ -31,18 +31,11 @@ def synthcity_alpha_precision_metrics(
 
     quality_evaluator = eval_statistical.AlphaPrecision()
     quality_results = quality_evaluator.evaluate(real_data_loader, synthetic_data_loader)
-    if naive_only:
-        quality_results = {
-            # Filter to results associated with naive checks
-            key: metric
-            for (key, metric) in quality_results.items()
-            if "naive" in key
-        }
 
-    log(
-        INFO,
-        f"Naive Alpha Precision: {quality_results['delta_precision_alpha_naive']}\n"
-        f"Naive Beta Recall: {quality_results['delta_coverage_beta_naive']}",
-    )
+    # Log results and filter to naive keys if requested
+    for metric_key, metric_value in quality_results.items():
+        log(INFO, f"{metric_key}: {metric_value}")
+        if naive_only and "naive" not in metric_key:
+            del quality_results[metric_key]
 
     return quality_results
