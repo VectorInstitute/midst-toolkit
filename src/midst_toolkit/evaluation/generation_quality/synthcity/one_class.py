@@ -1,7 +1,6 @@
 # Copyright (c) 2021, Ahmed M. Alaa
 # Licensed under the BSD 3-clause license (see LICENSE.txt)
 
-# third party
 from logging import DEBUG
 
 import numpy as np
@@ -170,7 +169,6 @@ class OneClassLayer(BaseNet):
 
         for epoch in range(self.epochs):
             # Converting inputs and labels to Variable
-
             inputs = Variable(x_train).to(self.device).float()
 
             self.model.zero_grad()
@@ -182,8 +180,6 @@ class OneClassLayer(BaseNet):
 
             # get loss for the predicted output
             self.loss = self.loss_fn(outputs=outputs, r=torch.Tensor([self.r]), c=self.c, nu=torch.Tensor([self.nu]))
-
-            # self.c    = torch.mean(torch.tensor(outputs).float(), dim=0)
 
             # get gradients w.r.t to parameters
             self.loss.backward(retain_graph=True)
@@ -198,7 +194,6 @@ class OneClassLayer(BaseNet):
                     outputs = self.model(inputs_val)
 
                     # get loss for the predicted output
-
                     loss_val = self.loss_fn(
                         outputs=outputs, r=torch.Tensor([self.r]), c=self.c, nu=torch.Tensor([self.nu])
                     )

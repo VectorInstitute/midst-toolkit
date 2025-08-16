@@ -26,11 +26,11 @@ def build_network(network_name: str, params: dict) -> nn.Module:
     Placeholder for now. Would be a factory type method if there where more than one option.
 
     Args:
-        network_name: _description_
-        params: _description_
+        network_name: Name of the network to be generated.
+        params: Parameters/configuration used to create the network in a custom way.
 
     Returns:
-        _description_
+        A torch module to be trained.
     """
     if network_name == "feedforward":
         return feedforward_network(params)

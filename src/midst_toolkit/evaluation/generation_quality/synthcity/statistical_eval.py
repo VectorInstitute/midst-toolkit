@@ -26,7 +26,7 @@ class StatisticalEvaluator(MetricEvaluator):
     def evaluate(self, X_gt: DataLoader, X_syn: DataLoader) -> dict:
         """
         Performs evaluation using the ground truth and synthetic datasets as dataloaders by calling the internal
-        _evaluate function of inheriting classes.
+        ``_evaluate`` function of inheriting classes.
 
         Args:
             X_gt: Dataloader with ground truth (real) data.
