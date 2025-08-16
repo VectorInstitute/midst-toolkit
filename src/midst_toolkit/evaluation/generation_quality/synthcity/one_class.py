@@ -163,7 +163,7 @@ class OneClassLayer(BaseNet):
                 x_train[: int(self.train_prop * len(x_train))],
                 x_train[int(self.train_prop * len(x_train)) :],
             )
-            inputs_val = Variable(torch.from_numpy(x_val).to(self.device)).float()
+            inputs_val = Variable(x_val.to(self.device)).float()
 
         self.losses = []
         self.loss_vals = []
