@@ -171,7 +171,7 @@ class OneClassLayer(BaseNet):
         for epoch in range(self.epochs):
             # Converting inputs and labels to Variable
 
-            inputs = Variable(torch.from_numpy(x_train)).to(self.device).float()
+            inputs = Variable(x_train).to(self.device).float()
 
             self.model.zero_grad()
 
