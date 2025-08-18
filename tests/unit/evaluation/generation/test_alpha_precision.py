@@ -3,7 +3,7 @@ import torch
 
 from midst_toolkit.data_processing.midst_data_processing import (
     load_midst_data,
-    process_midst_data_for_quality_evaluation,
+    process_midst_data_for_alpha_precision_evaluation,
 )
 from midst_toolkit.evaluation.generation_quality.alpha_precision import synthcity_alpha_precision_metrics
 from midst_toolkit.evaluation.generation_quality.utils import (
@@ -30,7 +30,7 @@ def test_alpha_precision_evaluation() -> None:
     )
 
     numerical_real_numpy, categorical_real_numpy, numerical_synthetic_numpy, categorical_synthetic_numpy = (
-        process_midst_data_for_quality_evaluation(
+        process_midst_data_for_alpha_precision_evaluation(
             numerical_real_data,
             categorical_real_data,
             numerical_synthetic_data,

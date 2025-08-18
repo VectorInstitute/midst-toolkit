@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 
-def process_midst_data_for_quality_evaluation(
+def process_midst_data_for_alpha_precision_evaluation(
     numerical_real_data: pd.DataFrame,
     categorical_real_data: pd.DataFrame,
     numerical_synthetic_data: pd.DataFrame,
@@ -82,7 +82,9 @@ def process_midst_data_for_quality_evaluation(
 
 
 def load_midst_data(
-    real_data_path: Path, synthetic_data_path: Path, meta_info_path: Path
+    real_data_path: Path,
+    synthetic_data_path: Path,
+    meta_info_path: Path,
 ) -> tuple[pd.DataFrame, pd.DataFrame, Any]:
     """
     Helper function for loading data at the specified paths. These paths are constructed either by the user or with a
@@ -109,3 +111,33 @@ def load_midst_data(
         meta_info = json.load(f)
 
     return real_data, synthetic_data, meta_info
+
+
+def load_midst_data_with_test(
+    real_data_path: Path, synthetic_data_path: Path, meta_info_path: Path, real_data_test_path: Path
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Any]:
+    """
+    Helper function for loading data at the specified paths. These paths are constructed either by the user or with a
+    particular set of defaults that were used in the original MIDST competition (see, for example,
+    https://github.com/VectorInstitute/MIDSTModels/blob/main/midst_models/single_table_TabDDPM/eval/eval_quality.py).
+
+    Args:
+        real_data_path: Path from which to load the real data to which the synthetic data will be compared. This
+            should be a CSV file.
+        synthetic_data_path: Path from which to load the synthetic data to which the real data will be compared. This
+            should be a CSV file.
+        real_data_test_path: Path from which to load the real data to which the synthetic data will be compared. This
+            should be a CSV file. This data should NOT have been used to train the model that generated the synthetic
+            data. If None, then it will not be returned.
+        meta_info_path: This should be a JSON file containing meta information about the data generation process.
+            Specifically, it should contain information about which columns of the real and synthetic data should
+            actually be compared. It must contain keys: 'num_col_idx', 'cat_col_idx', 'target_col_idx', and
+            'task_type'.
+
+    Returns:
+        The loaded real data, synthetic data, and meta information json for further processing.
+    """
+    real_data, synthetic_data, meta_info = load_midst_data(real_data_path, synthetic_data_path, meta_info_path)
+    real_data_test = pd.read_csv(real_data_test_path)
+
+    return real_data, synthetic_data, real_data_test, meta_info
