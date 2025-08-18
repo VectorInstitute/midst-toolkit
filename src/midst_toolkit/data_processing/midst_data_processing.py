@@ -135,7 +135,8 @@ def load_midst_data_with_test(
             'task_type'.
 
     Returns:
-        The loaded real data, synthetic data, and meta information json for further processing.
+        The loaded real data train split, synthetic data, real data test split, and meta information json for
+        further processing.
     """
     real_data, synthetic_data, meta_info = load_midst_data(real_data_path, synthetic_data_path, meta_info_path)
     real_data_test = pd.read_csv(real_data_test_path)

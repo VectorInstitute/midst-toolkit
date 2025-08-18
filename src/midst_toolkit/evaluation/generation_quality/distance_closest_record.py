@@ -32,18 +32,18 @@ def compute_l1_distance(synthetic_data: torch.Tensor, real_data: torch.Tensor) -
             data dimension.
 
     Returns:
-        A 1D tensor containing the minimum distances between each data point in the synthetic and all points in
-        the real data.
+        A 1D tensor containing the minimum distances between each data point in the synthetic data and all points in
+        the real data. Order will be the same.
     """
     assert synthetic_data.ndim == 2 and real_data.ndim == 2, "Synthetic and Real data tensors should be 2D"
     assert synthetic_data.shape[1] == real_data.shape[1], "Data dimensions do not match for the provided tensors"
-    # For synthetic_data_batch (n_synth, data_dim), and real_data_batch (n_real, data_dim), this subtracts
-    # every point in real_data_batch from every point in synthetic_data_batch to create a tensor of shape
+    # For synthetic_data (n_synth, data_dim), and real_data (n_real, data_dim), this subtracts
+    # every point in real_data from every point in synthetic_data to create a tensor of shape
     # (n_synth, n_real, data_dim).
     point_differences = synthetic_data[:, None] - real_data
     distances = (point_differences).abs().sum(dim=2)
     # Minimum distance of points in n_synth compared to all other points in real_data.
-    min_batch_distances, temp = distances.min(dim=1)
+    min_batch_distances, _ = distances.min(dim=1)
     return min_batch_distances
 
 
@@ -59,13 +59,13 @@ def compute_l2_distance(synthetic_data: torch.Tensor, real_data: torch.Tensor) -
             data dimension.
 
     Returns:
-        A 1D tensor containing the minimum distances between each data point in the synthetic and all points in
-        the real data.
+        A 1D tensor containing the minimum distances between each data point in the synthetic data and all points in
+        the real data. Order will be the same.
     """
     assert synthetic_data.ndim == 2 and real_data.ndim == 2, "Synthetic and Real data tensors should be 2D"
     assert synthetic_data.shape[1] == real_data.shape[1], "Data dimensions do not match for the provided tensors"
-    # For synthetic_data_batch (n_synth, data_dim), and real_data_batch (n_real, data_dim), this subtracts
-    # every point in real_data_batch from every point in synthetic_data_batch to create a tensor of shape
+    # For synthetic_data (n_synth, data_dim), and real_data (n_real, data_dim), this subtracts
+    # every point in real_data from every point in synthetic_data to create a tensor of shape
     # (n_synth, n_real, data_dim).
     point_differences = synthetic_data[:, None] - real_data
     distances = torch.sqrt(torch.pow(point_differences, 2.0).sum(dim=2))
@@ -91,7 +91,8 @@ def minimum_distances(
         norm: Which type of norm to use as the distance metric. Defaults to NormType.L1.
 
     Returns:
-        A 1D tensor with the minimum distances. Should be of length n_samples.
+        A 1D tensor with the minimum distances. Should be of length n_samples. Order will be the same as
+        ``synthetic_data.``
     """
     if batch_size is None:
         # If batch size isn't specified, do it all at once.
@@ -151,10 +152,10 @@ def preprocess_for_distance_to_closest_record_score(
         synthetic_data, meta_info
     )
 
-    numerical_ranges = []
-
-    for index in numerical_real_data_train.columns:
-        numerical_ranges.append(numerical_real_data_train[index].max() - numerical_real_data_train[index].min())
+    numerical_ranges = [
+        numerical_real_data_train[index].max() - numerical_real_data_train[index].min()
+        for index in numerical_real_data_train.columns
+    ]
     numerical_ranges_np = np.array(numerical_ranges)
 
     num_real_data_train_np = numerical_real_data_train.to_numpy()
