@@ -4,7 +4,7 @@ import logging
 import sys
 from io import StringIO
 from logging import LogRecord
-from typing import TYPE_CHECKING, Any, TextIO
+from typing import Any, TextIO
 
 
 # Create logger
@@ -22,10 +22,7 @@ LOG_COLORS = {
     "RESET": "\033[0m",  # Reset to default
 }
 
-if TYPE_CHECKING:
-    StreamHandler = logging.StreamHandler[Any]
-else:
-    StreamHandler = logging.StreamHandler
+StreamHandler = logging.StreamHandler[Any]
 
 
 class ConsoleHandler(StreamHandler):
@@ -52,7 +49,7 @@ class ConsoleHandler(StreamHandler):
 
     def emit(self, record: LogRecord) -> None:
         """
-        Console handler emits the provided record.
+        Console handler that emits the provided record.
 
         Args:
             record: Record to emit
@@ -124,7 +121,13 @@ TOOLKIT_LOGGER.addHandler(console_handler)
 
 
 def configure(identifier: str, filename: str | None = None) -> None:
-    """Configure logging to file and/or remote log server."""
+    """
+    Configure logging to file.
+
+    Args:
+        identifier: Identifier to front the logged string
+        filename: Name of the file producing the log, if desired. Defaults to None.
+    """
     # Create formatter
     string_to_input = f"{identifier} | %(levelname)s %(name)s %(asctime)s "
     string_to_input += "| %(filename)s:%(lineno)d | %(message)s"
