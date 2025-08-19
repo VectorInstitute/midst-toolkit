@@ -50,7 +50,8 @@ def extract_columns_based_on_meta_info(data: pd.DataFrame, meta_info: Any) -> tu
     Args:
         data: Dataframe to be filtered using the meta information
         meta_info: JSON with meta information about the columns and their corresponding types that should be
-            considered.
+            considered. At minimum, it should have the keys keys 'num_col_idx', 'cat_col_idx', 'target_col_idx',
+            and 'task_type'
 
     Returns:
         Filtered dataframes. The first dataframe is the filtered set of columns associated with numerical data. The

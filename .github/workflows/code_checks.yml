@@ -56,6 +56,9 @@ jobs:
         with:
           virtual-environment: .venv/
           # GHSA-887c-mr87-cxwp torch vulnerability without a fix yet
+          # PYSEC-2025-41, PYSEC-2024-259: These ignores are temporary. Synthcity needs python below or at 2.4 and
+          # these vulnerabilities exist until 2.5. However, we'll be removing the Synthcity dependency in follow up.
+          # So we'll be able to upgrade torch and drop these there.
           ignore-vulns: |
             GHSA-887c-mr87-cxwp
             GHSA-3749-ghw9-m3mg

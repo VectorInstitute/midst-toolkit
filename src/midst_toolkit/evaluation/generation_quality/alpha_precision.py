@@ -8,14 +8,17 @@ from synthcity.plugins.core.dataloader import GenericDataLoader
 from midst_toolkit.common.logger import log
 
 
+NAIVE_METRIC_SUFFIX = "naive"
+
+
 def synthcity_alpha_precision_metrics(
     real_data: pd.DataFrame, synthetic_data: pd.DataFrame, naive_only: bool = True
 ) -> dict[str, Any]:
     """
-    Computes a number of quality metrics comparing the synthetic data to ground truth data using the Synthcity library
+    Computes a number of quality metrics comparing the synthetic data to ground truth data using the Synthcity library.
     This function uses the AlphaPrecision class in that library, which computes the alpha-precision, beta-recall, and
     authenticity scores between the two datasets. If the ``naive_only`` boolean is True, then only the "naive" metrics
-    are reported.
+    are reported, i.e. metrics with "naive" in their name.
 
     Args:
         real_data: Real data that the synthetic data is meant to mimic/replace.
@@ -23,7 +26,7 @@ def synthcity_alpha_precision_metrics(
         naive_only: If True, then only the "naive" metrics are reported. Defaults to True.
 
     Returns:
-        A dictionary containing the computed scores using the AlphaPrecision class in the Synthcity library
+        A dictionary containing the computed scores using the AlphaPrecision class in the Synthcity library.
     """
     # Wrap the dataframes in a Synthcity compatible dataloader
     real_data_loader = GenericDataLoader(real_data)
@@ -35,7 +38,7 @@ def synthcity_alpha_precision_metrics(
     # Log results and filter to naive keys if requested
     for metric_key, metric_value in quality_results.items():
         log(INFO, f"{metric_key}: {metric_value}")
-        if naive_only and "naive" not in metric_key:
+        if naive_only and (NAIVE_METRIC_SUFFIX not in metric_key):
             del quality_results[metric_key]
 
     return quality_results
