@@ -4,6 +4,7 @@ import logging
 import sys
 from io import StringIO
 from logging import LogRecord
+from pathlib import Path
 from typing import Any, TextIO
 
 
@@ -133,9 +134,11 @@ def configure(identifier: str, filename: str | None = None) -> None:
     string_to_input += "| %(filename)s:%(lineno)d | %(message)s"
     formatter = logging.Formatter(string_to_input)
 
-    if filename:
+    file_path = Path(filename) if filename else None
+
+    if file_path:
         # Create file handler and log to disk
-        file_handler = logging.FileHandler(filename)
+        file_handler = logging.FileHandler(file_path)
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(formatter)
         TOOLKIT_LOGGER.addHandler(file_handler)
