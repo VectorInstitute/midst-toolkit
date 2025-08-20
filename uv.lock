@@ -810,6 +810,7 @@ dev = [
     { name = "mypy" },
     { name = "nbqa" },
     { name = "numpy" },
+    { name = "opacus" },
     { name = "pandas" },
     { name = "pillow" },
     { name = "pip-audit" },
@@ -844,6 +845,7 @@ dev = [
     { name = "mypy", specifier = ">=1.14.1" },
     { name = "nbqa", specifier = ">=1.9.1" },
     { name = "numpy", specifier = "<2.3.0" },
+    { name = "opacus", specifier = "<=1.4.0" },
     { name = "pandas", specifier = ">=2.0" },
     { name = "pillow", specifier = ">=11.3.0" },
     { name = "pip-audit", specifier = ">=2.7.3" },
@@ -1236,6 +1238,30 @@ version = "12.8.90"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a2/eb/86626c1bbc2edb86323022371c39aa48df6fd8b0a1647bc274577f72e90b/nvidia_nvtx_cu12-12.8.90-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:5b17e2001cc0d751a5bc2c6ec6d26ad95913324a4adb86788c944f8ce9ba441f", size = 89954, upload-time = "2025-03-07T01:42:44.131Z" },
+]
+
+[[package]]
+name = "opacus"
+version = "1.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "opt-einsum" },
+    { name = "scipy" },
+    { name = "torch" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/44/34/c843a74742841a23904c1723e190eb122c4b6ccd38c178c5fbed4d1615b6/opacus-1.4.0.tar.gz", hash = "sha256:7a41d49c34af8e4308189bc8c2b22e65cf1edc0373477a02a43ccd957bac970d", size = 137121, upload-time = "2023-03-24T16:00:21.648Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e2/54/fdc18fb7694ef67e577ba59a2a4be1df9cfce3838ca9b18cafd5683afbfa/opacus-1.4.0-py3-none-any.whl", hash = "sha256:44b5b8536138a1eac6a604a35f59d7236dfc280bb543375725eb9eb299516c04", size = 224762, upload-time = "2023-03-24T16:00:19.678Z" },
+]
+
+[[package]]
+name = "opt-einsum"
+version = "3.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8c/b9/2ac072041e899a52f20cf9510850ff58295003aa75525e58343591b0cbfb/opt_einsum-3.4.0.tar.gz", hash = "sha256:96ca72f1b886d148241348783498194c577fa30a8faac108586b14f1ba4473ac", size = 63004, upload-time = "2024-09-26T14:33:24.483Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/23/cd/066e86230ae37ed0be70aae89aabf03ca8d9f39c8aea0dec8029455b5540/opt_einsum-3.4.0-py3-none-any.whl", hash = "sha256:69bb92469f86a1565195ece4ac0323943e83477171b91d24c35afe028a90d7cd", size = 71932, upload-time = "2024-09-26T14:33:23.039Z" },
 ]
 
 [[package]]

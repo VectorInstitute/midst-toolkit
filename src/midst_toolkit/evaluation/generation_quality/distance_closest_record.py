@@ -24,8 +24,8 @@ def compute_l1_distance(
     target_data: torch.Tensor, reference_data: torch.Tensor, skip_diagonal: bool = False
 ) -> torch.Tensor:
     """
-    Compute the smallest l1 distance between each point in the synthetic data tensor compared to all points in the in
-    the real data tensor.
+    Compute the smallest l1 distance between each point in the synthetic data tensor compared to all points in the
+    real data tensor.
 
     Args:
         target_data: Tensor of target data. Assumed to be a 2D tensor with batch size first, followed by
