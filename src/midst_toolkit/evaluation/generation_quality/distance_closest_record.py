@@ -22,8 +22,8 @@ DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cp
 
 def compute_l1_distance(synthetic_data: torch.Tensor, real_data: torch.Tensor) -> torch.Tensor:
     """
-    Compute the smallest l1 distance between each point in the synthetic data tensor compared to all points in the
-    points in the real data tensor.
+    Compute the smallest l1 distance between each point in the synthetic data tensor compared to all points in the in
+    the real data tensor.
 
     Args:
         synthetic_data: Tensor of synthetic data. Assumed to be a 2D tensor with batch size first, followed by
@@ -32,8 +32,8 @@ def compute_l1_distance(synthetic_data: torch.Tensor, real_data: torch.Tensor) -
             data dimension.
 
     Returns:
-        A 1D tensor containing the minimum distances between each data point in the synthetic data and all points in
-        the real data. Order will be the same.
+        A 1D tensor containing the l1 minimum distances between each data point in the synthetic data and all points in
+        the real data. Order will be the same as the synthetic data.
     """
     assert synthetic_data.ndim == 2 and real_data.ndim == 2, "Synthetic and Real data tensors should be 2D"
     assert synthetic_data.shape[1] == real_data.shape[1], "Data dimensions do not match for the provided tensors"
@@ -49,8 +49,8 @@ def compute_l1_distance(synthetic_data: torch.Tensor, real_data: torch.Tensor) -
 
 def compute_l2_distance(synthetic_data: torch.Tensor, real_data: torch.Tensor) -> torch.Tensor:
     """
-    Compute the smallest l1 distance between each point in the synthetic data tensor compared to all points in the
-    points in the real data tensor.
+    Compute the smallest l2 distance between each point in the synthetic data tensor compared to all points in the
+    real data tensor.
 
     Args:
         synthetic_data: Tensor of synthetic data. Assumed to be a 2D tensor with batch size first, followed by
@@ -59,8 +59,8 @@ def compute_l2_distance(synthetic_data: torch.Tensor, real_data: torch.Tensor) -
             data dimension.
 
     Returns:
-        A 1D tensor containing the minimum distances between each data point in the synthetic data and all points in
-        the real data. Order will be the same.
+        A 1D tensor containing the minimum l2 distances between each data point in the synthetic data and all points in
+        the real data. Order will be the same as the synthetic data.
     """
     assert synthetic_data.ndim == 2 and real_data.ndim == 2, "Synthetic and Real data tensors should be 2D"
     assert synthetic_data.shape[1] == real_data.shape[1], "Data dimensions do not match for the provided tensors"
@@ -120,7 +120,7 @@ def preprocess_for_distance_to_closest_record_score(
     synthetic_data: pd.DataFrame,
     real_data_train: pd.DataFrame,
     real_data_test: pd.DataFrame,
-    meta_info: Any,
+    meta_info: dict[str, Any],
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     This function performs preprocessing on Pandas dataframes to prepare for computation of the distance to closest
