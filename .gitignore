@@ -19,3 +19,6 @@ wheels/
 
 # macos
 *.DS_Store
+
+# Synthcity backups
+**/workspace/*.bkp
