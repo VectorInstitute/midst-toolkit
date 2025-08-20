@@ -22,8 +22,8 @@ DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cp
 
 def compute_l1_distance(synthetic_data: torch.Tensor, real_data: torch.Tensor) -> torch.Tensor:
     """
-    Compute the smallest l1 distance between each point in the synthetic data tensor compared to all points in the in
-    the real data tensor.
+    Compute the smallest l1 distance between each point in the synthetic data tensor compared to all points in the
+    real data tensor.
 
     Args:
         synthetic_data: Tensor of synthetic data. Assumed to be a 2D tensor with batch size first, followed by
