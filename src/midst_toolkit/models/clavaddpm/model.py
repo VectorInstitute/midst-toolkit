@@ -439,9 +439,6 @@ def train_model(
         device=torch.device(device),
     )
     diffusion.to(device)
-
-    torch.save(diffusion.state_dict(), "tests/integration/data/diffusion.pth")
-
     diffusion.train()
 
     trainer = Trainer(
