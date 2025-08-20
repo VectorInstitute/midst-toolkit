@@ -125,7 +125,6 @@ if __name__ == "__main__":
         categorical_real_numpy, categorical_synthetic_numpy, numerical_real_numpy, numerical_synthetic_numpy
     )
 
-    log(INFO, "=========== All Features ===========")
     log(INFO, f"Data shape: {synthetic_dataframe.shape}")
 
     quality_results = synthcity_alpha_precision_metrics(real_dataframe, synthetic_dataframe, naive_only=False)

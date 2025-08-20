@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
 
+from midst_toolkit.common.enumerations import TaskType
 from midst_toolkit.common.logger import log
 
 
@@ -41,7 +42,9 @@ def dump_metrics_dict(metrics_dict: dict[str, float], file_path: Path) -> None:
             f.write(f"Metric Name: {metric_key}\t Metric Value: {metric_value}\n")
 
 
-def extract_columns_based_on_meta_info(data: pd.DataFrame, meta_info: Any) -> tuple[pd.DataFrame, pd.DataFrame]:
+def extract_columns_based_on_meta_info(
+    data: pd.DataFrame, meta_info: dict[str, Any]
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Given a set of meta information, which should be in JSON format with keys 'num_col_idx', 'cat_col_idx',
     'target_col_idx', and 'task_type', the provided dataframe is filtered to the correct set of columns for evaluation
@@ -50,12 +53,16 @@ def extract_columns_based_on_meta_info(data: pd.DataFrame, meta_info: Any) -> tu
     Args:
         data: Dataframe to be filtered using the meta information
         meta_info: JSON with meta information about the columns and their corresponding types that should be
-            considered.
+            considered. At minimum, it should have the keys keys 'num_col_idx', 'cat_col_idx', 'target_col_idx',
+            and 'task_type'
 
     Returns:
         Filtered dataframes. The first dataframe is the filtered set of columns associated with numerical data. The
         second is the filtered set of columns associated with categorical data.
     """
+    # TODO: Consider creating a meta_info class that formalizes the structure of the meta_info produced when
+    # Training the diffusion generators.
+
     # Enumerate columns and replace column name with index
     data.columns = range(len(data.columns))
 
@@ -66,7 +73,8 @@ def extract_columns_based_on_meta_info(data: pd.DataFrame, meta_info: Any) -> tu
 
     # Target columns are also part of the generation, just need to add it to the right "category"
     target_col_idx = meta_info["target_col_idx"]
-    if meta_info["task_type"] == "regression":
+    task_type = TaskType(meta_info["task_type"])
+    if task_type == TaskType.REGRESSION:
         numerical_column_idx = numerical_column_idx + target_col_idx
     else:
         categorical_column_idx = categorical_column_idx + target_col_idx

@@ -8,7 +8,6 @@ from collections import Counter, defaultdict
 from collections.abc import Callable, Generator, Iterator
 from copy import deepcopy
 from dataclasses import astuple, dataclass, replace
-from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Self, cast
 
@@ -36,6 +35,7 @@ from sklearn.preprocessing import (
 )
 from torch import Tensor, nn, optim
 
+from midst_toolkit.common.enumerations import PredictionType, TaskType
 from midst_toolkit.core import logger
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 
@@ -52,20 +52,6 @@ ModuleType = str | Callable[..., nn.Module]
 
 CAT_MISSING_VALUE = "__nan__"
 CAT_RARE_VALUE = "__rare__"
-
-
-class TaskType(Enum):
-    BINCLASS = "binclass"
-    MULTICLASS = "multiclass"
-    REGRESSION = "regression"
-
-    def __str__(self) -> str:
-        return self.value
-
-
-class PredictionType(Enum):
-    LOGITS = "logits"
-    PROBS = "probs"
 
 
 @dataclass(frozen=True)
