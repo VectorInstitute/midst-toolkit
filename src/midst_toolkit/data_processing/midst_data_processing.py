@@ -6,12 +6,20 @@ import numpy as np
 import pandas as pd
 
 
+CONVERSION_DATASETS = {"default", "news"}
+MAX_CLIPPING_DATASETS = {"shoppers"}
+MIN_MAX_CLIPPING_DATASETS = {"default", "faults", "beijing"}
+
+CLIPPING_MODEL_PREFIX = "codi"
+CONVERSION_MODEL_PREFIX = "great"
+
+
 def process_midst_data_for_alpha_precision_evaluation(
     numerical_real_data: pd.DataFrame,
     categorical_real_data: pd.DataFrame,
     numerical_synthetic_data: pd.DataFrame,
     categorical_synthetic_data: pd.DataFrame,
-    dataname: str,
+    dataset_name: str,
     model: str,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
@@ -27,24 +35,26 @@ def process_midst_data_for_alpha_precision_evaluation(
         categorical_real_data: Real data with categorical values
         numerical_synthetic_data: Synthetically generated data with numerical values
         categorical_synthetic_data: Synthetically generated data with numerical values
-        dataname: Name of the dataset to which the real data belongs. The way that the data is processed will
+        dataset_name: Name of the dataset to which the real data belongs. The way that the data is processed will
             depend on whether special treatment is required for the specified name.
         model: Model that was used to generate the synthetic data. Specific model names require special postprocessing
             in order for quality evaluation
 
     Returns:
-        Numpy arrays for each of the numerical and categorical collections of real and synthetic data after processing.
+        A tuple of four Numpy arrays, one for each of the numerical and categorical collections of real and synthetic
+        data after processing. The order is numerical and categorical data for the real data, followed by the same
+        for the synthetic data.
     """
     categorical_synthetic_numpy = categorical_synthetic_data.to_numpy().astype("str")
 
     # Perform some special data post-processing for specific datasets and models as specified in the script
     # arguments
 
-    if dataname in ["default", "news"] and model[:4] == "codi":
+    if dataset_name in CONVERSION_DATASETS and model.startswith(CONVERSION_MODEL_PREFIX):
         # If using the default or news dataset and a model postfixed with "codi," need to perform an int cast
         categorical_synthetic_numpy = categorical_synthetic_data.astype("int").to_numpy().astype("str")
-    elif model[:5] == "great":
-        if dataname == "shoppers":
+    elif model.startswith(CLIPPING_MODEL_PREFIX):
+        if dataset_name in MAX_CLIPPING_DATASETS:
             # Column reassignment
             categorical_synthetic_numpy[:, 1] = categorical_synthetic_data[11].astype("int").to_numpy().astype("str")
             categorical_synthetic_numpy[:, 2] = categorical_synthetic_data[12].astype("int").to_numpy().astype("str")
@@ -58,7 +68,7 @@ def process_midst_data_for_alpha_precision_evaluation(
             categorical_synthetic_numpy[:, 4] = categorical_synthetic_data[14].astype("int").to_numpy().astype("str")
             categorical_synthetic_numpy[:, 4] = categorical_synthetic_data[14].astype("int").to_numpy().astype("str")
 
-        elif dataname in ["default", "faults", "beijing"]:
+        elif dataset_name in MIN_MAX_CLIPPING_DATASETS:
             # Note that columns here are not contiguous, so we enumerate
             columns = categorical_real_data.columns
             for i, col in enumerate(columns):
@@ -82,10 +92,8 @@ def process_midst_data_for_alpha_precision_evaluation(
 
 
 def load_midst_data(
-    real_data_path: Path,
-    synthetic_data_path: Path,
-    meta_info_path: Path,
-) -> tuple[pd.DataFrame, pd.DataFrame, Any]:
+    real_data_path: Path, synthetic_data_path: Path, meta_info_path: Path
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
     """
     Helper function for loading data at the specified paths. These paths are constructed either by the user or with a
     particular set of defaults that were used in the original MIDST competition (see, for example,
@@ -115,7 +123,7 @@ def load_midst_data(
 
 def load_midst_data_with_test(
     real_data_path: Path, synthetic_data_path: Path, meta_info_path: Path, real_data_test_path: Path
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Any]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict[str, Any]]:
     """
     Helper function for loading data at the specified paths. These paths are constructed either by the user or with a
     particular set of defaults that were used in the original MIDST competition (see, for example,

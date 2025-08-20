@@ -24,8 +24,8 @@ def compute_l1_distance(
     target_data: torch.Tensor, reference_data: torch.Tensor, skip_diagonal: bool = False
 ) -> torch.Tensor:
     """
-    Compute the smallest l1 distance between each point in the synthetic data tensor compared to all points in the
-    points in the real data tensor.
+    Compute the smallest l1 distance between each point in the synthetic data tensor compared to all points in the in
+    the real data tensor.
 
     Args:
         target_data: Tensor of target data. Assumed to be a 2D tensor with batch size first, followed by
@@ -37,8 +37,8 @@ def compute_l1_distance(
             distance of the point from itself (which is 0). Defaults to False.
 
     Returns:
-        A 1D tensor containing the minimum distances between each data point in the target data and all points in
-        the reference data. Order will be the same.
+        A 1D tensor containing the l1 minimum distances between each data point in the target data and all points in
+        the reference data. Order will be the same as the target data.
     """
     assert target_data.ndim == 2 and reference_data.ndim == 2, "Target and Reference data tensors should be 2D"
     assert target_data.shape[1] == reference_data.shape[1], "Data dimensions do not match for the provided tensors"
@@ -63,8 +63,8 @@ def compute_l2_distance(
     target_data: torch.Tensor, reference_data: torch.Tensor, skip_diagonal: bool = False
 ) -> torch.Tensor:
     """
-    Compute the smallest l1 distance between each point in the synthetic data tensor compared to all points in the
-    points in the real data tensor.
+    Compute the smallest l2 distance between each point in the synthetic data tensor compared to all points in the
+    real data tensor.
 
     Args:
         target_data: Tensor of synthetic data. Assumed to be a 2D tensor with batch size first, followed by
@@ -76,8 +76,8 @@ def compute_l2_distance(
             distance of the point from itself (which is 0). Defaults to False.
 
     Returns:
-        A 1D tensor containing the minimum distances between each data point in the target data and all points in
-        the reference data. Order will be the same.
+        A 1D tensor containing the l2 minimum distances between each data point in the target data and all points in
+        the reference data. Order will be the same as the target data.
     """
     assert target_data.ndim == 2 and reference_data.ndim == 2, "Target and Reference data tensors should be 2D"
     assert target_data.shape[1] == reference_data.shape[1], "Data dimensions do not match for the provided tensors"
@@ -156,7 +156,7 @@ def preprocess_for_distance_to_closest_record_score(
     synthetic_data: pd.DataFrame,
     real_data_train: pd.DataFrame,
     real_data_test: pd.DataFrame,
-    meta_info: Any,
+    meta_info: dict[str, Any],
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     This function performs preprocessing on Pandas dataframes to prepare for computation of the distance to closest
