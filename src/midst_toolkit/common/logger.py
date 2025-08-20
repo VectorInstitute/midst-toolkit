@@ -137,6 +137,7 @@ def configure(identifier: str, filename: str | None = None) -> None:
     file_path = Path(filename) if filename else None
 
     if file_path:
+        assert file_path.parent.exists(), "Folder into which the logging file is to be inserted does not exist."
         # Create file handler and log to disk
         file_handler = logging.FileHandler(file_path)
         file_handler.setLevel(logging.DEBUG)
