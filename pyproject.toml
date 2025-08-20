@@ -15,7 +15,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
-    "torch<=2.6.0",
+    "torch>=2.6.0",
     "urllib3>=2.5.0",
     "codecov>=2.1.13",
     "mypy>=1.14.1",
@@ -33,7 +33,6 @@ dev = [
     "pytest-mock>=3.14.0",
     "ruff>=0.9.2",
     "category-encoders~=2.6.3",
-    "synthcity>=0.2.12",
     "opacus<=1.4.0"
 ]
 docs = [
@@ -63,7 +62,7 @@ namespace_packages = true
 explicit_package_bases = true
 warn_unused_configs = true
 allow_subclassing_any = false
-allow_untyped_calls = false
+allow_untyped_calls = true
 allow_incomplete_defs = false
 allow_untyped_decorators = false
 warn_redundant_casts = true

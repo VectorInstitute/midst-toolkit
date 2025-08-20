@@ -2,10 +2,10 @@ from logging import INFO
 from typing import Any
 
 import pandas as pd
-from synthcity.metrics import eval_statistical
-from synthcity.plugins.core.dataloader import GenericDataLoader
 
 from midst_toolkit.common.logger import log
+from midst_toolkit.evaluation.generation_quality.synthcity.dataloader import GenericDataLoader
+from midst_toolkit.evaluation.generation_quality.synthcity.statistical_eval import AlphaPrecision
 
 
 NAIVE_METRIC_SUFFIX = "naive"
@@ -32,7 +32,7 @@ def synthcity_alpha_precision_metrics(
     real_data_loader = GenericDataLoader(real_data)
     synthetic_data_loader = GenericDataLoader(synthetic_data)
 
-    quality_evaluator = eval_statistical.AlphaPrecision()
+    quality_evaluator = AlphaPrecision()
     quality_results = quality_evaluator.evaluate(real_data_loader, synthetic_data_loader)
 
     # Log results and filter to naive keys if requested

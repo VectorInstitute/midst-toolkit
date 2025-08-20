@@ -1443,7 +1443,7 @@ def numerical_forward_backward_log(
         if loss.requires_grad:
             if i == 0:
                 optimizer.zero_grad()
-            loss.backward(loss * len(sub_batch) / len(batch))  # type: ignore[no-untyped-call]
+            loss.backward(loss * len(sub_batch) / len(batch))
 
 
 def transform_dataset(
@@ -1742,7 +1742,7 @@ class Trainer:
         self.optimizer.zero_grad()
         loss_multi, loss_gauss = self.diffusion.mixed_loss(x, out_dict)
         loss = loss_multi + loss_gauss
-        loss.backward()  # type: ignore[no-untyped-call]
+        loss.backward()
         self.optimizer.step()
 
         return loss_multi, loss_gauss
@@ -1945,7 +1945,6 @@ class MLP(nn.Module):
 
         This variation of MLP was used in [gorishniy2021revisiting]. Features:
 
-        * :code:`Activation` = :code:`ReLU`
         * all linear layers except for the first one and the last one are of the same dimension
         * the dropout rate is the same for all dropout layers
 
@@ -1953,9 +1952,7 @@ class MLP(nn.Module):
             d_in: the input size
             d_layers: the dimensions of the linear layers. If there are more than two
                 layers, then all of them except for the first and the last ones must
-                have the same dimension. Valid examples: :code:`[]`, :code:`[8]`,
-                :code:`[8, 16]`, :code:`[2, 2, 2, 2]`, :code:`[1, 2, 2, 4]`. Invalid
-                example: :code:`[1, 2, 3, 4]`.
+                have the same dimension.
             dropout: the dropout rate for all hidden layers
             d_out: the output size
         Returns:
@@ -2135,10 +2132,9 @@ class ResNet(nn.Module):
         dropout_second: float,
         d_out: int,
     ) -> Self:
-        """Create a "baseline" `ResNet`.
-        This variation of ResNet was used in [gorishniy2021revisiting]. Features:
-        * :code:`Activation` = :code:`ReLU`
-        * :code:`Norm` = :code:`BatchNorm1d`
+        """
+        Create a "baseline" `ResNet`. This variation of ResNet was used in [gorishniy2021revisiting].
+
         Args:
             d_in: the input size
             n_blocks: the number of Blocks
@@ -2146,6 +2142,7 @@ class ResNet(nn.Module):
             d_hidden: the output size of the first linear layer in each Block
             dropout_first: the dropout rate of the first dropout layer in each Block.
             dropout_second: the dropout rate of the second dropout layer in each Block.
+            d_out: Output dimension.
 
         References:
             * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov,
