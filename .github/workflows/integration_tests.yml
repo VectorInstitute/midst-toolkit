@@ -61,3 +61,9 @@ jobs:
       - name: Install dependencies and check code
         run: |
           uv run pytest -m "integration_test"
+
+      - name: Uplaod diffusion.pth
+        uses: actions/upload-artifact@v4.3.0
+        with:
+          name: diffusion.pth
+          path: tests/integration/data/diffusion.pth
