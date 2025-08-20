@@ -93,7 +93,7 @@ def process_midst_data_for_quality_evaluation(
 
 def load_midst_data(
     real_data_path: Path, synthetic_data_path: Path, meta_info_path: Path
-) -> tuple[pd.DataFrame, pd.DataFrame, Any]:
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
     """
     Helper function for loading data at the specified paths. These paths are constructed either by the user or with a
     particular set of defaults that were used in the original MIDST competition (see, for example,
