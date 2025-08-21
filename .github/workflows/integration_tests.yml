@@ -62,8 +62,8 @@ jobs:
         run: |
           uv run pytest -m "integration_test"
 
-      - name: Uplaod diffusion.pth
+      - name: Uplaod assertion data
         uses: actions/upload-artifact@v4.3.0
         with:
-          name: diffusion.pth
-          path: tests/integration/data/diffusion.pth
+          name: assertion_data
+          path: tests/integration/data/

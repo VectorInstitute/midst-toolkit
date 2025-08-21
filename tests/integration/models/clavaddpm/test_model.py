@@ -2,13 +2,17 @@ import json
 import os
 import pickle
 import platform
+import random
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
 import pytest
+import torch
+from torch.nn import functional
 
 from midst_toolkit.core.data_loaders import load_multi_table
-from midst_toolkit.models.clavaddpm.model import clava_clustering, clava_training
+from midst_toolkit.models.clavaddpm.model import Classifier, clava_clustering, clava_training
 from tests.utils.random import set_all_random_seeds, unset_all_random_seeds
 
 
@@ -267,10 +271,23 @@ def test_train_single_table(tmp_path: Path):
     )
     X_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
 
+    with open("tests/integration/data/single_table/assertion_data/syntetic_data_gh.json", "w") as f:
+        json.dump(
+            {
+                "X_gen": X_gen.tolist(),
+                "y_gen": y_gen.tolist(),
+            },
+            f,
+            indent=4,
+        )
+
     with open("tests/integration/data/single_table/assertion_data/syntetic_data.json", "r") as f:
         expected_results = json.load(f)
 
     model_data = dict(models[key]["diffusion"].named_parameters())
+
+    with open("tests/integration/data/single_table/assertion_data/diffusion_parameters_gh.pkl", "wb") as f:
+        pickle.dump(model_data, f)
 
     expected_model_data = pickle.loads(
         Path("tests/integration/data/single_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
@@ -278,11 +295,9 @@ def test_train_single_table(tmp_path: Path):
 
     model_layers = list(model_data.keys())
     expected_model_layers = list(expected_model_data.keys())
-    if np.allclose(model_data[model_layers[0]].detach(), expected_model_data[expected_model_layers[0]].detach()):
+    if torch.allclose(model_data[model_layers[0]], expected_model_data[expected_model_layers[0]]):
         # if the first layer is equal with minimal tolerance, all others should be equal as well
-        assert all(
-            np.allclose(model_data[layer].detach(), expected_model_data[layer].detach()) for layer in model_layers
-        )
+        assert all(torch.allclose(model_data[layer], expected_model_data[layer]) for layer in model_layers)
 
         # TODO: Figure out if there is a good way of testing the synthetic data results
         # on multiple platforms. https://app.clickup.com/t/868f43wp0
@@ -292,10 +307,7 @@ def test_train_single_table(tmp_path: Path):
     else:
         # Otherwise, set a tolerance that would work across platforms
         # TODO: Figure out a way to set a lower tolerance
-        assert all(
-            np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.1)
-            for layer in model_layers
-        )
+        assert all(torch.allclose(model_data[layer], expected_model_data[layer], atol=0.1) for layer in model_layers)
 
     unset_all_random_seeds()
 
@@ -310,7 +322,7 @@ def test_train_multi_table(tmp_path: Path):
     configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG, "classifier": CLASSIFIER_CONFIG}
 
     tables, relation_order, _ = load_multi_table("tests/integration/data/multi_table/")
-    tables, _ = clava_clustering(tables, relation_order, tmp_path, configs)
+    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, configs)
     models = clava_training(tables, relation_order, tmp_path, configs, device="cpu")
 
     # Assert
@@ -327,10 +339,23 @@ def test_train_multi_table(tmp_path: Path):
     )
     X_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
 
+    with open("tests/integration/data/multi_table/assertion_data/syntetic_data_gh.json", "w") as f:
+        json.dump(
+            {
+                "X_gen": X_gen.tolist(),
+                "y_gen": y_gen.tolist(),
+            },
+            f,
+            indent=4,
+        )
+
     with open("tests/integration/data/multi_table/assertion_data/syntetic_data.json", "r") as f:
         expected_results = json.load(f)
 
     model_data = dict(models[1][key]["diffusion"].named_parameters())
+
+    with open("tests/integration/data/multi_table/assertion_data/diffusion_parameters_gh.pkl", "wb") as f:
+        pickle.dump(model_data, f)
 
     expected_model_data = pickle.loads(
         Path("tests/integration/data/multi_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
@@ -358,8 +383,33 @@ def test_train_multi_table(tmp_path: Path):
             for layer in model_layers
         )
 
+    classifier_scale = 1.0
+    classifier_batch_size = 5
+    # Generating some random data to test the classifier
+    groups = list(all_group_lengths_prob_dicts[key].keys())
+    ys = [[y] for y in random.choices(groups, k=classifier_batch_size)]
 
-unset_all_random_seeds()
+    ys_tensor = torch.tensor(np.array(ys).reshape(-1, 1), requires_grad=False)
+    conditional_sample, _ = models[1][key]["diffusion"].conditional_sample(
+        ys=ys_tensor,
+        model_kwargs={"y": ys_tensor},
+        cond_fn=get_conditional_function_for_the_classifier(models[1][key]["classifier"], classifier_scale),
+    )
+
+    torch.save(conditional_sample, "tests/integration/data/multi_table/assertion_data/conditional_samples_gh.pt")
+
+    expected_conditional_sample = torch.load(
+        "tests/integration/data/multi_table/assertion_data/conditional_samples.pt"
+    )
+
+    if torch.allclose(conditional_sample[0], expected_conditional_sample[0]):
+        # if the first values are equal with minimal tolerance, all others should be equal as well
+        assert torch.allclose(conditional_sample, expected_conditional_sample)
+    else:
+        # Otherwise, set a tolerance that would work across platforms
+        assert torch.allclose(conditional_sample, expected_conditional_sample, atol=0.1)
+
+    unset_all_random_seeds()
 
 
 @pytest.mark.integration_test()
@@ -379,6 +429,9 @@ def test_clustering_reload(tmp_path: Path):
     account_original_df_as_float = tables["account"]["original_df"].astype(float)
     assert account_df_no_clustering.equals(account_original_df_as_float)
 
+    with open("tests/integration/data/multi_table/assertion_data/expected_account_clustering_gh.json", "w") as f:
+        json.dump(tables["account"]["df"]["account_trans_cluster"].tolist(), f, indent=4)
+
     if _is_apple_silicon():
         # TODO: Figure out if there is a good way of testing the clustering results
         # on multiple platforms. https://app.clickup.com/t/868f43wp0
@@ -390,6 +443,9 @@ def test_clustering_reload(tmp_path: Path):
     trans_original_df_as_float = tables["trans"]["original_df"].astype(float)
     trans_original_df_as_float["trans_id"] = trans_original_df_as_float["trans_id"].astype(int)
     assert trans_df_no_clustering.equals(trans_original_df_as_float)
+
+    with open("tests/integration/data/multi_table/assertion_data/expected_trans_clustering_gh.json", "w") as f:
+        json.dump(tables["trans"]["df"]["account_trans_cluster"].tolist(), f, indent=4)
 
     if _is_apple_silicon():
         with open("tests/integration/data/multi_table/assertion_data/expected_trans_clustering.json", "r") as f:
@@ -423,3 +479,24 @@ def test_clustering_reload(tmp_path: Path):
 def _is_apple_silicon():
     """Check if running on macOS with Apple Silicon."""
     return platform.system() == "Darwin" and platform.machine() == "arm64"
+
+
+def get_conditional_function_for_the_classifier(classifier: Classifier, classifier_scale: float) -> Callable:
+    def cond_fn(
+        x: torch.Tensor,
+        t: torch.Tensor,
+        y: torch.Tensor | None = None,
+        remove_first_col: bool = False,
+    ) -> torch.Tensor:
+        assert y is not None
+        with torch.enable_grad():
+            if remove_first_col:
+                x_in = x[:, 1:].detach().requires_grad_(True).float()
+            else:
+                x_in = x.detach().requires_grad_(True).float()
+            logits = classifier(x_in, t)
+            log_probs = functional.log_softmax(logits, dim=-1)
+            selected = log_probs[range(len(logits)), y.view(-1)]
+            return torch.autograd.grad(selected.sum(), x_in)[0] * classifier_scale
+
+    return cond_fn
