@@ -1,4 +1,4 @@
-"""Functions in this module are taken from CITADEL & UQAM team's attack implementation at
+"""Functions in this module are taken with some modifications from CITADEL & UQAM team's attack implementation at
 https://github.com/CRCHUM-CITADEL/ensemble-mia.
 """
 
@@ -91,7 +91,7 @@ def fine_tune_model(
 
 
 def child_fine_tuning(
-    models: tuple[str, str],
+    pre_trained_model: dict[str, Any],
     child_df_with_cluster: pd.DataFrame,
     child_domain_dict: dict[str, Any],
     parent_name: str | None,
@@ -116,7 +116,7 @@ def child_fine_tuning(
     child_t_dict = get_T_dict()
 
     child_result = fine_tune_model(
-        models[(parent_name, child_name)]["diffusion"],
+        pre_trained_model["diffusion"],
         child_df_with_cluster,
         child_info,
         child_model_params,
@@ -132,7 +132,6 @@ def child_fine_tuning(
         child_result["classifier"] = None
     elif configs["classifier"]["iterations"] > 0:
         child_classifier = train_classifier(
-            models[(parent_name, child_name)]["classifier"],
             child_df_with_cluster,
             child_info,
             child_model_params,
@@ -146,6 +145,7 @@ def child_fine_tuning(
             d_layers=configs["classifier"]["d_layers"],
             dim_t=configs["classifier"]["dim_t"],
             lr=configs["classifier"]["lr"],
+            pre_trained_classifier=pre_trained_model["classifier"],
         )
         child_result["classifier"] = child_classifier
 
@@ -156,13 +156,13 @@ def child_fine_tuning(
 
 
 def clava_fine_tuning(
-    trained_models: dict[tuple[str, str], Any],
+    trained_models: dict[str, Any],
     new_tables: dict[str, Any],
-    relation_order: list[str, str],
+    relation_order: dict[Any, Any],
     configs: dict[str, Any],
     new_diffusion_iterations: int,
     new_classifier_iterations: int,
-) -> dict[str, Any]:
+) -> dict[tuple[str | None, str], Any]:
     """Fine-tune the trained models on new tables data."""
     new_models = {}
     for parent, child in relation_order:

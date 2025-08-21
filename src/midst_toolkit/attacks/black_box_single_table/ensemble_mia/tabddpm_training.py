@@ -2,7 +2,7 @@ import copy
 import json
 import logging
 from pathlib import Path
-from typing import Any, List, Tuple
+from typing import Any
 
 import pandas as pd
 
@@ -25,12 +25,12 @@ def config_tabddpm(
     data_dir: Path,
     json_path: Path | None = None,
     final_json_path: Path | None = None,
-    diffusion_layers: List[int] | None = None,
+    diffusion_layers: list[int] | None = None,
     diffusion_iterations: int = 10000,
-    classifier_layers: List[int] | None = None,
+    classifier_layers: list[int] | None = None,
     classifier_dim_t: int = 16,
     classifier_iterations: int = 1000,
-) -> Tuple[dict, str]:
+) -> tuple[dict, Path]:
     """
     Modifies a TabDDPM configuration JSON file with specified parameters and loads the resulting configuration.
 
@@ -38,14 +38,14 @@ def config_tabddpm(
             data_dir (Path): Directory containing dataset_meta.json, trans_domain.json, and trans.json files.
             json_path (Path | None): Path to the input JSON configuration file. If None, uses 'trans.json' in data_dir.
             final_json_path (Path | None): Path to save the modified JSON configuration file.
-            diffusion_layers (List[int] | None): List specifying the number of units in each diffusion model layer.
+            diffusion_layers (list[int] | None): List specifying the number of units in each diffusion model layer.
             diffusion_iterations (int): Number of training iterations for the diffusion model.
-            classifier_layers (List[int] | None): List specifying the number of units in each classifier model layer.
+            classifier_layers (list[int] | None): List specifying the number of units in each classifier model layer.
             classifier_dim_t (int): Dimension of the classifier's time embedding.
             classifier_iterations (int): Number of training iterations for the classifier model.
 
     Returns:
-            Tuple[dict, str]:
+            tuple[dict, str]:
                 - configs (dict): Loaded configuration dictionary for TabDDPM.
                 - save_dir (str): Directory path where results will be saved.
     """
@@ -81,7 +81,7 @@ def config_tabddpm(
     # Set up the config
     configs, save_dir = load_configs(final_json_file_path)
 
-    return configs, save_dir
+    return configs, Path(save_dir)
 
 
 def train_tabddpm(
@@ -183,9 +183,8 @@ def fine_tune_tabddpm(
     material["relation_order"] = relation_order
 
     # Clustering on the multi-table dataset
-    new_tables, all_group_lengths_prob_dicts = clava_clustering(
-        new_tables, relation_order, save_dir, configs, force_tables=True
-    )
+    # Original submission uses 'force_tables=True' to run the clustering even if checkpoint is found.
+    new_tables, all_group_lengths_prob_dicts = clava_clustering(new_tables, relation_order, save_dir, configs)
     material["tables"] = new_tables
     material["all_group_lengths_prob_dicts"] = all_group_lengths_prob_dicts
 

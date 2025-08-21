@@ -26,7 +26,7 @@ from midst_toolkit.attacks.black_box_single_table.ensemble_mia.tabddpm_training 
 )
 
 
-def train_fine_tuning_shadows(n_models: int, n_reps: int, init_model_id: int, init_data_seed: int):
+def train_fine_tuning_shadows(n_models: int, n_reps: int, init_model_id: int, init_data_seed: int) -> None:
     """
     Train shadow models that start from a pre-trained TabDDPM model and are fine-tuned on a portion of
     the challenge data.
@@ -35,8 +35,8 @@ def train_fine_tuning_shadows(n_models: int, n_reps: int, init_model_id: int, in
     2. TabDDPM is trained on that initial training set. This is common to the four models.
     3. A new "fine-tuning" set is selected with exactly half of the observations included in the
         challenge lists of that repo for each of the four shadow models. Each observation is included in the
-        fine-tuning set of exactly two (half) of the models. Each observation is repeated 12 times.
-        Each set is shuffled.
+        fine-tuning set of exactly half of the models (two models in original submission).
+        Each observation is repeated 12 times. Each set is shuffled.
     4. The initial model is fine-tuned independently based on the new set to obtain each shadow model.
     5. A synthetic dataset of 20K observations is generated for each model.
 
@@ -90,7 +90,7 @@ def train_fine_tuning_shadows(n_models: int, n_reps: int, init_model_id: int, in
     # Create the random lists, each with half the size of unique_ids
     random.shuffle(unique_ids)  # Shuffle to randomize order
     half_models = n_models // 2
-    lists = [[] for _ in range(n_models)]
+    lists: list = [[] for _ in range(n_models)]
 
     # Assign each unique_id to half of the random lists
     for uid in unique_ids:
@@ -125,7 +125,7 @@ def train_fine_tuning_shadows(n_models: int, n_reps: int, init_model_id: int, in
         pickle.dump(attack_data, file)
 
 
-def train_shadow_on_half_challenge_data(n_models: int, n_reps: int):
+def train_shadow_on_half_challenge_data(n_models: int, n_reps: int) -> None:
     """
     1. Create eight training sets with exactly half of the observations included in the challenge lists
         of that repo for each of the n`_models` (eight in the original attack) models.
@@ -145,7 +145,7 @@ def train_shadow_on_half_challenge_data(n_models: int, n_reps: int):
     # create the random lists, each with half the size of unique_ids
     random.shuffle(unique_ids)  # Shuffle to randomize order
     half_models = n_models // 2
-    lists = [[] for _ in range(n_models)]
+    lists: list = [[] for _ in range(n_models)]
 
     # Assign each unique_id to half of the random lists
     for uid in unique_ids:
