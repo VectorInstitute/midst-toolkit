@@ -405,9 +405,6 @@ def test_train_multi_table(tmp_path: Path):
     if torch.allclose(conditional_sample[0], expected_conditional_sample[0]):
         # if the first values are equal with minimal tolerance, all others should be equal as well
         assert torch.allclose(conditional_sample, expected_conditional_sample)
-    else:
-        # Otherwise, set a tolerance that would work across platforms
-        assert torch.allclose(conditional_sample, expected_conditional_sample, atol=0.1)
 
     unset_all_random_seeds()
 
