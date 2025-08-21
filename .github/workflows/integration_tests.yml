@@ -61,9 +61,3 @@ jobs:
       - name: Install dependencies and check code
         run: |
           uv run pytest -m "integration_test"
-
-      - name: Uplaod assertion data
-        uses: actions/upload-artifact@v4.3.0
-        with:
-          name: assertion_data
-          path: tests/integration/data/
