@@ -70,10 +70,11 @@ implicit_reexport = false
 strict_equality = true
 extra_checks = true
 mypy_path = "src"
+exclude = [".*\\.csv$",  ".*\\.npy$"]
 
 [tool.ruff]
 include = ["*.py", "pyproject.toml"]
-exclude = ["mypy_disallow_legacy_types.py", "*.ipynb"]
+exclude = ["mypy_disallow_legacy_types.py", "*.ipynb", ".*\\.csv$", ".*\\.npy$"]
 line-length = 119
 
 [tool.ruff.format]
