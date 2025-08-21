@@ -1,7 +1,6 @@
 import json
 import os
 import pickle
-import platform
 import random
 from collections.abc import Callable
 from pathlib import Path
@@ -294,6 +293,7 @@ def test_train_single_table(tmp_path: Path):
     else:
         # Otherwise, set a tolerance that would work across platforms
         # TODO: Figure out a way to set a lower tolerance
+        # https://app.clickup.com/t/868f43wp0
         assert all(torch.allclose(model_data[layer], expected_model_data[layer], atol=0.1) for layer in model_layers)
 
     unset_all_random_seeds()
@@ -352,6 +352,7 @@ def test_train_multi_table(tmp_path: Path):
     else:
         # Otherwise, set a tolerance that would work across platforms
         # TODO: Figure out a way to set a lower tolerance
+        # https://app.clickup.com/t/868f43wp0
         assert all(
             np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.1)
             for layer in model_layers
@@ -398,9 +399,6 @@ def test_clustering_reload(tmp_path: Path):
     account_original_df_as_float = tables["account"]["original_df"].astype(float)
     assert account_df_no_clustering.equals(account_original_df_as_float)
 
-    # if _is_apple_silicon():
-    # TODO: Figure out if there is a good way of testing the clustering results
-    # on multiple platforms. https://app.clickup.com/t/868f43wp0
     with open("tests/integration/data/multi_table/assertion_data/expected_account_clustering.json", "r") as f:
         expected_account_clustering = json.load(f)
     assert tables["account"]["df"]["account_trans_cluster"].tolist() == expected_account_clustering
@@ -410,7 +408,6 @@ def test_clustering_reload(tmp_path: Path):
     trans_original_df_as_float["trans_id"] = trans_original_df_as_float["trans_id"].astype(int)
     assert trans_df_no_clustering.equals(trans_original_df_as_float)
 
-    # if _is_apple_silicon():
     with open("tests/integration/data/multi_table/assertion_data/expected_trans_clustering.json", "r") as f:
         expected_trans_clustering = json.load(f)
     assert tables["trans"]["df"]["account_trans_cluster"].tolist() == expected_trans_clustering
@@ -437,11 +434,6 @@ def test_clustering_reload(tmp_path: Path):
     assert tables_saved["trans"]["info"] == tables["trans"]["info"]
 
     unset_all_random_seeds()
-
-
-def _is_apple_silicon():
-    """Check if running on macOS with Apple Silicon."""
-    return platform.system() == "Darwin" and platform.machine() == "arm64"
 
 
 def get_conditional_function_for_the_classifier(classifier: Classifier, classifier_scale: float) -> Callable:
