@@ -137,7 +137,7 @@ def generate_val_test(
 
 def process_split_data() -> None:
     """
-    Calls real_data_collection.collect_population_data() to collect the population data
+    Calls `real_data_collection.collect_population_data` to collect the population data
     and then splits the data into train, validation, and test sets according to the attack design.
     """
     if Path.exists(POPULATION_PATH / "population_all_with_challenge.csv"):

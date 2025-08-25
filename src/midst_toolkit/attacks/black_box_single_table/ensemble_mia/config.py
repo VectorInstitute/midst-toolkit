@@ -19,7 +19,7 @@ SHADOW_MODELS_ARTIFACTS_PATH = Path(
     "midst_toolkit/attacks/black_box_single_table/ensemble_mia/rmia/shadow_models_artifacts"
 )
 
-# INPUT: Attack folder ids under ATTACK_DATA_PATH
+# Attack folder ids under MIDST data attack files
 ## Train
 train_ids = list(range(1, 31))
 ## Dev
