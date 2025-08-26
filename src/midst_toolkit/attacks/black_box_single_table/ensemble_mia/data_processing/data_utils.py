@@ -1,6 +1,6 @@
-import logging
+from logging import INFO
 from pathlib import Path
-
+from midst_toolkit.common.logger import log
 import pandas as pd
 
 
@@ -15,7 +15,7 @@ def save_dataframe(df: pd.DataFrame, file_path: Path, file_name: str) -> None:
     """
     assert Path.exists(file_path), f"Path {file_path} does not exist."
     df.to_csv(file_path / file_name, index=False)
-    logging.info(f"DataFrame saved to {file_path / file_name}")
+    log(INFO, f"DataFrame saved to {file_path / file_name}")
 
 
 def load_dataframe(file_path: Path, file_name: str) -> pd.DataFrame:
@@ -32,59 +32,52 @@ def load_dataframe(file_path: Path, file_name: str) -> pd.DataFrame:
     full_path = file_path / file_name
     assert Path.exists(full_path), f"File {full_path} does not exist."
     df = pd.read_csv(full_path)
-    logging.info(f"DataFrame loaded from {full_path}")
+    log(INFO, f"DataFrame loaded from {full_path}")
     return df
 
 
-# TODO: Maybe unify the following two functions.
-def collect_train_data(attack_type: str, data_dir: Path, data_id: list[int], is_single_table: bool) -> pd.DataFrame:
+def collect_midst_attack_data(
+    attack_type: str, data_dir: Path, data_split: str, dataset: str, data_config: dict
+) -> pd.DataFrame:
     """
-    Collect the real training data in a specific setting.
+    Collect the real data in a specific setting of the provided MIDST challenge resources.
 
     Args:
         attack_type (str): The attack setting.
         data_dir (Path): The path where the data is stored.
-        data_id (range): The folder numbering of each training dataset.
-        is_single_table (bool): Whether it is a single table attack setting.
+        data_split (str): Indicates if this is train, dev, or final data.
+        dataset (str): The dataset to be collected. Either "train" or "challenge".
 
     Returns:
-        pd.DataFrame: All the real training data in this setting.
+        pd.DataFrame: The specified dataset in this setting.
     """
-    gen_name = attack_type.split("_")[0]
+    # `data_id` is the folder numbering of each training or challenge dataset.
+    assert data_split in [
+        "train",
+        "dev",
+        "final",
+    ], "data_split should be one of 'train', 'dev', or 'final'."
+    data_id = data_config["folder_ids"][data_split]
+
+    # Get file name based on the kind of dataset to be collected (i.e. train vs challenge).
+    generation_name = attack_type.split("_")[0]
+    if dataset == "challenge":
+        file_name = data_config["challenge_data_file_name"]
+    else:  # dataset == "train"
+        # Multi-table attacks have different file names.
+        file_name = (
+            data_config["multi_table_train_data_file_name"]
+            if "clavaddpm" == generation_name
+            else data_config["single_table_train_data_file_name"]
+        )
+    assert file_name.split(".")[-1] == "csv", "File name should end with .csv."
+
     df_real = pd.DataFrame()
     for i in data_id:
-        if is_single_table:
-            data_dir_ith = data_dir / attack_type / "train" / f"{gen_name}_{i}" / "train_with_id.csv"
-        else:
-            data_dir_ith = data_dir / attack_type / "train" / f"{gen_name}_{i}" / "trans.csv"
-
+        data_dir_ith = (
+            data_dir / attack_type / data_split / f"{generation_name}_{i}" / file_name
+        )
         df_real_ith = pd.read_csv(data_dir_ith)
         df_real = df_real_ith if i == 1 else pd.concat([df_real, df_real_ith])
 
     return df_real.drop_duplicates()
-
-
-def collect_challenge_points(attack_type: str, data_dir: Path, data_id: list[int], dataset: str) -> pd.DataFrame:
-    """
-    Collect the challenge points in a specific setting.
-
-    Args:
-        attack_type (str): The setting to attack.
-        data_dir (Path): The path where the data is stored.
-        data_id (range): The numbering of each challenge dataset.
-        dataset (str): Indicates if this is train, dev, or final data.
-
-    Returns:
-        pd.DataFrame: All the challenge points in this setting.
-    """
-    gen_name = attack_type.split("_")[0]
-    df_test = pd.DataFrame()
-
-    for idx, i in enumerate(data_id):
-        data_dir_ith = data_dir / attack_type / dataset / f"{gen_name}_{i}" / "challenge_with_id.csv"
-
-        df_test_ith = pd.read_csv(data_dir_ith)
-
-        df_test = df_test_ith if idx == 0 else pd.concat([df_test, df_test_ith])
-
-    return df_test.drop_duplicates()

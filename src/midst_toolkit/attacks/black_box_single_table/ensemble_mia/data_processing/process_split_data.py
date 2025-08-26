@@ -1,20 +1,19 @@
-import logging
+from logging import INFO
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
+from midst_toolkit.common.logger import log
 from midst_toolkit.attacks.black_box_single_table.ensemble_mia.config import (
-    POPULATION_PATH,
-    PROCESSED_ATTACK_DATA_PATH,
     seed,
 )
 from midst_toolkit.attacks.black_box_single_table.ensemble_mia.data_processing.data_utils import (
     save_dataframe,
 )
 from midst_toolkit.attacks.black_box_single_table.ensemble_mia.data_processing.real_data_collection import (
-    collect_population_data,
+    collect_population_data_ensemble_mia,
 )
 
 
@@ -69,7 +68,8 @@ def generate_val_test(
     seed: int,
 ) -> tuple[pd.DataFrame, np.ndarray, pd.DataFrame, np.ndarray]:
     """
-    Generates the validation and test sets with labels.
+    Generates the validation and test sets with labels. 
+    The resulting validation and test sets are used for meta classifier training and evaluation, respectively.
 
     Args:
         df_real_train (pd.DataFrame): Real training data.
@@ -135,16 +135,30 @@ def generate_val_test(
     return df_val, y_val, df_test, y_test
 
 
-def process_split_data() -> None:
+def process_split_data(
+    data_config: dict, population_data_file_name: str = "population_all_with_challenge.csv"
+) -> None:
     """
-    Calls `real_data_collection.collect_population_data` to collect the population data
-    and then splits the data into train, validation, and test sets according to the attack design.
+    Calls `real_data_collection.collect_population_data_ensemble_mia` to collect the population data
+    as specified by the `population_data_file_name` argument, then splits the data into train,
+    validation, and test sets according to the attack design.
     """
-    if Path.exists(POPULATION_PATH / "population_all_with_challenge.csv"):
-        logging.info("Population data already exists. Skipping collection.")
-        all_population_data = pd.read_csv(POPULATION_PATH / "population_all_with_challenge.csv")
+    # Input path
+    population_path = data_config["population_path"]
+    # output_path
+    processed_attack_data_path = data_config["processed_attack_data_path"]
+
+    # Check if the input file exists, if not create it.
+    if (population_path / population_data_file_name).exists():
+        log(
+            INFO,
+            f"Population data {population_data_file_name} already exists. Skipping collection.",
+        )
     else:
-        all_population_data = collect_population_data(save_dir=POPULATION_PATH)
+        _ = collect_population_data_ensemble_mia(
+            data_config=data_config,
+        )
+    all_population_data = pd.read_csv(population_path / population_data_file_name)
 
     # Sample 40k data points to construct the main population (real data) used for training the
     # synthetic data generator model, evaluation (meta train data used to train the meta classifier),
@@ -155,7 +169,7 @@ def process_split_data() -> None:
     # Split the data. df_real_train is used for training the synthetic data generator model.
     df_real_train, df_real_val, df_real_test = split_real_data(
         df_real_data,
-        var_to_stratify="trans_type",  # TODO: This value is not documented in the original code.
+        var_to_stratify="trans_type",  # TODO: This value is not documented in the original codebase.
         seed=seed,
     )
     # Generate validation and test sets with labels. Validation is used for training the meta classifier
@@ -166,30 +180,32 @@ def process_split_data() -> None:
         df_real_train,
         df_real_val,
         df_real_test,
-        stratify=df_real_train["trans_type"],  # TODO: This value is not documented in the original code.
+        stratify=df_real_train["trans_type"],  # TODO: This value is not documented in the original codebase.
         seed=seed,
     )
 
-    save_dataframe(df_real_train, PROCESSED_ATTACK_DATA_PATH, "real_train.csv")
-    save_dataframe(df_real_val, PROCESSED_ATTACK_DATA_PATH, "real_val.csv")
-    save_dataframe(df_real_test, PROCESSED_ATTACK_DATA_PATH, "real_test.csv")
+    df_real_train = df_real_train.drop(columns=["stratify"])
+    df_real_val = df_real_val.drop(columns=["is_train"])
+    df_real_test = df_real_test.drop(columns=["is_train"])
 
-    save_dataframe(df_val, PROCESSED_ATTACK_DATA_PATH, "master_challenge_train.csv")
+    save_dataframe(df_real_train, processed_attack_data_path, "real_train.csv")
+    save_dataframe(df_real_val, processed_attack_data_path, "real_val.csv")
+    save_dataframe(df_real_test, processed_attack_data_path, "real_test.csv")
+
+    save_dataframe(df_val, processed_attack_data_path, "master_challenge_train.csv")
     np.save(
-        PROCESSED_ATTACK_DATA_PATH / "master_challenge_train_labels.npy",
+        processed_attack_data_path / "master_challenge_train_labels.npy",
         y_val,
     )
-    save_dataframe(df_test, PROCESSED_ATTACK_DATA_PATH, "master_challenge_test.csv")
+    save_dataframe(df_test, processed_attack_data_path, "master_challenge_test.csv")
     np.save(
-        PROCESSED_ATTACK_DATA_PATH / "master_challenge_test_labels.npy",
+        processed_attack_data_path / "master_challenge_test_labels.npy",
         y_test,
     )
 
-    save_dataframe(df_real_train, PROCESSED_ATTACK_DATA_PATH, "real_train.csv")
-
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    logging.info("Processing and splitting real data...")
-    process_split_data()
-    logging.info("Real data processing and splitting completed.")
+    from midst_toolkit.attacks.black_box_single_table.ensemble_mia.config import (
+        DATA_CONFIG,
+    )
+    process_split_data(data_config=DATA_CONFIG)
