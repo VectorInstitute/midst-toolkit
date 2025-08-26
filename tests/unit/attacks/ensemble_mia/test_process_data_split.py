@@ -1,10 +1,11 @@
 from pathlib import Path
+
+from src.midst_toolkit.attacks.black_box_single_table.ensemble_mia.data_processing.data_utils import load_dataframe
 from src.midst_toolkit.attacks.black_box_single_table.ensemble_mia.data_processing.process_split_data import (
     process_split_data,
 )
 from tests.unit.attacks.ensemble_mia.config import DATA_CONFIG
 
-from src.midst_toolkit.attacks.black_box_single_table.ensemble_mia.data_processing.data_utils import load_dataframe
 
 def test_process_split_data(tmp_path: Path) -> None:
     # Comment the next line to update processed attack data stored in DATA_CONFIG["processed_attack_data_path"].
@@ -38,15 +39,11 @@ def test_process_split_data(tmp_path: Path) -> None:
     # Recall that `master_challenge_train`` consists of two halves: one half (10k) from `real_val`` data
     # with their "is_train" column set to 0, and the other half (10k) from the real train data (`real_train``)
     # with their "is_train" column set to 1. Note that ["is_train"] column is dropped in the final dataframes.
-    master_challenge_train = load_dataframe(
-        DATA_CONFIG["processed_attack_data_path"], "master_challenge_train.csv"
-    )
+    master_challenge_train = load_dataframe(DATA_CONFIG["processed_attack_data_path"], "master_challenge_train.csv")
     assert master_challenge_train.shape == (20000, 10), f" Shape is {master_challenge_train.shape}"
 
     # Recall that `master_challenge_test`` consists of two halves: one half (10k) from `real_test`` data
     # with their "is_train" column set to 0, and the other half (10k) from the real train data (`real_train``)
     # with their "is_train" column set to 1. Note that ["is_train"] column is dropped in the final dataframes.
-    master_challenge_test = load_dataframe(
-        DATA_CONFIG["processed_attack_data_path"], "master_challenge_test.csv"
-    )
+    master_challenge_test = load_dataframe(DATA_CONFIG["processed_attack_data_path"], "master_challenge_test.csv")
     assert master_challenge_test.shape == (20000, 10), f" Shape is {master_challenge_test.shape}"

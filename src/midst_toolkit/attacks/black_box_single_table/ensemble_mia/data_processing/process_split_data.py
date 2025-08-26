@@ -1,11 +1,9 @@
 from logging import INFO
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from midst_toolkit.common.logger import log
 from midst_toolkit.attacks.black_box_single_table.ensemble_mia.config import (
     seed,
 )
@@ -15,6 +13,7 @@ from midst_toolkit.attacks.black_box_single_table.ensemble_mia.data_processing.d
 from midst_toolkit.attacks.black_box_single_table.ensemble_mia.data_processing.real_data_collection import (
     collect_population_data_ensemble_mia,
 )
+from midst_toolkit.common.logger import log
 
 
 def split_real_data(
@@ -68,7 +67,7 @@ def generate_val_test(
     seed: int,
 ) -> tuple[pd.DataFrame, np.ndarray, pd.DataFrame, np.ndarray]:
     """
-    Generates the validation and test sets with labels. 
+    Generates the validation and test sets with labels.
     The resulting validation and test sets are used for meta classifier training and evaluation, respectively.
 
     Args:
@@ -208,4 +207,5 @@ if __name__ == "__main__":
     from midst_toolkit.attacks.black_box_single_table.ensemble_mia.config import (
         DATA_CONFIG,
     )
+
     process_split_data(data_config=DATA_CONFIG)

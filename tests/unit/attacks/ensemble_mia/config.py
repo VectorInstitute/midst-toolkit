@@ -1,5 +1,6 @@
 from pathlib import Path
 
+
 BASE_DATA_DIR = Path("tests/unit/attacks/ensemble_mia/assets")
 
 DATA_CONFIG = {
@@ -7,8 +8,7 @@ DATA_CONFIG = {
     ## Input directories:
     "midst_data_path": BASE_DATA_DIR / "midst_data_all_attacks",  # Used only for reading the data
     ## Output directories:
-    "population_path": BASE_DATA_DIR
-    / "population_data",  # Path where the population data is stored
+    "population_path": BASE_DATA_DIR / "population_data",  # Path where the population data is stored
     "processed_attack_data_path": (
         BASE_DATA_DIR / "attack_data"
     ),  # Path where the processed attack real train and evaluation data is stored

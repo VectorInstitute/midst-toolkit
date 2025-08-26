@@ -1,16 +1,14 @@
 from pathlib import Path
 
+
 BASE_DATA_DIR = Path("midst_toolkit/attacks/black_box_single_table/ensemble_mia/data")
 
 DATA_CONFIG = {
     # Data processing paths and file names
     ## Input directories:
-    "midst_data_path": (
-        BASE_DATA_DIR / "midst_data_all_attacks"
-    ),  # Used only for reading the data
+    "midst_data_path": (BASE_DATA_DIR / "midst_data_all_attacks"),  # Used only for reading the data
     ## Output directories:
-    "population_path": BASE_DATA_DIR
-    / "population_data",  # Path where the population data is stored
+    "population_path": BASE_DATA_DIR / "population_data",  # Path where the population data is stored
     "processed_attack_data_path": (
         BASE_DATA_DIR / "attack_data"
     ),  # Path where the processed attack real train and evaluation data is stored

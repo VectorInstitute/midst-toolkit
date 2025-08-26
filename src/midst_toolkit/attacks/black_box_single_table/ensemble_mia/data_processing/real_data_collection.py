@@ -21,9 +21,10 @@ def collect_midst_data(
 
     Args:
         attack_types (list[str]): List of attack names to be collected.
-        data_splits (list[str]): A list indicating the data split to be collected. 
+        data_splits (list[str]): A list indicating the data split to be collected.
             Could be any of train, dev, or final data splits.
         dataset (str): The dataset to be collected. Either "train" or "challenge".
+        data_config (dict): Configuration dictionary containing data paths and file names.
 
     Returns:
         pd.DataFrame: Collected train or challenge data as a DataFrame.
@@ -60,10 +61,10 @@ def collect_population_data_ensemble_mia(
     and returned as a dataframe.
 
     Args:
-        data_processing_config (dict): Configuration dictionary containing data paths and file names.
+        data_config (dict): Configuration dictionary containing data paths and file names.
         attack_types (list[str] | None): List of attack names to be collected.
             If None, all the attacks are collected based on ensemble mia implementation.
-    
+
     Returns:
         pd.DataFrame: The collected population data.
     """
@@ -72,17 +73,15 @@ def collect_population_data_ensemble_mia(
     # Collect train data of all the attacks (back box and white box)
     if attack_types is None:
         attack_types = [
-        "tabddpm_black_box",
-        "tabsyn_black_box",
-        "tabddpm_white_box",
-        "tabsyn_white_box", 
-        "clavaddpm_black_box",
-        "clavaddpm_white_box",
-    ]
+            "tabddpm_black_box",
+            "tabsyn_black_box",
+            "tabddpm_white_box",
+            "tabsyn_white_box",
+            "clavaddpm_black_box",
+            "clavaddpm_white_box",
+        ]
 
-    df_population = collect_midst_data(
-        attack_types, data_splits=["train"], dataset="train", data_config=data_config
-    )
+    df_population = collect_midst_data(attack_types, data_splits=["train"], dataset="train", data_config=data_config)
     # Drop ids.
     df_population_no_id = df_population.drop(columns=["trans_id", "account_id"])
     # Save the population data

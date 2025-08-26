@@ -1,9 +1,11 @@
 from pathlib import Path
+
 from src.midst_toolkit.attacks.black_box_single_table.ensemble_mia.data_processing.real_data_collection import (
     collect_midst_data,
     collect_population_data_ensemble_mia,
 )
 from tests.unit.attacks.ensemble_mia.config import DATA_CONFIG
+
 
 def test_collect_population_data_ensemble_mia(tmp_path: Path) -> None:
     # Comment the next line to update population data stored in DATA_CONFIG["population_path"].
@@ -21,13 +23,9 @@ def test_collect_population_data_ensemble_mia(tmp_path: Path) -> None:
 
     assert (DATA_CONFIG["population_path"] / "population_all_no_challenge.csv").exists()
 
-    assert (
-        DATA_CONFIG["population_path"] / "population_all_with_challenge.csv"
-    ).exists()
+    assert (DATA_CONFIG["population_path"] / "population_all_with_challenge.csv").exists()
 
-    assert (
-        DATA_CONFIG["population_path"] / "population_all_with_challenge_no_id.csv"
-    ).exists()
+    assert (DATA_CONFIG["population_path"] / "population_all_with_challenge_no_id.csv").exists()
 
 
 def test_collect_midst_data() -> None:

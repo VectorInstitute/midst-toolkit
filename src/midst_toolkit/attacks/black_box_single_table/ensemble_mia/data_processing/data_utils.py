@@ -1,7 +1,9 @@
 from logging import INFO
 from pathlib import Path
-from midst_toolkit.common.logger import log
+
 import pandas as pd
+
+from midst_toolkit.common.logger import log
 
 
 def save_dataframe(df: pd.DataFrame, file_path: Path, file_name: str) -> None:
@@ -47,6 +49,7 @@ def collect_midst_attack_data(
         data_dir (Path): The path where the data is stored.
         data_split (str): Indicates if this is train, dev, or final data.
         dataset (str): The dataset to be collected. Either "train" or "challenge".
+        data_config (dict): Configuration dictionary containing data paths and file names.
 
     Returns:
         pd.DataFrame: The specified dataset in this setting.
@@ -67,16 +70,14 @@ def collect_midst_attack_data(
         # Multi-table attacks have different file names.
         file_name = (
             data_config["multi_table_train_data_file_name"]
-            if "clavaddpm" == generation_name
+            if generation_name == "clavaddpm"
             else data_config["single_table_train_data_file_name"]
         )
     assert file_name.split(".")[-1] == "csv", "File name should end with .csv."
 
     df_real = pd.DataFrame()
     for i in data_id:
-        data_dir_ith = (
-            data_dir / attack_type / data_split / f"{generation_name}_{i}" / file_name
-        )
+        data_dir_ith = data_dir / attack_type / data_split / f"{generation_name}_{i}" / file_name
         df_real_ith = pd.read_csv(data_dir_ith)
         df_real = df_real_ith if i == 1 else pd.concat([df_real, df_real_ith])
 
