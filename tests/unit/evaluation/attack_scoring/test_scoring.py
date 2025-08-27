@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.evaluation.attack_scoring.mia_metrics import DEFAULT_FPR_THRESHOLDS, MembershipInferenceMetrics
 from midst_toolkit.evaluation.attack_scoring.score_html import generate_html
 from midst_toolkit.evaluation.attack_scoring.scoring import MiaMetrics, TprAtFpr
@@ -21,7 +22,7 @@ def test_tpr_at_fpr_function_bad_lengths() -> None:
 
 
 def test_tpr_at_fpr_function_bad_ranges() -> None:
-    np.random.seed(42)
+    set_all_random_seeds(42)
 
     labels = np.random.randint(0, 2, size=5)
     predictions = np.random.rand(5) * 10
@@ -66,11 +67,11 @@ def test_tpr_at_fpr_correct() -> None:
     assert pytest.approx(scores["TPR_FPR_0"], abs=1e-8) == 0.006711409395973154
 
     # Unset seed for safety
-    np.random.seed()
+    unset_all_random_seeds()
 
 
 def test_mia_scores() -> None:
-    np.random.seed(42)
+    set_all_random_seeds(42)
 
     labels = np.random.randint(0, 2, size=300)
     predictions = np.random.rand(300)
@@ -102,9 +103,12 @@ def test_mia_scores() -> None:
     assert "tpr" not in mia_scores
     assert pytest.approx(mia_scores["TPR_FPR_1000"], abs=1e-8) == 0.2080536912751678
 
+    # Unset seed for safety
+    unset_all_random_seeds()
+
 
 def test_html_construction() -> None:
-    np.random.seed(10)
+    set_all_random_seeds(10)
     true_labels = np.random.randint(0, 2, size=1000)
     predictions = np.random.rand(1000)
 
@@ -138,5 +142,5 @@ def test_html_construction() -> None:
     html = generate_html(all_scores)
     assert len(html) > 0
 
-    # Unset random seed for safety
-    np.random.seed()
+    # Unset seed for safety
+    unset_all_random_seeds()
