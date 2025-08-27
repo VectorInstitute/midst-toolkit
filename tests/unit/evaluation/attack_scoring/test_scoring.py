@@ -138,8 +138,5 @@ def test_html_construction() -> None:
     html = generate_html(all_scores)
     assert len(html) > 0
 
-    with open("/Users/david/Desktop/temp.html", "w") as f:
-        f.write(html)
-
     # Unset random seed for safety
     np.random.seed()
