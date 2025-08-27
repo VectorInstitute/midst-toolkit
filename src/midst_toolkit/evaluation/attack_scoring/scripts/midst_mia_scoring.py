@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from midst_toolkit.common.logger import log
-from midst_toolkit.evaluation.attack_scoring.score import DEFAULT_FPR_THRESHOLDS, compute_mia_metrics
+from midst_toolkit.evaluation.attack_scoring.mia_metrics import DEFAULT_FPR_THRESHOLDS, MembershipInferenceMetrics
 from midst_toolkit.evaluation.attack_scoring.score_html import generate_html
 
 
@@ -39,6 +39,9 @@ def compute_mia_scores_across_scenarios(
     for scenario in scenarios:
         log(INFO, f"Processing scenario: {scenario}")
 
+        # By default, computing all metrics
+        metrics = MembershipInferenceMetrics(fpr_thresholds=fpr_thresholds)
+
         scenario_labels = []
         scenario_predictions = []
 
@@ -61,7 +64,9 @@ def compute_mia_scores_across_scenarios(
         all_labels = np.concatenate(scenario_labels)
         all_predictions = np.concatenate(scenario_predictions)
 
-        scores = compute_mia_metrics(all_labels, all_predictions)
+        metrics.compute(all_labels, all_predictions)
+
+        scores = metrics.to_dict()
         scores_by_scenario[scenario] = scores
         log(INFO, f"Scores for {scenario}: {scores}")
 
@@ -156,9 +161,11 @@ if __name__ == "__main__":
         # Compute the mean TPR @ FPR = 0.1 across all scenarios
         tpr_at_fpr_0_1_collection: list[float] = []
         for metrics in scores_by_scenario.values():
-            tpr_at_fpr_0_1 = metrics["TPR_FPR_1000"]
-            assert isinstance(tpr_at_fpr_0_1, float)
-            tpr_at_fpr_0_1_collection.append(tpr_at_fpr_0_1)
+            if "TPR_FPR_1000" in metrics:
+                tpr_at_fpr_0_1 = metrics["TPR_FPR_1000"]
+                assert isinstance(tpr_at_fpr_0_1, float)
+                tpr_at_fpr_0_1_collection.append(tpr_at_fpr_0_1)
+
         average_tpr_at_fpr_0_1 = np.mean(tpr_at_fpr_0_1_collection)
         output_file.write(f"average_TPR_FPR_1000: {average_tpr_at_fpr_0_1}\n")
 
