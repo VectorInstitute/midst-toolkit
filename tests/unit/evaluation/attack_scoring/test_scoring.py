@@ -89,7 +89,7 @@ def test_mia_scores() -> None:
 
     # Test computing only a subset of metrics
 
-    metric = MembershipInferenceMetrics(metrics_to_compute=[MiaMetrics.TPR_AT_FPR, MiaMetrics.AUC, MiaMetrics.FPR])
+    metric = MembershipInferenceMetrics(metrics_to_compute={MiaMetrics.TPR_AT_FPR, MiaMetrics.AUC, MiaMetrics.FPR})
 
     metric.compute(labels, predictions)
     mia_scores = metric.to_dict()
@@ -98,8 +98,8 @@ def test_mia_scores() -> None:
     assert "mia" not in mia_scores
     assert "TPR_FPR_1000" in mia_scores
     assert "TPR_FPR_0" not in mia_scores
-    assert "FPR" in mia_scores
-    assert "TPR" not in mia_scores
+    assert "fpr" in mia_scores
+    assert "tpr" not in mia_scores
     assert pytest.approx(mia_scores["TPR_FPR_1000"], abs=1e-8) == 0.2080536912751678
 
 
