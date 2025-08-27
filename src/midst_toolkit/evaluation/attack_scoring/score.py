@@ -60,7 +60,7 @@ def compute_mia_metrics(
     mia_metrics: dict[str, float | np.ndarray] = {}
     fpr_thresholds = fpr_thresholds if fpr_thresholds else DEFAULT_FPR_THRESHOLDS
     for fpr_threshold in fpr_thresholds:
-        # Just shifting 4 significant digits to create a string (0.0025 -> "0025")
+        # Just shifting 4 significant digits to create a string (0.0025 -> "25")
         formatted_score_key = f"TPR_FPR_{int(1e4 * fpr_threshold)}"
         mia_metrics[formatted_score_key] = tpr_at_fpr(true_membership, predicted_membership, fpr_threshold)
     fpr, tpr, _ = roc_curve(true_membership, predicted_membership)

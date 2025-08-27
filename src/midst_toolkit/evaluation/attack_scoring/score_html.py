@@ -7,6 +7,7 @@ import pandas as pd
 from matplotlib.figure import Figure
 
 
+# To avoid launching a python subprocess
 mpl.use("Agg")
 
 DEFAULT_COLUMN_RENAME = {
@@ -43,9 +44,9 @@ def _image_to_html(figure: Figure) -> str:
 
 def _generate_roc_figure(false_positive_rates: np.ndarray, true_positive_rates: np.ndarray) -> Figure:
     """
-    Generates a ROC curve plot from the computed false positive rates (FPRs) and true positive rates (TPRs) at
+    Generates a ROC plot from the computed false positive rates (FPRs) and true positive rates (TPRs) at
     various (and corresponding) thresholds. The returned value is a matplotlib figure. The figure is composed of two
-    subfigures. The first is a standard ROC curve plot. The second is a log-log plot of the ROC curve, for a different
+    subfigures. The first is a standard ROC plot. The second is a log-log plot of the ROC for a different
     perspective on the metrics.
 
     Args:
@@ -53,7 +54,7 @@ def _generate_roc_figure(false_positive_rates: np.ndarray, true_positive_rates: 
         true_positive_rates: True positive rates associated with some set of predictions at various thresholds.
 
     Returns:
-        A matplotlib Figure plotting at ROC curves using the FPR and TPR values at various classification thresholds.
+        A matplotlib Figure plotting ROC using the FPR and TPR values at various classification thresholds.
     """
     figure, (ax1, ax2) = plt.subplots(ncols=2, figsize=(8, 3.5))
 
@@ -106,14 +107,15 @@ def _generate_table(
         for metric_name, metric_value in scores.items():
             if metric_name not in {"fpr", "tpr"}:
                 assert isinstance(metric_value, float)
-                # First entry
                 if metric_name in table_scores:
                     table_scores[metric_name].append(metric_value)
+                # First entry for the metric
                 else:
                     table_scores[metric_name] = [metric_value]
 
     table = pd.DataFrame.from_dict(table_scores)
     table.columns = [column_name_replacement[c] for c in table.columns]
+    # Add scenario names column at the front.
     table.insert(0, "Scenario Names", scenario_names)
     return table
 

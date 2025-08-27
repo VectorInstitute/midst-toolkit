@@ -20,6 +20,5 @@ wheels/
 # macos
 *.DS_Store
 
-src/midst_toolkit/core/scoring/test_scores.html
 # Synthcity backups
 **/workspace/*.bkp

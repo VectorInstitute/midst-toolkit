@@ -17,8 +17,7 @@ def compute_mia_scores_across_scenarios(
     Give a path to a set of scenario folders holding membership predictions and labels, this function runs scoring
     for all of the scenarios and stores the results in a dictionary keyed by the scenario folder name. The values
     of the dictionary are the sets of scores for the membership predictions keyed by the name of the metric. The
-    folder structure at each of the paths is assumed to be <scenario> -> <model_id> -> solutions.csv or
-    predictions.csv.
+    folder structure at each of the paths is assumed to be <scenario>/<model_id>/solutions.csv or predictions.csv.
 
     Args:
         labels_scenarios_dir: Directory containing scenario membership labels.
@@ -73,7 +72,8 @@ if __name__ == "__main__":
     """
     NOTE: For this script, performance is scored ACROSS model IDs within a scenario. That is, for each scenario, if
     you have  multiple model ID folders (see structure described below), the predictions and labels are agglomerated
-    and treated as ONE set of membership predictions for metrics computation.
+    and treated as ONE set of membership predictions for metrics computation. This matches the implementation in the
+    MIDST repository: https://github.com/VectorInstitute/MIDST/blob/main/codabench_bundles/midst_blackbox_multi_table/scoring_programs/final_scoring_program/scoring.py
     """
 
     parser = argparse.ArgumentParser()
@@ -82,7 +82,7 @@ if __name__ == "__main__":
         required=True,
         type=str,
         help=(
-            "The path to the directory containing both the membership labels file and predictions files. These "
+            "The path to the directory containing both the membership labels files and predictions files. These "
             "should be in CSV format. The file structure of the directory is assumed to follow the structure:\n"
             " - <preds_labels_directory>/ref/: Ground truth membership labels\n - <preds_labels_directory>/res/: "
             "Predictions for the same models\n\nStructure inside each:\n - <dataset>/<scenario>/<model_id>"
@@ -127,11 +127,15 @@ if __name__ == "__main__":
     assert len(labels_datasets) == 1, f"Expected one dataset in {labels_directory}, got: {labels_datasets}"
     assert len(preds_datasets) == 1, f"Expected one dataset in {preds_datasets}, got: {preds_datasets}"
 
-    log(INFO, f"Scoring Dataset: {labels_datasets[0]}")
+    labels_dataset = labels_datasets[0]
+    preds_dataset = preds_datasets[0]
+
+    assert labels_dataset == preds_dataset, "Dataset names are different for labels and preds directories."
+    log(INFO, f"Scoring Dataset: {labels_dataset}")
 
     # These are the "scenarios" or collections of predictions to be analyzed.
-    labels_scenarios_dir = labels_directory / labels_datasets[0]
-    preds_scenarios_dir = predictions_directory / labels_datasets[0]
+    labels_scenarios_dir = labels_directory / labels_dataset
+    preds_scenarios_dir = predictions_directory / preds_dataset
 
     scores_by_scenario = compute_mia_scores_across_scenarios(labels_scenarios_dir, preds_scenarios_dir, fpr_thresholds)
 
