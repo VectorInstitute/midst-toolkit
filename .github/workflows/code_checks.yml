@@ -29,10 +29,10 @@ jobs:
   run-code-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.3.0
+      - uses: actions/checkout@v5.0.0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc
+        uses: astral-sh/setup-uv@4959332f0f014c5280e7eac8b70c90cb574c9f9b
         with:
           # Install a specific version of uv.
           version: "0.5.21"
@@ -56,6 +56,11 @@ jobs:
         with:
           virtual-environment: .venv/
           # GHSA-887c-mr87-cxwp torch vulnerability without a fix yet
+          # PYSEC-2025-41, PYSEC-2024-259: These ignores are temporary. Synthcity needs python below or at 2.4 and
+          # these vulnerabilities exist until 2.5. However, we'll be removing the Synthcity dependency in follow up.
+          # So we'll be able to upgrade torch and drop these there.
           ignore-vulns: |
             GHSA-887c-mr87-cxwp
             GHSA-3749-ghw9-m3mg
+            PYSEC-2025-41
+            PYSEC-2024-259
