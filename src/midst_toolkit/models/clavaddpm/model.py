@@ -505,7 +505,6 @@ def train_classifier(
     cluster_col: str = "cluster",
     dim_t: int = 128,
     lr: float = 0.0001,
-    pre_trained_classifier: Classifier | None = None,
 ) -> Classifier:
     T = Transformations(**T_dict)
     dataset, label_encoders, column_orders = make_dataset_from_df(
@@ -533,17 +532,12 @@ def train_classifier(
     if model_params["is_y_cond"] == "concat":
         num_numerical_features -= 1
 
-    if pre_trained_classifier is None:
-        classifier = Classifier(
-            d_in=num_numerical_features,
-            d_out=int(max(df[cluster_col].values) + 1),
-            dim_t=dim_t,
-            hidden_sizes=d_layers,
-        ).to(device)
-    else:
-        classifier = pre_trained_classifier
-        classifier.to(device)
-
+    classifier = Classifier(
+        d_in=num_numerical_features,
+        d_out=int(max(df[cluster_col].values) + 1),
+        dim_t=dim_t,
+        hidden_sizes=d_layers,
+    ).to(device)
     classifier_optimizer = optim.AdamW(classifier.parameters(), lr=lr)
 
     empty_diffusion = GaussianMultinomialDiffusion(
