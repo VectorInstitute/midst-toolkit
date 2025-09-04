@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.midst_toolkit.common.logger import log
+from midst_toolkit.common.logger import log
 
 
 def save_dataframe(df: pd.DataFrame, file_path: Path, file_name: str) -> None:

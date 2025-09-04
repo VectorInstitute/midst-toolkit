@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 from omegaconf import DictConfig
 
-from src.midst_toolkit.attacks.ensemble.utils import (
+from midst_toolkit.attacks.ensemble.data_utils import (
     save_dataframe,
 )
 
@@ -23,7 +23,7 @@ def expand_ranges(ranges):
     Returns:
         A flat list of integers covering the ranges.
     """
-    expanded = []
+    expanded: list = []
     for r in ranges:
         start, end = r
         expanded.extend(range(start, end))
@@ -165,7 +165,7 @@ def collect_population_data_ensemble(
         attack_types=challenge_attack_types,
         data_splits=["train", "dev", "final"],
         dataset="challenge",
-        data_cdata_processing_configonfig=data_processing_config,
+        data_processing_config=data_processing_config,
     )
     # Save the challenge points
     save_dataframe(df_challenge, save_dir, "challenge_points_all.csv")

@@ -4,8 +4,8 @@ import pytest
 from hydra import compose, initialize
 from omegaconf import DictConfig
 
-from src.midst_toolkit.attacks.ensemble.process_split_data import process_split_data
-from src.midst_toolkit.attacks.ensemble.utils import load_dataframe
+from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
+from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 
 
 @pytest.fixture(scope="session")

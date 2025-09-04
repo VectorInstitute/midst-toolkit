@@ -7,15 +7,15 @@ from logging import INFO
 from pathlib import Path
 
 import hydra
+from ensemble_attack_example.real_data_collection import collect_population_data_ensemble
 from omegaconf import DictConfig
 
-from examples.ensemble_attack_example.real_data_collection import collect_population_data_ensemble
-from src.midst_toolkit.attacks.ensemble.process_split_data import process_split_data
-from src.midst_toolkit.common.logger import log
+from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
+from midst_toolkit.common.logger import log
 
 
 @hydra.main(config_path=".", config_name="config", version_base=None)
-def main(cfg: DictConfig):
+def main(cfg: DictConfig) -> None:
     """
     Run the Ensemble Attack example pipeline.
     As the first step, data processing is done.
