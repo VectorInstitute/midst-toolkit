@@ -1,14 +1,14 @@
 from logging import INFO
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from midst_toolkit.attacks.ensemble.utils import (
+from midst_toolkit.common.logger import log
+from src.midst_toolkit.attacks.ensemble.utils import (
     save_dataframe,
 )
-
-from midst_toolkit.common.logger import log
 
 
 def split_real_data(
@@ -24,6 +24,7 @@ def split_real_data(
         column_to_stratify: Column name to use for stratified splitting.
         proportion: Proportions for train and validation splits.
         random_seed: Random seed for reproducibility.
+
     Returns:
         A tuple containing the train, validation, and test dataframes.
     """
@@ -41,8 +42,7 @@ def split_real_data(
     # Further split the control into val and test set:
     df_real_val, df_real_test = train_test_split(
         df_real_control,
-        test_size=(1 - proportion["train"] - proportion["val"])
-        / (1 - proportion["train"]),
+        test_size=(1 - proportion["train"] - proportion["val"]) / (1 - proportion["train"]),
         random_state=random_seed,
         stratify=df_real_control[column_to_stratify],
     )
@@ -121,9 +121,7 @@ def generate_val_test(
         ignore_index=True,
     )
 
-    df_test = df_test.sample(frac=1, random_state=random_seed).reset_index(
-        drop=True
-    )
+    df_test = df_test.sample(frac=1, random_state=random_seed).reset_index(drop=True)
 
     y_test = df_test["is_train"].values
     df_test = df_test.drop(columns=["is_train"])
@@ -148,20 +146,17 @@ def process_split_data(
         num_total_samples: Number os samples that I randomly selected from the population. Defaults to 40000.
         random_seed: Random seed used for reproducibility. Defaults to 42.
     """
-
     # Original Ensemble attack samples 40k data points to construct
     # 1) the main population (real data) used for training the synthetic data generator model,
     # 2) evaluation that is the meta train data used to train the meta classifier,
     # 3) test to evaluate the meta classifier.
 
-    df_real_data = all_population_data.sample(
-        n=num_total_samples, random_state=random_seed
-    )
+    df_real_data = all_population_data.sample(n=num_total_samples, random_state=random_seed)
 
     # Split the data. df_real_train is used for training the synthetic data generator model.
     df_real_train, df_real_val, df_real_test = split_real_data(
         df_real_data,
-        column_to_stratify=column_to_stratify, 
+        column_to_stratify=column_to_stratify,
         random_seed=random_seed,
     )
     # Generate validation and test sets with labels. Validation is used for training the meta classifier
@@ -172,9 +167,7 @@ def process_split_data(
         df_real_train,
         df_real_val,
         df_real_test,
-        stratify=df_real_train[
-            column_to_stratify
-        ],  # TODO: This value is not documented in the original codebase.
+        stratify=df_real_train[column_to_stratify],  # TODO: This value is not documented in the original codebase.
         random_seed=random_seed,
     )
 

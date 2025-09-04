@@ -32,5 +32,3 @@ TODO: include the illustrations
 
 ## Terminology
 To be added....
-
-

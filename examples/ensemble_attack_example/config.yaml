@@ -40,7 +40,7 @@ data_processing_config:
   trans_json_file_path: ${base_example_dir}/data_configs/trans.json
   population_sample_size: 40000
 
-# Training settings (placeholder)  
+# Training settings (placeholder)
 shadow_training:
   epochs: 10
   learning_rate: 0.001

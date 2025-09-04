@@ -1,16 +1,28 @@
-""" This file is an uncompleted example script for running the ensemble attack on MIDST challenge provided resources and data. """
+"""
+This file is an uncompleted example script for running the Ensemble Attack on MIDST challenge
+provided resources and data.
+"""
+
 from logging import INFO
+from pathlib import Path
+
 import hydra
 from omegaconf import DictConfig
-from pathlib import Path
+
+from examples.ensemble_attack_example.real_data_collection import collect_population_data_ensemble
 from src.midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from src.midst_toolkit.common.logger import log
-from examples.ensemble_attack_example.real_data_collection import collect_population_data_ensemble
 
 
 @hydra.main(config_path=".", config_name="config", version_base=None)
 def main(cfg: DictConfig):
+    """
+    Run the Ensemble Attack example pipeline.
+    As the first step, data processing is done.
 
+    Args:
+        cfg: Attack OmegaConf DictConfig object.
+    """
     if cfg.pipeline.run_data_processing:
         log(INFO, "Running data processing pipeline...")
         # Collect the real data from the MIDST challenge resources.

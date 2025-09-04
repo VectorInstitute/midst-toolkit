@@ -1,10 +1,11 @@
 from pathlib import Path
-from omegaconf import DictConfig
+
 import pytest
-from hydra import initialize, compose
+from hydra import compose, initialize
 from omegaconf import DictConfig
-from src.midst_toolkit.attacks.ensemble.utils import load_dataframe
+
 from src.midst_toolkit.attacks.ensemble.process_split_data import process_split_data
+from src.midst_toolkit.attacks.ensemble.utils import load_dataframe
 
 
 @pytest.fixture(scope="session")

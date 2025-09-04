@@ -2,7 +2,9 @@
 This data collection script is tailored to the structure of the provided folders in
 MIDST competition.
 """
+
 from pathlib import Path
+
 import pandas as pd
 from omegaconf import DictConfig
 
@@ -12,6 +14,15 @@ from src.midst_toolkit.attacks.ensemble.utils import (
 
 
 def expand_ranges(ranges):
+    """
+    Reads a list of tuples representing ranges and expands them into a flat list of integers.
+
+    Args:
+        ranges: List of tuples, where each tuple contains two integers (start, end).
+
+    Returns:
+        A flat list of integers covering the ranges.
+    """
     expanded = []
     for r in ranges:
         start, end = r
@@ -62,9 +73,7 @@ def collect_midst_attack_data(
 
     df_real = pd.DataFrame()
     for i in data_id:
-        data_dir_ith = (
-            data_dir / attack_type / data_split / f"{generation_name}_{i}" / file_name
-        )
+        data_dir_ith = data_dir / attack_type / data_split / f"{generation_name}_{i}" / file_name
         df_real_ith = pd.read_csv(data_dir_ith)
         df_real = df_real_ith if i == 1 else pd.concat([df_real, df_real_ith])
 
@@ -134,7 +143,6 @@ def collect_population_data_ensemble(
     Returns:
         The collected population data as a dataframe.
     """
-
     # Ensemble Attack collects train data of all the attack types (back box and white box)
     attack_types = data_processing_config.collect_attack_data_types
     df_population = collect_midst_data(
