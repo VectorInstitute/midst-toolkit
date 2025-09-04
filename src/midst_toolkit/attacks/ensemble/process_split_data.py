@@ -20,13 +20,12 @@ def split_real_data(
     """Splits a real dataset into train, validation, and test sets, saves them as CSV files, and returns the splits.
 
     Args:
-        df_real (pd.DataFrame): The input real dataset to be split.
-        column_to_stratify (str, optional): Column name to use for stratified splitting. Defaults to None.
-        proportion (dict, optional): Proportions for train and validation splits.
-        random_seed (int, optional): Random seed for reproducibility. Defaults to None.
-
+        df_real: The input real dataset to be split.
+        column_to_stratify: Column name to use for stratified splitting.
+        proportion: Proportions for train and validation splits.
+        random_seed: Random seed for reproducibility.
     Returns:
-        Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: A tuple containing the train, validation, and test DataFrames.
+        A tuple containing the train, validation, and test dataframes.
     """
     if proportion is None:
         proportion = {"train": 0.5, "val": 0.25}
@@ -67,14 +66,14 @@ def generate_val_test(
     The resulting validation and test sets are used for meta classifier training and evaluation, respectively.
 
     Args:
-        df_real_train (pd.DataFrame): Real training data.
-        df_real_control_val (pd.DataFrame): Real control data for validation.
-        df_real_control_test (pd.DataFrame): Real control data for final evaluation.
-        stratify (pd.Series): Series used to stratify the real training data.
-        random_seed (int): Random seed for reproducibility.
+        df_real_train: Real training data.
+        df_real_control_val: Real control data for validation.
+        df_real_control_test: Real control data for final evaluation.
+        stratify: Series used to stratify the real training data.
+        random_seed: Random seed for reproducibility.
 
     Returns:
-        Tuple[pd.DataFrame, np.ndarray, pd.DataFrame, np.ndarray]: Features and labels for validation and test sets.
+        Features and labels for validation and test sets, respectively.
     """
     df_real_train["stratify"] = stratify
 
@@ -141,6 +140,13 @@ def process_split_data(
 ) -> None:
     """
     Splits the data into train, validation, and test sets according to the attack design.
+
+    Args:
+        all_population_data: The total population data that the attacker has access to as a DataFrame.
+        processed_attack_data_path: Path where the processed attack data will be saved.
+        column_to_stratify: Column name to use for stratified splitting.
+        num_total_samples: Number os samples that I randomly selected from the population. Defaults to 40000.
+        random_seed: Random seed used for reproducibility. Defaults to 42.
     """
 
     # Original Ensemble attack samples 40k data points to construct

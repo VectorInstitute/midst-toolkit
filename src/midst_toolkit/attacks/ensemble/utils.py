@@ -29,11 +29,11 @@ def load_dataframe(file_path: Path, file_name: str) -> pd.DataFrame:
     Load a DataFrame from a CSV file.
 
     Args:
-        file_path (str): Path where the file is stored.
-        file_name (str): Name of the file to load the DataFrame from.
+        file_path: Path where the file is stored.
+        file_name: Name of the file to load the DataFrame from.
 
     Returns:
-        pd.DataFrame: Loaded DataFrame.
+        pd.DataFrame: Loaded dataframe.
     """
     full_path = file_path / file_name
     assert Path.exists(full_path), f"File {full_path} does not exist."

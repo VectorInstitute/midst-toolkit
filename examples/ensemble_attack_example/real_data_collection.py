@@ -30,11 +30,11 @@ def collect_midst_attack_data(
     Collect the real data in a specific setting of the provided MIDST challenge resources.
 
     Args:
-        attack_type (str): The attack setting.
-        data_dir (Path): The path where the data is stored.
-        data_split (str): Indicates if this is train, dev, or final data.
-        dataset (str): The dataset to be collected. Either "train" or "challenge".
-        data_config (dict): Configuration dictionary containing data paths and file names.
+        attack_type: The attack setting.
+        data_dir: The path where the data is stored.
+        data_split: Indicates if this is train, dev, or final data.
+        dataset: The dataset to be collected. Either "train" or "challenge".
+        data_processing_config: Configuration dictionary containing data specific information.
 
     Returns:
         pd.DataFrame: The specified dataset in this setting.
@@ -77,21 +77,22 @@ def collect_midst_data(
     attack_types: list[str],
     data_splits: list[str],
     dataset: str,
-    data_config: DictConfig,
+    data_processing_config: DictConfig,
 ) -> pd.DataFrame:
     """
     Collect train or challenge data of the specified attack type from the provided data folders
     in the MIDST competition.
 
     Args:
-        attack_types (list[str]): List of attack names to be collected.
-        data_splits (list[str]): A list indicating the data split to be collected.
+        midst_data_input_dir: The path where the MIDST data folders are stored.
+        attack_types: List of attack names for data collection.
+        data_splits: A list indicating the data split to be collected.
             Could be any of train, dev, or final data splits.
-        dataset (str): The dataset to be collected. Either "train" or "challenge".
-        data_config (dict): Configuration dictionary containing data paths and file names.
+        dataset: The dataset to be collected. Either "train" or "challenge".
+        data_processing_config: Configuration dictionary containing data paths and file names.
 
     Returns:
-        pd.DataFrame: Collected train or challenge data as a DataFrame.
+        Collected train or challenge data as a dataframe.
     """
     assert dataset in [
         "train",
@@ -105,7 +106,7 @@ def collect_midst_data(
                 data_dir=midst_data_input_dir,
                 data_split=data_split,
                 dataset=dataset,
-                data_processing_config=data_config,
+                data_processing_config=data_processing_config,
             )
 
         population.append(df_real)
@@ -119,19 +120,19 @@ def collect_population_data_ensemble(
     save_dir: Path,
 ) -> pd.DataFrame:
     """
-    Collect the population data from the MIDST competition based on ensemble mia implementation.
+    Collect the population data from the MIDST competition based on Ensemble Attack implementation.
     Returns real data population that consists of the train data of all the attacks
     (black box and white box), and challenge points from train, dev and final of
     "tabddpm_black_box" attack. The population data is saved in the provided path,
     and returned as a dataframe.
 
     Args:
-        data_config (dict): Configuration dictionary containing data paths and file names.
-        attack_types (list[str] | None): List of attack names to be collected.
-            If None, all the attacks are collected based on ensemble mia implementation.
+        midst_data_input_dir: The path where the MIDST data folders are stored.
+        data_processing_config: Configuration dictionary containing data information and file names.
+        save_dir: The path where the collected population data should be saved.
 
     Returns:
-        pd.DataFrame: The collected population data.
+        The collected population data as a dataframe.
     """
 
     # Ensemble Attack collects train data of all the attack types (back box and white box)
@@ -141,7 +142,7 @@ def collect_population_data_ensemble(
         attack_types,
         data_splits=["train"],
         dataset="train",
-        data_config=data_processing_config,
+        data_processing_config=data_processing_config,
     )
     # Drop ids.
     df_population_no_id = df_population.drop(columns=["trans_id", "account_id"])
@@ -156,7 +157,7 @@ def collect_population_data_ensemble(
         attack_types=challenge_attack_types,
         data_splits=["train", "dev", "final"],
         dataset="challenge",
-        data_config=data_processing_config,
+        data_cdata_processing_configonfig=data_processing_config,
     )
     # Save the challenge points
     save_dataframe(df_challenge, save_dir, "challenge_points_all.csv")
