@@ -8,9 +8,7 @@ from pathlib import Path
 import pandas as pd
 from omegaconf import DictConfig
 
-from midst_toolkit.attacks.ensemble.data_utils import (
-    save_dataframe,
-)
+from midst_toolkit.attacks.ensemble.data_utils import save_dataframe
 
 
 def expand_ranges(ranges):

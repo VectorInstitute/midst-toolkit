@@ -5,9 +5,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from midst_toolkit.attacks.ensemble.data_utils import (
-    save_dataframe,
-)
+from midst_toolkit.attacks.ensemble.data_utils import save_dataframe
 from midst_toolkit.common.logger import log
 
 
