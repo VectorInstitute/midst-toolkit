@@ -64,7 +64,7 @@ def split_real_data(
     )
 
 
-def generate_val_test(
+def generate_train_test_challenge_splits(
     df_real_train: pd.DataFrame,
     df_real_control_val: pd.DataFrame,
     df_real_control_test: pd.DataFrame,
@@ -114,7 +114,10 @@ def generate_val_test(
     df_val = df_val.drop(columns=["is_train"])
 
     # Test set
-    # df_temp will be assigned as our test set if it has the same size as df_real_control_test.
+    # `df_temp` will be assigned as our test set if it has the same size as `df_real_control_test`,
+    # otherwise, we further split `df_temp` to get a test set of the same size as `df_real_control_test`.
+    # This is because we want to take a train split of same size as `df_real_control_test` to ensure
+    # balanced classes in the final test set.
     if len(df_temp) == len(df_real_control_test):
         df_real_train_test = df_temp
     else:
@@ -161,22 +164,28 @@ def process_split_data(
     """
     # Original Ensemble attack samples 40k data points to construct
     # 1) the main population (real data) used for training the synthetic data generator model,
-    # 2) evaluation that is the meta train data used to train the meta classifier,
-    # 3) test to evaluate the meta classifier.
+    # 2) evaluation that is the meta train data (membership classification train dataset) used to train
+    #    the meta classifier,
+    # 3) test (membership classification test dataset) to evaluate the meta classifier.
 
     df_real_data = all_population_data.sample(n=num_total_samples, random_state=random_seed)
 
-    # Split the data. df_real_train is used for training the synthetic data generator model.
+    # `df_real_train` is used for training the synthetic data generator model.
     df_real_train, df_real_val, df_real_test = split_real_data(
         df_real_data,
         column_to_stratify=column_to_stratify,
         random_seed=random_seed,
     )
-    # Generate validation and test sets with labels. Validation is used for training the meta classifier
-    # and test is used for meta classifier evaluation.
-    # Half of the df_real_train will be assigned to validation and the other half to test with
+    # Generate challenge datasets:
+    # `df_val` is used for training the meta classifier (membership classification train dataset).
+    # and `df_test` is used for meta classifier evaluation (membership classification test dataset).
+    # A part of the `df_real_train` will be assigned to `df_val` and a another part to `df_test` with
     # their "is_train" column set to 1 meaning that these samples are in the models training corpus.
-    df_val, y_val, df_test, y_test = generate_val_test(
+    # Because `df_real_train` will be used to train a synthetic model, we're including some of it in
+    # `df_val` and `df_test` sets to create the challenges assuming the `df_real_val` and `df_real_test`
+    # data will not be part of the training data.
+    # This code makes sure `is_train` classes are balanced in the challenge datasets.
+    df_val, y_val, df_test, y_test = generate_train_test_challenge_splits(
         df_real_train,
         df_real_val,
         df_real_test,
