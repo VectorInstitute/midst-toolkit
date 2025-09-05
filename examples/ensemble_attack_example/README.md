@@ -9,16 +9,16 @@ To run the whole data processing pipeline, run `run_attack.py` and set `pipeline
 
 Data processing steps for the MIDST challenge provided resources according to Ensemble attack are as follows:
 
-**Step 1**:   
+**Step 1**:
 Collect all the **train data** from all the attack types (every train folder provided by the challenge) including black-box and white-box attack. `population_all.csv` will include a total of `867494` data points. To alter the attack types for train data collection, change `data_processing_config.data_processing_config` in `config.yaml`.
 
-**Step 2**:  
+**Step 2**:
  Collect all the **challenge data points** from `train`, `dev` and `final` folders of `tabddpm_black_box`.  `challenge_points_all.csv` will include a total of `13896` data points.
 
-**Step 3**:  
+**Step 3**:
  Save population data without and with challenge points. `population_all_no_challenge.csv` will include a total of `855644` data points, and `population_all_with_challenge.csv` will include a total of `869540` data points.
 
-**Note**  
+**Note**
 `population_all_with_challenge.csv` is used to create real train and test data. Note that a random subset of `40k` data points are sampled from `population_all_with_challenge.csv` and used as population (or real data). You can change the number of random samples by changing `data_processing_config.population_sample_size` in `config.yaml`.
 
 ### Run the script
@@ -41,7 +41,7 @@ Or you can directly run the bash script:
 # Terminology
 
 ### Figure 1: Black-Box Membership Inference Attack
-- Private dataset (real data): Training data owned by a company or an entity used to train a synthetic data generator model. 
+- Private dataset (real data): Training data owned by a company or an entity used to train a synthetic data generator model.
 
 - Synthetic dataset (not real): The generated data by the data generator model. This dataset is the only thing published by the company in a black-box setting.
 
@@ -58,7 +58,7 @@ Or you can directly run the bash script:
 
 ### Figure 2: Ensemble Attack Data
 The following diagram illustrates how the Ensemble Attack constructs meta-train and meta-evaluation datasets for training the meta-classifier.
-When building the meta-train dataset (a labeled challenge dataset used for training), we ensure the is_train labels are balanced. The same balancing applies to the meta-evaluation dataset. 
+When building the meta-train dataset (a labeled challenge dataset used for training), we ensure the is_train labels are balanced. The same balancing applies to the meta-evaluation dataset.
 
 ![Ensemble Attack Data Diagram](readme_images/ensemble_attack_data.png)
 
