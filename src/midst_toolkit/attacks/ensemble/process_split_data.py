@@ -12,22 +12,34 @@ from midst_toolkit.common.logger import log
 def split_real_data(
     df_real: pd.DataFrame,
     column_to_stratify: str | None = None,
-    proportion: dict | None = None,
+    proportion: dict[str, float] | None = None,
     random_seed: int | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Splits a real dataset into train, validation, and test sets, saves them as CSV files, and returns the splits.
 
     Args:
         df_real: The input real dataset to be split.
-        column_to_stratify: Column name to use for stratified splitting.
-        proportion: Proportions for train and validation splits.
-        random_seed: Random seed for reproducibility.
+        column_to_stratify: Column name to use for stratified splitting. If provided, the function
+            ensures that the distribution of values in this column is preserved across the splits.
+            If None, no stratification is applied. Defaults to None.
+        proportion: Proportions for train and validation splits. If None, defaults to {"train": 0.5, "val": 0.25}.
+            The test set proportion will be inferred as 1 - (train + val). Defaults to None.
+        random_seed: Random seed for reproducibility. If None, you might get different splits each time.
+            Defaults to None.
 
     Returns:
         A tuple containing the train, validation, and test dataframes.
     """
     if proportion is None:
         proportion = {"train": 0.5, "val": 0.25}
+    else:
+        # Sanity check for proportion values
+        assert "train" in proportion and "val" in proportion, "Proportion must contain 'train' and 'val' keys."
+        assert 0 < proportion["train"] < 1, "Train proportion must be between 0 and 1."
+        assert 0 < proportion["val"] < 1, "Validation proportion must be between 0 and 1."
+        assert proportion["train"] + proportion["val"] < 1, (
+            "Sum of train and validation proportions must be less than 1."
+        )
 
     # Split the real data into train and control
     df_real_train, df_real_control = train_test_split(
@@ -67,7 +79,9 @@ def generate_val_test(
         df_real_train: Real training data.
         df_real_control_val: Real control data for validation.
         df_real_control_test: Real control data for final evaluation.
-        stratify: Series used to stratify the real training data.
+        stratify: Series used to stratify the real training data. This column is added to read train data
+            as "stratify" and is used for stratified splitting. This ensures that the distribution of values
+            in this column is preserved across the splits.
         random_seed: Random seed for reproducibility.
 
     Returns:
@@ -99,7 +113,8 @@ def generate_val_test(
     y_val = df_val["is_train"].values
     df_val = df_val.drop(columns=["is_train"])
 
-    # Test set: can be used to evaluate all the models
+    # Test set
+    # df_temp will be assigned as our test set if it has the same size as df_real_control_test.
     if len(df_temp) == len(df_real_control_test):
         df_real_train_test = df_temp
     else:

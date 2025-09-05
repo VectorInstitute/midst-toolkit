@@ -3,12 +3,24 @@ This data collection script is tailored to the structure of the provided folders
 MIDST competition.
 """
 
+from enum import Enum
 from pathlib import Path
 
 import pandas as pd
 from omegaconf import DictConfig
 
-from midst_toolkit.attacks.ensemble.data_utils import save_dataframe
+from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
+
+
+class AttackType(Enum):
+    """Enum for the different attack types."""
+
+    TABDDPM_BLACK_BOX = "tabddpm_black_box"
+    TABDDPM_WHITE_BOX = "tabddpm_white_box"
+    TABSYN_BLACK_BOX = "tabsyn_black_box"
+    TABSYN_WHITE_BOX = "tabsyn_white_box"
+    CLAVADDPM_BLACK_BOX = "clavaddpm_black_box"
+    CLAVADDPM_WHITE_BOX = "clavaddpm_white_box"
 
 
 def expand_ranges(ranges):
@@ -29,7 +41,7 @@ def expand_ranges(ranges):
 
 
 def collect_midst_attack_data(
-    attack_type: str,
+    attack_type: AttackType,
     data_dir: Path,
     data_split: str,
     dataset: str,
@@ -48,16 +60,18 @@ def collect_midst_attack_data(
     Returns:
         pd.DataFrame: The specified dataset in this setting.
     """
-    # `data_id` is the folder numbering of each training or challenge dataset.
     assert data_split in [
         "train",
         "dev",
         "final",
     ], "data_split should be one of 'train', 'dev', or 'final'."
+    # `data_id` is the folder numbering of each training or challenge dataset,
+    #  and is defined with the provided config.
     data_id = expand_ranges(data_processing_config.folder_ranges[data_split])
 
     # Get file name based on the kind of dataset to be collected (i.e. train vs challenge).
-    generation_name = attack_type.split("_")[0]
+    # TODO: Make the below parsing a bit more robust and less brittle
+    generation_name = attack_type.value.split("_")[0]
     if dataset == "challenge":
         file_name = data_processing_config.challenge_data_file_name
     else:  # dataset == "train"
@@ -67,12 +81,12 @@ def collect_midst_attack_data(
             if generation_name == "clavaddpm"
             else data_processing_config.single_table_train_data_file_name
         )
-    assert file_name.split(".")[-1] == "csv", "File name should end with .csv."
 
     df_real = pd.DataFrame()
     for i in data_id:
-        data_dir_ith = data_dir / attack_type / data_split / f"{generation_name}_{i}" / file_name
-        df_real_ith = pd.read_csv(data_dir_ith)
+        data_path_ith = data_dir / attack_type.value / data_split / f"{generation_name}_{i}"
+        # Will raise FileNotFoundError if the file does not exist or if it is not a CSV file.
+        df_real_ith = load_dataframe(data_path_ith, file_name)
         df_real = df_real_ith if i == 1 else pd.concat([df_real, df_real_ith])
 
     return df_real.drop_duplicates()
@@ -81,7 +95,7 @@ def collect_midst_attack_data(
 # TODO: find a better name for dataset argument in the functions below.
 def collect_midst_data(
     midst_data_input_dir: Path,
-    attack_types: list[str],
+    attack_types: list[AttackType],
     data_splits: list[str],
     dataset: str,
     data_processing_config: DictConfig,
@@ -92,24 +106,21 @@ def collect_midst_data(
 
     Args:
         midst_data_input_dir: The path where the MIDST data folders are stored.
-        attack_types: List of attack names for data collection.
+        attack_types: List of attack types for data collection.
         data_splits: A list indicating the data split to be collected.
             Could be any of train, dev, or final data splits.
-        dataset: The dataset to be collected. Either "train" or "challenge".
+        dataset: The dataset to be collected. Either `train` or `challenge`.
         data_processing_config: Configuration dictionary containing data paths and file names.
 
     Returns:
         Collected train or challenge data as a dataframe.
     """
-    assert dataset in [
-        "train",
-        "challenge",
-    ], " Only 'train' and 'challenge' collection is supported."
+    assert dataset in {"train", "challenge"}, "Only 'train' and 'challenge' collection is supported."
     population = []
-    for attack_name in attack_types:
+    for attack_type in attack_types:
         for data_split in data_splits:
             df_real = collect_midst_attack_data(
-                attack_type=attack_name,
+                attack_type=attack_type,
                 data_dir=midst_data_input_dir,
                 data_split=data_split,
                 dataset=dataset,
@@ -129,7 +140,7 @@ def collect_population_data_ensemble(
     """
     Collect the population data from the MIDST competition based on Ensemble Attack implementation.
     Returns real data population that consists of the train data of all the attacks
-    (black box and white box), and challenge points from train, dev and final of
+    (black box and white box), and challenge points from `train`, `dev` and `final` of
     "tabddpm_black_box" attack. The population data is saved in the provided path,
     and returned as a dataframe.
 
@@ -141,8 +152,11 @@ def collect_population_data_ensemble(
     Returns:
         The collected population data as a dataframe.
     """
-    # Ensemble Attack collects train data of all the attack types (back box and white box)
-    attack_types = data_processing_config.collect_attack_data_types
+    # Ensemble Attack collects train data of all the attack types (black box and white box)
+    attack_names = data_processing_config.collect_attack_data_types
+    # Provided attack name are valid based on AttackType enum
+    attack_types: list[AttackType] = [AttackType(attack_name) for attack_name in attack_names]
+
     df_population = collect_midst_data(
         midst_data_input_dir,
         attack_types,
@@ -157,7 +171,7 @@ def collect_population_data_ensemble(
     save_dataframe(df_population_no_id, save_dir, "population_all_no_id.csv")
 
     # Collect all the challenge points from train, dev and final of "tabddpm_black_box" attack.
-    challenge_attack_types = ["tabddpm_black_box"]
+    challenge_attack_types = [AttackType.TABDDPM_BLACK_BOX]
     df_challenge = collect_midst_data(
         midst_data_input_dir,
         attack_types=challenge_attack_types,

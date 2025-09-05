@@ -9,15 +9,15 @@ To run the whole data processing pipeline, run `run_attack.py` and set `pipeline
 
 Data processing steps for the MIDST challenge provided resources according to Ensemble attack are as follows:
 
-Step 1: Collect all the **train data** from all the attack types (every train folder provided by the challenge) including black-box and white-box attack. "population_all.csv" includes a total of `867494` data points. To alter the attack types for train data collection, change `data_processing_config.data_processing_config` in `config.yaml`.
+Step 1: Collect all the **train data** from all the attack types (every train folder provided by the challenge) including black-box and white-box attack. `population_all.csv` will include a total of `867494` data points. To alter the attack types for train data collection, change `data_processing_config.data_processing_config` in `config.yaml`.
 
-Step 2: Collect all the **challenge data points** from `train`, `dev` and `final` folders of `tabddpm_black_box`.  `challenge_points_all.csv` includes `13896` data points.
+Step 2: Collect all the **challenge data points** from `train`, `dev` and `final` folders of `tabddpm_black_box`.  `challenge_points_all.csv` will include a total of `13896` data points.
 
-Step 3: Save population data without and with challenge points. `population_all_no_challenge.csv` includes `855644` data points, and `population_all_with_challenge.csv` includes `869540` data points.
+Step 3: Save population data without and with challenge points. `population_all_no_challenge.csv` will include a total of `855644` data points, and `population_all_with_challenge.csv` will include a total of `869540` data points.
 
 `population_all_with_challenge.csv` is used to create real train and test data. Note that a random subset of `40k` data points are sampled from `population_all_with_challenge.csv` and used as population (or real data). You can change the number of random samples by changing `data_processing_config.population_sample_size` in `config.yaml`.
 
-To run the steps first make sure to activate your virtual environment and check `config.yaml`. Then run:
+To run the steps first make sure to activate your virtual environment and adjust `config.yaml`. Then run:
 
 
 ```python
@@ -26,9 +26,13 @@ python -m examples.ensemble_attack_example.run_attack
 
 ```
 
+Or you can directly run the bash script:
 
+```bash
+ ./examples/ensemble_attack_example/run.sh
 
-TODO: include the illustrations
+```
+
 
 ## Terminology
 To be added....

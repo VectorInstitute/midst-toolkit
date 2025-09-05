@@ -8,15 +8,15 @@ from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def cfg() -> DictConfig:
-    # Adjust path to point to conf/ folder
     with initialize(config_path="."):
         return compose(config_name="test_config")
 
 
 def test_process_split_data(cfg: DictConfig, tmp_path: Path) -> None:
-    # Comment the next line to update processed attack data stored at processed_attack_data_path.
+    # Comment out the next line to store output data at processed_attack_data_path
+    # and see the files for yourself.
     cfg.data_paths.processed_attack_data_path = tmp_path
     output_dir = Path(cfg.data_paths.processed_attack_data_path)
 

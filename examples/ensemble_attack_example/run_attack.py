@@ -7,9 +7,9 @@ from logging import INFO
 from pathlib import Path
 
 import hydra
-from ensemble_attack_example.real_data_collection import collect_population_data_ensemble
 from omegaconf import DictConfig
 
+from examples.ensemble_attack_example.real_data_collection import collect_population_data_ensemble
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.common.logger import log
 
