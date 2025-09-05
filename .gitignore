@@ -25,3 +25,6 @@ wheels/
 
 # Dataset files
 examples/**/data/
+
+# hydra output
+outputs/
