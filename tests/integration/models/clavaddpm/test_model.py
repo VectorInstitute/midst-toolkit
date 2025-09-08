@@ -391,6 +391,10 @@ def test_train_multi_table(tmp_path: Path):
 
 @pytest.mark.integration_test()
 def test_clustering_reload(tmp_path: Path):
+    # Setup
+    set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
+
+    # Act
     tables, relation_order, dataset_meta = load_multi_table("tests/integration/assets/multi_table/")
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
 
