@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from midst_toolkit.evaluation.generation_quality.utils import (
+from midst_toolkit.evaluation.utils import (
     create_quality_metrics_directory,
     dump_metrics_dict,
 )

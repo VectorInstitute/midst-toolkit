@@ -3,9 +3,9 @@ from logging import INFO
 import pandas as pd
 
 from midst_toolkit.common.logger import log
-from midst_toolkit.evaluation.generation_quality.quality_metric_base import QualityMetricBase
-from midst_toolkit.evaluation.generation_quality.synthcity.dataloader import GenericDataLoader
-from midst_toolkit.evaluation.generation_quality.synthcity.statistical_eval import (
+from midst_toolkit.evaluation.metric_base import MetricBase
+from midst_toolkit.evaluation.quality.synthcity.dataloader import GenericDataLoader
+from midst_toolkit.evaluation.quality.synthcity.statistical_eval import (
     AlphaPrecision as SynthcityAlphaPrecision,
 )
 
@@ -13,7 +13,7 @@ from midst_toolkit.evaluation.generation_quality.synthcity.statistical_eval impo
 NAIVE_METRIC_SUFFIX = "naive"
 
 
-class AlphaPrecision(QualityMetricBase):
+class AlphaPrecision(MetricBase):
     def __init__(self, naive_only: bool = True):
         """
         Compute several quality metrics based on the Alpha Precision measure originally proposed in

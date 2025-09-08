@@ -9,7 +9,7 @@ from torch import nn
 from torch.autograd import Variable
 
 from midst_toolkit.common.logger import log
-from midst_toolkit.evaluation.generation_quality.synthcity.networks import build_network
+from midst_toolkit.evaluation.quality.synthcity.networks import build_network
 
 
 def one_class_loss(outputs: torch.Tensor, c: torch.Tensor) -> torch.Tensor:

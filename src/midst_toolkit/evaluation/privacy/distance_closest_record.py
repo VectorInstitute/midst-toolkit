@@ -9,8 +9,8 @@ from sklearn.preprocessing import OneHotEncoder
 from tqdm import tqdm
 
 from midst_toolkit.common.logger import log
-from midst_toolkit.evaluation.generation_quality.quality_metric_base import QualityMetricBase
-from midst_toolkit.evaluation.generation_quality.utils import extract_columns_based_on_meta_info
+from midst_toolkit.evaluation.metric_base import MetricBase
+from midst_toolkit.evaluation.utils import extract_columns_based_on_meta_info
 
 
 class NormType(Enum):
@@ -227,7 +227,7 @@ def preprocess_for_distance_to_closest_record_score(
     )
 
 
-class DistanceToClosestRecordScore(QualityMetricBase):
+class DistanceToClosestRecordScore(MetricBase):
     def __init__(self, norm: NormType = NormType.L1, batch_size: int = 1000, device: torch.device = DEVICE):
         """
         A class to compute the distance to closest record (DCR) score for the ``synthetic_data``. Here, DCR is
@@ -314,7 +314,7 @@ class DistanceToClosestRecordScore(QualityMetricBase):
         return {"dcr_score": score.item()}
 
 
-class MedianDistanceToClosestRecordScore(QualityMetricBase):
+class MedianDistanceToClosestRecordScore(MetricBase):
     def __init__(self, norm: NormType = NormType.L1, batch_size: int = 1000, device: torch.device = DEVICE):
         """
         A metric to compute the Median Distance to Closest Record (Median DCR) metric as described in:

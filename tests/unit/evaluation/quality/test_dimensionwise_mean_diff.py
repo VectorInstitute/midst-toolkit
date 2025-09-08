@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from midst_toolkit.evaluation.generation_quality.dimensionwise_mean_difference import DimensionwiseMeanDifference
+from midst_toolkit.evaluation.quality.dimensionwise_mean_difference import DimensionwiseMeanDifference
 
 
 def test_dimensionwise_mean_diff_no_preprocess() -> None:
