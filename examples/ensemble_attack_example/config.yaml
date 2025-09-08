@@ -47,5 +47,10 @@ shadow_training:
   batch_size: 64
   model_type: "tabddpm"
 
+# Metaclassifier settings (placeholder)
+metaclassifier:
+  model_type: "xg"
+  
+
 # General settings
 random_seed: 42

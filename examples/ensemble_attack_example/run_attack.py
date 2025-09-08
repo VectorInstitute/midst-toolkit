@@ -8,10 +8,14 @@ from pathlib import Path
 
 import hydra
 from omegaconf import DictConfig
+import numpy as np
 
 from examples.ensemble_attack_example.real_data_collection import collect_population_data_ensemble
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.common.logger import log
+from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
+
+from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus
 
 
 @hydra.main(config_path=".", config_name="config", version_base=None)
@@ -41,6 +45,48 @@ def main(cfg: DictConfig) -> None:
             random_seed=cfg.random_seed,
         )
         log(INFO, "Data processing pipeline finished.")
+
+    elif cfg.pipeline.run_metaclassifier_training:
+        log(INFO, "Running metaclassifier training...")
+        # Load the processed data splits.
+        df_meta_train = load_dataframe(
+            Path(cfg.data_paths.processed_attack_data_path),
+            "master_challenge_train.csv",
+        )
+        y_meta_train = np.load(
+            Path(cfg.data_paths.processed_attack_data_path) / "master_challenge_train_labels.npy",
+        )
+        df_meta_test = load_dataframe(
+            Path(cfg.data_paths.processed_attack_data_path),
+            "master_challenge_test.csv",
+        )
+        y_meta_test = np.load(
+            Path(cfg.data_paths.processed_attack_data_path) / "master_challenge_test_labels.npy",
+        )
+        # Fit the metaclassifier.
+        # 1. Initialize the attacker
+        blending_attacker = BlendingPlusPlus(meta_classifier_type='xgb')
+
+        # 2. Train the attacker on the meta-train set
+        blending_attacker.fit(
+            df_train=df_meta_train,
+            y_train=y_meta_train,
+            df_synth=,
+            df_ref=None,
+            cat_cols=[],
+            epochs=1,
+
+        )
+
+        # 3. Get predictions on the test set
+        final_predictions = blending_attacker.predict_proba(
+
+        )
+
+        print("Final Blending++ predictions:", final_predictions)
+        #TODO: Change print to logging
+        #TODO: Save trained model
+        log(INFO, "Metaclassifier training finished.")
 
 
 if __name__ == "__main__":
