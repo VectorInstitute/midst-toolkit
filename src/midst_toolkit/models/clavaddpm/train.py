@@ -137,7 +137,7 @@ def clava_training(
     diffusion_config: Configs,
     classifier_config: Configs | None,
     device: str = "cuda",
-) -> dict[tuple[str, str], dict[str, Any]]:
+) -> tuple[Tables, dict[tuple[str, str], dict[str, Any]]]:
     """
     Training function for the ClavaDDPM model.
 
@@ -181,7 +181,9 @@ def clava_training(
         device: Device to use for training. Default is `"cuda"`.
 
     Returns:
-        Dictionary of models for each parent-child pair.
+        A tuple with 2 values:
+            - The tables dictionary.
+            - Dictionary of models for each parent-child pair.
     """
     models = {}
     for parent, child in relation_order:
@@ -212,7 +214,13 @@ def clava_training(
         with open(target_file, "wb") as f:
             pickle.dump(result, f)
 
-    return models
+    for parent, child in relation_order:
+        if parent is None:
+            tables[child]["df"]["placeholder"] = list(range(len(tables[child]["df"])))
+
+    save_table_info(tables, relation_order, models, save_dir)
+
+    return tables, models
 
 
 def child_training(
@@ -387,6 +395,8 @@ def train_model(
         category_sizes = np.array([0])
         # ruff: noqa: N806
 
+    _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.y["train"]), return_counts=True)
+
     num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
     d_in = np.sum(category_sizes) + num_numerical_features
     model_params["d_in"] = d_in
@@ -429,6 +439,11 @@ def train_model(
         "label_encoders": label_encoders,
         "dataset": dataset,
         "column_orders": column_orders,
+        "num_numerical_features": num_numerical_features,
+        "K": category_sizes,
+        "empirical_class_dist": empirical_class_dist,
+        "is_regression": dataset.is_regression,
+        "inverse_transform": dataset.num_transform.inverse_transform if dataset.num_transform is not None else None,
     }
 
 
@@ -578,3 +593,65 @@ def train_classifier(
     print(acc)
 
     return classifier
+
+
+def save_table_info(
+    tables: Tables,
+    relation_order: list[tuple[str, str]],
+    models: dict[tuple[str, str], dict[str, Any]],
+    save_dir: Path,
+) -> None:
+    """
+    Save the table information into the save_dir.
+
+    Args:
+        tables: Dictionary of the tables by name.
+        relation_order: List of tuples of parent and child tables. Example:
+            [("table1", "table2"), ("table1", "table3")]
+        models: Dictionary of models for each parent-child pair.
+        save_dir: Directory to save the table information.
+    """
+    table_info = {}
+    for parent, child in relation_order:
+        result = models[(parent, child)]
+        df_with_cluster = tables[child]["df"]
+        df_without_id = get_df_without_id(df_with_cluster)
+        df_info = result["df_info"]
+        X_num_real = df_without_id[df_info["num_cols"]].to_numpy().astype(float)
+        uniq_vals_list = []
+        for col in range(X_num_real.shape[1]):
+            uniq_vals = np.unique(X_num_real[:, col])
+            uniq_vals_list.append(uniq_vals)
+        table_info[(parent, child)] = {
+            "uniq_vals_list": uniq_vals_list,
+            "size": len(df_with_cluster),
+            "columns": tables[child]["df"].columns,
+            "parents": tables[child]["parents"],
+            "original_cols": tables[child]["original_cols"],
+        }
+        required_keys = ["num_numerical_features", "is_regression", "inverse_transform", "empirical_class_dist", "K"]
+        filtered_result = {key: result[key] for key in required_keys}
+        table_info[(parent, child)].update(filtered_result)
+
+    for parent, child in relation_order:
+        with open(save_dir / f"models/{parent}_{child}_ckpt.pkl", "rb") as f:
+            result = pickle.load(f)
+
+        result["table_info"] = table_info
+
+        with open(save_dir / f"models/{parent}_{child}_ckpt.pkl", "wb") as f:
+            pickle.dump(result, f)
+
+
+def get_df_without_id(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Get the dataframe without the id columns.
+
+    Args:
+        df: the input DataFrame.
+
+    Returns:
+        The DataFrame without the id columns.
+    """
+    id_cols = [col for col in df.columns if "_id" in col]
+    return df.drop(columns=id_cols)
