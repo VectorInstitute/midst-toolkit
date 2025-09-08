@@ -1,0 +1,15 @@
+{
+    "relation_order": [
+        ["account", "trans"]
+    ],
+    "tables": {
+        "account": {
+            "children": ["trans"],
+            "parents": []
+        },
+        "trans": {
+            "children": [],
+            "parents": ["account"]
+        }
+    }
+}
