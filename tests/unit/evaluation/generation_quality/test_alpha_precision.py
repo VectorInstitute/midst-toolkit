@@ -59,5 +59,5 @@ def test_alpha_precision_evaluation() -> None:
         assert pytest.approx(0.005229629629629584, abs=1e-8) == quality_results["delta_coverage_beta_naive"]
         assert pytest.approx(0.9905185185185185, abs=1e-8) == quality_results["authenticity_naive"]
 
-    # unsetting seed for safety
+    # Unset seed for safety
     unset_all_random_seeds()
