@@ -45,7 +45,7 @@ CLASSIFIER_CONFIG = {
 
 @pytest.mark.integration_test()
 def test_load_single_table():
-    tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/single_table/")
+    tables, relation_order, dataset_meta = load_multi_table("tests/integration/assets/single_table/")
 
     assert list(tables.keys()) == ["trans"]
 
@@ -62,7 +62,7 @@ def test_load_single_table():
     assert tables["trans"]["df"].shape == (99, 8)
     assert tables["trans"]["df"].equals(tables["trans"]["original_df"])
     assert tables["trans"]["df"].columns.tolist() == tables["trans"]["original_cols"]
-    with open("tests/integration/data/single_table/trans_domain.json", "r") as f:
+    with open("tests/integration/assets/single_table/trans_domain.json", "r") as f:
         assert tables["trans"]["domain"] == json.load(f)
     assert tables["trans"]["children"] == []
     assert tables["trans"]["parents"] == []
@@ -120,7 +120,7 @@ def test_load_single_table():
 
 @pytest.mark.integration_test()
 def test_load_multi_table():
-    tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/multi_table/")
+    tables, relation_order, dataset_meta = load_multi_table("tests/integration/assets/multi_table/")
 
     assert list(tables.keys()) == ["account", "trans"]
 
@@ -128,7 +128,7 @@ def test_load_multi_table():
     assert tables["account"]["df"].shape == (9, 4)
     assert tables["account"]["df"].equals(tables["account"]["original_df"])
     assert tables["account"]["df"].columns.tolist() == tables["account"]["original_cols"]
-    with open("tests/integration/data/multi_table/account_domain.json", "r") as f:
+    with open("tests/integration/assets/multi_table/account_domain.json", "r") as f:
         assert tables["account"]["domain"] == json.load(f)
     assert tables["account"]["children"] == ["trans"]
     assert tables["account"]["parents"] == []
@@ -173,7 +173,7 @@ def test_load_multi_table():
     assert tables["trans"]["df"].shape == (143, 10)
     assert tables["trans"]["df"].equals(tables["trans"]["original_df"])
     assert tables["trans"]["df"].columns.tolist() == tables["trans"]["original_cols"]
-    with open("tests/integration/data/multi_table/trans_domain.json", "r") as f:
+    with open("tests/integration/assets/multi_table/trans_domain.json", "r") as f:
         assert tables["trans"]["domain"] == json.load(f)
     assert tables["trans"]["children"] == []
     assert tables["trans"]["parents"] == ["account"]
@@ -253,7 +253,7 @@ def test_train_single_table(tmp_path: Path):
     configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG}
 
     # Act
-    tables, relation_order, _ = load_multi_table("tests/integration/data/single_table/")
+    tables, relation_order, _ = load_multi_table("tests/integration/assets/single_table/")
     tables, models = clava_training(tables, relation_order, tmp_path, configs, device="cpu")
 
     # Assert
@@ -270,13 +270,13 @@ def test_train_single_table(tmp_path: Path):
     )
     X_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
 
-    with open("tests/integration/data/single_table/assertion_data/syntetic_data.json", "r") as f:
+    with open("tests/integration/assets/single_table/assertion_data/syntetic_data.json", "r") as f:
         expected_results = json.load(f)
 
     model_data = dict(models[key]["diffusion"].named_parameters())
 
     expected_model_data = pickle.loads(
-        Path("tests/integration/data/single_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
+        Path("tests/integration/assets/single_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
     )
 
     model_layers = list(model_data.keys())
@@ -312,7 +312,7 @@ def test_train_multi_table(tmp_path: Path):
     os.makedirs(tmp_path / "models")
     configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG, "classifier": CLASSIFIER_CONFIG}
 
-    tables, relation_order, _ = load_multi_table("tests/integration/data/multi_table/")
+    tables, relation_order, _ = load_multi_table("tests/integration/assets/multi_table/")
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, configs)
     models = clava_training(tables, relation_order, tmp_path, configs, device="cpu")
 
@@ -330,13 +330,13 @@ def test_train_multi_table(tmp_path: Path):
     )
     X_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
 
-    with open("tests/integration/data/multi_table/assertion_data/syntetic_data.json", "r") as f:
+    with open("tests/integration/assets/multi_table/assertion_data/syntetic_data.json", "r") as f:
         expected_results = json.load(f)
 
     model_data = dict(models[1][key]["diffusion"].named_parameters())
 
     expected_model_data = pickle.loads(
-        Path("tests/integration/data/multi_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
+        Path("tests/integration/assets/multi_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
     )
 
     model_layers = list(model_data.keys())
@@ -379,7 +379,7 @@ def test_train_multi_table(tmp_path: Path):
     )
 
     expected_conditional_sample = torch.load(
-        "tests/integration/data/multi_table/assertion_data/conditional_samples.pt"
+        "tests/integration/assets/multi_table/assertion_data/conditional_samples.pt"
     )
 
     # Adding those asserts under an if condition because they only pass on github.
@@ -401,7 +401,7 @@ def test_clustering_reload(tmp_path: Path):
     configs = {"clustering": CLUSTERING_CONFIG}
 
     # Act
-    tables, relation_order, dataset_meta = load_multi_table("tests/integration/data/multi_table/")
+    tables, relation_order, dataset_meta = load_multi_table("tests/integration/assets/multi_table/")
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, configs)
 
     # Assert
@@ -409,7 +409,7 @@ def test_clustering_reload(tmp_path: Path):
     account_original_df_as_float = tables["account"]["original_df"].astype(float)
     assert account_df_no_clustering.equals(account_original_df_as_float)
 
-    with open("tests/integration/data/multi_table/assertion_data/expected_account_clustering.json", "r") as f:
+    with open("tests/integration/assets/multi_table/assertion_data/expected_account_clustering.json", "r") as f:
         expected_account_clustering = json.load(f)
     assert tables["account"]["df"]["account_trans_cluster"].tolist() == expected_account_clustering
 
@@ -418,7 +418,7 @@ def test_clustering_reload(tmp_path: Path):
     trans_original_df_as_float["trans_id"] = trans_original_df_as_float["trans_id"].astype(int)
     assert trans_df_no_clustering.equals(trans_original_df_as_float)
 
-    with open("tests/integration/data/multi_table/assertion_data/expected_trans_clustering.json", "r") as f:
+    with open("tests/integration/assets/multi_table/assertion_data/expected_trans_clustering.json", "r") as f:
         expected_trans_clustering = json.load(f)
     assert tables["trans"]["df"]["account_trans_cluster"].tolist() == expected_trans_clustering
 
