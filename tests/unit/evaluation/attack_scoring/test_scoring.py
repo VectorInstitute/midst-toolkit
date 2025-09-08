@@ -34,11 +34,11 @@ def test_tpr_at_fpr_function_bad_ranges() -> None:
         tpr_at_fpr.compute(labels, predictions)
 
     # Unset seed for safety
-    np.random.seed()
+    unset_all_random_seeds()
 
 
 def test_tpr_at_fpr_correct() -> None:
-    np.random.seed(42)
+    set_all_random_seeds(42)
 
     labels = np.random.randint(0, 2, size=300)
     predictions = np.random.rand(300)
