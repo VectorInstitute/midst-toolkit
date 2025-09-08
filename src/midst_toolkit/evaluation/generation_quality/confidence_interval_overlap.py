@@ -25,7 +25,7 @@ class MeanConfidenceInternalOverlap(SynthEvalQualityMetric):
         """
         This class computes the mean of the interval overlap percentages for the confidence intervals (CIs) of each
         NUMERICAL column. The confidence intervals are interval estimates for the mean value of a particular column
-        Within each column the value is the average percentage of overlap for the real and synthetic column (CI).
+        Within each column the value is the average percentage of overlap for the real and synthetic column CIs.
 
         For example:
 
@@ -39,8 +39,8 @@ class MeanConfidenceInternalOverlap(SynthEvalQualityMetric):
         NOTE: This uses z-scores for confidence interval construction NOT t-scores
 
         Args:
-            categorical_columns: Column names corresponding to the categorical variables of any provided dataframe
-            numerical_columns: Column names corresponding to the numerical variables of any provided dataframe
+            categorical_columns: Column names corresponding to the categorical variables of any provided dataframe.
+            numerical_columns: Column names corresponding to the numerical variables of any provided dataframe.
             do_preprocess: Whether or not to preprocess the dataframes with the default pipeline used by SynthEval.
                 Defaults to False.
             confidence_level: The confidence level for confidence interval calculations for each of the numerical
@@ -56,7 +56,7 @@ class MeanConfidenceInternalOverlap(SynthEvalQualityMetric):
         """
         Computes the mean of the interval overlap percentages for the confidence intervals (CIs) of each
         NUMERICAL column. The confidence intervals are interval estimates for the mean value of a particular column
-        Within each column the value is the average percentage of overlap for the real and synthetic column (CI).
+        Within each column the value is the average percentage of overlap for the real and synthetic column CIs.
 
         For example:
 

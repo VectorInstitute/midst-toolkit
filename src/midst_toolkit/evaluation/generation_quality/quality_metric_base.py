@@ -50,8 +50,8 @@ class SynthEvalQualityMetric(QualityMetricBase, ABC):
         DataframeEncoding class. If desired this class can preprocess dataframes before performing computation.
 
         Args:
-            categorical_columns: Column names corresponding to the categorical variables of any provided dataframe
-            numerical_columns: Column names corresponding to the numerical variables of any provided dataframe
+            categorical_columns: Column names corresponding to the categorical variables of any provided dataframe.
+            numerical_columns: Column names corresponding to the numerical variables of any provided dataframe.
             do_preprocess: Whether or not to preprocess the dataframes with the default pipeline used by SynthEval.
                 Defaults to False.
         """

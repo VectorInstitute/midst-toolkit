@@ -129,10 +129,10 @@ def infer_categorical_and_numerical_columns(
     dataframe in separate lists. These are used to separately treat columns with these distinct types in downstream
     processing.
 
-    NOTE: It is assumed that after identifying categorical columns, the remain columns represent NUMERICAL values.
+    NOTE: It is assumed that after identifying categorical columns, the remaining columns represent NUMERICAL values.
 
     Args:
-        dataframe: Dataframe from which to extract the set of categorical and numerical columns
+        dataframe: Dataframe from which to extract the set of categorical and numerical columns.
         categorical_threshold: Threshold below which a column with numerical values (integer or float for example) is
             deemed to represent a categorical encoding. The threshold is compared to the number of unique values
             present for the column in question. If set to 0 (or below), then no columns with numerical entries will be
