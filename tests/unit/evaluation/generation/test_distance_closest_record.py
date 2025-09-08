@@ -26,25 +26,25 @@ META_INFO_PATH = "tests/assets/meta_info.json"
 def test_minimum_distance_no_batch_l1() -> None:
     test_distance = minimum_distances(SYNTHETIC_DATA, REAL_DATA)
     target_distance = torch.Tensor([2.0, 0.0])
-    torch.allclose(test_distance, target_distance)
+    assert torch.allclose(test_distance, target_distance)
 
 
 def test_minimum_distance_no_batch_l2() -> None:
     test_distance = minimum_distances(SYNTHETIC_DATA, REAL_DATA, norm=NormType.L2)
     target_distance = torch.Tensor([math.sqrt(3.0), 0.0])
-    torch.allclose(test_distance, target_distance)
+    assert torch.allclose(test_distance, target_distance)
 
 
 def test_minimum_distance_batch_l1() -> None:
-    test_distance = minimum_distances(SYNTHETIC_DATA, REAL_DATA, batch_size=2, norm=NormType.L2)
+    test_distance = minimum_distances(SYNTHETIC_DATA, REAL_DATA, batch_size=2, norm=NormType.L1)
     target_distance = torch.Tensor([2.0, 0.0])
-    torch.allclose(test_distance, target_distance)
+    assert torch.allclose(test_distance, target_distance)
 
 
 def test_minimum_distance_batch_l2() -> None:
     test_distance = minimum_distances(SYNTHETIC_DATA, REAL_DATA, batch_size=2, norm=NormType.L2)
     target_distance = torch.Tensor([math.sqrt(3.0), 0.0])
-    torch.allclose(test_distance, target_distance)
+    assert torch.allclose(test_distance, target_distance)
 
 
 def test_dcr_score() -> None:
