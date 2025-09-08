@@ -1112,13 +1112,13 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
 
     def sample_all(
         self,
-        num_samples,
-        batch_size,
-        y_dist,
-        ddim=False,
-        model_kwargs=None,
-        cond_fn=None,
-    ):
+        num_samples: int,
+        batch_size: int,
+        y_dist: Tensor,
+        ddim: bool = False,
+        model_kwargs: dict[str, Any] | None = None,
+        cond_fn: Callable | None = None,
+    ) -> tuple[Tensor, Tensor]:
         # ruff: noqa: D102
         if ddim:
             print("Sample using DDIM.")
