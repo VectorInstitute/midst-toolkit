@@ -41,17 +41,17 @@ jobs:
   integration-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v5.0.0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba
+        uses: astral-sh/setup-uv@557e51de59eb14aaaba2ed9621916900a91d50c6
         with:
           # Install a specific version of uv.
           version: "0.5.21"
           enable-cache: true
 
       - name: "Set up Python"
-        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c
         with:
           python-version-file: ".python-version"
 

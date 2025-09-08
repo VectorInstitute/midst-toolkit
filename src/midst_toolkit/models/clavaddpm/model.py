@@ -4,10 +4,9 @@ import math
 import pickle
 from abc import ABC, abstractmethod
 from collections import Counter
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterator
 from copy import deepcopy
 from dataclasses import astuple, dataclass, replace
-from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Self, cast
 
@@ -33,6 +32,7 @@ from sklearn.preprocessing import (
 )
 from torch import Tensor, nn
 
+from midst_toolkit.common.enumerations import PredictionType, TaskType
 from midst_toolkit.core import logger
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 
@@ -49,20 +49,6 @@ ModuleType = str | Callable[..., nn.Module]
 
 CAT_MISSING_VALUE = "__nan__"
 CAT_RARE_VALUE = "__rare__"
-
-
-class TaskType(Enum):
-    BINCLASS = "binclass"
-    MULTICLASS = "multiclass"
-    REGRESSION = "regression"
-
-    def __str__(self) -> str:
-        return self.value
-
-
-class PredictionType(Enum):
-    LOGITS = "logits"
-    PROBS = "probs"
 
 
 @dataclass(frozen=True)
@@ -500,6 +486,22 @@ def get_model(
     raise ValueError("Unknown model!")
 
 
+def update_ema(
+    target_params: Iterator[nn.Parameter],
+    source_params: Iterator[nn.Parameter],
+    rate: float = 0.999,
+) -> None:
+    """
+    Update target parameters to be closer to those of source parameters using
+    an exponential moving average.
+    :param target_params: the target parameter sequence.
+    :param source_params: the source parameter sequence.
+    :param rate: the EMA rate (closer to 1 means slower).
+    """
+    for targ, src in zip(target_params, source_params):
+        targ.detach().mul_(rate).add_(src.detach(), alpha=1 - rate)
+
+
 class ScheduleSampler(ABC):
     """
     A distribution over timesteps in the diffusion process, intended to reduce
@@ -719,7 +721,7 @@ def numerical_forward_backward_log(
         if loss.requires_grad:
             if i == 0:
                 optimizer.zero_grad()
-            loss.backward(loss * len(sub_batch) / len(batch))  # type: ignore[no-untyped-call]
+            loss.backward(loss * len(sub_batch) / len(batch))
 
 
 def transform_dataset(
@@ -1141,7 +1143,6 @@ class MLP(nn.Module):
 
         This variation of MLP was used in [gorishniy2021revisiting]. Features:
 
-        * :code:`Activation` = :code:`ReLU`
         * all linear layers except for the first one and the last one are of the same dimension
         * the dropout rate is the same for all dropout layers
 
@@ -1149,9 +1150,7 @@ class MLP(nn.Module):
             d_in: the input size
             d_layers: the dimensions of the linear layers. If there are more than two
                 layers, then all of them except for the first and the last ones must
-                have the same dimension. Valid examples: :code:`[]`, :code:`[8]`,
-                :code:`[8, 16]`, :code:`[2, 2, 2, 2]`, :code:`[1, 2, 2, 4]`. Invalid
-                example: :code:`[1, 2, 3, 4]`.
+                have the same dimension.
             dropout: the dropout rate for all hidden layers
             d_out: the output size
         Returns:
@@ -1331,10 +1330,9 @@ class ResNet(nn.Module):
         dropout_second: float,
         d_out: int,
     ) -> Self:
-        """Create a "baseline" `ResNet`.
-        This variation of ResNet was used in [gorishniy2021revisiting]. Features:
-        * :code:`Activation` = :code:`ReLU`
-        * :code:`Norm` = :code:`BatchNorm1d`
+        """
+        Create a "baseline" `ResNet`. This variation of ResNet was used in [gorishniy2021revisiting].
+
         Args:
             d_in: the input size
             n_blocks: the number of Blocks
@@ -1342,6 +1340,7 @@ class ResNet(nn.Module):
             d_hidden: the output size of the first linear layer in each Block
             dropout_first: the dropout rate of the first dropout layer in each Block.
             dropout_second: the dropout rate of the second dropout layer in each Block.
+            d_out: Output dimension.
 
         References:
             * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov,
