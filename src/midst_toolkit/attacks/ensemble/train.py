@@ -1,13 +1,14 @@
 # Train meta-classifier for blending++ ensemble attack
 
-#FROM GEMINI:
+# FROM GEMINI:
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 from sklearn.pipeline import Pipeline
 
 # Assuming these are your existing utility functions
 from train_utils import fit_lr_pipeline, hyperparam_tuning
+
 
 def train_meta_classifier(
     x_train: pd.DataFrame, y_train: np.ndarray, model_type: str, use_gpu: bool = True
@@ -24,8 +25,8 @@ def train_meta_classifier(
     Returns:
         The trained classifier pipeline.
     """
-    continuous_cols = list(x_train.columns) # Assuming all meta-features are continuous
-    
+    continuous_cols = list(x_train.columns)  # Assuming all meta-features are continuous
+
     if model_type == "lr":
         print("Training Logistic Regression meta-classifier...")
         meta_classifier = fit_lr_pipeline(
@@ -49,5 +50,5 @@ def train_meta_classifier(
         )
     else:
         raise ValueError(f"Unsupported meta_classifier_type: {model_type}")
-        
+
     return meta_classifier

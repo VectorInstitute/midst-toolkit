@@ -7,15 +7,14 @@ from logging import INFO
 from pathlib import Path
 
 import hydra
-from omegaconf import DictConfig
 import numpy as np
+from omegaconf import DictConfig
 
 from examples.ensemble_attack_example.real_data_collection import collect_population_data_ensemble
+from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus
+from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.common.logger import log
-from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
-
-from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus
 
 
 @hydra.main(config_path=".", config_name="config", version_base=None)
@@ -65,27 +64,24 @@ def main(cfg: DictConfig) -> None:
         )
         # Fit the metaclassifier.
         # 1. Initialize the attacker
-        blending_attacker = BlendingPlusPlus(meta_classifier_type='xgb')
+        blending_attacker = BlendingPlusPlus(meta_classifier_type="xgb")
 
         # 2. Train the attacker on the meta-train set
         blending_attacker.fit(
             df_train=df_meta_train,
             y_train=y_meta_train,
-            df_synth=,
+            df_synth=None,
             df_ref=None,
             cat_cols=[],
             epochs=1,
-
         )
 
         # 3. Get predictions on the test set
-        final_predictions = blending_attacker.predict_proba(
-
-        )
+        final_predictions = blending_attacker.predict_proba()
 
         print("Final Blending++ predictions:", final_predictions)
-        #TODO: Change print to logging
-        #TODO: Save trained model
+        # TODO: Change print to logging
+        # TODO: Save trained model
         log(INFO, "Metaclassifier training finished.")
 
 

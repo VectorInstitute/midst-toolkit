@@ -50,7 +50,7 @@ shadow_training:
 # Metaclassifier settings (placeholder)
 metaclassifier:
   model_type: "xg"
-  
+
 
 # General settings
 random_seed: 42
