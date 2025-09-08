@@ -10,9 +10,9 @@ import pytest
 import torch
 from torch.nn import functional
 
+from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.core.data_loaders import load_multi_table
 from midst_toolkit.models.clavaddpm.model import Classifier, clava_clustering, clava_training
-from tests.utils.random import set_all_random_seeds, unset_all_random_seeds
 
 
 CLUSTERING_CONFIG = {
@@ -281,6 +281,10 @@ def test_train_single_table(tmp_path: Path):
 
     model_layers = list(model_data.keys())
     expected_model_layers = list(expected_model_data.keys())
+
+    # Adding those asserts under an if condition because they only pass on github.
+    # In the else block, we set a tolerance that would work across platforms
+    # however, it is way too high of a tolerance.
     if torch.allclose(model_data[model_layers[0]], expected_model_data[expected_model_layers[0]]):
         # if the first layer is equal with minimal tolerance, all others should be equal as well
         assert all(torch.allclose(model_data[layer], expected_model_data[layer]) for layer in model_layers)
@@ -338,6 +342,9 @@ def test_train_multi_table(tmp_path: Path):
     model_layers = list(model_data.keys())
     expected_model_layers = list(expected_model_data.keys())
 
+    # Adding those asserts under an if condition because they only pass on github.
+    # In the else block, we set a tolerance that would work across platforms
+    # however, it is way too high of a tolerance.
     if np.allclose(model_data[model_layers[0]].detach(), expected_model_data[expected_model_layers[0]].detach()):
         # if the first layer is equal with minimal tolerance, all others should be equal as well
         assert all(
@@ -375,6 +382,9 @@ def test_train_multi_table(tmp_path: Path):
         "tests/integration/data/multi_table/assertion_data/conditional_samples.pt"
     )
 
+    # Adding those asserts under an if condition because they only pass on github.
+    # In the else block, we set a tolerance that would work across platforms
+    # however, it is way too high of a tolerance.
     if torch.allclose(conditional_sample[0], expected_conditional_sample[0]):
         # if the first values are equal with minimal tolerance, all others should be equal as well
         assert torch.allclose(conditional_sample, expected_conditional_sample)

@@ -309,7 +309,6 @@ def child_training(
     child_name: str,
     configs: dict[str, Any],
     device: str = "cuda",
-    initial_state_file_path: Path | None = None,
 ) -> dict[str, Any]:
     if parent_name is None:
         y_col = "placeholder"
