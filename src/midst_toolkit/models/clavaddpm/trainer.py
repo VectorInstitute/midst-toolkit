@@ -80,7 +80,7 @@ class ClavaDDPMTrainer:
         self.optimizer.zero_grad()
         loss_multi, loss_gauss = self.diffusion_model.mixed_loss(x, target)
         loss = loss_multi + loss_gauss
-        loss.backward()  # type: ignore[no-untyped-call]
+        loss.backward()
         self.optimizer.step()
 
         return loss_multi, loss_gauss
