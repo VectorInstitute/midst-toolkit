@@ -293,7 +293,13 @@ def clava_training(tables, relation_order, save_dir, configs, device="cuda"):
             # ruff: noqa: SIM115
         )
 
-    return models
+    for parent, child in relation_order:
+        if parent is None:
+            tables[child]["df"]["placeholder"] = list(range(len(tables[child]["df"])))
+
+    save_table_info(tables, relation_order, models, save_dir)
+
+    return tables, models
 
 
 def child_training(
@@ -395,6 +401,8 @@ def train_model(
         K = np.array([0])
     # print(K)
 
+    _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.y["train"]), return_counts=True)
+
     num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
     d_in = np.sum(K) + num_numerical_features
     model_params["d_in"] = d_in
@@ -436,8 +444,12 @@ def train_model(
     return {
         "diffusion": diffusion,
         "label_encoders": label_encoders,
-        "dataset": dataset,
         "column_orders": column_orders,
+        "num_numerical_features": num_numerical_features,
+        "K": K,
+        "empirical_class_dist": empirical_class_dist,
+        "is_regression": dataset.is_regression,
+        "inverse_transform": dataset.num_transform.inverse_transform if dataset.num_transform is not None else None,
     }
 
 
@@ -2310,3 +2322,42 @@ def _make_nn_module(module_type: ModuleType, *args) -> nn.Module:  # type: ignor
         if isinstance(module_type, str)
         else module_type(*args)
     )
+
+
+def save_table_info(
+    tables: dict[str, dict[str, Any]],
+    relation_order: list[tuple[str, str]],
+    models: dict[tuple[str, str], dict[str, Any]],
+    save_dir: str,
+) -> None:
+    table_info = {}
+    for parent, child in relation_order:
+        result = models[(parent, child)]
+        df_with_cluster = tables[child]["df"]
+        df_without_id = get_df_without_id(df_with_cluster)
+        df_info = result["df_info"]
+        X_num_real = df_without_id[df_info["num_cols"]].to_numpy().astype(float)
+        uniq_vals_list = []
+        for col in range(X_num_real.shape[1]):
+            uniq_vals = np.unique(X_num_real[:, col])
+            uniq_vals_list.append(uniq_vals)
+        table_info[(parent, child)] = {
+            "uniq_vals_list": uniq_vals_list,
+            "size": len(df_with_cluster),
+            "columns": tables[child]["df"].columns,
+            "parents": tables[child]["parents"],
+            "original_cols": tables[child]["original_cols"],
+        }
+        required_keys = ["num_numerical_features", "is_regression", "inverse_transform", "empirical_class_dist", "K"]
+        filtered_result = {key: result[key] for key in required_keys}
+        table_info[(parent, child)].update(filtered_result)
+
+    for parent, child in relation_order:
+        result = pickle.load(open(os.path.join(save_dir, f"models/{parent}_{child}_ckpt.pkl"), "rb"))
+        result["table_info"] = table_info
+        pickle.dump(result, open(os.path.join(save_dir, f"models/{parent}_{child}_ckpt.pkl"), "wb"))
+
+
+def get_df_without_id(df: pd.DataFrame) -> pd.DataFrame:
+    id_cols = [col for col in df.columns if "_id" in col]
+    return df.drop(columns=id_cols)
