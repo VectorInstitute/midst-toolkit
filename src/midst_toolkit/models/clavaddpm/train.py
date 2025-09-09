@@ -1,0 +1,657 @@
+"""Defines the training functions for the ClavaDDPM model."""
+
+import logging
+import os
+import pickle
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import pandas as pd
+import torch
+from torch import optim
+
+from midst_toolkit.core import logger
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
+from midst_toolkit.models.clavaddpm.model import (
+    Classifier,
+    Transformations,
+    create_named_schedule_sampler,
+    get_model,
+    get_model_params,
+    get_T_dict,
+    get_table_info,
+    make_dataset_from_df,
+    numerical_forward_backward_log,
+    pair_clustering_keep_id,
+    prepare_fast_dataloader,
+)
+from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
+
+
+logging.basicConfig(level=logging.INFO)
+LOGGER = logging.getLogger(__name__)
+
+
+Tables = dict[str, dict[str, Any]]
+RelationOrder = list[tuple[str, str]]
+Configs = dict[str, Any]
+
+
+def clava_clustering(
+    tables: Tables,
+    relation_order: RelationOrder,
+    save_dir: Path,
+    configs: Configs,
+) -> tuple[dict[str, Any], dict[tuple[str, str], dict[int, float]]]:
+    """
+    Clustering function for the mutli-table function of the ClavaDDPM model.
+
+    Args:
+        tables: Definition of the tables and their relations. Example:
+            {
+                "table1": {
+                    "children": ["table2"],
+                    "parents": []
+                },
+                "table2": {
+                    "children": [],
+                    "parents": ["table1"]
+                }
+            }
+        relation_order: List of tuples of parent and child tables. Example:
+            [("table1", "table2"), ("table1", "table3")]
+        save_dir: Directory to save the clustering checkpoint.
+        configs: Dictionary of configurations. The following config keys are required:
+            {
+                num_clusters = int | dict,
+                parent_scale = float,
+                clustering_method = str["kmeans" | "both" | "variational" | "gmm"],
+            }
+
+    Returns:
+        A tuple with 2 values:
+            - The tables dictionary.
+            - The dictionary with the group lengths probability for all the parent-child pairs.
+    """
+    relation_order_reversed = relation_order[::-1]
+    all_group_lengths_prob_dicts = {}
+
+    # Clustering
+    if os.path.exists(save_dir / "cluster_ckpt.pkl"):
+        print("Clustering checkpoint found, loading...")
+
+        with open(save_dir / "cluster_ckpt.pkl", "rb") as f:
+            cluster_ckpt = pickle.load(f)
+
+        tables = cluster_ckpt["tables"]
+        all_group_lengths_prob_dicts = cluster_ckpt["all_group_lengths_prob_dicts"]
+    else:
+        for parent, child in relation_order_reversed:
+            if parent is not None:
+                print(f"Clustering {parent} -> {child}")
+                if isinstance(configs["num_clusters"], dict):
+                    num_clusters = configs["num_clusters"][child]
+                else:
+                    num_clusters = configs["num_clusters"]
+                (
+                    parent_df_with_cluster,
+                    child_df_with_cluster,
+                    group_lengths_prob_dicts,
+                ) = pair_clustering_keep_id(
+                    tables[child]["df"],
+                    tables[child]["domain"],
+                    tables[parent]["df"],
+                    tables[parent]["domain"],
+                    f"{child}_id",
+                    f"{parent}_id",
+                    num_clusters,
+                    configs["parent_scale"],
+                    1,  # not used for now
+                    parent,
+                    child,
+                    clustering_method=configs["clustering_method"],
+                )
+                tables[parent]["df"] = parent_df_with_cluster
+                tables[child]["df"] = child_df_with_cluster
+                all_group_lengths_prob_dicts[(parent, child)] = group_lengths_prob_dicts
+
+        cluster_ckpt = {
+            "tables": tables,
+            "all_group_lengths_prob_dicts": all_group_lengths_prob_dicts,
+        }
+        with open(save_dir / "cluster_ckpt.pkl", "wb") as f:
+            pickle.dump(cluster_ckpt, f)
+
+    for parent, child in relation_order:
+        if parent is None:
+            tables[child]["df"]["placeholder"] = list(range(len(tables[child]["df"])))
+
+    return tables, all_group_lengths_prob_dicts
+
+
+def clava_training(
+    tables: Tables,
+    relation_order: RelationOrder,
+    save_dir: Path,
+    diffusion_config: Configs,
+    classifier_config: Configs | None,
+    device: str = "cuda",
+) -> tuple[Tables, dict[tuple[str, str], dict[str, Any]]]:
+    """
+    Training function for the ClavaDDPM model.
+
+    Args:
+        tables: Definition of the tables and their relations. Example:
+            {
+                "table1": {
+                    "children": ["table2"],
+                    "parents": []
+                },
+                "table2": {
+                    "children": [],
+                    "parents": ["table1"]
+                }
+            }
+        relation_order: List of tuples of parent and child tables. Example:
+            [("table1", "table2"), ("table1", "table3")]
+        save_dir: Directory to save the ClavaDDPM models.
+        diffusion_config: Dictionary of configurations for the diffusion model. The following config keys are required:
+            {
+                d_layers = list[int],
+                dropout = float,
+                iterations = int,
+                batch_size = int,
+                model_type = str["mlp" | "resnet"],
+                gaussian_loss_type = str["mse" | "cross_entropy"],
+                num_timesteps = int,
+                scheduler = str["cosine" | "linear"],
+                lr = float,
+                weight_decay = float,
+            }
+        classifier_config: Dictionary of configurations for the classifier model. Not required for single table
+            training. The following config keys are required for multi-table training:
+            {
+                iterations = int,
+                batch_size = int,
+                d_layers = list[int],
+                dim_t = int,
+                lr = float,
+            }
+        device: Device to use for training. Default is `"cuda"`.
+
+    Returns:
+        A tuple with 2 values:
+            - The tables dictionary.
+            - Dictionary of models for each parent-child pair.
+    """
+    models = {}
+    for parent, child in relation_order:
+        print(f"Training {parent} -> {child} model from scratch")
+        df_with_cluster = tables[child]["df"]
+        id_cols = [col for col in df_with_cluster.columns if "_id" in col]
+        df_without_id = df_with_cluster.drop(columns=id_cols)
+
+        result = child_training(
+            df_without_id,
+            tables[child]["domain"],
+            parent,
+            child,
+            diffusion_config,
+            classifier_config,
+            device,
+        )
+
+        models[(parent, child)] = result
+
+        target_folder = save_dir / "models"
+        target_file = target_folder / f"{parent}_{child}_ckpt.pkl"
+
+        create_message = f"Creating {target_folder}. " if not target_folder.exists() else ""
+        LOGGER.info(f"{create_message}Saving {parent} -> {child} model to {target_file}")
+
+        target_folder.mkdir(parents=True, exist_ok=True)
+        with open(target_file, "wb") as f:
+            pickle.dump(result, f)
+
+    for parent, child in relation_order:
+        if parent is None:
+            tables[child]["df"]["placeholder"] = list(range(len(tables[child]["df"])))
+
+    save_table_info(tables, relation_order, models, save_dir)
+
+    return tables, models
+
+
+def child_training(
+    child_df_with_cluster: pd.DataFrame,
+    child_domain_dict: dict[str, Any],
+    parent_name: str | None,
+    child_name: str,
+    diffusion_config: Configs,
+    classifier_config: Configs | None,
+    device: str = "cuda",
+) -> dict[str, Any]:
+    """
+    Training function for a single child table.
+
+    Args:
+        child_df_with_cluster: DataFrame with the cluster column.
+        child_domain_dict: Dictionary of the child table domain. It should contain size and type for each
+            column of the table. For example:
+                {
+                    "frequency": {"size": 3, "type": "discrete"},
+                    "account_date": {"size": 1535, "type": "continuous"},
+                }
+        parent_name: Name of the parent table, or None if there is no parent.
+        child_name: Name of the child table.
+        diffusion_config: Dictionary of configurations for the diffusion model. The following config keys are required:
+            {
+                d_layers = list[int],
+                dropout = float,
+                iterations = int,
+                batch_size = int,
+                model_type = str["mlp" | "resnet"],
+                gaussian_loss_type = str["mse" | "cross_entropy"],
+                num_timesteps = int,
+                scheduler = str["cosine" | "linear"],
+                lr = float,
+                weight_decay = float,
+            }
+        classifier_config: Dictionary of configurations for the classifier model. Not required for single table
+            training. The following config keys are required for multi-table training:
+            {
+                iterations = int,
+                batch_size = int,
+                d_layers = list[int],
+                dim_t = int,
+                lr = float,
+            }
+        device: Device to use for training. Default is `"cuda"`.
+
+    Returns:
+        Dictionary of the training results.
+    """
+    if parent_name is None:
+        # If there is no parent for this child table, just set a placeholder
+        # for its column name. This can happen on single table training or
+        # when the table is on the top level of the hierarchy.
+        # TODO: find a better name for this variable
+        y_col = "placeholder"
+        child_df_with_cluster["placeholder"] = list(range(len(child_df_with_cluster)))
+    else:
+        y_col = f"{parent_name}_{child_name}_cluster"
+    child_info = get_table_info(child_df_with_cluster, child_domain_dict, y_col)
+    child_model_params = get_model_params(
+        {
+            "d_layers": diffusion_config["d_layers"],
+            "dropout": diffusion_config["dropout"],
+        }
+    )
+    child_T_dict = get_T_dict()
+    # ruff: noqa: N806
+
+    child_result = train_model(
+        child_df_with_cluster,
+        child_info,
+        child_model_params,
+        child_T_dict,
+        diffusion_config["iterations"],
+        diffusion_config["batch_size"],
+        diffusion_config["model_type"],
+        diffusion_config["gaussian_loss_type"],
+        diffusion_config["num_timesteps"],
+        diffusion_config["scheduler"],
+        diffusion_config["lr"],
+        diffusion_config["weight_decay"],
+        device=device,
+    )
+
+    if parent_name is None:
+        child_result["classifier"] = None
+    else:
+        assert classifier_config is not None, "Classifier config is required for multi-table training"
+        if classifier_config["iterations"] > 0:
+            child_classifier = train_classifier(
+                child_df_with_cluster,
+                child_info,
+                child_model_params,
+                child_T_dict,
+                classifier_config["iterations"],
+                classifier_config["batch_size"],
+                diffusion_config["gaussian_loss_type"],
+                diffusion_config["num_timesteps"],
+                diffusion_config["scheduler"],
+                cluster_col=y_col,
+                d_layers=classifier_config["d_layers"],
+                dim_t=classifier_config["dim_t"],
+                learning_rate=classifier_config["lr"],
+                device=device,
+            )
+            child_result["classifier"] = child_classifier
+        else:
+            LOGGER.warning("Skipping classifier training since classifier_config['iterations'] <= 0")
+
+    child_result["df_info"] = child_info
+    child_result["model_params"] = child_model_params
+    child_result["T_dict"] = child_T_dict
+    return child_result
+
+
+def train_model(
+    data_frame: pd.DataFrame,
+    data_frame_info: pd.DataFrame,
+    model_params: dict[str, Any],
+    transformations_dict: dict[str, Any],
+    steps: int,
+    batch_size: int,
+    model_type: str,
+    gaussian_loss_type: str,
+    num_timesteps: int,
+    scheduler: str,
+    learning_rate: float,
+    weight_decay: float,
+    device: str = "cuda",
+) -> dict[str, Any]:
+    """
+    Training function for the diffusion model.
+
+    Args:
+        data_frame: DataFrame to train the model on.
+        data_frame_info: Dictionary of the table information.
+        model_params: Dictionary of the model parameters.
+        transformations_dict: Dictionary of the transformations.
+        steps: Number of steps to train the model.
+        batch_size: Batch size to use for training.
+        model_type: Type of the model to use.
+        gaussian_loss_type: Type of the gaussian loss to use.
+        num_timesteps: Number of timesteps to use for the diffusion model.
+        scheduler: Scheduler to use for the diffusion model.
+        learning_rate: Learning rate to use for the optimizer in the diffusion model.
+        weight_decay: Weight decay to use for the optimizer in the diffusion model.
+        device: Device to use for training. Default is `"cuda"`.
+
+    Returns:
+        Dictionary of the training results. It will contain the following keys:
+            - diffusion: The diffusion model.
+            - label_encoders: The label encoders.
+            - dataset: The dataset.
+            - column_orders: The column orders.
+    """
+    transformations = Transformations(**transformations_dict)
+    # ruff: noqa: N806
+    dataset, label_encoders, column_orders = make_dataset_from_df(
+        data_frame,
+        transformations,
+        is_y_cond=model_params["is_y_cond"],
+        ratios=[0.99, 0.005, 0.005],
+        df_info=data_frame_info,
+        std=0,
+    )
+
+    category_sizes = np.array(dataset.get_category_sizes("train"))
+    # ruff: noqa: N806
+    if len(category_sizes) == 0 or transformations_dict["cat_encoding"] == "one-hot":
+        category_sizes = np.array([0])
+        # ruff: noqa: N806
+
+    _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.y["train"]), return_counts=True)
+
+    num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
+    d_in = np.sum(category_sizes) + num_numerical_features
+    model_params["d_in"] = d_in
+
+    print("Model params: {}".format(model_params))
+    model = get_model(model_type, model_params)
+    model.to(device)
+
+    train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size)
+
+    diffusion = GaussianMultinomialDiffusion(
+        num_classes=category_sizes,
+        num_numerical_features=num_numerical_features,
+        denoise_fn=model,
+        gaussian_loss_type=gaussian_loss_type,
+        num_timesteps=num_timesteps,
+        scheduler=scheduler,
+        device=torch.device(device),
+    )
+    diffusion.to(device)
+    diffusion.train()
+
+    trainer = ClavaDDPMTrainer(
+        diffusion,
+        train_loader,
+        lr=learning_rate,
+        weight_decay=weight_decay,
+        steps=steps,
+        device=device,
+    )
+    trainer.train()
+
+    if model_params["is_y_cond"] == "concat":
+        column_orders = column_orders[1:] + [column_orders[0]]
+    else:
+        column_orders = column_orders + [data_frame_info["y_col"]]
+
+    return {
+        "diffusion": diffusion,
+        "label_encoders": label_encoders,
+        "dataset": dataset,
+        "column_orders": column_orders,
+        "num_numerical_features": num_numerical_features,
+        "K": category_sizes,
+        "empirical_class_dist": empirical_class_dist,
+        "is_regression": dataset.is_regression,
+        "inverse_transform": dataset.num_transform.inverse_transform if dataset.num_transform is not None else None,
+    }
+
+
+def train_classifier(
+    data_frame: pd.DataFrame,
+    data_frame_info: pd.DataFrame,
+    model_params: dict[str, Any],
+    transformations_dict: dict[str, Any],
+    classifier_steps: int,
+    batch_size: int,
+    gaussian_loss_type: str,
+    num_timesteps: int,
+    scheduler: str,
+    d_layers: list[int],
+    device: str = "cuda",
+    cluster_col: str = "cluster",
+    dim_t: int = 128,
+    learning_rate: float = 0.0001,
+    classifier_evaluation_interval: int = 5,
+) -> Classifier:
+    """
+    Training function for the classifier model.
+
+    Args:
+        data_frame: DataFrame to train the model on.
+        data_frame_info: Dictionary of the table information.
+        model_params: Dictionary of the model parameters.
+        transformations_dict: Dictionary of the transformations.
+        classifier_steps: Number of steps to train the classifier.
+        batch_size: Batch size to use for training.
+        gaussian_loss_type: Type of the gaussian loss to use.
+        num_timesteps: Number of timesteps to use for the diffusion model.
+        scheduler: Scheduler to use for the diffusion model.
+        d_layers: List of the hidden sizes of the classifier.
+        device: Device to use for training. Default is `"cuda"`.
+        cluster_col: Name of the cluster column. Default is `"cluster"`.
+        dim_t: Dimension of the timestamp. Default is 128.
+        learning_rate: Learning rate to use for the optimizer in the classifier. Default is 0.0001.
+        classifier_evaluation_interval: The amount of classifier_steps to wait
+            until the next evaluation of the classifier. Default is 5.
+
+    Returns:
+        The trained classifier model.
+    """
+    transformations = Transformations(**transformations_dict)
+    # ruff: noqa: N806
+    dataset, label_encoders, column_orders = make_dataset_from_df(
+        data_frame,
+        transformations,
+        is_y_cond=model_params["is_y_cond"],
+        ratios=[0.99, 0.005, 0.005],
+        df_info=data_frame_info,
+        std=0,
+    )
+    print(dataset.n_features)
+    train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size, y_type="long")
+    val_loader = prepare_fast_dataloader(dataset, split="val", batch_size=batch_size, y_type="long")
+    test_loader = prepare_fast_dataloader(dataset, split="test", batch_size=batch_size, y_type="long")
+
+    category_sizes = np.array(dataset.get_category_sizes("train"))
+    # ruff: noqa: N806
+    if len(category_sizes) == 0 or transformations_dict["cat_encoding"] == "one-hot":
+        category_sizes = np.array([0])
+        # ruff: noqa: N806
+    print(category_sizes)
+
+    # TODO: understand what's going on here
+    if dataset.X_num is None:
+        LOGGER.warning("dataset.X_num is None. num_numerical_features will be set to 0")
+        num_numerical_features = 0
+    else:
+        num_numerical_features = dataset.X_num["train"].shape[1]
+
+    if model_params["is_y_cond"] == "concat":
+        num_numerical_features -= 1
+
+    classifier = Classifier(
+        d_in=num_numerical_features,
+        d_out=int(max(data_frame[cluster_col].values) + 1),  # TODO: add a comment why we need to add 1
+        dim_t=dim_t,
+        hidden_sizes=d_layers,
+    ).to(device)
+
+    classifier_optimizer = optim.AdamW(classifier.parameters(), lr=learning_rate)
+
+    empty_diffusion = GaussianMultinomialDiffusion(
+        num_classes=category_sizes,
+        num_numerical_features=num_numerical_features,
+        denoise_fn=None,  # type: ignore[arg-type]
+        gaussian_loss_type=gaussian_loss_type,
+        num_timesteps=num_timesteps,
+        scheduler=scheduler,
+        device=torch.device(device),
+    )
+    empty_diffusion.to(device)
+
+    schedule_sampler = create_named_schedule_sampler("uniform", empty_diffusion)
+
+    classifier.train()
+    for step in range(classifier_steps):
+        logger.logkv("step", step)
+        logger.logkv(
+            "samples",
+            (step + 1) * batch_size,
+        )
+        numerical_forward_backward_log(
+            classifier,
+            classifier_optimizer,
+            train_loader,
+            dataset,
+            schedule_sampler,
+            empty_diffusion,
+            prefix="train",
+            device=device,
+        )
+
+        classifier_optimizer.step()
+        if not step % classifier_evaluation_interval:
+            with torch.no_grad():
+                classifier.eval()
+                numerical_forward_backward_log(
+                    classifier,
+                    classifier_optimizer,
+                    val_loader,
+                    dataset,
+                    schedule_sampler,
+                    empty_diffusion,
+                    prefix="val",
+                    device=device,
+                )
+                classifier.train()
+
+    # test classifier
+    classifier.eval()
+
+    correct = 0
+    # TODO: why 3000 iterations? Why not just run through the test_loader once? Maybe it's a probabilistic classifier?
+    for _ in range(3000):
+        test_x, test_y = next(test_loader)
+        test_y = test_y.long().to(device)
+        test_x = test_x[:, 1:].to(device) if model_params["is_y_cond"] == "concat" else test_x.to(device)
+        with torch.no_grad():
+            pred = classifier(test_x, timesteps=torch.zeros(test_x.shape[0]).to(device))
+            correct += (pred.argmax(dim=1) == test_y).sum().item()
+
+    acc = correct / (3000 * batch_size)
+    print(acc)
+
+    return classifier
+
+
+def save_table_info(
+    tables: Tables,
+    relation_order: list[tuple[str, str]],
+    models: dict[tuple[str, str], dict[str, Any]],
+    save_dir: Path,
+) -> None:
+    """
+    Save the table information into the save_dir.
+
+    Args:
+        tables: Dictionary of the tables by name.
+        relation_order: List of tuples of parent and child tables. Example:
+            [("table1", "table2"), ("table1", "table3")]
+        models: Dictionary of models for each parent-child pair.
+        save_dir: Directory to save the table information.
+    """
+    table_info = {}
+    for parent, child in relation_order:
+        result = models[(parent, child)]
+        df_with_cluster = tables[child]["df"]
+        df_without_id = get_df_without_id(df_with_cluster)
+        df_info = result["df_info"]
+        X_num_real = df_without_id[df_info["num_cols"]].to_numpy().astype(float)
+        uniq_vals_list = []
+        for col in range(X_num_real.shape[1]):
+            uniq_vals = np.unique(X_num_real[:, col])
+            uniq_vals_list.append(uniq_vals)
+        table_info[(parent, child)] = {
+            "uniq_vals_list": uniq_vals_list,
+            "size": len(df_with_cluster),
+            "columns": tables[child]["df"].columns,
+            "parents": tables[child]["parents"],
+            "original_cols": tables[child]["original_cols"],
+        }
+        required_keys = ["num_numerical_features", "is_regression", "inverse_transform", "empirical_class_dist", "K"]
+        filtered_result = {key: result[key] for key in required_keys}
+        table_info[(parent, child)].update(filtered_result)
+
+    for parent, child in relation_order:
+        with open(save_dir / f"models/{parent}_{child}_ckpt.pkl", "rb") as f:
+            result = pickle.load(f)
+
+        result["table_info"] = table_info
+
+        with open(save_dir / f"models/{parent}_{child}_ckpt.pkl", "wb") as f:
+            pickle.dump(result, f)
+
+
+def get_df_without_id(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Get the dataframe without the id columns.
+
+    Args:
+        df: the input DataFrame.
+
+    Returns:
+        The DataFrame without the id columns.
+    """
+    id_cols = [col for col in df.columns if "_id" in col]
+    return df.drop(columns=id_cols)
