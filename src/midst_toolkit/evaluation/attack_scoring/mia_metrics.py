@@ -39,7 +39,7 @@ class MembershipInferenceMetrics:
         Converts the list of enums specifying which metrics to use into objects that will compute the metrics.
 
         Returns:
-            A set of metrics objects to be used for computing the desired metrics.
+            A list of metrics objects to be used for computing the desired metrics.
         """
         metrics: list[AttackScore] = []
         if MiaMetrics.BALANCED_ACCURACY in self.metrics_to_compute:
