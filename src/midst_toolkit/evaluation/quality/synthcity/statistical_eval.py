@@ -6,8 +6,8 @@ import pandas as pd
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import MinMaxScaler
 
-from midst_toolkit.evaluation.generation.synthcity.dataloader import DataLoader
-from midst_toolkit.evaluation.generation.synthcity.metric import MetricEvaluator
+from midst_toolkit.evaluation.quality.synthcity.dataloader import DataLoader
+from midst_toolkit.evaluation.quality.synthcity.metric import MetricEvaluator
 
 
 class StatisticalEvaluator(MetricEvaluator):

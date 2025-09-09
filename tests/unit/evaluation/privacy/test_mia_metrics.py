@@ -2,9 +2,9 @@ import numpy as np
 import pytest
 
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
-from midst_toolkit.evaluation.attack_scoring.mia_metrics import DEFAULT_FPR_THRESHOLDS, MembershipInferenceMetrics
-from midst_toolkit.evaluation.attack_scoring.score_html import generate_html
-from midst_toolkit.evaluation.attack_scoring.scoring import MiaMetrics, TprAtFpr
+from midst_toolkit.evaluation.privacy.mia_metrics import DEFAULT_FPR_THRESHOLDS, MembershipInferenceMetrics
+from midst_toolkit.evaluation.privacy.mia_scores import MiaMetrics, TprAtFpr
+from midst_toolkit.evaluation.privacy.mia_utils import generate_html
 
 
 DEFAULT_TPR_AT_FPR = TprAtFpr(DEFAULT_FPR_THRESHOLDS)

@@ -3,7 +3,7 @@ from enum import IntEnum
 import pandas as pd
 from syntheval.metrics.utility.metric_confidence_interval_overlap import ConfidenceIntervalOverlap
 
-from midst_toolkit.evaluation.generation.quality_metric_base import SynthEvalQualityMetric
+from midst_toolkit.evaluation.metric_base import SynthEvalQualityMetric
 
 
 class ConfidenceLevel(IntEnum):
