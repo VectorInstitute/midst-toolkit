@@ -4,8 +4,8 @@ from typing import Any
 import pandas as pd
 
 from midst_toolkit.common.logger import log
-from midst_toolkit.evaluation.generation_quality.synthcity.dataloader import GenericDataLoader
-from midst_toolkit.evaluation.generation_quality.synthcity.statistical_eval import AlphaPrecision
+from midst_toolkit.evaluation.generation.synthcity.dataloader import GenericDataLoader
+from midst_toolkit.evaluation.generation.synthcity.statistical_eval import AlphaPrecision
 
 
 NAIVE_METRIC_SUFFIX = "naive"

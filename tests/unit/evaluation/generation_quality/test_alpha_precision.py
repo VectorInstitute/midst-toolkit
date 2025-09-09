@@ -5,8 +5,8 @@ from midst_toolkit.data_processing.midst_data_processing import (
     load_midst_data,
     process_midst_data_for_alpha_precision_evaluation,
 )
-from midst_toolkit.evaluation.generation_quality.alpha_precision import synthcity_alpha_precision_metrics
-from midst_toolkit.evaluation.generation_quality.utils import (
+from midst_toolkit.evaluation.generation.alpha_precision import synthcity_alpha_precision_metrics
+from midst_toolkit.evaluation.generation.utils import (
     extract_columns_based_on_meta_info,
     one_hot_encode_categoricals_and_merge_with_numerical,
 )
