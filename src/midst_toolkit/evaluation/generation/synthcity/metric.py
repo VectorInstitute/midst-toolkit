@@ -5,8 +5,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from midst_toolkit.evaluation.generation_quality.synthcity.dataloader import DataLoader
-from midst_toolkit.evaluation.generation_quality.synthcity.one_class import OneClassLayer
+from midst_toolkit.evaluation.generation.synthcity.dataloader import DataLoader
+from midst_toolkit.evaluation.generation.synthcity.one_class import OneClassLayer
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
