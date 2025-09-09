@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from midst_toolkit.evaluation.generation_quality.confidence_interval_overlap import (
+from midst_toolkit.evaluation.generation.confidence_interval_overlap import (
     ConfidenceLevel,
     MeanConfidenceInternalOverlap,
 )

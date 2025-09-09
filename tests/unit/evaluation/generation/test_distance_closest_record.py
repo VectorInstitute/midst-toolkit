@@ -5,7 +5,7 @@ import pytest
 import torch
 
 from midst_toolkit.data_processing.midst_data_processing import load_midst_data_with_test
-from midst_toolkit.evaluation.generation_quality.distance_closest_record import (
+from midst_toolkit.evaluation.generation.distance_closest_record import (
     DistanceToClosestRecordScore,
     NormType,
     minimum_distances,

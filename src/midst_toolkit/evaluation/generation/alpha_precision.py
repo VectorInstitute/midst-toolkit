@@ -3,9 +3,9 @@ from logging import INFO
 import pandas as pd
 
 from midst_toolkit.common.logger import log
-from midst_toolkit.evaluation.generation_quality.quality_metric_base import QualityMetricBase
-from midst_toolkit.evaluation.generation_quality.synthcity.dataloader import GenericDataLoader
-from midst_toolkit.evaluation.generation_quality.synthcity.statistical_eval import (
+from midst_toolkit.evaluation.generation.quality_metric_base import QualityMetricBase
+from midst_toolkit.evaluation.generation.synthcity.dataloader import GenericDataLoader
+from midst_toolkit.evaluation.generation.synthcity.statistical_eval import (
     AlphaPrecision as SynthcityAlphaPrecision,
 )
 
