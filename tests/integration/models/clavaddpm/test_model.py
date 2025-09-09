@@ -1,5 +1,4 @@
 import json
-import os
 import pickle
 import random
 from collections.abc import Callable
@@ -12,7 +11,8 @@ from torch.nn import functional
 
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.core.data_loaders import load_multi_table
-from midst_toolkit.models.clavaddpm.model import Classifier, clava_clustering, clava_training
+from midst_toolkit.models.clavaddpm.model import Classifier
+from midst_toolkit.models.clavaddpm.train import clava_clustering, clava_training
 
 
 CLUSTERING_CONFIG = {
@@ -249,12 +249,11 @@ def test_train_single_table(tmp_path: Path):
     # Setup
     set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
-    os.makedirs(tmp_path / "models")
-    configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG}
-
     # Act
     tables, relation_order, _ = load_multi_table("tests/integration/assets/single_table/")
-    tables, models = clava_training(tables, relation_order, tmp_path, configs, device="cpu")
+    tables, models = clava_training(
+        tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device="cpu"
+    )
 
     # Assert
     with open(tmp_path / "models" / "None_trans_ckpt.pkl", "rb") as f:
@@ -309,12 +308,9 @@ def test_train_multi_table(tmp_path: Path):
     set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
     # Act
-    os.makedirs(tmp_path / "models")
-    configs = {"clustering": CLUSTERING_CONFIG, "diffusion": DIFFUSION_CONFIG, "classifier": CLASSIFIER_CONFIG}
-
     tables, relation_order, _ = load_multi_table("tests/integration/assets/multi_table/")
-    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, configs)
-    models = clava_training(tables, relation_order, tmp_path, configs, device="cpu")
+    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
+    models = clava_training(tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device="cpu")
 
     # Assert
     with open(tmp_path / "models" / "account_trans_ckpt.pkl", "rb") as f:
@@ -397,12 +393,9 @@ def test_clustering_reload(tmp_path: Path):
     # Setup
     set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
-    os.makedirs(tmp_path / "models")
-    configs = {"clustering": CLUSTERING_CONFIG}
-
     # Act
     tables, relation_order, dataset_meta = load_multi_table("tests/integration/assets/multi_table/")
-    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, configs)
+    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
 
     # Assert
     account_df_no_clustering = tables["account"]["df"].drop(columns=["account_trans_cluster"])
@@ -423,7 +416,9 @@ def test_clustering_reload(tmp_path: Path):
     assert tables["trans"]["df"]["account_trans_cluster"].tolist() == expected_trans_clustering
 
     # loading from previously saved clustering
-    tables_saved, all_group_lengths_prob_dicts_saved = clava_clustering(tables, relation_order, tmp_path, configs)
+    tables_saved, all_group_lengths_prob_dicts_saved = clava_clustering(
+        tables, relation_order, tmp_path, CLUSTERING_CONFIG
+    )
 
     assert all_group_lengths_prob_dicts_saved == all_group_lengths_prob_dicts
 
