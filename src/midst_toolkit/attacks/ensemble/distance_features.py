@@ -4,7 +4,10 @@
 
 import numpy as np
 import pandas as pd
-from train_utils import gower_dist as gower
+import midst_toolkit.attacks.ensemble.train_utils as gower
+
+from scipy.stats import gaussian_kde
+from sklearn.preprocessing import MinMaxScaler
 
 
 def calculate_gower_features(df_target: pd.DataFrame, df_synth: pd.DataFrame, cat_cols: list) -> pd.DataFrame:
@@ -52,20 +55,31 @@ def calculate_gower_features(df_target: pd.DataFrame, df_synth: pd.DataFrame, ca
 
     return pd.DataFrame(features, index=df_target.index)
 
-
-def domias(df_ref: pd.DataFrame, df_synth: pd.DataFrame, df_test: pd.DataFrame) -> np.ndarray:
+def domias(df_input: pd.DataFrame, df_synth: pd.DataFrame, df_ref: pd.DataFrame) -> np.ndarray:
     """
-    Placeholder for DOMIAS model predictions.
-    In practice, this function should load a pre-trained DOMIAS model and return prediction probabilities. (???)
+    Compute DOMIAS density-ratio-based scores for test data.
 
     Args:
-        df_ref: Reference dataframe (real data).
-        df_synth: Synthetic dataframe.
-        df_test: Test dataframe to predict on.
+        df_input: Test data to evaluate (without labels).
+        df_synth: Synthetic data.
+        df_ref: Reference (real) population data.
 
     Returns:
-        An array of prediction probabilities for the test set.
+        Normalized DOMIAS scores for each test sample, indexed like df_input.
     """
-    # For demonstration, return random probabilities
-    np.random.seed(42)  # For reproducibility
-    return np.random.rand(len(df_test), 1)
+    # Ensure float type and correct orientation for KDE
+    ref, synth, input = (df.astype(float).values.T for df in (df_ref, df_synth, df_input))
+
+    # Estimate densities
+    density_ref = gaussian_kde(ref)
+    density_synth = gaussian_kde(synth)
+
+    # Evaluate test points
+    p_ref = density_ref(input)
+    p_synth = density_synth(input)
+
+    # Density ratio
+    ratio = np.divide(p_synth, p_ref, out=np.zeros_like(p_synth), where=p_ref > 0)
+
+    # Normalize to [0, 1]
+    return MinMaxScaler().fit_transform(ratio.reshape(-1, 1)).ravel()

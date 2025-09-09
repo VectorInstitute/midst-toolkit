@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 
 # from src.attack import domias
-from distance_features import calculate_gower_features, domias
-from train import train_meta_classifier
+from midst_toolkit.attacks.ensemble.distance_features import calculate_gower_features, domias
+# from midst_toolkit.attacks.ensemble.train import train_meta_classifier
 
 
 # from src import config # Assuming config.metadata is available
@@ -42,12 +42,17 @@ class BlendingPlusPlus:
         cat_cols: list,
     ) -> pd.DataFrame:
         """Private helper to assemble all features for the meta-classifier."""
+
+        print("WE HERE")
+
         # 1. Get Gower distance features
-        gower_features = calculate_gower_features(df_input, df_synth, cat_cols)
+        # gower_features = calculate_gower_features(df_input, df_synth, cat_cols)
 
         # 2. Get DOMIAS predictions
-        pred_proba_domias = domias(df_ref=df_ref, df_synth=df_synth[df_ref.columns], df_test=df_input)
+        pred_proba_domias = domias(df_input=df_input, df_synth=df_synth, df_ref=df_ref)
         domias_features = pd.DataFrame(pred_proba_domias, columns=["pred_proba_domias"], index=df_input.index)
+
+        import pdb; pdb.set_trace()
 
         rmia_signals = pd.DataFrame(
             np.zeros((df_input.shape[0], 1)), columns=["rmia_placeholder"], index=df_input.index
@@ -57,7 +62,7 @@ class BlendingPlusPlus:
         df_meta = pd.concat(
             [
                 # df_input[config.metadata["continuous"]],  # Original continuous features
-                gower_features,
+                # gower_features,
                 domias_features,
                 rmia_signals,  # Placeholder for RMIA features
             ],
@@ -85,11 +90,11 @@ class BlendingPlusPlus:
             cat_cols=cat_cols,
         )
 
-        self.meta_classifier_ = train_meta_classifier(
-            x_train=df_train_meta, y_train=y_train, model_type=self.meta_classifier_type, epochs=epochs
-        )
+        # self.meta_classifier_ = train_meta_classifier(
+        #     x_train=df_train_meta, y_train=y_train, model_type=self.meta_classifier_type, epochs=epochs
+        # )
 
-        print("Blending++ meta-classifier has been trained.")
+        # print("Blending++ meta-classifier has been trained.")
 
         return self
 
