@@ -1,6 +1,17 @@
 """
 Code is heavily inspired by SynthEvals approach to preprocessing
 https://github.com/schneiderkamplab/syntheval/tree/main/src/syntheval/utils.
+
+Note: There are a number of reasons why we don't directly import Syntheval's preprocessing pipeline directly. A few
+examples are:
+
+1) Syntheval's preprocessor holds the data in place and can only be used to transform the dataframes provided in the
+constructor. The one implemented below is more flexible.
+2) Syntheval's get_cat_variables (our get_categorical_columns) has not been heavily documented which makes it difficult
+to use in practice.
+3) For Syntheval's metrics, the preprocessing enforces a hardcoded threshold on categorical variable detection that
+cannot be changed and made assumptions about what your numerical and categorical column name lists implied. We make
+different assumptions here.
 """
 
 from logging import INFO
