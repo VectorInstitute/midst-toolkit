@@ -20,99 +20,135 @@ class NormType(Enum):
 DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 
-def compute_l1_distance(synthetic_data: torch.Tensor, real_data: torch.Tensor) -> torch.Tensor:
+def compute_l1_distance(
+    target_data: torch.Tensor, reference_data: torch.Tensor, skip_diagonal: bool = False
+) -> torch.Tensor:
     """
     Compute the smallest l1 distance between each point in the synthetic data tensor compared to all points in the
     real data tensor.
 
     Args:
-        synthetic_data: Tensor of synthetic data. Assumed to be a 2D tensor with batch size first, followed by
+        target_data: Tensor of target data. Assumed to be a 2D tensor with batch size first, followed by
             data dimension.
-        real_data: Tensor of synthetic data. Assumed to be a 2D tensor with batch size first, followed by
+        reference_data: Tensor of reference data. Assumed to be a 2D tensor with batch size first, followed by
             data dimension.
+        skip_diagonal: Whether or not to skip computations on diagonal of distance matrix. This is generally only used
+            when ``target_data`` and ``reference_data`` are the same set. In this case, the diagonal elements are the
+            distance of the point from itself (which is 0). Defaults to False.
 
     Returns:
-        A 1D tensor containing the l1 minimum distances between each data point in the synthetic data and all points in
-        the real data. Order will be the same as the synthetic data.
+        A 1D tensor containing the l1 minimum distances between each data point in the target data and all points in
+        the reference data. Order will be the same as the target data.
     """
-    assert synthetic_data.ndim == 2 and real_data.ndim == 2, "Synthetic and Real data tensors should be 2D"
-    assert synthetic_data.shape[1] == real_data.shape[1], "Data dimensions do not match for the provided tensors"
-    # For synthetic_data (n_synth, data_dim), and real_data (n_real, data_dim), this subtracts
-    # every point in real_data from every point in synthetic_data to create a tensor of shape
-    # (n_synth, n_real, data_dim).
-    point_differences = synthetic_data[:, None] - real_data
+    assert target_data.ndim == 2 and reference_data.ndim == 2, "Target and Reference data tensors should be 2D"
+    assert target_data.shape[1] == reference_data.shape[1], "Data dimensions do not match for the provided tensors"
+
+    # For target_data (n_target_points, data_dim), and reference_data (n_ref_points, data_dim), this subtracts
+    # every point in reference_data from every point in target_data to create a tensor of shape
+    # (n_target_points, n_ref_points, data_dim).
+    point_differences = target_data[:, None] - reference_data
     distances = (point_differences).abs().sum(dim=2)
-    # Minimum distance of points in n_synth compared to all other points in real_data.
-    min_batch_distances, _ = distances.min(dim=1)
+
+    # Minimum distance of points in n_target_points compared to all other points in reference_data.
+    if not skip_diagonal:
+        min_batch_distances, _ = distances.min(dim=1)
+        return min_batch_distances
+
+    # Bottom two distances, because one of them might be the reference point to itself.
+    min_batch_distances, _ = torch.topk(distances, 2, dim=1, largest=False)
     return min_batch_distances
 
 
-def compute_l2_distance(synthetic_data: torch.Tensor, real_data: torch.Tensor) -> torch.Tensor:
+def compute_l2_distance(
+    target_data: torch.Tensor, reference_data: torch.Tensor, skip_diagonal: bool = False
+) -> torch.Tensor:
     """
     Compute the smallest l2 distance between each point in the synthetic data tensor compared to all points in the
     real data tensor.
 
     Args:
-        synthetic_data: Tensor of synthetic data. Assumed to be a 2D tensor with batch size first, followed by
+        target_data: Tensor of synthetic data. Assumed to be a 2D tensor with batch size first, followed by
             data dimension.
-        real_data: Tensor of synthetic data. Assumed to be a 2D tensor with batch size first, followed by
+        reference_data: Tensor of synthetic data. Assumed to be a 2D tensor with batch size first, followed by
             data dimension.
+        skip_diagonal: Whether or not to skip computations on diagonal of distance matrix. This is generally only used
+            when ``target_data`` and ``reference_data`` are the same set. In this case, the diagonal elements are the
+            distance of the point from itself (which is 0). Defaults to False.
 
     Returns:
-        A 1D tensor containing the minimum l2 distances between each data point in the synthetic data and all points in
-        the real data. Order will be the same as the synthetic data.
+        A 1D tensor containing the l2 minimum distances between each data point in the target data and all points in
+        the reference data. Order will be the same as the target data.
     """
-    assert synthetic_data.ndim == 2 and real_data.ndim == 2, "Synthetic and Real data tensors should be 2D"
-    assert synthetic_data.shape[1] == real_data.shape[1], "Data dimensions do not match for the provided tensors"
-    # For synthetic_data (n_synth, data_dim), and real_data (n_real, data_dim), this subtracts
-    # every point in real_data from every point in synthetic_data to create a tensor of shape
-    # (n_synth, n_real, data_dim).
-    point_differences = synthetic_data[:, None] - real_data
+    assert target_data.ndim == 2 and reference_data.ndim == 2, "Target and Reference data tensors should be 2D"
+    assert target_data.shape[1] == reference_data.shape[1], "Data dimensions do not match for the provided tensors"
+    # For target_data (n_target_points, data_dim), and reference_data (n_reference_points, data_dim), this subtracts
+    # every point in reference_data from every point in target_data to create a tensor of shape
+    # (n_target_points, n_reference_points, data_dim).
+    point_differences = target_data[:, None] - reference_data
     distances = torch.sqrt(torch.pow(point_differences, 2.0).sum(dim=2))
-    # Minimum distance of points in n_synth compared to all other points in real_data.
-    min_batch_distances, _ = distances.min(dim=1)
+
+    # Minimum distance of points in n_target_points compared to all other points in reference_data.
+    if not skip_diagonal:
+        min_batch_distances, _ = distances.min(dim=1)
+        return min_batch_distances
+
+    # Bottom two distances, because one of them might be the reference point to itself.
+    min_batch_distances, _ = torch.topk(distances, 2, dim=1, largest=False)
     return min_batch_distances
 
 
 def minimum_distances(
-    synthetic_data: torch.Tensor,
-    real_data: torch.Tensor,
+    target_data: torch.Tensor,
+    reference_data: torch.Tensor,
     batch_size: int | None = None,
     norm: NormType = NormType.L1,
+    skip_diagonal: bool = False,
 ) -> torch.Tensor:
     """
-    Function to calculate minimum distances between each point in the synthetic data to those of the real data
+    Function to calculate minimum distances between each point in the target data to those of the reference data
     provided. This can be done in batches if specified. Otherwise, the entire computation is done at once.
 
     Args:
-        synthetic_data: The complete set of synthetic data, stacked as a tensor with shape (n_samples, data dimension).
-        real_data: The complete set of real data, stacked as a tensor with shape (n_samples, data dimension).
+        target_data: The complete set of target data, stacked as a tensor with shape (n_samples, data dimension).
+        reference_data: The complete set of reference data, stacked as a tensor with shape (n_samples, data dimension).
         batch_size: Size of the batches to facilitate computing the minimum distances, if specified. Defaults to None.
         norm: Which type of norm to use as the distance metric. Defaults to NormType.L1.
+        skip_diagonal: Whether or not to skip computations on diagonal of distance matrix. This is generally only used
+            when ``target_data`` and ``reference_data`` are the same set. In this case, the diagonal elements are the
+            distance of the point from itself (which is 0). Defaults to False.
 
     Returns:
         A 1D tensor with the minimum distances. Should be of length n_samples. Order will be the same as
-        ``synthetic_data.``
+        ``target_data.``
     """
     if batch_size is None:
         # If batch size isn't specified, do it all at once.
-        batch_size = synthetic_data.size(0)
+        batch_size = target_data.size(0)
 
     # Create a minimum distance for each synthetic data sample
-    min_distances = torch.full((synthetic_data.size(0),), float("inf"), device=synthetic_data.device)
+    if skip_diagonal:
+        min_distances = torch.full((target_data.size(0), 2), float("inf"), device=target_data.device)
+    else:
+        min_distances = torch.full((target_data.size(0),), float("inf"), device=target_data.device)
     # Iterate through the real data in batches and compute distances
-    for start_index in range(0, real_data.size(0), batch_size):
-        end_index = min(start_index + batch_size, real_data.size(0))
-        real_data_batch = real_data[start_index:end_index]
+    for start_index in range(0, reference_data.size(0), batch_size):
+        end_index = min(start_index + batch_size, reference_data.size(0))
+        reference_data_batch = reference_data[start_index:end_index]
 
         if norm is NormType.L1:
-            min_batch_distances = compute_l1_distance(synthetic_data, real_data_batch)
+            min_batch_distances = compute_l1_distance(target_data, reference_data_batch, skip_diagonal)
         elif norm is NormType.L2:
-            min_batch_distances = compute_l2_distance(synthetic_data, real_data_batch)
+            min_batch_distances = compute_l2_distance(target_data, reference_data_batch, skip_diagonal)
         else:
             raise ValueError(f"Unrecognized norm type: {str(norm)}")
-        min_distances = torch.minimum(min_distances, min_batch_distances)
-
+        if not skip_diagonal:
+            min_distances = torch.minimum(min_distances, min_batch_distances)
+        else:
+            combined_distances = torch.cat((min_distances, min_batch_distances), dim=1)
+            min_distances, _ = torch.topk(combined_distances, 2, dim=1, largest=False)
+    if skip_diagonal:
+        # Smallest distance should be point to itself. Second smallest is the rest.
+        return min_distances[:, 1]
     return min_distances
 
 
@@ -207,8 +243,8 @@ def distance_to_closest_record_score(
     test. Then, it returns the proportion of synthetic data points that are closer to the training dataset than the
     test dataset. If the size of the training and test datasets are equal, this score should ideally be indicating
     that the model has not over fit to training data and the synthetic data points are not memorized copies of training
-    data. If the size of the training and test datasets are different, the ideal value for this score is #Train /
-    (#Train + #Test).
+    data. If the size of the training and test datasets are different, the ideal value for this score is # Train /
+    (# Train + # Test).
 
     NOTE: The dataframes provided should already have been pre-processed into numerical values for each column. That
     is, for example, the categorical variables should already have been one-hot encoded and the numerical values
@@ -255,3 +291,69 @@ def distance_to_closest_record_score(
     score = records_closer_to_train / dcr_train_torch.shape[0]
     log(INFO, f"Distance to Closest Record Score = {score}")
     return score.item()
+
+
+def median_distance_to_closest_record_score(
+    synthetic_data: pd.DataFrame,
+    real_data: pd.DataFrame,
+    norm: NormType = NormType.L1,
+    batch_size: int = 1000,
+    device: torch.device = DEVICE,
+) -> float:
+    """
+    Implementing the Median Distance to Closest Record (Median DCR) metric as described in:
+    https://arxiv.org/pdf/2404.15821.
+
+    This calculation uses the same minimum distance to the real training data as in the
+    distance_to_closest_record_score implementation, but then computes the minimum inter-record distances from the
+    real training data with itself. The ratio of the median minimum distance for synthetic to real data to the
+    median minimum distance of real to real is returned.
+
+    NOTE: The dataframes provided should already have been pre-processed into numerical values for each column. That
+    is, for example, the categorical variables should already have been one-hot encoded and the numerical values
+    normalized in some way. This can be done via the ``preprocess_for_distance_to_closest_record_score`` function
+
+    Args:
+        synthetic_data: Dataframe containing synthetically generated data for which we want to derive a DCR score.
+            This dataframe should already have been preprocessed as in the note above.
+        real_data: Dataframe containing real data that was used to train the model that generated the provided
+            synthetic data. This dataframe should already have been preprocessed as in the note above.
+        norm: _description_. Defaults to NormType.L1.
+        batch_size: Batch size used to compute the DCR iteratively. Just needed to manage memory. Defaults to 1000.
+        device: What device the tensors should be sent to in order to perform the calculations. Defaults to DEVICE.
+
+    Returns:
+        Median DCR score
+    """
+    real_data_tensor = torch.tensor(real_data.to_numpy()).to(device)
+    synthetic_data_tensor = torch.tensor(synthetic_data.to_numpy()).to(device)
+
+    dcr_synthetic_to_real = []
+    dcr_real_to_real = []
+
+    # Assumes that the tensors are 2D and arranged (n_samples, data dimension)
+    for start_index in tqdm(range(0, synthetic_data_tensor.size(0), batch_size)):
+        end_index = min(start_index + batch_size, synthetic_data_tensor.size(0))
+        synthetic_data_batch = synthetic_data_tensor[start_index:end_index]
+
+        # Calculate distances for synthetic data to real data in smaller batches
+        dcr_synthetic_to_real_batch = minimum_distances(
+            synthetic_data_batch, real_data_tensor, batch_size, norm, skip_diagonal=False
+        )
+        dcr_synthetic_to_real.append(dcr_synthetic_to_real_batch)
+
+        # Assumes that the tensors are 2D and arranged (n_samples, data dimension)
+    for start_index in tqdm(range(0, real_data_tensor.size(0), batch_size)):
+        end_index = min(start_index + batch_size, real_data_tensor.size(0))
+        real_data_batch = real_data_tensor[start_index:end_index]
+
+        # Calculate distances for synthetic data to real data in smaller batches
+        dcr_real_to_real_batch = minimum_distances(
+            real_data_batch, real_data_tensor, batch_size, norm, skip_diagonal=True
+        )
+        dcr_real_to_real.append(dcr_real_to_real_batch)
+
+    dcr_synthetic_to_real_torch = torch.cat(dcr_synthetic_to_real)
+    dcr_real_to_real_torch = torch.cat(dcr_real_to_real)
+
+    return torch.median(dcr_synthetic_to_real_torch).item() / torch.median(dcr_real_to_real_torch).item()
