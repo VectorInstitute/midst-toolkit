@@ -12,6 +12,19 @@ from sklearn.preprocessing import MinMaxScaler, OrdinalEncoder
 from midst_toolkit.common.logger import log
 
 
+def is_none_or_empty(list_to_check: list[str] | None) -> bool:
+    """
+    Function to check with the provided argument is None or is an empty list.
+
+    Args:
+        list_to_check: List to check.
+
+    Returns:
+        True if the list provided is empty or the variable is None
+    """
+    return list_to_check is None or len(list_to_check) == 0
+
+
 class SynthEvalDataframeEncoding:
     def __init__(
         self,
@@ -43,29 +56,23 @@ class SynthEvalDataframeEncoding:
             holdout_data: Any holdout or otherwise auxiliary dataframe to be included as part of the transformation
                 fitting process. If none, only the real and synthetic dataframes are used. Defaults to None.
         """
-        assert self._check_if_not_none_or_empty(categorical_columns) or self._check_if_not_none_or_empty(
-            numerical_columns
-        ), "Either categorical or numerical columns must be provided."
+        assert not is_none_or_empty(categorical_columns) or not is_none_or_empty(numerical_columns), (
+            "Either categorical or numerical columns must be provided."
+        )
 
         joint_dataframe = pd.concat((real_data.reset_index(), synthetic_data.reset_index()), axis=0)
         if holdout_data is not None:
             joint_dataframe = pd.concat((joint_dataframe.reset_index(), holdout_data.reset_index()), axis=0)
 
-        self.categorical_columns = (
-            categorical_columns if self._check_if_not_none_or_empty(categorical_columns) else None
-        )
-
-        self.numerical_columns = numerical_columns if self._check_if_not_none_or_empty(numerical_columns) else None
-
-        if self._check_if_not_none_or_empty(self.categorical_columns):
+        self.categorical_columns = None
+        if not is_none_or_empty(categorical_columns):
+            self.categorical_columns = categorical_columns
             self.ordinal_encoder = OrdinalEncoder().fit(joint_dataframe[self.categorical_columns])
 
-        if self._check_if_not_none_or_empty(self.numerical_columns):
+        self.numerical_columns = None
+        if not is_none_or_empty(numerical_columns):
+            self.numerical_columns = numerical_columns
             self.numerical_encoder = MinMaxScaler().fit(joint_dataframe[self.numerical_columns])
-
-    @classmethod
-    def _check_if_not_none_or_empty(cls, list_to_check: list[str] | None) -> bool:
-        return list_to_check is not None and len(list_to_check) > 0
 
     def encode(self, data_to_encode: pd.DataFrame) -> pd.DataFrame:
         """
@@ -73,7 +80,7 @@ class SynthEvalDataframeEncoding:
         dataframe. This assumes that the ``data_to_encode`` shares the same columns used to fit the respective
         transforms in ``self.categorical_columns`` and ``self.numerical_columns``.
 
-        NOTE: This is NOT an inplace operation.
+        NOTE: This is an immutable function. It is NOT an in-place operation.
 
         Args:
             data_to_encode: Dataframe to transform with the fitted transformations.
@@ -101,7 +108,7 @@ class SynthEvalDataframeEncoding:
         shares  the same columns used to fit the respective transforms in ``self.categorical_columns`` and
         ``self.numerical_columns``.
 
-        NOTE: This is not an in-place operation.
+        NOTE: This is an immutable function. It is NOT an in-place operation.
 
         Args:
             data_to_decode: Dataframe containing columns that need to be mapped back to their "original" values.
@@ -166,7 +173,7 @@ def get_categorical_columns(dataframe: pd.DataFrame, threshold: int) -> list[str
             categorical.
 
     Returns:
-        A set of column names from the provided dataframe that correspond to categorical data.
+        A list of column names from the provided dataframe that correspond to categorical data.
     """
     categorical_variables: list[str] = []
 
