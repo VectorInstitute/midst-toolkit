@@ -26,5 +26,8 @@ wheels/
 # Dataset files
 examples/**/data/
 
+# Trained metaclassifiers
+examples/ensemble_attack_example/trained_models/
+
 # hydra output
 outputs/

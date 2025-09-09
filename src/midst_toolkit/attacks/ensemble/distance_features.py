@@ -4,7 +4,7 @@
 
 import numpy as np
 import pandas as pd
-from train_utils.external.gower import gower_dist as gower
+from train_utils import gower_dist as gower
 
 
 def calculate_gower_features(df_target: pd.DataFrame, df_synth: pd.DataFrame, cat_cols: list) -> pd.DataFrame:
@@ -51,3 +51,21 @@ def calculate_gower_features(df_target: pd.DataFrame, df_synth: pd.DataFrame, ca
     features["num_of_neighbor"] = np.sum(np.where(pairwise_gower <= epsilon, 1, 0), axis=1)
 
     return pd.DataFrame(features, index=df_target.index)
+
+
+def domias(df_ref: pd.DataFrame, df_synth: pd.DataFrame, df_test: pd.DataFrame) -> np.ndarray:
+    """
+    Placeholder for DOMIAS model predictions.
+    In practice, this function should load a pre-trained DOMIAS model and return prediction probabilities. (???)
+
+    Args:
+        df_ref: Reference dataframe (real data).
+        df_synth: Synthetic dataframe.
+        df_test: Test dataframe to predict on.
+
+    Returns:
+        An array of prediction probabilities for the test set.
+    """
+    # For demonstration, return random probabilities
+    np.random.seed(42)  # For reproducibility
+    return np.random.rand(len(df_test), 1)

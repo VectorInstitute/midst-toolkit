@@ -3,6 +3,8 @@ This file is an uncompleted example script for running the Ensemble Attack on MI
 provided resources and data.
 """
 
+import pickle
+from datetime import datetime
 from logging import INFO
 from pathlib import Path
 
@@ -62,22 +64,44 @@ def main(cfg: DictConfig) -> None:
         y_meta_test = np.load(
             Path(cfg.data_paths.processed_attack_data_path) / "master_challenge_test_labels.npy",
         )
+
+        df_synth = load_dataframe(
+            Path(cfg.data_paths.midst_data_path),
+            "synth.csv",
+        )
+
+        df_ref = load_dataframe(
+            Path(cfg.population_path),
+            "population_all_with_challenge_no_id.csv",
+        )
+
         # Fit the metaclassifier.
         # 1. Initialize the attacker
-        blending_attacker = BlendingPlusPlus(meta_classifier_type="xgb")
+        blending_attacker = BlendingPlusPlus(meta_classifier_type=cfg.metaclassifier.model_type)
 
         # 2. Train the attacker on the meta-train set
         blending_attacker.fit(
             df_train=df_meta_train,
             y_train=y_meta_train,
-            df_synth=None,
-            df_ref=None,
-            cat_cols=[],
+            df_synth=df_synth,
+            df_ref=df_ref,
+            cat_cols=cfg.data_configs.metadata.categorical,
             epochs=1,
         )
 
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        model_filename = f"{timestamp}_trained_metaclassifier.pkl"
+        with open(Path(cfg.model_paths.metaclassifier_model_path) / model_filename, "wb") as f:
+            pickle.dump(blending_attacker.meta_classifier_, f)
+
         # 3. Get predictions on the test set
-        final_predictions = blending_attacker.predict_proba()
+        final_predictions = blending_attacker.predict(
+            df_test=df_meta_test,
+            df_synth=df_synth,
+            df_ref=df_ref,
+            cat_cols=cfg.data_configs.metadata.categorical,
+            y_test=y_meta_test,
+        )
 
         print("Final Blending++ predictions:", final_predictions)
         # TODO: Change print to logging

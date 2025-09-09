@@ -11,7 +11,7 @@ from train_utils import fit_lr_pipeline, hyperparam_tuning
 
 
 def train_meta_classifier(
-    x_train: pd.DataFrame, y_train: np.ndarray, model_type: str, use_gpu: bool = True
+    x_train: pd.DataFrame, y_train: np.ndarray, model_type: str, use_gpu: bool = True, epochs: int = 1
 ) -> Pipeline:
     """
     Trains a meta-classifier (LR or XGBoost) on the combined feature set.
@@ -25,7 +25,7 @@ def train_meta_classifier(
     Returns:
         The trained classifier pipeline.
     """
-    continuous_cols = list(x_train.columns)  # Assuming all meta-features are continuous
+    continuous_cols = list(x_train.columns)  # Assuming all meta-features are continuous, WRONG ASSUMPTION
 
     if model_type == "lr":
         print("Training Logistic Regression meta-classifier...")
