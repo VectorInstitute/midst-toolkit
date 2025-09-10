@@ -98,4 +98,4 @@ class SynthEvalQualityMetric(MetricBase, ABC):
 
         if holdout_data is not None:
             return real_data, synthetic_data, holdout_data
-        return real_data, synthetic_data, holdout_data
+        return real_data, synthetic_data
