@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -456,6 +456,19 @@ wheels = [
 ]
 
 [[package]]
+name = "gower"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7c/b8/f02ffa72009105e981b21fe957895107d1b3c81dece43167d28d8acfdfb0/gower-0.1.2.tar.gz", hash = "sha256:34ddb5158f0e8bfba093dca06b9f887bda244998d10af2a3ad8c74a6efa1b5f6", size = 5637, upload-time = "2022-11-13T20:23:20.493Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/99/23/88b526457ea992e0a47147a886db3d749d07347c8d3a303f6076deee7299/gower-0.1.2-py3-none-any.whl", hash = "sha256:cb46e18243e1d88d2fa0a23d20afb71e5469f25db4ee6236db40f897dfea9e6f", size = 5168, upload-time = "2022-11-13T20:23:18.387Z" },
+]
+
+[[package]]
 name = "griffe"
 version = "1.7.3"
 source = { registry = "https://pypi.org/simple" }
@@ -821,6 +834,9 @@ wheels = [
 name = "midst-toolkit"
 version = "0.1.0"
 source = { editable = "." }
+dependencies = [
+    { name = "gower" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -858,6 +874,7 @@ docs = [
 ]
 
 [package.metadata]
+requires-dist = [{ name = "gower", specifier = ">=0.1.2" }]
 
 [package.metadata.requires-dev]
 dev = [
