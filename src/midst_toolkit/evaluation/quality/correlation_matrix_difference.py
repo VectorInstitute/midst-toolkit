@@ -38,9 +38,7 @@ class CorrelationMatrixDifference(SynthEvalQualityMetric):
         super().__init__(categorical_columns, numerical_columns, do_preprocess)
         self.compute_mixed_correlations = compute_mixed_correlations
 
-    def compute(
-        self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame, holdout_data: pd.DataFrame | None = None
-    ) -> dict[str, float]:
+    def compute(self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> dict[str, float]:
         """
         Computes the Froebenius norm of the difference between the correlation matrices associated with the
         ``real_data`` and ``synthetic_data`` dataframes. The correlations computed depends on the value of
@@ -57,8 +55,6 @@ class CorrelationMatrixDifference(SynthEvalQualityMetric):
             real_data: Real data to which the synthetic data may be compared. In many cases this will be data used
                 to TRAIN the model that generated the synthetic data, but not always.
             synthetic_data: Synthetically generated data whose quality is to be assessed.
-            holdout_data: This is UNUSED for this metric. Only the real and synthetic data are compared. Defaults to
-                None.
 
         Returns:
             The Froebenius norm of the difference between the two real and synthetic data correlation matrices and the
@@ -66,11 +62,12 @@ class CorrelationMatrixDifference(SynthEvalQualityMetric):
             are keyed under 'corr_mat_diff' and 'corr_mat_dims' respectively.
         """
         if self.do_preprocess:
-            real_data, synthetic_data, holdout_data = self.preprocess(real_data, synthetic_data, holdout_data)
+            real_data, synthetic_data = self.preprocess(real_data, synthetic_data)
 
         self.syntheval_metric = MixedCorrelation(
             real_data=real_data,
             synt_data=synthetic_data,
+            hout_data=None,
             cat_cols=self.categorical_columns,
             num_cols=self.numerical_columns,
             do_preprocessing=False,
