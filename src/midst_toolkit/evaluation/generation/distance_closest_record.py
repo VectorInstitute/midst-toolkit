@@ -392,7 +392,7 @@ class MedianDistanceToClosestRecordScore(QualityMetricBase):
         dcr_synthetic_to_real_torch = torch.cat(dcr_synthetic_to_real)
         dcr_real_to_real_torch = torch.cat(dcr_real_to_real)
 
-        return {
-            "median_dcr_score": torch.median(dcr_synthetic_to_real_torch).item()
-            / torch.median(dcr_real_to_real_torch).item()
-        }
+        median_dcr_score = (
+            torch.median(dcr_synthetic_to_real_torch).item() / torch.median(dcr_real_to_real_torch).item()
+        )
+        return {"median_dcr_score": median_dcr_score}
