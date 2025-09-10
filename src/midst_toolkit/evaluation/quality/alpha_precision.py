@@ -29,20 +29,15 @@ class AlphaPrecision(MetricBase):
         """
         self.naive_only = naive_only
 
-    def compute(
-        self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame, holdout_data: pd.DataFrame | None = None
-    ) -> dict[str, float]:
+    def compute(self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> dict[str, float]:
         """
         Computes the alpha-precision, beta-recall, and authenticity scores between the real and synthetic datasets.
         If the ``naive_only`` boolean is True, then only the "naive" metrics are reported, i.e. metrics
         with "naive" in their name.
 
-        NOTE: ``holdout_data`` is not used for this class.
-
         Args:
             real_data: Real data that the synthetic data is meant to mimic/replace.
             synthetic_data: Synthetic data to be compared against the provided real data.
-            holdout_data: NOT USED for this metric.
 
         Returns:
             A dictionary containing the computed scores using the AlphaPrecision class in the Synthcity library.

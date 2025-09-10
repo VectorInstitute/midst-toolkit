@@ -9,9 +9,7 @@ from midst_toolkit.data_processing.utils import SynthEvalDataframeEncoding
 
 class MetricBase(ABC):
     @abstractmethod
-    def compute(
-        self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame, holdout_data: pd.DataFrame | None = None
-    ) -> dict[str, float]:
+    def compute(self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> dict[str, float]:
         """
         Abstract method for computing a synthetic data quality metric. Should be implemented by inheriting classes
         and return a dictionary of values for the resulting metric computations.
@@ -20,10 +18,6 @@ class MetricBase(ABC):
             real_data: Real data to which the synthetic data may be compared. In many cases this will be data used
                 to TRAIN the model that generated the synthetic data, but not always.
             synthetic_data: Synthetically generated data whose quality is to be assessed.
-            holdout_data: An optional set of holdout data. Typically, this will be data drawn from the same
-                distribution as ``real_data`` but was explicitly NOT used to train the model that generated
-                ``synthetic_data``. Not all metrics will require a holdout set and it is, therefore optional.
-                Defaults to None.
 
         Raises:
             NotImplementedError: Must be implemented by inheriting metrics

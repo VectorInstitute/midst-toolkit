@@ -334,9 +334,7 @@ class MedianDistanceToClosestRecordScore(MetricBase):
         self.batch_size = batch_size
         self.device = device
 
-    def compute(
-        self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame, holdout_data: pd.DataFrame | None = None
-    ) -> dict[str, float]:
+    def compute(self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> dict[str, float]:
         """
         Implementing the Median Distance to Closest Record (Median DCR) metric as described in:
         https://arxiv.org/pdf/2404.15821.
@@ -356,7 +354,6 @@ class MedianDistanceToClosestRecordScore(MetricBase):
                 synthetic data. This dataframe should already have been preprocessed as in the note above.
             synthetic_data: Dataframe containing synthetically generated data for which we want to derive a DCR score.
                 This dataframe should already have been preprocessed as in the note above.
-            holdout_data: NOT USED. No holdout set is required for this computation. Defaults to None.
 
         Returns:
             Median DCR score
