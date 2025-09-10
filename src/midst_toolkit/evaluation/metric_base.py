@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from logging import INFO
+from typing import overload
 
 import pandas as pd
 
@@ -56,9 +57,19 @@ class SynthEvalQualityMetric(MetricBase, ABC):
         if do_preprocess:
             log(INFO, "Default preprocessing will be performed during computation.")
 
+    @overload
+    def preprocess(
+        self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame
+    ) -> tuple[pd.DataFrame, pd.DataFrame]: ...
+
+    @overload
+    def preprocess(
+        self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame, holdout_data: pd.DataFrame
+    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: ...
+
     def preprocess(
         self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame, holdout_data: pd.DataFrame | None = None
-    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | None]:
+    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame] | tuple[pd.DataFrame, pd.DataFrame]:
         """
         Applies the default dataframe preprocessing pipeline for SynthEval. This has been pulled into the library
         to allow for this to be optional (it is not in the SynthEval library) and controllable for our purposes.
@@ -85,4 +96,6 @@ class SynthEvalQualityMetric(MetricBase, ABC):
         synthetic_data = encoder.encode(synthetic_data)
         holdout_data = encoder.encode(holdout_data) if holdout_data else None
 
+        if holdout_data is not None:
+            return real_data, synthetic_data, holdout_data
         return real_data, synthetic_data, holdout_data

@@ -25,7 +25,7 @@ class DimensionwiseMeanDifference(SynthEvalQualityMetric):
             dimensions. This is keyed under "standard_error_difference"
         """
         if self.do_preprocess:
-            real_data, synthetic_data, _ = self.preprocess(real_data, synthetic_data, holdout_data=None)
+            real_data, synthetic_data = self.preprocess(real_data, synthetic_data)
 
         self.syntheval_metric = SynthEvalDwm(
             real_data=real_data,

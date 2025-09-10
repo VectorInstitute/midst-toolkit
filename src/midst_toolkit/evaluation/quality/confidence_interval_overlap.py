@@ -79,7 +79,7 @@ class MeanConfidenceInternalOverlap(SynthEvalQualityMetric):
             - "frac non-overlaps": It's the percentage of columns without a CI overlap.
         """
         if self.do_preprocess:
-            real_data, synthetic_data, _ = self.preprocess(real_data, synthetic_data)
+            real_data, synthetic_data = self.preprocess(real_data, synthetic_data)
 
         self.syntheval_metric = ConfidenceIntervalOverlap(
             real_data=real_data,
