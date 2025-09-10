@@ -30,7 +30,7 @@ def test_correlation_matrix_diff_no_preprocess() -> None:
     )
 
     score = metric.compute(REAL_DATA, SYNTHETIC_DATA)
-    assert pytest.approx(3.5432854275916057, abs=1e-8) == score["mutual_inf_diff"]
+    assert pytest.approx(0.37141938296138, abs=1e-8) == score["mutual_inf_diff"]
     assert score["mi_mat_dims"] == 4
 
 
@@ -40,9 +40,9 @@ def test_correlation_matrix_diff_with_preprocess() -> None:
         numerical_columns=["column_a", "column_b", "column_d"],
         do_preprocess=True,
     )
-
+    # Should be the same, as preprocessing doesn't change the categorical MI
     score = metric.compute(REAL_DATA, SYNTHETIC_DATA)
-    assert pytest.approx(3.5432854275916057, abs=1e-8) == score["mutual_inf_diff"]
+    assert pytest.approx(0.37141938296138, abs=1e-8) == score["mutual_inf_diff"]
     assert score["mi_mat_dims"] == 4
 
 
@@ -54,7 +54,7 @@ def test_one_column_left_off() -> None:
     )
 
     score = metric.compute(REAL_DATA, SYNTHETIC_DATA)
-    assert pytest.approx(2.506647565147822, abs=1e-8) == score["mutual_inf_diff"]
+    assert pytest.approx(0.32307047372751013, abs=1e-8) == score["mutual_inf_diff"]
     assert score["mi_mat_dims"] == 3
 
 
@@ -67,17 +67,30 @@ def test_mixed_correlation_no_categoricals() -> None:
     )
 
     score = metric.compute(REAL_DATA, SYNTHETIC_DATA)
-    assert pytest.approx(2.3475591685761548, abs=1e-8) == score["mutual_inf_diff"]
+    assert pytest.approx(0.13329514471112788, abs=1e-8) == score["mutual_inf_diff"]
     assert score["mi_mat_dims"] == 2
 
 
 def test_mixed_correlation_no_numericals() -> None:
     metric = MutualInformationDifference(
-        categorical_columns=["column_a", "column_c"],
+        categorical_columns=["column_b", "column_c"],
         numerical_columns=[],
         do_preprocess=True,
     )
 
     score = metric.compute(REAL_DATA, SYNTHETIC_DATA)
-    assert pytest.approx(0, abs=1e-8) == score["mutual_inf_diff"]
+    assert pytest.approx(0.285880650689213, abs=1e-8) == score["mutual_inf_diff"]
+    assert score["mi_mat_dims"] == 2
+
+
+def test_mixed_correlation_do_not_include_numericals() -> None:
+    metric = MutualInformationDifference(
+        categorical_columns=["column_b", "column_c"],
+        numerical_columns=["column_a", "column_d"],
+        do_preprocess=True,
+        include_numerical_columns=False,
+    )
+
+    score = metric.compute(REAL_DATA, SYNTHETIC_DATA)
+    assert pytest.approx(0.285880650689213, abs=1e-8) == score["mutual_inf_diff"]
     assert score["mi_mat_dims"] == 2
