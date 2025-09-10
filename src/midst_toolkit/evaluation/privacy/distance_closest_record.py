@@ -279,7 +279,8 @@ class DistanceToClosestRecordScore(MetricBase):
             holdout_data: Real data that was NOT used to train the generating model. Defaults to None.
 
         Returns:
-            DCR Score
+            A dictionary containing the Distance to Closest Record Score in the ``dcr_score`` key. Example:
+            { "dcr_score": 0.79 }
         """
         assert holdout_data is not None, "For DCR score calculations, a holdout dataset is required"
 
@@ -356,7 +357,8 @@ class MedianDistanceToClosestRecordScore(MetricBase):
                 This dataframe should already have been preprocessed as in the note above.
 
         Returns:
-            Median DCR score
+            A dictionary containing the Median Distance to Closest Record Score in the ``median_dcr_score`` key.
+            Example: { "median_dcr_score": 0.79 }
         """
         real_data_tensor = torch.tensor(real_data.to_numpy()).to(self.device)
         synthetic_data_tensor = torch.tensor(synthetic_data.to_numpy()).to(self.device)

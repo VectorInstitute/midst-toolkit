@@ -24,7 +24,7 @@ class MetricBase(ABC):
             NotImplementedError: Must be implemented by inheriting metrics
 
         Returns:
-            a dictionary with string keys with float values computed by the metric. Some metrics return multiple
+            A dictionary with string keys containing float values computed by the metric. Some metrics return multiple
             statistics. For example, in confidence interval estimation, one might have mean and standard deviation.
         """
         raise NotImplementedError("Inheriting class must define compute")
