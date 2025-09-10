@@ -22,7 +22,7 @@ SYNTHETIC_DATA = pd.DataFrame(
 )
 
 
-def test_correlation_matrix_diff_no_preprocess() -> None:
+def test_mutual_information_diff_no_preprocess() -> None:
     metric = MutualInformationDifference(
         categorical_columns=["column_c"],
         numerical_columns=["column_a", "column_b", "column_d"],
@@ -34,7 +34,7 @@ def test_correlation_matrix_diff_no_preprocess() -> None:
     assert score["mi_mat_dims"] == 4
 
 
-def test_correlation_matrix_diff_with_preprocess() -> None:
+def test_mutual_information_diff_with_preprocess() -> None:
     metric = MutualInformationDifference(
         categorical_columns=["column_c"],
         numerical_columns=["column_a", "column_b", "column_d"],
@@ -58,7 +58,7 @@ def test_one_column_left_off() -> None:
     assert score["mi_mat_dims"] == 3
 
 
-def test_mixed_correlation_no_categoricals() -> None:
+def test_mutual_information_diff_no_categoricals() -> None:
     # Also leaving off column_d
     metric = MutualInformationDifference(
         categorical_columns=[],
@@ -71,7 +71,7 @@ def test_mixed_correlation_no_categoricals() -> None:
     assert score["mi_mat_dims"] == 2
 
 
-def test_mixed_correlation_no_numericals() -> None:
+def test_mutual_information_diff_no_numericals() -> None:
     metric = MutualInformationDifference(
         categorical_columns=["column_b", "column_c"],
         numerical_columns=[],
@@ -83,7 +83,7 @@ def test_mixed_correlation_no_numericals() -> None:
     assert score["mi_mat_dims"] == 2
 
 
-def test_mixed_correlation_do_not_include_numericals() -> None:
+def test_mutual_information_diff_do_not_include_numericals() -> None:
     metric = MutualInformationDifference(
         categorical_columns=["column_b", "column_c"],
         numerical_columns=["column_a", "column_d"],
