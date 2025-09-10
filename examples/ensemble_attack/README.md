@@ -36,7 +36,12 @@ Or you can directly run the bash script:
 ```bash
  ./examples/ensemble_attack/run.sh
 ```
+With Hydra, we can override all the values in the config as well as the config path and config file name through command-line arguments.
+Use the following example to run the script with your own config path and directory. Make sure that the config file with the specified name exists under the provided path. Note that the `config-path` is relative to the script's directory. For example, if `experiment_config.yaml` is located in the `examples/configs` folder, you can run:
 
+```python
+python -m examples.ensemble_attack.run_attack --config-path=../../examples/configs/ --config-name=experiment_config
+```
 
 # Terminology
 

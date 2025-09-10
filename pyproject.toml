@@ -74,6 +74,10 @@ implicit_reexport = false
 strict_equality = true
 extra_checks = true
 mypy_path = "src"
+files = ["src", "examples"]
+exclude = [
+    "examples/tutorial/.*"
+]
 
 [tool.ruff]
 include = ["*.py", "pyproject.toml"]

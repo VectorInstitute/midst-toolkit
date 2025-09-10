@@ -23,7 +23,7 @@ class AttackType(Enum):
     CLAVADDPM_WHITE_BOX = "clavaddpm_white_box"
 
 
-def expand_ranges(ranges):
+def expand_ranges(ranges: list[tuple[int, int]]) -> list[int]:
     """
     Reads a list of tuples representing ranges and expands them into a flat list of integers.
 
@@ -34,8 +34,8 @@ def expand_ranges(ranges):
         A flat list of integers covering the ranges.
     """
     expanded: list = []
-    for r in ranges:
-        start, end = r
+    for list_range in ranges:
+        start, end = list_range
         expanded.extend(range(start, end))
     return expanded
 
@@ -87,7 +87,7 @@ def collect_midst_attack_data(
         data_path_ith = data_dir / attack_type.value / data_split / f"{generation_name}_{i}"
         # Will raise FileNotFoundError if the file does not exist or if it is not a CSV file.
         df_real_ith = load_dataframe(data_path_ith, file_name)
-        df_real = df_real_ith if i == 1 else pd.concat([df_real, df_real_ith])
+        df_real = df_real_ith if df_real.empty else pd.concat([df_real, df_real_ith])
 
     return df_real.drop_duplicates()
 
