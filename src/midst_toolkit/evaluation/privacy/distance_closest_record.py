@@ -68,9 +68,9 @@ def compute_l2_distance(
     reference data tensor.
 
     Args:
-        target_data: Tensor of synthetic data. Assumed to be a 2D tensor with batch size first, followed by
+        target_data: Tensor of target data. Assumed to be a 2D tensor with batch size first, followed by
             data dimension.
-        reference_data: Tensor of synthetic data. Assumed to be a 2D tensor with batch size first, followed by
+        reference_data: Tensor of reference data. Assumed to be a 2D tensor with batch size first, followed by
             data dimension.
         skip_diagonal: Whether or not to skip computations on diagonal of distance matrix. This is generally only used
             when ``target_data`` and ``reference_data`` are the same set. In this case, the diagonal elements are the
@@ -126,12 +126,13 @@ def minimum_distances(
         # If batch size isn't specified, do it all at once.
         batch_size = target_data.size(0)
 
-    # Create a minimum distance for each synthetic data sample
+    # Create a minimum distance for each target data sample
     if skip_diagonal:
         min_distances = torch.full((target_data.size(0), 2), float("inf"), device=target_data.device)
     else:
         min_distances = torch.full((target_data.size(0),), float("inf"), device=target_data.device)
-    # Iterate through the real data in batches and compute distances
+
+    # Iterate through the reference data in batches and compute distances
     for start_index in range(0, reference_data.size(0), batch_size):
         end_index = min(start_index + batch_size, reference_data.size(0))
         reference_data_batch = reference_data[start_index:end_index]
