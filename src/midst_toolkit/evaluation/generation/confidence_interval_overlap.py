@@ -50,9 +50,7 @@ class MeanConfidenceInternalOverlap(SynthEvalQualityMetric):
         super().__init__(categorical_columns, numerical_columns, do_preprocess)
         self.confidence_level = confidence_level
 
-    def compute(
-        self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame, holdout_data: pd.DataFrame | None = None
-    ) -> dict[str, float]:
+    def compute(self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> dict[str, float]:
         """
         Computes the mean of the interval overlap percentages for the confidence intervals (CIs) of each
         NUMERICAL column. The confidence intervals are interval estimates for the mean value of a particular column
@@ -71,10 +69,6 @@ class MeanConfidenceInternalOverlap(SynthEvalQualityMetric):
             real_data: Real data to which the synthetic data may be compared. In many cases this will be data used
                 to TRAIN the model that generated the synthetic data, but not always.
             synthetic_data: Synthetically generated data whose quality is to be assessed.
-            holdout_data: An optional set of holdout data. Typically, this will be data drawn from the same
-                distribution as ``real_data`` but was explicitly NOT used to train the model that generated
-                ``synthetic_data``. Not all metrics will require a holdout set and it is, therefore optional.
-                Defaults to None.
 
         Returns:
             A dictionary with the various metric values for confidence interval overlap.
@@ -85,12 +79,12 @@ class MeanConfidenceInternalOverlap(SynthEvalQualityMetric):
             - "frac non-overlaps": It's the percentage of columns without a CI overlap.
         """
         if self.do_preprocess:
-            real_data, synthetic_data, holdout_data = self.preprocess(real_data, synthetic_data, holdout_data)
+            real_data, synthetic_data, _ = self.preprocess(real_data, synthetic_data)
 
         self.syntheval_metric = ConfidenceIntervalOverlap(
             real_data=real_data,
             synt_data=synthetic_data,
-            hout_data=holdout_data,
+            hout_data=None,
             cat_cols=self.categorical_columns,
             num_cols=self.numerical_columns,
             do_preprocessing=False,
