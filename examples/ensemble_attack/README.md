@@ -25,10 +25,8 @@ Collect all the **train data** from all the attack types (every train folder pro
 To run the steps first make sure to activate your virtual environment and adjust `config.yaml`. Then run the following from the top directory of the library:
 
 
-```python
-
+```bash
 python -m examples.ensemble_attack.run_attack
-
 ```
 
 Or you can directly run the bash script:
@@ -39,7 +37,7 @@ Or you can directly run the bash script:
 With Hydra, we can override all the values in the config as well as the config path and config file name through command-line arguments.
 Use the following example to run the script with your own config path and directory. Make sure that the config file with the specified name exists under the provided path. Note that the `config-path` is relative to the script's directory. For example, if `experiment_config.yaml` is located in the `examples/configs` folder, you can run:
 
-```python
+```bash
 python -m examples.ensemble_attack.run_attack --config-path=../../examples/configs/ --config-name=experiment_config
 ```
 
