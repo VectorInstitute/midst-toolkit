@@ -1,12 +1,12 @@
 import pytest
-import torch
 
+from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.data_processing.midst_data_processing import (
     load_midst_data,
     process_midst_data_for_alpha_precision_evaluation,
 )
-from midst_toolkit.evaluation.generation_quality.alpha_precision import synthcity_alpha_precision_metrics
-from midst_toolkit.evaluation.generation_quality.utils import (
+from midst_toolkit.evaluation.generation.alpha_precision import synthcity_alpha_precision_metrics
+from midst_toolkit.evaluation.generation.utils import (
     extract_columns_based_on_meta_info,
     one_hot_encode_categoricals_and_merge_with_numerical,
 )
@@ -19,8 +19,7 @@ META_INFO_PATH = "tests/assets/meta_info.json"
 
 
 def test_alpha_precision_evaluation() -> None:
-    # TODO: Change to set all random seeds when merged.
-    torch.manual_seed(1)
+    set_all_random_seeds(1)
 
     real_data, synthetic_data, meta_info = load_midst_data(REAL_DATA_PATH, SYNTHETIC_DATA_PATH, META_INFO_PATH)
 
@@ -59,3 +58,6 @@ def test_alpha_precision_evaluation() -> None:
         assert pytest.approx(0.05994074074074074, abs=1e-8) == quality_results["delta_precision_alpha_naive"]
         assert pytest.approx(0.005229629629629584, abs=1e-8) == quality_results["delta_coverage_beta_naive"]
         assert pytest.approx(0.9905185185185185, abs=1e-8) == quality_results["authenticity_naive"]
+
+    # Unset seed for safety
+    unset_all_random_seeds()

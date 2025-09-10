@@ -9,7 +9,7 @@ from sklearn.preprocessing import OneHotEncoder
 from tqdm import tqdm
 
 from midst_toolkit.common.logger import log
-from midst_toolkit.evaluation.generation_quality.utils import extract_columns_based_on_meta_info
+from midst_toolkit.evaluation.generation.utils import extract_columns_based_on_meta_info
 
 
 class NormType(Enum):
