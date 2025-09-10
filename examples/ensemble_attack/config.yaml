@@ -1,7 +1,7 @@
 # Ensemble example configuration
 # Base data directory (can be overridden from command line)
-base_data_dir: examples/ensemble_attack_example/data
-base_example_dir: examples/ensemble_attack_example
+base_data_dir: examples/ensemble_attack/data
+base_example_dir: examples/ensemble_attack
 
 # Data paths (relative to base_data_dir)
 data_paths:

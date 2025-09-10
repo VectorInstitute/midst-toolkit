@@ -8,6 +8,6 @@ which python
 
 echo Experiments Launched
 
-python -m examples.ensemble_attack_example.run_attack
+python -m examples.ensemble_attack.run_attack
 
 echo Experiments Completed
