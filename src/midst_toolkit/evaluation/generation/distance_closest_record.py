@@ -46,16 +46,18 @@ def preprocess(
     on the concatenation of columns from each dataset.
 
     Args:
+        meta_info: JSON with meta information about the columns and their corresponding types that should be
+            considered.
         synthetic_data: Dataframe containing all synthetically generated data.
         real_data_train: Dataframe containing the real training data associated with the model that generated the
             ``synthetic_data``.
         real_data_test: Dataframe containing the real test data. It's important that this data was not seen by the
-            model that generated ``synthetic_data`` during training.
-        meta_info: JSON with meta information about the columns and their corresponding types that should be
-            considered.
+            model that generated ``synthetic_data`` during training. If None, then it will, of course, not be
+            preprocessed. Defaults to None.
 
     Returns:
-        Processed Pandas dataframes the real data for training, real data for testing, and synthetic data.
+        Processed Pandas dataframes with the synthetic data, real data for training, real data for testing if it was
+        provided.
     """
     numerical_synthetic_data, categorical_synthetic_data = extract_columns_based_on_meta_info(
         synthetic_data, meta_info
