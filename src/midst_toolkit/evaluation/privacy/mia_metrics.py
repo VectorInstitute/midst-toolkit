@@ -1,6 +1,6 @@
 import numpy as np
 
-from midst_toolkit.evaluation.privacy.mia_scores import (
+from midst_toolkit.evaluation.privacy.mia_scoring import (
     AttackScore,
     Auc,
     BalancedAccuracy,

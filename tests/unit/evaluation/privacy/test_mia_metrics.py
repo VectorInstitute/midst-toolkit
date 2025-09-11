@@ -3,7 +3,7 @@ import pytest
 
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.evaluation.privacy.mia_metrics import DEFAULT_FPR_THRESHOLDS, MembershipInferenceMetrics
-from midst_toolkit.evaluation.privacy.mia_scores import MiaMetrics, TprAtFpr
+from midst_toolkit.evaluation.privacy.mia_scoring import MiaMetrics, TprAtFpr
 from midst_toolkit.evaluation.privacy.mia_utils import generate_html
 
 
