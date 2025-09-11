@@ -114,9 +114,9 @@ def preprocess(
     processed_real_data_train = pd.DataFrame(
         np.concatenate((num_real_data_train_np, cat_real_data_train_oh), axis=1)
     ).astype(float)
-    processed_synthetic_data = (
-        pd.DataFrame(np.concatenate((num_synthetic_data_np, cat_synthetic_data_oh), axis=1)).astype(float),
-    )
+    processed_synthetic_data = pd.DataFrame(
+        np.concatenate((num_synthetic_data_np, cat_synthetic_data_oh), axis=1)
+    ).astype(float)
 
     if real_data_test is None:
         return (processed_synthetic_data, processed_real_data_train)
