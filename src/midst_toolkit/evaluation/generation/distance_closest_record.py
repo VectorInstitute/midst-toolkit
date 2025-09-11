@@ -111,15 +111,19 @@ def preprocess(
         if categorical_real_data_test is not None:
             cat_real_data_test_oh = np.empty((categorical_real_data_test.shape[0], 0))
 
-    if real_data_test is not None:
-        return (
-            pd.DataFrame(np.concatenate((num_synthetic_data_np, cat_synthetic_data_oh), axis=1)).astype(float),
-            pd.DataFrame(np.concatenate((num_real_data_train_np, cat_real_data_train_oh), axis=1)).astype(float),
-            pd.DataFrame(np.concatenate((num_real_data_test_np, cat_real_data_test_oh), axis=1)).astype(float),
-        )
-    return (
+    processed_real_data_train = pd.DataFrame(
+        np.concatenate((num_real_data_train_np, cat_real_data_train_oh), axis=1)
+    ).astype(float)
+    processed_synthetic_data = (
         pd.DataFrame(np.concatenate((num_synthetic_data_np, cat_synthetic_data_oh), axis=1)).astype(float),
-        pd.DataFrame(np.concatenate((num_real_data_train_np, cat_real_data_train_oh), axis=1)).astype(float),
+    )
+
+    if real_data_test is None:
+        return (processed_synthetic_data, processed_real_data_train)
+    return (
+        processed_synthetic_data,
+        processed_real_data_train,
+        pd.DataFrame(np.concatenate((num_real_data_test_np, cat_real_data_test_oh), axis=1)).astype(float),
     )
 
 
