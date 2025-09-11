@@ -1,7 +1,7 @@
 import pandas as pd
 from syntheval.metrics.utility.metric_mutual_information import MutualInformation
 
-from midst_toolkit.evaluation.metric_base import SynthEvalQualityMetric
+from midst_toolkit.evaluation.metrics_base import SynthEvalQualityMetric
 
 
 class MutualInformationDifference(SynthEvalQualityMetric):
