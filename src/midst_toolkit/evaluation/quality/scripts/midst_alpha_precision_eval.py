@@ -9,8 +9,8 @@ from midst_toolkit.data_processing.midst_data_processing import (
     load_midst_data,
     process_midst_data_for_alpha_precision_evaluation,
 )
-from midst_toolkit.evaluation.generation.alpha_precision import AlphaPrecision
-from midst_toolkit.evaluation.generation.utils import (
+from midst_toolkit.evaluation.quality.alpha_precision import AlphaPrecision
+from midst_toolkit.evaluation.utils import (
     create_quality_metrics_directory,
     dump_metrics_dict,
     extract_columns_based_on_meta_info,
