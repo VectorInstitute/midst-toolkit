@@ -21,7 +21,8 @@ class AlphaPrecision(QualityMetricBase):
         implementation is based heavily on the Synthcity library (https://github.com/vanderschaarlab/synthcity).
         Specifically, this class computes the alpha-precision, beta-recall, and authenticity scores between the two
         datasets. If the ``naive_only`` boolean is True, then only the "naive" metrics are reported, i.e. metrics
-        with "naive" in their name.
+        with "naive" in their name. Naive scores are based on a set "by-hand" transformations rather than a classifier
+        embedding.
 
         Args:
             naive_only: Determines whether to report only the "naive" metrics for each of alpha-precision,
@@ -33,7 +34,8 @@ class AlphaPrecision(QualityMetricBase):
         """
         Computes the alpha-precision, beta-recall, and authenticity scores between the real and synthetic datasets.
         If the ``naive_only`` boolean is True, then only the "naive" metrics are reported, i.e. metrics
-        with "naive" in their name.
+        with "naive" in their name. Naive scores are based on a set "by-hand" transformations rather than a classifier
+        embedding.
 
         Args:
             real_data: Real data that the synthetic data is meant to mimic/replace.

@@ -1,6 +1,5 @@
-from enum import Enum
 from logging import INFO
-from typing import Any
+from typing import Any, overload
 
 import numpy as np
 import pandas as pd
@@ -9,157 +8,35 @@ from sklearn.preprocessing import OneHotEncoder
 from tqdm import tqdm
 
 from midst_toolkit.common.logger import log
+from midst_toolkit.evaluation.generation.distance_utils import NormType, minimum_distances
 from midst_toolkit.evaluation.generation.quality_metric_base import QualityMetricBase
 from midst_toolkit.evaluation.generation.utils import extract_columns_based_on_meta_info
-
-
-class NormType(Enum):
-    L1 = "l1"
-    L2 = "l2"
 
 
 DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 
-def compute_l1_distance(
-    target_data: torch.Tensor, reference_data: torch.Tensor, skip_diagonal: bool = False
-) -> torch.Tensor:
-    """
-    Compute the smallest l1 distance between each point in the target data tensor compared to all points in the
-    reference data tensor.
-
-    Args:
-        target_data: Tensor of target data. Assumed to be a 2D tensor with batch size first, followed by
-            data dimension.
-        reference_data: Tensor of reference data. Assumed to be a 2D tensor with batch size first, followed by
-            data dimension.
-        skip_diagonal: Whether or not to skip computations on diagonal of distance matrix. This is generally only used
-            when ``target_data`` and ``reference_data`` are the same set. In this case, the diagonal elements are the
-            distance of the point from itself (which is 0). Defaults to False.
-
-    Returns:
-        A 1D tensor containing the l1 minimum distances between each data point in the target data and all points in
-        the reference data. Order will be the same as the target data.
-    """
-    assert target_data.ndim == 2 and reference_data.ndim == 2, "Target and Reference data tensors should be 2D"
-    assert target_data.shape[1] == reference_data.shape[1], "Data dimensions do not match for the provided tensors"
-
-    # For target_data (n_target_points, data_dim), and reference_data (n_ref_points, data_dim), this subtracts
-    # every point in reference_data from every point in target_data to create a tensor of shape
-    # (n_target_points, n_ref_points, data_dim).
-    point_differences = target_data[:, None] - reference_data
-    distances = (point_differences).abs().sum(dim=2)
-
-    # Minimum distance of points in n_target_points compared to all other points in reference_data.
-    if not skip_diagonal:
-        min_batch_distances, _ = distances.min(dim=1)
-        return min_batch_distances
-
-    # Bottom two distances, because one of them might be the reference point to itself.
-    min_batch_distances, _ = torch.topk(distances, 2, dim=1, largest=False)
-    return min_batch_distances
+@overload
+def preprocess(
+    meta_info: dict[str, Any], synthetic_data: pd.DataFrame, real_data_train: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame]: ...
 
 
-def compute_l2_distance(
-    target_data: torch.Tensor, reference_data: torch.Tensor, skip_diagonal: bool = False
-) -> torch.Tensor:
-    """
-    Compute the smallest l2 distance between each point in the target data tensor compared to all points in the
-    reference data tensor.
-
-    Args:
-        target_data: Tensor of target data. Assumed to be a 2D tensor with batch size first, followed by
-            data dimension.
-        reference_data: Tensor of reference data. Assumed to be a 2D tensor with batch size first, followed by
-            data dimension.
-        skip_diagonal: Whether or not to skip computations on diagonal of distance matrix. This is generally only used
-            when ``target_data`` and ``reference_data`` are the same set. In this case, the diagonal elements are the
-            distance of the point from itself (which is 0). Defaults to False.
-
-    Returns:
-        A 1D tensor containing the l2 minimum distances between each data point in the target data and all points in
-        the reference data. Order will be the same as the target data.
-    """
-    assert target_data.ndim == 2 and reference_data.ndim == 2, "Target and Reference data tensors should be 2D"
-    assert target_data.shape[1] == reference_data.shape[1], "Data dimensions do not match for the provided tensors"
-    # For target_data (n_target_points, data_dim), and reference_data (n_reference_points, data_dim), this subtracts
-    # every point in reference_data from every point in target_data to create a tensor of shape
-    # (n_target_points, n_reference_points, data_dim).
-    point_differences = target_data[:, None] - reference_data
-    distances = torch.sqrt(torch.pow(point_differences, 2.0).sum(dim=2))
-
-    # Minimum distance of points in n_target_points compared to all other points in reference_data.
-    if not skip_diagonal:
-        min_batch_distances, _ = distances.min(dim=1)
-        return min_batch_distances
-
-    # Bottom two distances, because one of them might be the reference point to itself.
-    min_batch_distances, _ = torch.topk(distances, 2, dim=1, largest=False)
-    return min_batch_distances
-
-
-def minimum_distances(
-    target_data: torch.Tensor,
-    reference_data: torch.Tensor,
-    batch_size: int | None = None,
-    norm: NormType = NormType.L1,
-    skip_diagonal: bool = False,
-) -> torch.Tensor:
-    """
-    Function to calculate minimum distances between each point in the target data to those of the reference data
-    provided. This can be done in batches if specified. Otherwise, the entire computation is done at once.
-
-    Args:
-        target_data: The complete set of target data, stacked as a tensor with shape (n_samples, data dimension).
-        reference_data: The complete set of reference data, stacked as a tensor with shape (n_samples, data dimension).
-        batch_size: Size of the batches to facilitate computing the minimum distances, if specified. Defaults to None.
-        norm: Which type of norm to use as the distance metric. Defaults to NormType.L1.
-        skip_diagonal: Whether or not to skip computations on diagonal of distance matrix. This is generally only used
-            when ``target_data`` and ``reference_data`` are the same set. In this case, the diagonal elements are the
-            distance of the point from itself (which is 0). Defaults to False.
-
-    Returns:
-        A 1D tensor with the minimum distances. Should be of length n_samples. Order will be the same as
-        ``target_data.``
-    """
-    if batch_size is None:
-        # If batch size isn't specified, do it all at once.
-        batch_size = target_data.size(0)
-
-    # Create a minimum distance for each target data sample
-    if skip_diagonal:
-        min_distances = torch.full((target_data.size(0), 2), float("inf"), device=target_data.device)
-    else:
-        min_distances = torch.full((target_data.size(0),), float("inf"), device=target_data.device)
-
-    # Iterate through the reference data in batches and compute distances
-    for start_index in range(0, reference_data.size(0), batch_size):
-        end_index = min(start_index + batch_size, reference_data.size(0))
-        reference_data_batch = reference_data[start_index:end_index]
-
-        if norm is NormType.L1:
-            min_batch_distances = compute_l1_distance(target_data, reference_data_batch, skip_diagonal)
-        elif norm is NormType.L2:
-            min_batch_distances = compute_l2_distance(target_data, reference_data_batch, skip_diagonal)
-        else:
-            raise ValueError(f"Unrecognized norm type: {str(norm)}")
-        if not skip_diagonal:
-            min_distances = torch.minimum(min_distances, min_batch_distances)
-        else:
-            combined_distances = torch.cat((min_distances, min_batch_distances), dim=1)
-            min_distances, _ = torch.topk(combined_distances, 2, dim=1, largest=False)
-    if skip_diagonal:
-        # Smallest distance should be point to itself. Second smallest is the rest.
-        return min_distances[:, 1]
-    return min_distances
-
-
-def preprocess_for_distance_to_closest_record_score(
+@overload
+def preprocess(
+    meta_info: dict[str, Any],
     synthetic_data: pd.DataFrame,
     real_data_train: pd.DataFrame,
     real_data_test: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: ...
+
+
+def preprocess(
     meta_info: dict[str, Any],
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    synthetic_data: pd.DataFrame,
+    real_data_train: pd.DataFrame,
+    real_data_test: pd.DataFrame | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame] | tuple[pd.DataFrame, pd.DataFrame]:
     """
     This function performs preprocessing on Pandas dataframes to prepare for computation of the distance to closest
     record score. Specifically, this function filters the provided raw dataframes to the appropriate numerical and
@@ -180,14 +57,11 @@ def preprocess_for_distance_to_closest_record_score(
     Returns:
         Processed Pandas dataframes the real data for training, real data for testing, and synthetic data.
     """
-    numerical_real_data_train, categorical_real_data_train = extract_columns_based_on_meta_info(
-        real_data_train, meta_info
-    )
-    numerical_real_data_test, categorical_real_data_test = extract_columns_based_on_meta_info(
-        real_data_test, meta_info
-    )
     numerical_synthetic_data, categorical_synthetic_data = extract_columns_based_on_meta_info(
         synthetic_data, meta_info
+    )
+    numerical_real_data_train, categorical_real_data_train = extract_columns_based_on_meta_info(
+        real_data_train, meta_info
     )
 
     numerical_ranges = [
@@ -196,40 +70,66 @@ def preprocess_for_distance_to_closest_record_score(
     ]
     numerical_ranges_np = np.array(numerical_ranges)
 
-    num_real_data_train_np = numerical_real_data_train.to_numpy()
-    num_real_data_test_np = numerical_real_data_test.to_numpy()
     num_synthetic_data_np = numerical_synthetic_data.to_numpy()
+    num_real_data_train_np = numerical_real_data_train.to_numpy()
 
     # Normalize the values of the numerical columns of the different datasets by the ranges of the train set.
-    num_real_data_train_np = num_real_data_train_np / numerical_ranges_np
-    num_real_data_test_np = num_real_data_test_np / numerical_ranges_np
     num_synthetic_data_np = num_synthetic_data_np / numerical_ranges_np
+    num_real_data_train_np = num_real_data_train_np / numerical_ranges_np
 
-    cat_real_data_train_np = categorical_real_data_train.to_numpy().astype("str")
-    cat_real_data_test_np = categorical_real_data_test.to_numpy().astype("str")
     cat_synthetic_data_np = categorical_synthetic_data.to_numpy().astype("str")
+    cat_real_data_train_np = categorical_real_data_train.to_numpy().astype("str")
+
+    if real_data_test is not None:
+        numerical_real_data_test, categorical_real_data_test = extract_columns_based_on_meta_info(
+            real_data_test, meta_info
+        )
+        num_real_data_test_np = numerical_real_data_test.to_numpy()
+        # Normalize the values of the numerical columns of the different datasets by the ranges of the train set.
+        num_real_data_test_np = num_real_data_test_np / numerical_ranges_np
+        cat_real_data_test_np = categorical_real_data_test.to_numpy().astype("str")
+    else:
+        num_real_data_test_np, cat_real_data_test_np = None, None
 
     if categorical_real_data_train.shape[1] > 0:
         encoder = OneHotEncoder()
-        encoder.fit(np.concatenate((cat_real_data_train_np, cat_synthetic_data_np, cat_real_data_test_np), axis=0))
+        if cat_real_data_test_np is not None:
+            encoder.fit(np.concatenate((cat_synthetic_data_np, cat_real_data_train_np, cat_real_data_test_np), axis=0))
+        else:
+            encoder.fit(np.concatenate((cat_synthetic_data_np, cat_real_data_train_np), axis=0))
 
-        cat_real_data_train_oh = encoder.transform(cat_real_data_train_np).toarray()
-        cat_real_data_test_oh = encoder.transform(cat_real_data_test_np).toarray()
         cat_synthetic_data_oh = encoder.transform(cat_synthetic_data_np).toarray()
-    else:
-        cat_real_data_train_oh = np.empty((categorical_real_data_train.shape[0], 0))
-        cat_real_data_test_oh = np.empty((categorical_real_data_test.shape[0], 0))
-        cat_synthetic_data_oh = np.empty((categorical_synthetic_data.shape[0], 0))
+        cat_real_data_train_oh = encoder.transform(cat_real_data_train_np).toarray()
+        if cat_real_data_test_np is not None:
+            cat_real_data_test_oh = encoder.transform(cat_real_data_test_np).toarray()
 
+    else:
+        cat_synthetic_data_oh = np.empty((categorical_synthetic_data.shape[0], 0))
+        cat_real_data_train_oh = np.empty((categorical_real_data_train.shape[0], 0))
+        if categorical_real_data_test is not None:
+            cat_real_data_test_oh = np.empty((categorical_real_data_test.shape[0], 0))
+
+    if real_data_test is not None:
+        return (
+            pd.DataFrame(np.concatenate((num_synthetic_data_np, cat_synthetic_data_oh), axis=1)).astype(float),
+            pd.DataFrame(np.concatenate((num_real_data_train_np, cat_real_data_train_oh), axis=1)).astype(float),
+            pd.DataFrame(np.concatenate((num_real_data_test_np, cat_real_data_test_oh), axis=1)).astype(float),
+        )
     return (
-        pd.DataFrame(np.concatenate((num_real_data_train_np, cat_real_data_train_oh), axis=1)).astype(float),
-        pd.DataFrame(np.concatenate((num_real_data_test_np, cat_real_data_test_oh), axis=1)).astype(float),
         pd.DataFrame(np.concatenate((num_synthetic_data_np, cat_synthetic_data_oh), axis=1)).astype(float),
+        pd.DataFrame(np.concatenate((num_real_data_train_np, cat_real_data_train_oh), axis=1)).astype(float),
     )
 
 
 class DistanceToClosestRecordScore(QualityMetricBase):
-    def __init__(self, norm: NormType = NormType.L1, batch_size: int = 1000, device: torch.device = DEVICE):
+    def __init__(
+        self,
+        norm: NormType = NormType.L1,
+        batch_size: int = 1000,
+        device: torch.device = DEVICE,
+        meta_info: dict[str, Any] | None = None,
+        do_preprocess: bool = False,
+    ):
         """
         A class to compute the distance to closest record (DCR) score for the ``synthetic_data``. Here, DCR is
         defined as the distance between a synthetic datapoint and its nearest real datapoint. DCR equal to zero means
@@ -251,10 +151,21 @@ class DistanceToClosestRecordScore(QualityMetricBase):
             norm: Determines what norm the distances are computed in. Defaults to NormType.L1.
             batch_size: Batch size used to compute the DCR iteratively. Just needed to manage memory. Defaults to 1000.
             device: What device the tensors should be sent to in order to perform the calculations. Defaults to DEVICE.
+            meta_info: The is only required if ``do_preprocess`` is True. JSON with meta information about the columns
+                and their corresponding types that should be considered. At minimum, it should have the keys keys
+                'num_col_idx', 'cat_col_idx', 'target_col_idx', and 'task_type'. If None, then no preprocessing is
+                expected to be done. Defaults to None.
+            do_preprocess: Whether or not to preprocess the dataframes before performing the DCR computations.
+                Preprocessing is performed with the ``preprocess_for_distance_to_closest_record_score`` function
+                Defaults to False.
         """
         self.norm = norm
         self.batch_size = batch_size
         self.device = device
+        self.do_preprocess = do_preprocess
+        if self.do_preprocess and meta_info is None:
+            raise ValueError("Preprocessing requires meta_info to be defined, but it is None.")
+        self.meta_info = meta_info if meta_info is not None else {}
 
     def compute(
         self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame, holdout_data: pd.DataFrame | None = None
@@ -269,10 +180,10 @@ class DistanceToClosestRecordScore(QualityMetricBase):
         ``real_data`` and ``holdout_data``. Ideally, this would be proportionally to randomly selecting a point
         from the combined datasets (# ``real_data`` / (# ``real_data`` + # ``holdout_data``)).
 
-        NOTE: The dataframes provided should already have been pre-processed into numerical values for each column.
-        That is, for example, the categorical variables should already have been one-hot encoded and the numerical
-        values normalized in some way. This can be done via the ``preprocess_for_distance_to_closest_record_score``
-        function
+        NOTE: The dataframes provided need to be pre-processed into numerical values for each column in some way. That
+        is, for example, the categorical variables should be one-hot encoded and the numerical values normalized in
+        some way. This can be done via the ``preprocess_for_distance_to_closest_record_score`` function beforehand or
+        it can be done within compute if ``do_preprocess`` is True and ``meta_info`` has been provided.
 
         Args:
             real_data: Real data that was used to train the model that generated the ``synthetic_data``.
@@ -284,6 +195,11 @@ class DistanceToClosestRecordScore(QualityMetricBase):
             { "dcr_score": 0.79 }
         """
         assert holdout_data is not None, "For DCR score calculations, a holdout dataset is required"
+
+        if self.do_preprocess:
+            synthetic_data, real_data, holdout_data = preprocess(
+                self.meta_info, synthetic_data, real_data, holdout_data
+            )
 
         real_data_train_tensor = torch.tensor(real_data.to_numpy()).to(self.device)
         real_data_test_tensor = torch.tensor(holdout_data.to_numpy()).to(self.device)
@@ -317,39 +233,55 @@ class DistanceToClosestRecordScore(QualityMetricBase):
 
 
 class MedianDistanceToClosestRecordScore(QualityMetricBase):
-    def __init__(self, norm: NormType = NormType.L1, batch_size: int = 1000, device: torch.device = DEVICE):
+    def __init__(
+        self,
+        norm: NormType = NormType.L1,
+        batch_size: int = 1000,
+        device: torch.device = DEVICE,
+        meta_info: dict[str, Any] | None = None,
+        do_preprocess: bool = False,
+    ):
         """
         A metric to compute the Median Distance to Closest Record (Median DCR) metric as described in:
         https://arxiv.org/pdf/2404.15821.
 
-        This calculation uses the same minimum distance to the real training data as in the
-        ``distance_to_closest_record_score`` implementation, but then computes the minimum inter-record distances from
-        the real training data with itself rather than using a holdout dataset of real values. The ratio of the median
-        minimum distance for synthetic to real data to the median minimum distance of real to real is returned.
+        First, the minimum distance from points in the synthetic data to the real data are computed. Next the minimum
+        inter-record distances from the real training data with itself are calculated. The ratio of the median minimum
+        distance for synthetic to real data to the median minimum distance of real to real is returned.
 
         Args:
             norm: Determines what norm the distances are computed in. Defaults to NormType.L1.
             batch_size: Batch size used to compute the DCR iteratively. Just needed to manage memory. Defaults to 1000.
             device: What device the tensors should be sent to in order to perform the calculations. Defaults to DEVICE.
+            meta_info: The is only required if ``do_preprocess`` is True. JSON with meta information about the columns
+                and their corresponding types that should be considered. At minimum, it should have the keys keys
+                'num_col_idx', 'cat_col_idx', 'target_col_idx', and 'task_type'. If None, then no preprocessing is
+                expected to be done. Defaults to None.
+            do_preprocess: Whether or not to preprocess the dataframes before performing the DCR computations.
+                Preprocessing is performed with the ``preprocess_for_distance_to_closest_record_score`` function
+                Defaults to False.
         """
         self.norm = norm
         self.batch_size = batch_size
         self.device = device
+        self.do_preprocess = do_preprocess
+        if self.do_preprocess and meta_info is None:
+            raise ValueError("Preprocessing requires meta_info to be defined, but it is None.")
+        self.meta_info = meta_info if meta_info is not None else {}
 
     def compute(self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> dict[str, float]:
         """
         Implementing the Median Distance to Closest Record (Median DCR) metric as described in:
         https://arxiv.org/pdf/2404.15821.
 
-        This calculation uses the same minimum distance to the real training data as in the
-        distance_to_closest_record_score implementation, but then computes the minimum inter-record distances from the
-        real training data with itself. The ratio of the median minimum distance for synthetic to real data to the
-        median minimum distance of real to real is returned.
+        First, the minimum distance from points in the synthetic data to the real data are computed. Next the minimum
+        inter-record distances from the real training data with itself are calculated. The ratio of the median minimum
+        distance for synthetic to real data to the median minimum distance of real to real is returned.
 
-        NOTE: The dataframes provided should already have been pre-processed into numerical values for each column.
-        That is, for example, the categorical variables should already have been one-hot encoded and the numerical
-        values normalized in some way. This can be done via the ``preprocess_for_distance_to_closest_record_score``
-        function.
+        NOTE: The dataframes provided need to be pre-processed into numerical values for each column in some way. That
+        is, for example, the categorical variables should be one-hot encoded and the numerical values normalized in
+        some way. This can be done via the ``preprocess_for_distance_to_closest_record_score`` function beforehand or
+        it can be done within compute if ``do_preprocess`` is True and ``meta_info`` has been provided.
 
         Args:
             real_data: Dataframe containing real data that was used to train the model that generated the provided
@@ -361,6 +293,9 @@ class MedianDistanceToClosestRecordScore(QualityMetricBase):
             A dictionary containing the Median Distance to Closest Record Score in the ``median_dcr_score`` key.
             Example: { "median_dcr_score": 0.79 }
         """
+        if self.do_preprocess:
+            synthetic_data, real_data = preprocess(self.meta_info, synthetic_data, real_data)
+
         real_data_tensor = torch.tensor(real_data.to_numpy()).to(self.device)
         synthetic_data_tensor = torch.tensor(synthetic_data.to_numpy()).to(self.device)
 
@@ -378,7 +313,7 @@ class MedianDistanceToClosestRecordScore(QualityMetricBase):
             )
             dcr_synthetic_to_real.append(dcr_synthetic_to_real_batch)
 
-            # Assumes that the tensors are 2D and arranged (n_samples, data dimension)
+        # Assumes that the tensors are 2D and arranged (n_samples, data dimension)
         for start_index in tqdm(range(0, real_data_tensor.size(0), self.batch_size)):
             end_index = min(start_index + self.batch_size, real_data_tensor.size(0))
             real_data_batch = real_data_tensor[start_index:end_index]
