@@ -157,8 +157,8 @@ class DistanceToClosestRecordScore(QualityMetricBase):
             norm: Determines what norm the distances are computed in. Defaults to NormType.L1.
             batch_size: Batch size used to compute the DCR iteratively. Just needed to manage memory. Defaults to 1000.
             device: What device the tensors should be sent to in order to perform the calculations. Defaults to DEVICE.
-            meta_info: The is only required if ``do_preprocess`` is True. JSON with meta information about the columns
-                and their corresponding types that should be considered. At minimum, it should have the keys keys
+            meta_info: This is only required/used if ``do_preprocess`` is True. JSON with meta information about the
+                columns and their corresponding types that should be considered. At minimum, it should have the keys
                 'num_col_idx', 'cat_col_idx', 'target_col_idx', and 'task_type'. If None, then no preprocessing is
                 expected to be done. Defaults to None.
             do_preprocess: Whether or not to preprocess the dataframes before performing the DCR computations.
@@ -259,8 +259,8 @@ class MedianDistanceToClosestRecordScore(QualityMetricBase):
             norm: Determines what norm the distances are computed in. Defaults to NormType.L1.
             batch_size: Batch size used to compute the DCR iteratively. Just needed to manage memory. Defaults to 1000.
             device: What device the tensors should be sent to in order to perform the calculations. Defaults to DEVICE.
-            meta_info: The is only required if ``do_preprocess`` is True. JSON with meta information about the columns
-                and their corresponding types that should be considered. At minimum, it should have the keys keys
+            meta_info: This is only required/used if ``do_preprocess`` is True. JSON with meta information about the
+                columns and their corresponding types that should be considered. At minimum, it should have the keys
                 'num_col_idx', 'cat_col_idx', 'target_col_idx', and 'task_type'. If None, then no preprocessing is
                 expected to be done. Defaults to None.
             do_preprocess: Whether or not to preprocess the dataframes before performing the DCR computations.
