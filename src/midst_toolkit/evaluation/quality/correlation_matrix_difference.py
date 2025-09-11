@@ -13,16 +13,16 @@ class CorrelationMatrixDifference(SynthEvalQualityMetric):
         compute_mixed_correlations: bool = False,
     ):
         """
-        This class computes the correlation matrices real and synthetic dataframes between each of the columns
-        (depending) on the configuration. Then the difference between the correlation matrices is computed and
-        the Froebenius norm of that difference is returned. A smaller norm is better.
+        This class computes the correlation matrices between each of the columns of both real and synthetic dataframes
+        Then the difference between the correlation matrices is computed and the Froebenius norm of that difference
+        is returned. A smaller norm is better.
 
         - Regardless of settings, correlations between the numerical columns are computed with Pearson correlation
-          coefficients
-        - If compute_mixed_correlations is True, then correlations between the categorical variables is computed using
-          Cramer's V, and correlations between the numerical and categorical variable is done with a correlation
-          ration, eta, as suggested in https://ieeexplore.ieee.org/document/10020639/
-        - If compute_mixed_correlations is False, ONLY numerical correlations are computed.
+          coefficients.
+        - If ``compute_mixed_correlations`` is True, then correlations between the categorical variables is computed
+          using Cramer's V, and correlations between the numerical and categorical variable is done with a correlation
+          ratio, eta, as suggested in https://ieeexplore.ieee.org/document/10020639/.
+        - If ``compute_mixed_correlations`` is False, ONLY numerical correlations are computed.
 
         NOTE: Categorical variables need not be one-hot encoded for correlations to work.
 
@@ -45,11 +45,11 @@ class CorrelationMatrixDifference(SynthEvalQualityMetric):
         ``compute_mixed_correlations`` for the class.
 
         - Regardless of settings, correlations between the numerical columns are computed with Pearson correlation
-          coefficients
-        - If compute_mixed_correlations is True, then correlations between the categorical variables is computed using
-          Cramer's V, and correlations between the numerical and categorical variable is done with a correlation
-          ration, eta, as suggested in https://ieeexplore.ieee.org/document/10020639/
-        - If compute_mixed_correlations is False, ONLY numerical correlations are computed.
+          coefficients.
+        - If ``compute_mixed_correlations`` is True, then correlations between the categorical variables is computed
+          using Cramer's V, and correlations between the numerical and categorical variable is done with a correlation
+          ration, eta, as suggested in https://ieeexplore.ieee.org/document/10020639/.
+        - If ``compute_mixed_correlations`` is False, ONLY numerical correlations are computed.
 
         Args:
             real_data: Real data to which the synthetic data may be compared. In many cases this will be data used

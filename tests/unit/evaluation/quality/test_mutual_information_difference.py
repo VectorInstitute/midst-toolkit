@@ -53,6 +53,7 @@ def test_one_column_left_off() -> None:
         do_preprocess=True,
     )
 
+    # Make sure computation doesn't include the column that was not included.
     score = metric.compute(REAL_DATA, SYNTHETIC_DATA)
     assert pytest.approx(0.32307047372751013, abs=1e-8) == score["mutual_inf_diff"]
     assert score["mi_mat_dims"] == 3
@@ -78,6 +79,7 @@ def test_mutual_information_diff_no_numericals() -> None:
         do_preprocess=True,
     )
 
+    # Everything should still work with an empty numerical list
     score = metric.compute(REAL_DATA, SYNTHETIC_DATA)
     assert pytest.approx(0.285880650689213, abs=1e-8) == score["mutual_inf_diff"]
     assert score["mi_mat_dims"] == 2
@@ -91,6 +93,8 @@ def test_mutual_information_diff_do_not_include_numericals() -> None:
         include_numerical_columns=False,
     )
 
+    # Should be the same as test_mutual_information_diff_no_numericals since we're saying we do not want to include
+    # numerical columns in the MI computations.
     score = metric.compute(REAL_DATA, SYNTHETIC_DATA)
     assert pytest.approx(0.285880650689213, abs=1e-8) == score["mutual_inf_diff"]
     assert score["mi_mat_dims"] == 2

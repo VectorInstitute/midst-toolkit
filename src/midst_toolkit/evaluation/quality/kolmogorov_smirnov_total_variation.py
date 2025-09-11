@@ -14,11 +14,11 @@ class KolmogorovSmirnovAndTotalVariation(SynthEvalQualityMetric):
         permutations: int = 1000,
     ):
         """
-        This class performs a univariate comparison of corresponding columns in a provided ``real_data`` and
-        ``synthetic_data`` dataframe. The distribution of numerical columns is compared using a Kolmogorov-Smirnov (KS)
-        test and categorical columns are compared with a Total Variation Distance (TVD) with significance established
-        using a permutation test. Both a performed as two-sided hypothesis tests to determine whether it is likely that
-        the distribution of a given column is the same between the two dataframes.
+        This class performs a univariate comparison of corresponding columns in provided ``real_data`` and
+        ``synthetic_data`` dataframes. The distribution of numerical columns is compared using a Kolmogorov-Smirnov
+        (KS) test and categorical columns are compared with a Total Variation Distance (TVD) with significance
+        established using a permutation test. Both a performed as two-sided hypothesis tests to determine whether it
+        is likely that the distribution of a given column is the same between the two dataframes (null).
 
         The main score is the average test statistic across all evaluated columns. Smaller is better. Other scores
         returned include:
@@ -36,7 +36,7 @@ class KolmogorovSmirnovAndTotalVariation(SynthEvalQualityMetric):
             do_preprocess: Whether or not to preprocess the dataframes with the default pipeline used by SynthEval.
                 Defaults to False.
             significance_level: Level of significance for the KS/TVD test statistics for a column of real vs. synthetic
-                data to be significantly different. Lower implies a higher significance requirement.
+                data to be considered significantly different. Lower implies a higher significance requirement.
             permutations: The number of permutations to run through to establish the TVD test statistic.
         """
         super().__init__(categorical_columns, numerical_columns, do_preprocess)
@@ -68,7 +68,7 @@ class KolmogorovSmirnovAndTotalVariation(SynthEvalQualityMetric):
         if self.do_preprocess:
             real_data, synthetic_data = self.preprocess(real_data, synthetic_data)
 
-        # NOTE: The SynthEval KolmogorovSmirnovTest class ignores your column specifications by default. However, for
+        # NOTE: The SynthEval KolmogorovSmirnovTest class ignores column specifications by default. However, for
         # other classes (correlation_matrix_difference for example), specifying less than all of the columns restricts
         # the score computation to just those columns. To make this consistent we do that here, before passing to the
         # SynthEval class.

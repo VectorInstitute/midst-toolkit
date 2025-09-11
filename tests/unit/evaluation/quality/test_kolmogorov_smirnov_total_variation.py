@@ -63,6 +63,7 @@ def test_one_column_left_off() -> None:
         do_preprocess=True,
     )
 
+    # Make sure the metrics don't include the column that was left off.
     score = metric.compute(REAL_DATA, SYNTHETIC_DATA)
     assert pytest.approx(0.6 / 3.0, abs=1e-8) == score["avg stat"]
     assert pytest.approx(0.4 / 2.0, abs=1e-8) == score["avg ks"]
@@ -80,6 +81,7 @@ def test_ks_tvd_no_categoricals() -> None:
         do_preprocess=True,
     )
 
+    # Make sure the computation doesn't include the columns, we get a NaN, and nothing breaks.
     score = metric.compute(REAL_DATA, SYNTHETIC_DATA)
     assert pytest.approx(1.4 / 3.0, abs=1e-8) == score["avg stat"]
     assert pytest.approx(1.4 / 3.0, abs=1e-8) == score["avg ks"]
@@ -96,6 +98,7 @@ def test_ks_tvd_no_numericals() -> None:
         do_preprocess=True,
     )
 
+    # Make sure the computation doesn't include the columns, we get a NaN, and nothing breaks.
     score = metric.compute(REAL_DATA, SYNTHETIC_DATA)
     assert pytest.approx(0.8 / 2.0, abs=1e-8) == score["avg stat"]
     assert math.isnan(score["avg ks"])

@@ -43,6 +43,8 @@ def test_correlation_matrix_diff_with_preprocess() -> None:
         compute_mixed_correlations=True,
     )
 
+    # Should be the same as when we don't pre-process, because correlation is invariant of shift and scale
+    # operations.
     score = metric.compute(REAL_DATA, SYNTHETIC_DATA)
     assert pytest.approx(3.5432854275916057, abs=1e-8) == score["corr_mat_diff"]
     assert score["corr_mat_dims"] == 4
@@ -56,6 +58,7 @@ def test_correlation_matrix_diff_no_mixed_correlation() -> None:
         compute_mixed_correlations=False,
     )
 
+    # Only compute numeric-numeric column correlations.
     score = metric.compute(REAL_DATA, SYNTHETIC_DATA)
     assert pytest.approx(3.319950014673705, abs=1e-8) == score["corr_mat_diff"]
     assert score["corr_mat_dims"] == 3
@@ -69,6 +72,7 @@ def test_one_column_left_off() -> None:
         compute_mixed_correlations=True,
     )
 
+    # Only compute for the columns specified.
     score = metric.compute(REAL_DATA, SYNTHETIC_DATA)
     assert pytest.approx(2.506647565147822, abs=1e-8) == score["corr_mat_diff"]
     assert score["corr_mat_dims"] == 3
@@ -108,6 +112,7 @@ def test_mixed_correlation_no_numericals() -> None:
         compute_mixed_correlations=True,
     )
 
+    # The columns are "perfectly" correlated, so we get a 0 difference.
     score = metric.compute(REAL_DATA, SYNTHETIC_DATA)
     assert pytest.approx(0, abs=1e-8) == score["corr_mat_diff"]
     assert score["corr_mat_dims"] == 2

@@ -16,7 +16,7 @@ class MutualInformationDifference(SynthEvalQualityMetric):
         This class computes the Froebenius norm of the difference between the Mutual Information (MI) score matrices
         associated with two dataframes being compared. A smaller norm is better.
 
-        The computation is based on the work below.
+        The computation is based on:
 
         Ping H, Stoyanovich J, Howe B. DataSynthesizer: privacy-preserving synthetic datasets. 2017
         Presented at: Proceedings of the 29th International Conference on Scientific and Statistical Database
@@ -29,8 +29,8 @@ class MutualInformationDifference(SynthEvalQualityMetric):
         NOTE: Mutual Information works well for categorical variables. However, by default, SynthEval essentially
         just converts numerical columns to string representations for the computation. This isn't a great idea for
         things like floats. By default, this class respects SynthEval's choice, but you can override it and compute
-        MI difference score for categorical columns by setting ``include_numerical_columns`` to False, or providing an
-        empty list for ``numerical_columns``.
+        MI difference score for categorical columns only by setting ``include_numerical_columns`` to False, or
+        providing an empty list for ``numerical_columns``.
 
         Args:
             categorical_columns: Column names corresponding to the categorical variables of any provided dataframe.
@@ -60,7 +60,7 @@ class MutualInformationDifference(SynthEvalQualityMetric):
         NOTE: Mutual Information works well for categorical variables. However, by default, SynthEval essentially
         just converts numerical columns to string representations for the computation. This isn't a great idea for
         things like floats. By default, this class respects SynthEval's choice, but you can override it and compute
-        MI difference score for categorical columns by setting ``self.include_numerical_columns`` to False, or
+        MI difference score for categorical columns only by setting ``self.include_numerical_columns`` to False, or
         ``self.numerical_columns`` to an empty list.
 
         Args:
@@ -76,7 +76,7 @@ class MutualInformationDifference(SynthEvalQualityMetric):
         if self.do_preprocess:
             real_data, synthetic_data = self.preprocess(real_data, synthetic_data)
 
-        # NOTE: The SynthEval MutualInformation class ignores your column specifications by default. However, for
+        # NOTE: The SynthEval MutualInformation class ignores column specifications by default. However, for
         # other classes (correlation_matrix_difference for example), specifying less than all of the columns restricts
         # the score computation to just those columns. To make this consistent we do that here, before passing to the
         # SynthEval class.
