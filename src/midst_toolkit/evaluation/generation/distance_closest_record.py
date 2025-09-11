@@ -162,8 +162,7 @@ class DistanceToClosestRecordScore(QualityMetricBase):
                 'num_col_idx', 'cat_col_idx', 'target_col_idx', and 'task_type'. If None, then no preprocessing is
                 expected to be done. Defaults to None.
             do_preprocess: Whether or not to preprocess the dataframes before performing the DCR computations.
-                Preprocessing is performed with the ``preprocess_for_distance_to_closest_record_score`` function
-                Defaults to False.
+                Preprocessing is performed with the ``preprocess`` function Defaults to False.
         """
         self.norm = norm
         self.batch_size = batch_size
@@ -188,8 +187,8 @@ class DistanceToClosestRecordScore(QualityMetricBase):
 
         NOTE: The dataframes provided need to be pre-processed into numerical values for each column in some way. That
         is, for example, the categorical variables should be one-hot encoded and the numerical values normalized in
-        some way. This can be done via the ``preprocess_for_distance_to_closest_record_score`` function beforehand or
-        it can be done within compute if ``do_preprocess`` is True and ``meta_info`` has been provided.
+        some way. This can be done via the ``preprocess`` function beforehand or it can be done within compute if
+        ``do_preprocess`` is True and ``meta_info`` has been provided.
 
         Args:
             real_data: Real data that was used to train the model that generated the ``synthetic_data``.
@@ -264,8 +263,7 @@ class MedianDistanceToClosestRecordScore(QualityMetricBase):
                 'num_col_idx', 'cat_col_idx', 'target_col_idx', and 'task_type'. If None, then no preprocessing is
                 expected to be done. Defaults to None.
             do_preprocess: Whether or not to preprocess the dataframes before performing the DCR computations.
-                Preprocessing is performed with the ``preprocess_for_distance_to_closest_record_score`` function
-                Defaults to False.
+                Preprocessing is performed with the ``preprocess`` function Defaults to False.
         """
         self.norm = norm
         self.batch_size = batch_size
@@ -286,8 +284,8 @@ class MedianDistanceToClosestRecordScore(QualityMetricBase):
 
         NOTE: The dataframes provided need to be pre-processed into numerical values for each column in some way. That
         is, for example, the categorical variables should be one-hot encoded and the numerical values normalized in
-        some way. This can be done via the ``preprocess_for_distance_to_closest_record_score`` function beforehand or
-        it can be done within compute if ``do_preprocess`` is True and ``meta_info`` has been provided.
+        some way. This can be done via the ``preprocess`` function beforehand or it can be done within compute if
+        ``do_preprocess`` is True and ``meta_info`` has been provided.
 
         Args:
             real_data: Dataframe containing real data that was used to train the model that generated the provided
