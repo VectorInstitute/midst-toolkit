@@ -15,7 +15,7 @@ class CorrelationMatrixDifference(SynthEvalQualityMetric):
         """
         This class computes the correlation matrices real and synthetic dataframes between each of the columns
         (depending) on the configuration. Then the difference between the correlation matrices is computed and
-        the Froebenius norm of that difference is returned.
+        the Froebenius norm of that difference is returned. A smaller norm is better.
 
         - Regardless of settings, correlations between the numerical columns are computed with Pearson correlation
           coefficients

@@ -27,6 +27,8 @@ class MeanConfidenceInternalOverlap(SynthEvalQualityMetric):
         NUMERICAL column. The confidence intervals are interval estimates for the mean value of a particular column
         Within each column the value is the average percentage of overlap for the real and synthetic column CIs.
 
+        More overlap is better.
+
         For example:
 
         If the real column has CI [1.0, 3.0] and the synthetic column has CI [2.0, 5.0], then the overlap width is 1.0

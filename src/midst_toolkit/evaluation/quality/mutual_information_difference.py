@@ -14,7 +14,9 @@ class MutualInformationDifference(SynthEvalQualityMetric):
     ):
         """
         This class computes the Froebenius norm of the difference between the Mutual Information (MI) score matrices
-        associated with two dataframes being compared. The computation is based on the work below.
+        associated with two dataframes being compared. A smaller norm is better.
+
+        The computation is based on the work below.
 
         Ping H, Stoyanovich J, Howe B. DataSynthesizer: privacy-preserving synthetic datasets. 2017
         Presented at: Proceedings of the 29th International Conference on Scientific and Statistical Database
