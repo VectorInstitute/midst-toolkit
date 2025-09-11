@@ -9,7 +9,7 @@ from midst_toolkit.data_processing.midst_data_processing import (
     load_midst_data,
     process_midst_data_for_alpha_precision_evaluation,
 )
-from midst_toolkit.evaluation.generation.alpha_precision import synthcity_alpha_precision_metrics
+from midst_toolkit.evaluation.generation.alpha_precision import AlphaPrecision
 from midst_toolkit.evaluation.generation.utils import (
     create_quality_metrics_directory,
     dump_metrics_dict,
@@ -127,7 +127,9 @@ if __name__ == "__main__":
 
     log(INFO, f"Data shape: {synthetic_dataframe.shape}")
 
-    quality_results = synthcity_alpha_precision_metrics(real_dataframe, synthetic_dataframe, naive_only=False)
+    alpha_precision_metric = AlphaPrecision(naive_only=False)
+
+    quality_results = alpha_precision_metric.compute(real_dataframe, synthetic_dataframe)
     if args.save_directory:
         save_directory = Path(args.save_directory)
         create_quality_metrics_directory(save_directory)

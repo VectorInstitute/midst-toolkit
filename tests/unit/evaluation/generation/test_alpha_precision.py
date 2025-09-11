@@ -5,7 +5,7 @@ from midst_toolkit.data_processing.midst_data_processing import (
     load_midst_data,
     process_midst_data_for_alpha_precision_evaluation,
 )
-from midst_toolkit.evaluation.generation.alpha_precision import synthcity_alpha_precision_metrics
+from midst_toolkit.evaluation.generation.alpha_precision import AlphaPrecision
 from midst_toolkit.evaluation.generation.utils import (
     extract_columns_based_on_meta_info,
     one_hot_encode_categoricals_and_merge_with_numerical,
@@ -43,7 +43,9 @@ def test_alpha_precision_evaluation() -> None:
         categorical_real_numpy, categorical_synthetic_numpy, numerical_real_numpy, numerical_synthetic_numpy
     )
 
-    quality_results = synthcity_alpha_precision_metrics(real_dataframe, synthetic_dataframe, naive_only=False)
+    alpha_precision_metric = AlphaPrecision(naive_only=False)
+
+    quality_results = alpha_precision_metric.compute(real_dataframe, synthetic_dataframe)
     if is_apple_silicon():
         assert pytest.approx(0.972538441890166, abs=1e-8) == quality_results["delta_precision_alpha_OC"]
         assert pytest.approx(0.4709851851851852, abs=1e-8) == quality_results["delta_coverage_beta_OC"]

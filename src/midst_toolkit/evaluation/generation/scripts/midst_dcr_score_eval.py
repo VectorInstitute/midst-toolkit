@@ -7,8 +7,8 @@ import pandas as pd
 from midst_toolkit.common.logger import log
 from midst_toolkit.data_processing.midst_data_processing import load_midst_data_with_test
 from midst_toolkit.evaluation.generation.distance_closest_record import (
-    distance_to_closest_record_score,
-    preprocess_for_distance_to_closest_record_score,
+    DistanceToClosestRecordScore,
+    preprocess,
 )
 
 
@@ -108,8 +108,9 @@ if __name__ == "__main__":
         real_data_train_path, synthetic_data_path, meta_info_path, real_data_test_path
     )
 
-    real_data_train, real_data_test, synthetic_data = preprocess_for_distance_to_closest_record_score(
-        synthetic_data, real_data_train, real_data_test, meta_info
+    synthetic_data, real_data_train, real_data_test = preprocess(
+        meta_info, synthetic_data, real_data_train, real_data_test
     )
-    dcr_score = distance_to_closest_record_score(synthetic_data, real_data_train, real_data_test)
+    metric = DistanceToClosestRecordScore()
+    dcr_score = metric.compute(synthetic_data, real_data_train, real_data_test)
     log(INFO, f"{dataname}-{model}, DCR Score = {dcr_score}")

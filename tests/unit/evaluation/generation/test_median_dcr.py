@@ -6,11 +6,11 @@ import torch
 
 from midst_toolkit.data_processing.midst_data_processing import load_midst_data
 from midst_toolkit.evaluation.generation.distance_closest_record import (
-    NormType,
-    median_distance_to_closest_record_score,
+    MedianDistanceToClosestRecordScore,
     minimum_distances,
-    preprocess_for_distance_to_closest_record_score,
+    preprocess,
 )
+from midst_toolkit.evaluation.generation.distance_utils import NormType
 
 
 SYNTHETIC_DATA = torch.Tensor([[1.0, 2.0, 1.0], [1.0, 2.0, 3.0], [3.4, 1.0, 0.3]])
@@ -49,17 +49,26 @@ def test_minimum_distance_l2_no_skip_diagonal() -> None:
 def test_median_dcr_score() -> None:
     real_data, synthetic_data, meta_info = load_midst_data(REAL_DATA_TRAIN_PATH, SYNTHETIC_DATA_PATH, META_INFO_PATH)
 
-    real_data, _, synthetic_data = preprocess_for_distance_to_closest_record_score(
-        synthetic_data, real_data, real_data, meta_info
-    )
-    dcr_score = median_distance_to_closest_record_score(synthetic_data, real_data)
-    assert pytest.approx(dcr_score, abs=1e-8) == 6.540543187576836
+    synthetic_data, real_data = preprocess(meta_info, synthetic_data, real_data)
+    dcr_metric = MedianDistanceToClosestRecordScore()
+    dcr_score = dcr_metric.compute(real_data, synthetic_data)
+    assert pytest.approx(dcr_score["median_dcr_score"], abs=1e-8) == 6.540543187576836
+
+
+def test_median_dcr_score_with_preprocess() -> None:
+    real_data, synthetic_data, meta_info = load_midst_data(REAL_DATA_TRAIN_PATH, SYNTHETIC_DATA_PATH, META_INFO_PATH)
+
+    # Preprocessing internally should return the same result
+    dcr_metric = MedianDistanceToClosestRecordScore(meta_info=meta_info, do_preprocess=True)
+    dcr_score = dcr_metric.compute(real_data, synthetic_data)
+    assert pytest.approx(dcr_score["median_dcr_score"], abs=1e-8) == 6.540543187576836
 
 
 def test_median_dcr_score_dummy() -> None:
     real_data_df = pd.DataFrame(REAL_DATA).astype(float)
     synthetic_df = pd.DataFrame(SYNTHETIC_DATA).astype(float)
 
-    dcr_score = median_distance_to_closest_record_score(synthetic_df, real_data_df)
+    dcr_metric = MedianDistanceToClosestRecordScore()
+    dcr_score = dcr_metric.compute(real_data_df, synthetic_df)
 
-    assert pytest.approx(dcr_score, abs=1e-6) == 1.0 / 2.6
+    assert pytest.approx(dcr_score["median_dcr_score"], abs=1e-6) == 1.0 / 2.6
