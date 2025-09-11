@@ -7,10 +7,10 @@ import torch
 from midst_toolkit.data_processing.midst_data_processing import load_midst_data_with_test
 from midst_toolkit.evaluation.privacy.distance_closest_record import (
     DistanceToClosestRecordScore,
-    NormType,
     minimum_distances,
-    preprocess_for_distance_to_closest_record_score,
+    preprocess,
 )
+from midst_toolkit.evaluation.privacy.distance_utils import NormType
 
 
 SYNTHETIC_DATA = torch.Tensor([[1.0, 2.0, 1.0], [1.0, 2.0, 3.0]])
@@ -52,10 +52,21 @@ def test_dcr_score() -> None:
         REAL_DATA_TRAIN_PATH, SYNTHETIC_DATA_PATH, META_INFO_PATH, REAL_DATA_TEST_PATH
     )
 
-    real_data_train, real_data_test, synthetic_data = preprocess_for_distance_to_closest_record_score(
-        synthetic_data, real_data_train, real_data_test, meta_info
+    synthetic_data, real_data_train, real_data_test = preprocess(
+        meta_info, synthetic_data, real_data_train, real_data_test
     )
     dcr_metric = DistanceToClosestRecordScore()
+    dcr_score = dcr_metric.compute(real_data_train, synthetic_data, real_data_test)
+    assert pytest.approx(dcr_score["dcr_score"], abs=1e-8) == 0.4715718924999237
+
+
+def test_dcr_score_with_preprocess() -> None:
+    real_data_train, synthetic_data, real_data_test, meta_info = load_midst_data_with_test(
+        REAL_DATA_TRAIN_PATH, SYNTHETIC_DATA_PATH, META_INFO_PATH, REAL_DATA_TEST_PATH
+    )
+
+    # Preprocessing internally should return the same result
+    dcr_metric = DistanceToClosestRecordScore(meta_info=meta_info, do_preprocess=True)
     dcr_score = dcr_metric.compute(real_data_train, synthetic_data, real_data_test)
     assert pytest.approx(dcr_score["dcr_score"], abs=1e-8) == 0.4715718924999237
 
