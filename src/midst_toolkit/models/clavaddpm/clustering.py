@@ -1,4 +1,4 @@
-"""Clustering functions for the multi-tableClavaDDPM model."""
+"""Clustering functions for the multi-table ClavaDDPM model."""
 
 import os
 import pickle
@@ -12,7 +12,7 @@ from sklearn.cluster import KMeans
 from sklearn.mixture import BayesianGaussianMixture, GaussianMixture
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler, OneHotEncoder, QuantileTransformer
 
-from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
+from midst_toolkit.models.clavaddpm.typing import Configs, GroupLengthsProbDicts, RelationOrder, Tables
 
 
 def clava_clustering(
@@ -20,7 +20,7 @@ def clava_clustering(
     relation_order: RelationOrder,
     save_dir: Path,
     configs: Configs,
-) -> tuple[dict[str, Any], dict[tuple[str, str], dict[int, float]]]:
+) -> tuple[dict[str, Any], GroupLengthsProbDicts]:
     """
     Clustering function for the mutli-table function of the ClavaDDPM model.
 
@@ -51,48 +51,15 @@ def clava_clustering(
             - The tables dictionary.
             - The dictionary with the group lengths probability for all the parent-child pairs.
     """
-    relation_order_reversed = relation_order[::-1]
-    all_group_lengths_prob_dicts = {}
-
-    # Clustering
-    if os.path.exists(save_dir / "cluster_ckpt.pkl"):
-        print("Clustering checkpoint found, loading...")
-
-        with open(save_dir / "cluster_ckpt.pkl", "rb") as f:
-            cluster_ckpt = pickle.load(f)
-
+    cluster_ckpt = _load_clustering_info_from_checkpoint(save_dir)
+    if cluster_ckpt is not None:
         tables = cluster_ckpt["tables"]
         all_group_lengths_prob_dicts = cluster_ckpt["all_group_lengths_prob_dicts"]
-    else:
-        for parent, child in relation_order_reversed:
-            if parent is not None:
-                print(f"Clustering {parent} -> {child}")
-                if isinstance(configs["num_clusters"], dict):
-                    num_clusters = configs["num_clusters"][child]
-                else:
-                    num_clusters = configs["num_clusters"]
-                (
-                    parent_df_with_cluster,
-                    child_df_with_cluster,
-                    group_lengths_prob_dicts,
-                ) = _pair_clustering_keep_id(
-                    tables[child]["df"],
-                    tables[child]["domain"],
-                    tables[parent]["df"],
-                    tables[parent]["domain"],
-                    f"{child}_id",
-                    f"{parent}_id",
-                    num_clusters,
-                    configs["parent_scale"],
-                    1,  # not used for now
-                    parent,
-                    child,
-                    clustering_method=configs["clustering_method"],
-                )
-                tables[parent]["df"] = parent_df_with_cluster
-                tables[child]["df"] = child_df_with_cluster
-                all_group_lengths_prob_dicts[(parent, child)] = group_lengths_prob_dicts
 
+    else:
+        tables, all_group_lengths_prob_dicts = _run_clustering(tables, relation_order, configs)
+
+        # saving the clustering information in the checkpoint file
         cluster_ckpt = {
             "tables": tables,
             "all_group_lengths_prob_dicts": all_group_lengths_prob_dicts,
@@ -100,6 +67,7 @@ def clava_clustering(
         with open(save_dir / "cluster_ckpt.pkl", "wb") as f:
             pickle.dump(cluster_ckpt, f)
 
+    # adding a placeholder for the top level tables (i.e. tables with no parent)
     for parent, child in relation_order:
         if parent is None:
             tables[child]["df"]["placeholder"] = list(range(len(tables[child]["df"])))
@@ -107,19 +75,88 @@ def clava_clustering(
     return tables, all_group_lengths_prob_dicts
 
 
+def _load_clustering_info_from_checkpoint(save_dir: Path) -> dict[str, Any] | None:
+    """
+    Load the clustering information from the checkpoint if it exists.
+
+    Args:
+        save_dir: Directory to save the clustering checkpoint.
+
+    Returns:
+        Clustering information as a dictionary if the checkpoint exists, None otherwise.
+        The dictionary contains the tables under the "tables" key and the group lengths
+        probabilities under the "all_group_lengths_prob_dicts" key.
+    """
+    if not os.path.exists(save_dir / "cluster_ckpt.pkl"):
+        return None
+
+    print("Clustering checkpoint found, loading...")
+
+    with open(save_dir / "cluster_ckpt.pkl", "rb") as f:
+        return pickle.load(f)
+
+
+def _run_clustering(
+    tables: Tables,
+    relation_order: RelationOrder,
+    configs: Configs,
+) -> tuple[Tables, GroupLengthsProbDicts]:
+    """
+    Run the clustering process.
+
+    Args:
+        tables: Dictionary of the tables by name.
+        relation_order: List of tuples of parent and child tables. Example:
+            [("table1", "table2"), ("table1", "table3")]
+        configs: Dictionary of configurations. The following config keys are required:
+            {
+                num_clusters = int | dict,
+                parent_scale = float,
+                clustering_method = str["kmeans" | "both" | "variational" | "gmm"],
+            }
+
+    Returns:
+        Tuple with 2 elements:
+            - The tables dictionary.
+            - The dictionary with the group lengths probability for all the parent-child pairs.
+    """
+    all_group_lengths_prob_dicts = {}
+    relation_order_reversed = relation_order[::-1]
+    for parent, child in relation_order_reversed:
+        if parent is not None:
+            print(f"Clustering {parent} -> {child}")
+            if isinstance(configs["num_clusters"], dict):
+                num_clusters = configs["num_clusters"][child]
+            else:
+                num_clusters = configs["num_clusters"]
+            (
+                parent_df_with_cluster,
+                child_df_with_cluster,
+                group_lengths_prob_dicts,
+            ) = _pair_clustering_keep_id(
+                tables,
+                child,
+                parent,
+                num_clusters,
+                configs["parent_scale"],
+                1,  # not used for now
+                clustering_method=configs["clustering_method"],
+            )
+            tables[parent]["df"] = parent_df_with_cluster
+            tables[child]["df"] = child_df_with_cluster
+            all_group_lengths_prob_dicts[(parent, child)] = group_lengths_prob_dicts
+
+    return tables, all_group_lengths_prob_dicts
+
+
 def _pair_clustering_keep_id(
     # ruff: noqa: PLR0912, PLR0915
-    child_df: pd.DataFrame,
-    child_domain_dict: dict[str, Any],
-    parent_df: pd.DataFrame,
-    parent_domain_dict: dict[str, Any],
-    child_primary_key: str,
-    parent_primary_key: str,
+    tables: Tables,
+    child_name: str,
+    parent_name: str,
     num_clusters: int,
     parent_scale: float,
     key_scale: float,
-    parent_name: str,
-    child_name: str,
     clustering_method: Literal["kmeans", "both", "variational", "gmm"] = "kmeans",
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict[int, dict[int, float]]]:
     """
@@ -128,17 +165,12 @@ def _pair_clustering_keep_id(
     Used by the mutli-table function of the ClavaDDPM model.
 
     Args:
-        child_df: DataFrame of the child table, as provided by the load_multi_table function.
-        child_domain_dict: Dictionary of the child table domain, as provided by the load_multi_table function.
-        parent_df: DataFrame of the parent table, as provided by the load_multi_table function.
-        parent_domain_dict: Dictionary of the parent table domain, as provided by the load_multi_table function.
-        child_primary_key: Name of the child primary key.
-        parent_primary_key: Name of the parent primary key.
+        tables: Dictionary of the tables by name.
+        parent_name: Name of the parent table.
+        child_name: Name of the child table.
         num_clusters: Number of clusters.
         parent_scale: Scale of the parent table, provided by the config.
         key_scale: Scale of the key.
-        parent_name: Name of the parent table.
-        child_name: Name of the child table.
         clustering_method: Method of clustering. Has to be one of ["kmeans", "both", "variational", "gmm"].
             Default is "kmeans".
 
@@ -148,6 +180,12 @@ def _pair_clustering_keep_id(
             - child_df_with_cluster: DataFrame of the child table with the cluster column.
             - group_lengths_prob_dicts: Dictionary of group lengths and probabilities.
     """
+    child_df = tables[child_name]["df"]
+    parent_df = tables[parent_name]["df"]
+    child_domain_dict = tables[child_name]["domain"]
+    parent_domain_dict = tables[parent_name]["domain"]
+    child_primary_key = f"{child_name}_id"
+    parent_primary_key = f"{parent_name}_id"
     original_child_cols = list(child_df.columns)
     original_parent_cols = list(parent_df.columns)
 
