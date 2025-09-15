@@ -26,7 +26,7 @@ class KolmogorovSmirnovAndTotalVariation(SynthEvalQualityMetric):
         - Average statistic and standard error thereof for numerical columns.
         - Average statistic and standard error thereof for categorical columns.
         - Average p-values for the statistics of all columns.
-        - The number and percentage of columns that have statistically significance differences.
+        - The number and percentage of columns that have statistically significant differences.
 
         Args:
             categorical_columns: Column names corresponding to the categorical variables of any provided dataframe. If
