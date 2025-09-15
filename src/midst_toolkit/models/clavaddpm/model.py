@@ -18,7 +18,12 @@ import torch.nn.functional as F
 from category_encoders import LeaveOneOutEncoder
 from scipy.special import expit, softmax
 from sklearn.impute import SimpleImputer
-from sklearn.metrics import classification_report, mean_squared_error, r2_score, roc_auc_score
+from sklearn.metrics import (
+    classification_report,
+    mean_squared_error,
+    r2_score,
+    roc_auc_score,
+)
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import (
@@ -281,9 +286,9 @@ def get_model_params(rtdl_params: dict[str, Any] | None = None) -> dict[str, Any
     return {
         "num_classes": 0,
         "is_y_cond": "none",
-        "rtdl_params": {"d_layers": [512, 1024, 1024, 1024, 1024, 512], "dropout": 0.0}
-        if rtdl_params is None
-        else rtdl_params,
+        "rtdl_params": (
+            {"d_layers": [512, 1024, 1024, 1024, 1024, 512], "dropout": 0.0} if rtdl_params is None else rtdl_params
+        ),
     }
 
 
