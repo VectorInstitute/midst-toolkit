@@ -5,12 +5,8 @@ from typing import Self
 import numpy as np
 import pandas as pd
 
-# from src.attack import domias
-from midst_toolkit.attacks.ensemble.distance_features import calculate_gower_features, domias
-# from midst_toolkit.attacks.ensemble.train import train_meta_classifier
-
-
-# from src import config # Assuming config.metadata is available
+from midst_toolkit.attacks.ensemble.distance_features import calculate_domias, calculate_gower_features
+from midst_toolkit.attacks.ensemble.train import train_meta_classifier
 
 
 class BlendingPlusPlus:
@@ -40,35 +36,37 @@ class BlendingPlusPlus:
         df_synth: pd.DataFrame,
         df_ref: pd.DataFrame,
         cat_cols: list,
+        cont_cols: list,
     ) -> pd.DataFrame:
-        """Private helper to assemble all features for the meta-classifier."""
-
-        print("WE HERE")
-
+        """Private helper to assemble distance-based features for the meta-classifier."""
         df_synth = df_synth.reset_index(drop=True)[df_input.columns]
 
         # 1. Get Gower distance features
-        gower_features = calculate_gower_features(df_input, df_synth, cat_cols) #shape = (20k, 9)
+        gower_features = calculate_gower_features(df_input, df_synth, cat_cols)  # shape = (20k, 9)
 
         # 2. Get DOMIAS predictions
-        domias_features = domias(df_input=df_input, df_synth=df_synth, df_ref=df_ref) 
+        domias_features = calculate_domias(df_input=df_input, df_synth=df_synth, df_ref=df_ref)
 
-        import pdb; pdb.set_trace()
+        # 3. Get RMIA signals (placeholder)
+        rmia_signals = pd.read_csv(
+            "examples/ensemble_attack_example/data/attack_data/og_rmia_train_meta_pred.csv"
+        )  # Placeholder for RMIA features
 
-        rmia_signals = pd.DataFrame(
-            np.zeros((df_input.shape[0], 1)), columns=["rmia_placeholder"], index=df_input.index
-        )
+        continuous_features = df_input.loc[
+            :, df_input.columns.isin(cont_cols)
+        ]  # Continuous features from original data
 
-        # 3. Combine all features
+        # 4. Combine all features
         df_meta = pd.concat(
             [
-                # df_input[config.metadata["continuous"]],  # Original continuous features
+                continuous_features,
                 gower_features,
                 domias_features,
-                rmia_signals,  # Placeholder for RMIA features
+                rmia_signals,
             ],
             axis=1,
         )
+
         return df_meta
 
     def fit(
@@ -78,24 +76,34 @@ class BlendingPlusPlus:
         df_synth: pd.DataFrame,
         df_ref: pd.DataFrame,
         cat_cols: list,
+        cont_cols: list = None,
+        bounds: dict = {},
+        use_gpu: bool = True,
         epochs: int = 1,
     ) -> Self:
         """
         Trains the meta-classifier using the meta_train set.
         """
         print("Preparing meta-features for training...")
-        df_train_meta = self._prepare_meta_features(
-            df_input=df_train,
-            df_synth=df_synth,
-            df_ref=df_ref,
-            cat_cols=cat_cols,
+
+        meta_features = self._prepare_meta_features(
+            df_input=df_train, df_synth=df_synth, df_ref=df_ref, cat_cols=cat_cols, cont_cols=cont_cols
         )
 
-        # self.meta_classifier_ = train_meta_classifier(
-        #     x_train=df_train_meta, y_train=y_train, model_type=self.meta_classifier_type, epochs=epochs
-        # )
+        print("Training the meta-classifier...")
 
-        # print("Blending++ meta-classifier has been trained.")
+        self.meta_classifier_ = train_meta_classifier(
+            x_train=meta_features,
+            y_train=y_train,
+            cat_cols=cat_cols,
+            cont_cols=cont_cols,
+            bounds=bounds,
+            model_type=self.meta_classifier_type,
+            use_gpu=use_gpu,
+            epochs=epochs,
+        )
+
+        print("Blending++ meta-classifier has been trained.")
 
         return self
 

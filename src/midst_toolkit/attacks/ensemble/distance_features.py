@@ -2,10 +2,9 @@
 
 # FROM GEMINI:
 
+import gower
 import numpy as np
 import pandas as pd
-import gower
-
 from scipy.stats import gaussian_kde
 from sklearn.preprocessing import MinMaxScaler
 
@@ -22,15 +21,14 @@ def calculate_gower_features(df_input: pd.DataFrame, df_synth: pd.DataFrame, cat
     Returns:
         A dataframe with the new distance-based features, indexed like df_input.
     """
+    cat_features = [True if col in cat_cols else False for col in df_input.columns]
 
-    cat_features = [
-        True if col in cat_cols else False for col in df_input.columns
-    ]  
-
-    pairwise_gower = gower.gower_matrix(data_x=df_input, data_y=df_synth, cat_features=cat_features) #shape = (20k, 20k)
+    pairwise_gower = gower.gower_matrix(
+        data_x=df_input, data_y=df_synth, cat_features=cat_features
+    )  # shape = (20k, 20k)
 
     # Sort distances for each target record to find nearest neighbors
-    dist_sorted = np.sort(pairwise_gower, axis=1) # Shape = (20k, 20k)
+    dist_sorted = np.sort(pairwise_gower, axis=1)  # Shape = (20k, 20k)
 
     # Create a dictionary to hold new features
     features = {}
@@ -54,7 +52,8 @@ def calculate_gower_features(df_input: pd.DataFrame, df_synth: pd.DataFrame, cat
 
     return pd.DataFrame(features, index=df_input.index)
 
-def domias(df_input: pd.DataFrame, df_synth: pd.DataFrame, df_ref: pd.DataFrame) -> np.ndarray:
+
+def calculate_domias(df_input: pd.DataFrame, df_synth: pd.DataFrame, df_ref: pd.DataFrame) -> np.ndarray:
     """
     Compute DOMIAS density-ratio-based scores for test data.
 

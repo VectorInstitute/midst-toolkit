@@ -3,8 +3,6 @@ This file is an uncompleted example script for running the Ensemble Attack on MI
 provided resources and data.
 """
 
-import pickle
-from datetime import datetime
 from logging import INFO
 from pathlib import Path
 
@@ -52,10 +50,10 @@ def main(cfg: DictConfig) -> None:
         # Load the processed data splits.
         df_meta_train = load_dataframe(
             Path(cfg.data_paths.processed_attack_data_path),
-            "master_challenge_train.csv",
+            "og_train_meta.csv",
         )
         y_meta_train = np.load(
-            Path(cfg.data_paths.processed_attack_data_path) / "master_challenge_train_labels.npy",
+            Path(cfg.data_paths.processed_attack_data_path) / "og_train_meta_label.npy",
         )
         df_meta_test = load_dataframe(
             Path(cfg.data_paths.processed_attack_data_path),
@@ -86,7 +84,10 @@ def main(cfg: DictConfig) -> None:
             df_synth=df_synth,
             df_ref=df_ref,
             cat_cols=cfg.data_configs.metadata.categorical,
-            epochs=1,
+            cont_cols=cfg.data_configs.metadata.continuous,
+            bounds=cfg.data_configs.bounds,
+            use_gpu=cfg.metaclassifier.use_gpu,
+            epochs=cfg.metaclassifier.epochs,
         )
 
         # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
