@@ -28,3 +28,9 @@ wheels/
 
 # Synthcity backups
 **/workspace/*.bkp
+
+# Dataset files
+examples/**/data/
+
+# hydra output
+outputs/
