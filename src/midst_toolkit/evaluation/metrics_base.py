@@ -8,7 +8,7 @@ from midst_toolkit.common.logger import log
 from midst_toolkit.data_processing.utils import SynthEvalDataframeEncoding
 
 
-class QualityMetricBase(ABC):
+class MetricBase(ABC):
     @abstractmethod
     def compute(self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> dict[str, float]:
         """
@@ -30,7 +30,7 @@ class QualityMetricBase(ABC):
         raise NotImplementedError("Inheriting class must define compute")
 
 
-class SynthEvalQualityMetric(QualityMetricBase, ABC):
+class SynthEvalQualityMetric(MetricBase, ABC):
     def __init__(
         self,
         categorical_columns: list[str],

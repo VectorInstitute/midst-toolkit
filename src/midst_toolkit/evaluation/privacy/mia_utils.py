@@ -153,7 +153,7 @@ def generate_html(
     table = _generate_table(scenario_scores, column_name_replacement)
     table_html = table.to_html(border=0, float_format="{:0.4f}".format, escape=False)
 
-    with open("src/midst_toolkit/evaluation/attack_scoring/index.html", "r") as html_file:
+    with open("src/midst_toolkit/evaluation/privacy/index.html", "r") as html_file:
         html_string = html_file.read()
         html_string = html_string.replace("{MIA_TABLES}", table_html)
         return html_string.replace("{MIA_SCENARIOS}", imgs_html)

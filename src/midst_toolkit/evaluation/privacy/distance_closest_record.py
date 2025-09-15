@@ -8,9 +8,9 @@ from sklearn.preprocessing import OneHotEncoder
 from tqdm import tqdm
 
 from midst_toolkit.common.logger import log
-from midst_toolkit.evaluation.generation.distance_utils import NormType, minimum_distances
-from midst_toolkit.evaluation.generation.quality_metric_base import QualityMetricBase
-from midst_toolkit.evaluation.generation.utils import extract_columns_based_on_meta_info
+from midst_toolkit.evaluation.metrics_base import MetricBase
+from midst_toolkit.evaluation.privacy.distance_utils import NormType, minimum_distances
+from midst_toolkit.evaluation.utils import extract_columns_based_on_meta_info
 
 
 DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -127,7 +127,7 @@ def preprocess(
     )
 
 
-class DistanceToClosestRecordScore(QualityMetricBase):
+class DistanceToClosestRecordScore(MetricBase):
     def __init__(
         self,
         norm: NormType = NormType.L1,
@@ -237,7 +237,7 @@ class DistanceToClosestRecordScore(QualityMetricBase):
         return {"dcr_score": score.item()}
 
 
-class MedianDistanceToClosestRecordScore(QualityMetricBase):
+class MedianDistanceToClosestRecordScore(MetricBase):
     def __init__(
         self,
         norm: NormType = NormType.L1,

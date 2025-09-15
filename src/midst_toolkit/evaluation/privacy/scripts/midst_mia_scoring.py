@@ -6,8 +6,8 @@ from pathlib import Path
 import numpy as np
 
 from midst_toolkit.common.logger import log
-from midst_toolkit.evaluation.attack_scoring.mia_metrics import DEFAULT_FPR_THRESHOLDS, MembershipInferenceMetrics
-from midst_toolkit.evaluation.attack_scoring.score_html import generate_html
+from midst_toolkit.evaluation.privacy.mia_metrics import DEFAULT_FPR_THRESHOLDS, MembershipInferenceMetrics
+from midst_toolkit.evaluation.privacy.mia_utils import generate_html
 
 
 def compute_mia_scores_across_scenarios(
