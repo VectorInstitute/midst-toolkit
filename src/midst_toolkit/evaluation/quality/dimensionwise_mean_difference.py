@@ -1,7 +1,7 @@
 import pandas as pd
 from syntheval.metrics.utility.metric_dimensionwise_means import MetricClassName as SynthEvalDwm
 
-from midst_toolkit.evaluation.generation.quality_metric_base import SynthEvalQualityMetric
+from midst_toolkit.evaluation.metrics_base import SynthEvalQualityMetric
 
 
 class DimensionwiseMeanDifference(SynthEvalQualityMetric):
