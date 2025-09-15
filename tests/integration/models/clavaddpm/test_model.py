@@ -19,7 +19,7 @@ from midst_toolkit.models.clavaddpm.train import clava_training
 CLUSTERING_CONFIG = {
     "parent_scale": 1.0,
     "num_clusters": 3,
-    "clustering_method": "both",
+    "clustering_method": "kmeans_and_gmm",
 }
 
 DIFFUSION_CONFIG = {
