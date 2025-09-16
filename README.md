@@ -23,16 +23,14 @@ uv sync
 source .venv/bin/activate
 ```
 
-In order to install dependencies for testing (codestyle, unit tests, integration tests),
-run:
+In order to install dependencies for testing (codestyle, unit tests, integration tests), run:
 
 ```bash
 uv sync --dev
 source .venv/bin/activate
 ```
 
-In order to exclude installation of packages from a specific group (e.g. docs),
-run:
+In order to exclude installation of packages from a specific group (e.g. docs), run:
 
 ```bash
 uv sync --no-group docs

@@ -1,7 +1,6 @@
 import hashlib
 import json
 import math
-import os
 import pickle
 from abc import ABC, abstractmethod
 from collections import Counter, defaultdict
@@ -21,7 +20,12 @@ from category_encoders import LeaveOneOutEncoder
 from scipy.special import expit, softmax
 from sklearn.cluster import KMeans
 from sklearn.impute import SimpleImputer
-from sklearn.metrics import classification_report, mean_squared_error, r2_score, roc_auc_score
+from sklearn.metrics import (
+    classification_report,
+    mean_squared_error,
+    r2_score,
+    roc_auc_score,
+)
 from sklearn.mixture import BayesianGaussianMixture, GaussianMixture
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
@@ -33,11 +37,13 @@ from sklearn.preprocessing import (
     QuantileTransformer,
     StandardScaler,
 )
-from torch import Tensor, nn, optim
+from torch import Tensor, nn
 
 from midst_toolkit.common.enumerations import PredictionType, TaskType
 from midst_toolkit.core import logger
-from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
+    GaussianMultinomialDiffusion,
+)
 
 
 Normalization = Literal["standard", "quantile", "minmax"]
@@ -212,233 +218,6 @@ def _get_labels_and_probs(
     assert probs is not None
     labels = np.round(probs) if task_type == TaskType.BINCLASS else probs.argmax(axis=1)
     return labels.astype("int64"), probs
-
-
-def clava_clustering(tables, relation_order, save_dir, configs):
-    relation_order_reversed = relation_order[::-1]
-    all_group_lengths_prob_dicts = {}
-
-    # Clustering
-    if os.path.exists(os.path.join(save_dir, "cluster_ckpt.pkl")):
-        print("Clustering checkpoint found, loading...")
-        cluster_ckpt = pickle.load(open(os.path.join(save_dir, "cluster_ckpt.pkl"), "rb"))
-        # ruff: noqa: SIM115
-        tables = cluster_ckpt["tables"]
-        all_group_lengths_prob_dicts = cluster_ckpt["all_group_lengths_prob_dicts"]
-    else:
-        for parent, child in relation_order_reversed:
-            if parent is not None:
-                print(f"Clustering {parent} -> {child}")
-                if isinstance(configs["clustering"]["num_clusters"], dict):
-                    num_clusters = configs["clustering"]["num_clusters"][child]
-                else:
-                    num_clusters = configs["clustering"]["num_clusters"]
-                (
-                    parent_df_with_cluster,
-                    child_df_with_cluster,
-                    group_lengths_prob_dicts,
-                ) = pair_clustering_keep_id(
-                    tables[child]["df"],
-                    tables[child]["domain"],
-                    tables[parent]["df"],
-                    tables[parent]["domain"],
-                    f"{child}_id",
-                    f"{parent}_id",
-                    num_clusters,
-                    configs["clustering"]["parent_scale"],
-                    1,  # not used for now
-                    parent,
-                    child,
-                    clustering_method=configs["clustering"]["clustering_method"],
-                )
-                tables[parent]["df"] = parent_df_with_cluster
-                tables[child]["df"] = child_df_with_cluster
-                all_group_lengths_prob_dicts[(parent, child)] = group_lengths_prob_dicts
-
-        cluster_ckpt = {
-            "tables": tables,
-            "all_group_lengths_prob_dicts": all_group_lengths_prob_dicts,
-        }
-        pickle.dump(cluster_ckpt, open(os.path.join(save_dir, "cluster_ckpt.pkl"), "wb"))
-        # ruff: noqa: SIM115
-
-    for parent, child in relation_order:
-        if parent is None:
-            tables[child]["df"]["placeholder"] = list(range(len(tables[child]["df"])))
-
-    return tables, all_group_lengths_prob_dicts
-
-
-def clava_training(tables, relation_order, save_dir, configs, device="cuda"):
-    models = {}
-    for parent, child in relation_order:
-        print(f"Training {parent} -> {child} model from scratch")
-        df_with_cluster = tables[child]["df"]
-        id_cols = [col for col in df_with_cluster.columns if "_id" in col]
-        df_without_id = df_with_cluster.drop(columns=id_cols)
-
-        result = child_training(
-            df_without_id,
-            tables[child]["domain"],
-            parent,
-            child,
-            configs,
-            device,
-        )
-
-        models[(parent, child)] = result
-        pickle.dump(
-            result,
-            open(os.path.join(save_dir, f"models/{parent}_{child}_ckpt.pkl"), "wb"),
-            # ruff: noqa: SIM115
-        )
-
-    return models
-
-
-def child_training(
-    child_df_with_cluster: pd.DataFrame,
-    child_domain_dict: dict[str, Any],
-    parent_name: str | None,
-    child_name: str,
-    configs: dict[str, Any],
-    device: str = "cuda",
-) -> dict[str, Any]:
-    if parent_name is None:
-        y_col = "placeholder"
-        child_df_with_cluster["placeholder"] = list(range(len(child_df_with_cluster)))
-    else:
-        y_col = f"{parent_name}_{child_name}_cluster"
-    child_info = get_table_info(child_df_with_cluster, child_domain_dict, y_col)
-    child_model_params = get_model_params(
-        {
-            "d_layers": configs["diffusion"]["d_layers"],
-            "dropout": configs["diffusion"]["dropout"],
-        }
-    )
-    child_T_dict = get_T_dict()
-
-    child_result = train_model(
-        child_df_with_cluster,
-        child_info,
-        child_model_params,
-        child_T_dict,
-        configs["diffusion"]["iterations"],
-        configs["diffusion"]["batch_size"],
-        configs["diffusion"]["model_type"],
-        configs["diffusion"]["gaussian_loss_type"],
-        configs["diffusion"]["num_timesteps"],
-        configs["diffusion"]["scheduler"],
-        configs["diffusion"]["lr"],
-        configs["diffusion"]["weight_decay"],
-        device=device,
-    )
-
-    if parent_name is None:
-        child_result["classifier"] = None
-    elif configs["classifier"]["iterations"] > 0:
-        child_classifier = train_classifier(
-            child_df_with_cluster,
-            child_info,
-            child_model_params,
-            child_T_dict,
-            configs["classifier"]["iterations"],
-            configs["classifier"]["batch_size"],
-            configs["diffusion"]["gaussian_loss_type"],
-            configs["diffusion"]["num_timesteps"],
-            configs["diffusion"]["scheduler"],
-            cluster_col=y_col,
-            d_layers=configs["classifier"]["d_layers"],
-            dim_t=configs["classifier"]["dim_t"],
-            lr=configs["classifier"]["lr"],
-            device=device,
-        )
-        child_result["classifier"] = child_classifier
-
-    child_result["df_info"] = child_info
-    child_result["model_params"] = child_model_params
-    child_result["T_dict"] = child_T_dict
-    return child_result
-
-
-def train_model(
-    df: pd.DataFrame,
-    df_info: pd.DataFrame,
-    model_params: dict[str, Any],
-    T_dict: dict[str, Any],
-    steps: int,
-    batch_size: int,
-    model_type: str,
-    gaussian_loss_type: str,
-    num_timesteps: int,
-    scheduler: str,
-    lr: float,
-    weight_decay: float,
-    device: str = "cuda",
-) -> dict[str, Any]:
-    T = Transformations(**T_dict)
-    dataset, label_encoders, column_orders = make_dataset_from_df(
-        df,
-        T,
-        is_y_cond=model_params["is_y_cond"],
-        ratios=[0.99, 0.005, 0.005],
-        df_info=df_info,
-        std=0,
-    )
-    # print(dataset.n_features)
-    train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size, y_type="long")
-
-    num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
-
-    K = np.array(dataset.get_category_sizes("train"))
-    if len(K) == 0 or T_dict["cat_encoding"] == "one-hot":
-        K = np.array([0])
-    # print(K)
-
-    num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
-    d_in = np.sum(K) + num_numerical_features
-    model_params["d_in"] = d_in
-    # print(d_in)
-
-    print("Model params: {}".format(model_params))
-    model = get_model(model_type, model_params)
-    model.to(device)
-
-    train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size)
-
-    diffusion = GaussianMultinomialDiffusion(
-        num_classes=K,
-        num_numerical_features=num_numerical_features,
-        denoise_fn=model,
-        gaussian_loss_type=gaussian_loss_type,
-        num_timesteps=num_timesteps,
-        scheduler=scheduler,
-        device=torch.device(device),
-    )
-    diffusion.to(device)
-    diffusion.train()
-
-    trainer = Trainer(
-        diffusion,
-        train_loader,
-        lr=lr,
-        weight_decay=weight_decay,
-        steps=steps,
-        device=device,
-    )
-    trainer.run_loop()
-
-    if model_params["is_y_cond"] == "concat":
-        column_orders = column_orders[1:] + [column_orders[0]]
-    else:
-        column_orders = column_orders + [df_info["y_col"]]
-
-    return {
-        "diffusion": diffusion,
-        "label_encoders": label_encoders,
-        "dataset": dataset,
-        "column_orders": column_orders,
-    }
 
 
 class Classifier(nn.Module):
@@ -1011,9 +790,9 @@ def get_model_params(rtdl_params: dict[str, Any] | None = None) -> dict[str, Any
     return {
         "num_classes": 0,
         "is_y_cond": "none",
-        "rtdl_params": {"d_layers": [512, 1024, 1024, 1024, 1024, 512], "dropout": 0.0}
-        if rtdl_params is None
-        else rtdl_params,
+        "rtdl_params": (
+            {"d_layers": [512, 1024, 1024, 1024, 1024, 512], "dropout": 0.0} if rtdl_params is None else rtdl_params
+        ),
     }
 
 
@@ -1707,86 +1486,6 @@ def build_target(y: ArrayDict, policy: YPolicy | None, task_type: TaskType) -> t
     else:
         raise ValueError(f"Unknown policy: {policy}")
     return y, info
-
-
-class Trainer:
-    def __init__(
-        self,
-        diffusion: GaussianMultinomialDiffusion,
-        train_iter: Generator[tuple[Tensor, ...]],
-        lr: float,
-        weight_decay: float,
-        steps: int,
-        device: str = "cuda",
-    ):
-        self.diffusion = diffusion
-        self.ema_model = deepcopy(self.diffusion._denoise_fn)
-        for param in self.ema_model.parameters():
-            param.detach_()
-
-        self.train_iter = train_iter
-        self.steps = steps
-        self.init_lr = lr
-        self.optimizer = torch.optim.AdamW(self.diffusion.parameters(), lr=lr, weight_decay=weight_decay)
-        self.device = device
-        self.loss_history = pd.DataFrame(columns=["step", "mloss", "gloss", "loss"])
-        self.log_every = 100
-        self.print_every = 500
-        self.ema_every = 1000
-
-    def _anneal_lr(self, step: int) -> None:
-        frac_done = step / self.steps
-        lr = self.init_lr * (1 - frac_done)
-        for param_group in self.optimizer.param_groups:
-            param_group["lr"] = lr
-
-    def _run_step(self, x: Tensor, out_dict: dict[str, Tensor]) -> tuple[Tensor, Tensor]:
-        x = x.to(self.device)
-        for k, v in out_dict.items():
-            out_dict[k] = v.long().to(self.device)
-        self.optimizer.zero_grad()
-        loss_multi, loss_gauss = self.diffusion.mixed_loss(x, out_dict)
-        loss = loss_multi + loss_gauss
-        loss.backward()
-        self.optimizer.step()
-
-        return loss_multi, loss_gauss
-
-    def run_loop(self) -> None:
-        step = 0
-        curr_loss_multi = 0.0
-        curr_loss_gauss = 0.0
-
-        curr_count = 0
-        while step < self.steps:
-            x, out = next(self.train_iter)
-            out_dict = {"y": out}
-            batch_loss_multi, batch_loss_gauss = self._run_step(x, out_dict)
-
-            self._anneal_lr(step)
-
-            curr_count += len(x)
-            curr_loss_multi += batch_loss_multi.item() * len(x)
-            curr_loss_gauss += batch_loss_gauss.item() * len(x)
-
-            if (step + 1) % self.log_every == 0:
-                mloss = np.around(curr_loss_multi / curr_count, 4)
-                gloss = np.around(curr_loss_gauss / curr_count, 4)
-                if (step + 1) % self.print_every == 0:
-                    print(f"Step {(step + 1)}/{self.steps} MLoss: {mloss} GLoss: {gloss} Sum: {mloss + gloss}")
-                self.loss_history.loc[len(self.loss_history)] = [
-                    step + 1,
-                    mloss,
-                    gloss,
-                    mloss + gloss,
-                ]
-                curr_count = 0
-                curr_loss_gauss = 0.0
-                curr_loss_multi = 0.0
-
-            update_ema(self.ema_model.parameters(), self.diffusion._denoise_fn.parameters())
-
-            step += 1
 
 
 class FastTensorDataLoader:

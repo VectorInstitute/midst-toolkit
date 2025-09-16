@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>MIA detailed scores</title>
+    <style>
+      body {
+        background-color: #ffffff;
+      }
+      h1 {
+        text-align: center;
+      }
+      h2 {
+        text-align: center;
+      }
+      div {
+        white-space: normal;
+        text-align: center;
+      }
+      table {
+        border-collapse: collapse;
+        margin: auto;
+      }
+      table > :is(thead, tbody) > tr > :is(th, td) {
+        padding: 5px;
+      }
+      table > thead > tr > :is(th, td) {
+        border-top:    2px solid; /* \toprule */
+        border-bottom: 1px solid; /* \\midrule */
+      }
+      table > tbody > tr:last-child > :is(th, td) {
+        border-bottom: 2px solid; /* \bottomrule */
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      {MIA_TABLES}
+    </div>
+      {MIA_SCENARIOS}
+  </body>
+</html>
