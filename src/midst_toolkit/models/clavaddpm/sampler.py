@@ -1,6 +1,7 @@
 """Samplers for the ClavaDDPM model."""
 
 from abc import ABC, abstractmethod
+from typing import Literal
 
 import numpy as np
 import torch
@@ -15,9 +16,9 @@ class ScheduleSampler(ABC):
     variance of the objective.
 
     By default, samplers perform unbiased importance sampling, in which the
-    objective's mean is unchanged.
-    However, subclasses may override sample() to change how the resampled
-    terms are reweighted, allowing for actual changes in the objective.
+    objective's mean is unchanged. However, subclasses may override sample() to
+    change how the resampled terms are reweighted, allowing for actual changes
+    in the objective.
     """
 
     @abstractmethod
@@ -29,6 +30,8 @@ class ScheduleSampler(ABC):
         """
 
     def sample(self, batch_size: int, device: str) -> tuple[Tensor, Tensor]:
+        # TODO: what's happening with batch_size? Is is also the number of timesteps?
+        # We need to clarify this.
         """
         Importance-sample timesteps for a batch.
 
@@ -182,13 +185,20 @@ class LossSecondMomentResampler(LossAwareSampler):
         return (self._loss_counts == self.history_per_term).all()
 
 
-def create_named_schedule_sampler(name: str, diffusion: GaussianMultinomialDiffusion) -> ScheduleSampler:
+def create_named_schedule_sampler(
+    name: Literal["uniform", "loss-second-moment"],
+    diffusion: GaussianMultinomialDiffusion,
+) -> ScheduleSampler:
     """
     Create a ScheduleSampler from a library of pre-defined samplers.
 
     Args:
-        name: The name of the sampler.
+        name: The name of the sampler. Should be one of ["uniform", "loss-second-moment"].
         diffusion: The diffusion object to sample for.
+
+    Returns:
+        The UniformSampler if ``name`` is "uniform", LossSecondMomentResampler if ``name``
+            is "loss-second-moment".
     """
     if name == "uniform":
         return UniformSampler(diffusion)

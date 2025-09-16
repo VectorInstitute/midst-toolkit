@@ -4,7 +4,7 @@ import logging
 import pickle
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -36,7 +36,7 @@ def clava_training(
     diffusion_config: Configs,
     classifier_config: Configs | None,
     device: str = "cuda",
-) -> dict[tuple[str, str], dict[str, Any]]:
+) -> tuple[Tables, dict[tuple[str, str], dict[str, Any]]]:
     """
     Training function for the ClavaDDPM model.
 
@@ -80,7 +80,9 @@ def clava_training(
         device: Device to use for training. Default is `"cuda"`.
 
     Returns:
-        Dictionary of models for each parent-child pair.
+        A tuple with 2 values:
+            - The tables dictionary.
+            - Dictionary of models for each parent-child pair.
     """
     models = {}
     for parent, child in relation_order:
@@ -111,7 +113,13 @@ def clava_training(
         with open(target_file, "wb") as f:
             pickle.dump(result, f)
 
-    return models
+    for parent, child in relation_order:
+        if parent is None:
+            tables[child]["df"]["placeholder"] = list(range(len(tables[child]["df"])))
+
+    save_table_info(tables, relation_order, models, save_dir)
+
+    return tables, models
 
 
 def child_training(
@@ -167,6 +175,7 @@ def child_training(
         # If there is no parent for this child table, just set a placeholder
         # for its column name. This can happen on single table training or
         # when the table is on the top level of the hierarchy.
+        # TODO: find a better name for this variable
         y_col = "placeholder"
         child_df_with_cluster["placeholder"] = list(range(len(child_df_with_cluster)))
     else:
@@ -215,7 +224,7 @@ def child_training(
                 cluster_col=y_col,
                 d_layers=classifier_config["d_layers"],
                 dim_t=classifier_config["dim_t"],
-                lr=classifier_config["lr"],
+                learning_rate=classifier_config["lr"],
                 device=device,
             )
             child_result["classifier"] = child_classifier
@@ -229,18 +238,17 @@ def child_training(
 
 
 def train_model(
-    df: pd.DataFrame,
-    df_info: pd.DataFrame,
+    data_frame: pd.DataFrame,
+    data_frame_info: pd.DataFrame,
     model_params: dict[str, Any],
-    T_dict: dict[str, Any],
-    # ruff: noqa: N803
+    transformations_dict: dict[str, Any],
     steps: int,
     batch_size: int,
     model_type: str,
     gaussian_loss_type: str,
     num_timesteps: int,
     scheduler: str,
-    lr: float,
+    learning_rate: float,
     weight_decay: float,
     device: str = "cuda",
 ) -> dict[str, Any]:
@@ -248,18 +256,18 @@ def train_model(
     Training function for the diffusion model.
 
     Args:
-        df: DataFrame to train the model on.
-        df_info: Dictionary of the table information.
+        data_frame: DataFrame to train the model on.
+        data_frame_info: Dictionary of the table information.
         model_params: Dictionary of the model parameters.
-        T_dict: Dictionary of the transformations.
+        transformations_dict: Dictionary of the transformations.
         steps: Number of steps to train the model.
         batch_size: Batch size to use for training.
         model_type: Type of the model to use.
         gaussian_loss_type: Type of the gaussian loss to use.
         num_timesteps: Number of timesteps to use for the diffusion model.
         scheduler: Scheduler to use for the diffusion model.
-        lr: Learning rate to use for the diffusion model.
-        weight_decay: Weight decay to use for the diffusion model.
+        learning_rate: Learning rate to use for the optimizer in the diffusion model.
+        weight_decay: Weight decay to use for the optimizer in the diffusion model.
         device: Device to use for training. Default is `"cuda"`.
 
     Returns:
@@ -269,25 +277,27 @@ def train_model(
             - dataset: The dataset.
             - column_orders: The column orders.
     """
-    T = Transformations(**T_dict)
+    transformations = Transformations(**transformations_dict)
     # ruff: noqa: N806
     dataset, label_encoders, column_orders = make_dataset_from_df(
-        df,
-        T,
+        data_frame,
+        transformations,
         is_y_cond=model_params["is_y_cond"],
         ratios=[0.99, 0.005, 0.005],
-        df_info=df_info,
+        df_info=data_frame_info,
         std=0,
     )
 
-    K = np.array(dataset.get_category_sizes("train"))
+    category_sizes = np.array(dataset.get_category_sizes("train"))
     # ruff: noqa: N806
-    if len(K) == 0 or T_dict["cat_encoding"] == "one-hot":
-        K = np.array([0])
+    if len(category_sizes) == 0 or transformations_dict["cat_encoding"] == "one-hot":
+        category_sizes = np.array([0])
         # ruff: noqa: N806
 
+    _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.y["train"]), return_counts=True)
+
     num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
-    d_in = np.sum(K) + num_numerical_features
+    d_in = np.sum(category_sizes) + num_numerical_features
     model_params["d_in"] = d_in
 
     print("Model params: {}".format(model_params))
@@ -297,7 +307,7 @@ def train_model(
     train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size)
 
     diffusion = GaussianMultinomialDiffusion(
-        num_classes=K,
+        num_classes=category_sizes,
         num_numerical_features=num_numerical_features,
         denoise_fn=model,
         gaussian_loss_type=gaussian_loss_type,
@@ -311,7 +321,7 @@ def train_model(
     trainer = ClavaDDPMTrainer(
         diffusion,
         train_loader,
-        lr=lr,
+        lr=learning_rate,
         weight_decay=weight_decay,
         steps=steps,
         device=device,
@@ -321,22 +331,26 @@ def train_model(
     if model_params["is_y_cond"] == "concat":
         column_orders = column_orders[1:] + [column_orders[0]]
     else:
-        column_orders = column_orders + [df_info["y_col"]]
+        column_orders = column_orders + [data_frame_info["y_col"]]
 
     return {
         "diffusion": diffusion,
         "label_encoders": label_encoders,
         "dataset": dataset,
         "column_orders": column_orders,
+        "num_numerical_features": num_numerical_features,
+        "K": category_sizes,
+        "empirical_class_dist": empirical_class_dist,
+        "is_regression": dataset.is_regression,
+        "inverse_transform": dataset.num_transform.inverse_transform if dataset.num_transform is not None else None,
     }
 
 
 def train_classifier(
-    df: pd.DataFrame,
-    df_info: pd.DataFrame,
+    data_frame: pd.DataFrame,
+    data_frame_info: pd.DataFrame,
     model_params: dict[str, Any],
-    T_dict: dict[str, Any],
-    # ruff: noqa: N803
+    transformations_dict: dict[str, Any],
     classifier_steps: int,
     batch_size: int,
     gaussian_loss_type: str,
@@ -346,16 +360,17 @@ def train_classifier(
     device: str = "cuda",
     cluster_col: str = "cluster",
     dim_t: int = 128,
-    lr: float = 0.0001,
+    learning_rate: float = 0.0001,
+    classifier_evaluation_interval: int = 5,
 ) -> Classifier:
     """
     Training function for the classifier model.
 
     Args:
-        df: DataFrame to train the model on.
-        df_info: Dictionary of the table information.
+        data_frame: DataFrame to train the model on.
+        data_frame_info: Dictionary of the table information.
         model_params: Dictionary of the model parameters.
-        T_dict: Dictionary of the transformations.
+        transformations_dict: Dictionary of the transformations.
         classifier_steps: Number of steps to train the classifier.
         batch_size: Batch size to use for training.
         gaussian_loss_type: Type of the gaussian loss to use.
@@ -365,19 +380,21 @@ def train_classifier(
         device: Device to use for training. Default is `"cuda"`.
         cluster_col: Name of the cluster column. Default is `"cluster"`.
         dim_t: Dimension of the timestamp. Default is 128.
-        lr: Learning rate to use for the classifier. Default is 0.0001.
+        learning_rate: Learning rate to use for the optimizer in the classifier. Default is 0.0001.
+        classifier_evaluation_interval: The amount of classifier_steps to wait
+            until the next evaluation of the classifier. Default is 5.
 
     Returns:
         The trained classifier model.
     """
-    T = Transformations(**T_dict)
+    transformations = Transformations(**transformations_dict)
     # ruff: noqa: N806
     dataset, label_encoders, column_orders = make_dataset_from_df(
-        df,
-        T,
+        data_frame,
+        transformations,
         is_y_cond=model_params["is_y_cond"],
         ratios=[0.99, 0.005, 0.005],
-        df_info=df_info,
+        df_info=data_frame_info,
         std=0,
     )
     print(dataset.n_features)
@@ -385,30 +402,34 @@ def train_classifier(
     val_loader = prepare_fast_dataloader(dataset, split="val", batch_size=batch_size, y_type="long")
     test_loader = prepare_fast_dataloader(dataset, split="test", batch_size=batch_size, y_type="long")
 
-    eval_interval = 5
-
-    K = np.array(dataset.get_category_sizes("train"))
+    category_sizes = np.array(dataset.get_category_sizes("train"))
     # ruff: noqa: N806
-    if len(K) == 0 or T_dict["cat_encoding"] == "one-hot":
-        K = np.array([0])
+    if len(category_sizes) == 0 or transformations_dict["cat_encoding"] == "one-hot":
+        category_sizes = np.array([0])
         # ruff: noqa: N806
-    print(K)
+    print(category_sizes)
 
-    num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
+    # TODO: understand what's going on here
+    if dataset.X_num is None:
+        LOGGER.warning("dataset.X_num is None. num_numerical_features will be set to 0")
+        num_numerical_features = 0
+    else:
+        num_numerical_features = dataset.X_num["train"].shape[1]
+
     if model_params["is_y_cond"] == "concat":
         num_numerical_features -= 1
 
     classifier = Classifier(
         d_in=num_numerical_features,
-        d_out=int(max(df[cluster_col].values) + 1),
+        d_out=int(max(data_frame[cluster_col].values) + 1),  # TODO: add a comment why we need to add 1
         dim_t=dim_t,
         hidden_sizes=d_layers,
     ).to(device)
 
-    classifier_optimizer = optim.AdamW(classifier.parameters(), lr=lr)
+    classifier_optimizer = optim.AdamW(classifier.parameters(), lr=learning_rate)
 
     empty_diffusion = GaussianMultinomialDiffusion(
-        num_classes=K,
+        num_classes=category_sizes,
         num_numerical_features=num_numerical_features,
         denoise_fn=None,  # type: ignore[arg-type]
         gaussian_loss_type=gaussian_loss_type,
@@ -421,12 +442,11 @@ def train_classifier(
     schedule_sampler = create_named_schedule_sampler("uniform", empty_diffusion)
 
     classifier.train()
-    resume_step = 0
     for step in range(classifier_steps):
-        logger.logkv("step", step + resume_step)
+        logger.logkv("step", step)
         logger.logkv(
             "samples",
-            (step + resume_step + 1) * batch_size,
+            (step + 1) * batch_size,
         )
         _numerical_forward_backward_log(
             classifier,
@@ -440,7 +460,7 @@ def train_classifier(
         )
 
         classifier_optimizer.step()
-        if not step % eval_interval:
+        if not step % classifier_evaluation_interval:
             with torch.no_grad():
                 classifier.eval()
                 _numerical_forward_backward_log(
@@ -455,10 +475,11 @@ def train_classifier(
                 )
                 classifier.train()
 
-    # # test classifier
+    # test classifier
     classifier.eval()
 
     correct = 0
+    # TODO: why 3000 iterations? Why not just run through the test_loader once? Maybe it's a probabilistic classifier?
     for _ in range(3000):
         test_x, test_y = next(test_loader)
         test_y = test_y.long().to(device)
@@ -471,6 +492,68 @@ def train_classifier(
     print(acc)
 
     return classifier
+
+
+def save_table_info(
+    tables: Tables,
+    relation_order: list[tuple[str, str]],
+    models: dict[tuple[str, str], dict[str, Any]],
+    save_dir: Path,
+) -> None:
+    """
+    Save the table information into the save_dir.
+
+    Args:
+        tables: Dictionary of the tables by name.
+        relation_order: List of tuples of parent and child tables. Example:
+            [("table1", "table2"), ("table1", "table3")]
+        models: Dictionary of models for each parent-child pair.
+        save_dir: Directory to save the table information.
+    """
+    table_info = {}
+    for parent, child in relation_order:
+        result = models[(parent, child)]
+        df_with_cluster = tables[child]["df"]
+        df_without_id = get_df_without_id(df_with_cluster)
+        df_info = result["df_info"]
+        X_num_real = df_without_id[df_info["num_cols"]].to_numpy().astype(float)
+        uniq_vals_list = []
+        for col in range(X_num_real.shape[1]):
+            uniq_vals = np.unique(X_num_real[:, col])
+            uniq_vals_list.append(uniq_vals)
+        table_info[(parent, child)] = {
+            "uniq_vals_list": uniq_vals_list,
+            "size": len(df_with_cluster),
+            "columns": tables[child]["df"].columns,
+            "parents": tables[child]["parents"],
+            "original_cols": tables[child]["original_cols"],
+        }
+        required_keys = ["num_numerical_features", "is_regression", "inverse_transform", "empirical_class_dist", "K"]
+        filtered_result = {key: result[key] for key in required_keys}
+        table_info[(parent, child)].update(filtered_result)
+
+    for parent, child in relation_order:
+        with open(save_dir / f"models/{parent}_{child}_ckpt.pkl", "rb") as f:
+            result = pickle.load(f)
+
+        result["table_info"] = table_info
+
+        with open(save_dir / f"models/{parent}_{child}_ckpt.pkl", "wb") as f:
+            pickle.dump(result, f)
+
+
+def get_df_without_id(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Get the dataframe without the id columns.
+
+    Args:
+        df: the input DataFrame.
+
+    Returns:
+        The DataFrame without the id columns.
+    """
+    id_cols = [col for col in df.columns if "_id" in col]
+    return df.drop(columns=id_cols)
 
 
 def _numerical_forward_backward_log(
@@ -525,10 +608,15 @@ def _numerical_forward_backward_log(
         if loss.requires_grad:
             if i == 0:
                 optimizer.zero_grad()
-            loss.backward(loss * len(sub_batch) / len(batch))  # type: ignore[no-untyped-call]
+            loss.backward(loss * len(sub_batch) / len(batch))
 
 
-def _compute_top_k(logits: Tensor, labels: Tensor, k: int, reduction: str = "mean") -> Tensor:
+def _compute_top_k(
+    logits: Tensor,
+    labels: Tensor,
+    k: int,
+    reduction: Literal["mean", "none"] = "mean",
+) -> Tensor:
     """
     Compute the top-k accuracy.
 

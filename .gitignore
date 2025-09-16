@@ -17,5 +17,20 @@ wheels/
 # Vscode
 .vscode
 
+# PyCharm
+.idea
+
+# Cursor
+.cursor
+
 # macos
 *.DS_Store
+
+# Synthcity backups
+**/workspace/*.bkp
+
+# Dataset files
+examples/**/data/
+
+# hydra output
+outputs/

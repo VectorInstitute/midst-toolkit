@@ -1,0 +1,51 @@
+# Ensemble example configuration
+# Base data directory (can be overridden from command line)
+base_data_dir: examples/ensemble_attack/data
+base_example_dir: examples/ensemble_attack
+
+# Data paths (relative to base_data_dir)
+data_paths:
+  midst_data_path: ${base_data_dir}/midst_data_all_attacks # Used only for reading the data
+  population_path: ${base_data_dir}/population_data  # Path where the population data should be stored
+  processed_attack_data_path: ${base_data_dir}/attack_data # Path where the processed attack real train and evaluation data is stored
+
+# Pipeline control
+pipeline:
+  run_data_processing: true
+
+# Dataset specific information used for processing in this example
+data_processing_config:
+  collect_attack_data_types:
+          [
+            "tabddpm_black_box",
+            "tabsyn_black_box",
+            "tabddpm_white_box",
+            "tabsyn_white_box",
+            "clavaddpm_black_box",
+            "clavaddpm_white_box",
+        ]
+  # The column name in the data to be used for stratified splitting.
+  column_to_stratify: "trans_type"  # Attention: This value is not documented in the original codebase.
+  folder_ranges:
+    train: [[1, 31]]
+    dev: [[51, 61], [91, 101]]
+    final: [[61, 71], [101, 111]]
+  # File names in MIDST data directories.
+  single_table_train_data_file_name: "train_with_id.csv"
+  multi_table_train_data_file_name: "trans.csv"
+  challenge_data_file_name: "challenge_with_id.csv"
+  # Data Config files path
+  trans_domain_file_path: ${base_example_dir}/data_configs/trans_domain.json
+  dataset_meta_file_path: ${base_example_dir}/data_configs/dataset_meta.json
+  trans_json_file_path: ${base_example_dir}/data_configs/trans.json
+  population_sample_size: 40000
+
+# Training settings (placeholder)
+shadow_training:
+  epochs: 10
+  learning_rate: 0.001
+  batch_size: 64
+  model_type: "tabddpm"
+
+# General settings
+random_seed: 42
