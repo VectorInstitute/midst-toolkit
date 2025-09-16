@@ -28,7 +28,7 @@ from sklearn.preprocessing import (
     StandardScaler,
 )
 
-from midst_toolkit.models.clavaddpm.params import ArrayDict
+from midst_toolkit.models.clavaddpm.typing import ArrayDict
 
 
 CAT_MISSING_VALUE = "__nan__"
