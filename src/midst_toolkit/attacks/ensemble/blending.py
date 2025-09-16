@@ -4,12 +4,11 @@ from typing import Self
 
 import numpy as np
 import pandas as pd
-
-from midst_toolkit.attacks.ensemble.distance_features import calculate_domias, calculate_gower_features
-# from midst_toolkit.attacks.ensemble.train import train_meta_classifier
-from midst_toolkit.attacks.ensemble.XGBoost import XGBoostHyperparameterTuner
+from omegaconf import DictConfig
 from sklearn.linear_model import LogisticRegression
 
+from midst_toolkit.attacks.ensemble.distance_features import calculate_domias, calculate_gower_features
+from midst_toolkit.attacks.ensemble.XGBoost import XGBoostHyperparameterTuner
 
 
 class BlendingPlusPlus:
@@ -23,11 +22,11 @@ class BlendingPlusPlus:
     4. Predicts membership probability on new data.
     """
 
-    def __init__(self, meta_classifier_type: str = "xgb", data_configs=None):
+    def __init__(self, data_configs: DictConfig, meta_classifier_type: str = "xgb"):
         """
         Initializes the Blending++ attack with specified meta-classifier type and data configurations.
         1. meta_classifier_type: Type of classifier to use ('lr' for Logistic Regression, 'xgb' for XGBoost).
-        2. data_configs: Configuration dictionary containing metadata about the dataset (e.g., categorical and continuous columns).
+        2. data_configs: Configuration dictionary containing metadata about the dataset (e.g., column data type).
         """
         if meta_classifier_type not in ["lr", "xgb"]:
             raise ValueError("meta_classifier_type must be 'lr' or 'xgb'")
@@ -62,8 +61,7 @@ class BlendingPlusPlus:
             :, df_input.columns.isin(cont_cols)
         ]  # Continuous features from original data
 
-        # 4. Combine all features
-        df_meta = pd.concat(
+        return pd.concat(
             [
                 continuous_features,
                 gower_features,
@@ -72,8 +70,6 @@ class BlendingPlusPlus:
             ],
             axis=1,
         )
-
-        return df_meta
 
     def fit(
         self,
@@ -84,9 +80,7 @@ class BlendingPlusPlus:
         use_gpu: bool = True,
         epochs: int = 1,
     ) -> Self:
-        """
-        Trains the meta-classifier using the meta_train set.
-        """
+        """Trains the meta-classifier using the meta_train set."""
         print("Preparing meta-features for training...")
 
         meta_features = self._prepare_meta_features(
@@ -116,51 +110,40 @@ class BlendingPlusPlus:
 
         elif self.meta_classifier_type == "lr":
             print("Training Logistic Regression meta-classifier...")
-            self.meta_classifier_ = LogisticRegression(max_iter=1000)
-            self.meta_classifier_.fit(meta_features, y_train)
-
+            lr_model = LogisticRegression(max_iter=1000)
+            self.meta_classifier_ = lr_model.fit(meta_features, y_train)
 
         else:
             raise ValueError(f"Unsupported meta_classifier_type: {self.meta_classifier_type}")
 
-
-        # self.meta_classifier_ = train_meta_classifier(
-        #     x_train=meta_features,
-        #     y_train=y_train,
-        #     model_type=self.meta_classifier_type,
-        #     use_gpu=use_gpu,
-        #     epochs=epochs,
-        # )
-
         print("Blending++ meta-classifier has been trained.")
-
-        import pdb; pdb.set_trace()
 
         return self
 
-    #TODO
+    # TODO
     def predict(
         self,
         df_test: pd.DataFrame,
         df_synth: pd.DataFrame,
         df_ref: pd.DataFrame,
-        cat_cols: list,
         y_test: np.ndarray,
     ) -> np.ndarray:
-        """
-        Predicts membership probability on the meta_test set.
-        """
+        """Predicts membership probability on the meta_test set."""
         if self.meta_classifier_ is None:
             raise RuntimeError("You must call .fit() before .predict()")
 
         print("Preparing the meta-test features for prediction...")
-        df_test_features = self._prepare_meta_features(
-            df_input=df_test, df_synth=df_synth, df_ref=df_ref, cat_cols=cat_cols
-        )
+        # df_test_features = self._prepare_meta_features(
+        #     df_input=df_test,
+        #     df_synth=df_synth,
+        #     df_ref=df_ref,
+        #     cat_cols=self.data_configs.metadata.categorical,
+        #     cont_cols=self.data_configs.metadata.continuous,
+        # )
 
         print("Predicting with trained meta-classifier...")
-        pred_proba = self.meta_classifier_.predict_proba(df_test_features)
 
         # TODO: Evaluate predictions if y_test is provided
 
-        return pred_proba
+        # return self.meta_classifier_.predict_proba(df_test_features)
+        return 0

@@ -3,6 +3,8 @@ This file is an uncompleted example script for running the Ensemble Attack on MI
 provided resources and data.
 """
 
+import pickle
+from datetime import datetime
 from logging import INFO
 from pathlib import Path
 
@@ -80,6 +82,7 @@ def main(cfg: DictConfig) -> None:
         )
 
         # 2. Train the attacker on the meta-train set
+
         blending_attacker.fit(
             df_train=df_meta_train,
             y_train=y_meta_train,
@@ -89,24 +92,24 @@ def main(cfg: DictConfig) -> None:
             epochs=cfg.metaclassifier.epochs,
         )
 
-        # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        # model_filename = f"{timestamp}_trained_metaclassifier.pkl"
-        # with open(Path(cfg.model_paths.metaclassifier_model_path) / model_filename, "wb") as f:
-        #     pickle.dump(blending_attacker.meta_classifier_, f)
+        log(INFO, "Metaclassifier training finished.")
 
-        # # 3. Get predictions on the test set
-        # final_predictions = blending_attacker.predict(
-        #     df_test=df_meta_test,
-        #     df_synth=df_synth,
-        #     df_ref=df_ref,
-        #     cat_cols=cfg.data_configs.metadata.categorical,
-        #     y_test=y_meta_test,
-        # )
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        model_filename = f"{timestamp}_{cfg.metaclassifier.model_type}_trained_metaclassifier.pkl"
+        with open(Path(cfg.model_paths.metaclassifier_model_path) / model_filename, "wb") as f:
+            pickle.dump(blending_attacker.meta_classifier_, f)
 
-        # print("Final Blending++ predictions:", final_predictions)
-        # # TODO: Change print to logging
-        # # TODO: Save trained model
-        # log(INFO, "Metaclassifier training finished.")
+        log(INFO, "Metaclassifier model saved.")
+
+        # 3. Get predictions on the test set
+        final_predictions = blending_attacker.predict(
+            df_test=df_meta_test,
+            df_synth=df_synth,
+            df_ref=df_ref,
+            y_test=y_meta_test,
+        )
+
+        log(INFO, "Final Blending++ predictions:", final_predictions)
 
 
 if __name__ == "__main__":

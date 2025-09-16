@@ -21,7 +21,7 @@ def calculate_gower_features(df_input: pd.DataFrame, df_synth: pd.DataFrame, cat
     Returns:
         A dataframe with the new distance-based features, indexed like df_input.
     """
-    cat_features = [True if col in cat_cols else False for col in df_input.columns]
+    cat_features = [col in cat_cols for col in df_input.columns]
 
     pairwise_gower = gower.gower_matrix(
         data_x=df_input, data_y=df_synth, cat_features=cat_features

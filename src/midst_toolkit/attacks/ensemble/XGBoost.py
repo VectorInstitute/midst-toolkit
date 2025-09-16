@@ -1,12 +1,8 @@
-# Standard library
-from typing import List
-
-# 3rd party packages
 import numpy as np
 import optuna
 import pandas as pd
 import xgboost as xgb
-from optuna.trial import Trial
+from optuna.trial import FrozenTrial, Trial
 from sklearn.compose import ColumnTransformer
 from sklearn.metrics import make_scorer, roc_curve
 from sklearn.model_selection import cross_val_score
@@ -15,9 +11,6 @@ from sklearn.preprocessing import StandardScaler
 
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
-
-# Local
-# from .stats import get_tpr_at_fpr
 
 
 class XGBoostHyperparameterTuner:
@@ -41,13 +34,20 @@ class XGBoostHyperparameterTuner:
     ):
         """
         Initializes the tuner with data and column information.
+        :param x: Input features as a DataFrame.
+        :param y: Target variable as a numpy array.
+        :param use_gpu: Whether to use GPU acceleration.
         """
         self.x = x
         self.y = y
         self.use_gpu = use_gpu
 
     def _create_preprocessing_pipeline(self) -> ColumnTransformer:
-        """Creates and returns the data preprocessing pipeline."""
+        """
+        Creates a preprocessing pipeline for the input features.
+        It only scales continuous features using StandardScaler.
+        :return: A ColumnTransformer for preprocessing.
+        """
         return ColumnTransformer(
             [
                 ("continuous", StandardScaler(), self.x.columns),  # All features are continuous
@@ -56,7 +56,7 @@ class XGBoostHyperparameterTuner:
             remainder="passthrough",
         )
 
-    def _create_xgb_pipeline(self, trial: Trial) -> Pipeline:
+    def _create_xgb_pipeline(self, trial: Trial | FrozenTrial) -> Pipeline:
         """Creates a XGBoost pipeline for an Optuna trial."""
         preprocessing = self._create_preprocessing_pipeline()
         return Pipeline(
@@ -103,9 +103,8 @@ class XGBoostHyperparameterTuner:
         return max(tpr[fpr <= max_fpr])
 
     def _evaluate_pipeline_cv(self, trial: Trial, num_kfolds: int) -> float:
-        """
-        Runs k-fold cross-validation to evaluate the pipeline for a given trial.
-        """
+        # Runs k-fold cross-validation to evaluate the pipeline for a given trial.
+
         pipeline = self._create_xgb_pipeline(trial)
         tpr_scorer = make_scorer(self._get_tpr_at_fpr)
 
@@ -130,15 +129,15 @@ class XGBoostHyperparameterTuner:
         :param num_kfolds: Number of folds for cross-validation.
         :return: The best Scikit-learn Pipeline with optimized hyperparameters.
         """
-        objective = lambda trial: self._evaluate_pipeline_cv(trial, num_kfolds=num_kfolds)
+
+        def objective(trial: Trial) -> float:
+            return self._evaluate_pipeline_cv(trial, num_kfolds=num_kfolds)
 
         study = optuna.create_study(
             direction="maximize",
             sampler=optuna.samplers.TPESampler(n_startup_trials=10, seed=np.random.randint(1000)),
         )
         study.optimize(objective, n_trials=num_optuna_trials)
-
-        import pdb; pdb.set_trace()
 
         best_pipe = self._create_xgb_pipeline(study.best_trial)
         best_pipe.fit(self.x, self.y)
