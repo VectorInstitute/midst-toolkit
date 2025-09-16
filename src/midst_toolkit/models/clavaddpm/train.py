@@ -4,7 +4,7 @@ import logging
 import pickle
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -615,7 +615,12 @@ def _numerical_forward_backward_log(
             loss.backward(loss * len(sub_batch) / len(batch))
 
 
-def _compute_top_k(logits: Tensor, labels: Tensor, k: int, reduction: str = "mean") -> Tensor:
+def _compute_top_k(
+    logits: Tensor,
+    labels: Tensor,
+    k: int,
+    reduction: Literal["mean", "none"] = "mean",
+) -> Tensor:
     """
     Compute the top-k accuracy.
 
