@@ -100,6 +100,8 @@ shadow_training:
 # Metaclassifier settings (placeholder)
 metaclassifier:
   model_type: "xgb"
+  use_gpu: true
+  epochs: 1
 
 # General settings
 random_seed: 42

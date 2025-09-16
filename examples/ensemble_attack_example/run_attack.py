@@ -52,10 +52,10 @@ def main(cfg: DictConfig) -> None:
         # Load the processed data splits.
         df_meta_train = load_dataframe(
             Path(cfg.data_paths.processed_attack_data_path),
-            "master_challenge_train.csv",
+            "og_train_meta.csv",
         )
         y_meta_train = np.load(
-            Path(cfg.data_paths.processed_attack_data_path) / "master_challenge_train_labels.npy",
+            Path(cfg.data_paths.processed_attack_data_path) / "og_train_meta_label.npy",
         )
         df_meta_test = load_dataframe(
             Path(cfg.data_paths.processed_attack_data_path),
@@ -77,36 +77,39 @@ def main(cfg: DictConfig) -> None:
 
         # Fit the metaclassifier.
         # 1. Initialize the attacker
-        blending_attacker = BlendingPlusPlus(meta_classifier_type=cfg.metaclassifier.model_type)
+        blending_attacker = BlendingPlusPlus(
+            meta_classifier_type=cfg.metaclassifier.model_type, data_configs=cfg.data_configs
+        )
 
         # 2. Train the attacker on the meta-train set
+
         blending_attacker.fit(
             df_train=df_meta_train,
             y_train=y_meta_train,
             df_synth=df_synth,
             df_ref=df_ref,
-            cat_cols=cfg.data_configs.metadata.categorical,
-            epochs=1,
+            use_gpu=cfg.metaclassifier.use_gpu,
+            epochs=cfg.metaclassifier.epochs,
         )
 
-        # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        # model_filename = f"{timestamp}_trained_metaclassifier.pkl"
-        # with open(Path(cfg.model_paths.metaclassifier_model_path) / model_filename, "wb") as f:
-        #     pickle.dump(blending_attacker.meta_classifier_, f)
+        log(INFO, "Metaclassifier training finished.")
 
-        # # 3. Get predictions on the test set
-        # final_predictions = blending_attacker.predict(
-        #     df_test=df_meta_test,
-        #     df_synth=df_synth,
-        #     df_ref=df_ref,
-        #     cat_cols=cfg.data_configs.metadata.categorical,
-        #     y_test=y_meta_test,
-        # )
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        model_filename = f"{timestamp}_{cfg.metaclassifier.model_type}_trained_metaclassifier.pkl"
+        with open(Path(cfg.model_paths.metaclassifier_model_path) / model_filename, "wb") as f:
+            pickle.dump(blending_attacker.meta_classifier_, f)
 
-        # print("Final Blending++ predictions:", final_predictions)
-        # # TODO: Change print to logging
-        # # TODO: Save trained model
-        # log(INFO, "Metaclassifier training finished.")
+        log(INFO, "Metaclassifier model saved.")
+
+        # 3. Get predictions on the test set
+        final_predictions = blending_attacker.predict(
+            df_test=df_meta_test,
+            df_synth=df_synth,
+            df_ref=df_ref,
+            y_test=y_meta_test,
+        )
+
+        log(INFO, "Final Blending++ predictions:", final_predictions)
 
 
 if __name__ == "__main__":

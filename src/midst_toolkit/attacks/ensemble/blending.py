@@ -4,13 +4,11 @@ from typing import Self
 
 import numpy as np
 import pandas as pd
+from omegaconf import DictConfig
+from sklearn.linear_model import LogisticRegression
 
-# from src.attack import domias
-from midst_toolkit.attacks.ensemble.distance_features import calculate_gower_features, domias
-# from midst_toolkit.attacks.ensemble.train import train_meta_classifier
-
-
-# from src import config # Assuming config.metadata is available
+from midst_toolkit.attacks.ensemble.distance_features import calculate_domias, calculate_gower_features
+from midst_toolkit.attacks.ensemble.XGBoost import XGBoostHyperparameterTuner
 
 
 class BlendingPlusPlus:
@@ -24,13 +22,16 @@ class BlendingPlusPlus:
     4. Predicts membership probability on new data.
     """
 
-    def __init__(self, meta_classifier_type: str = "xgb"):
+    def __init__(self, data_configs: DictConfig, meta_classifier_type: str = "xgb"):
         """
-        Initializes the Blending++ attack with specified meta-classifier type.
+        Initializes the Blending++ attack with specified meta-classifier type and data configurations.
+        1. meta_classifier_type: Type of classifier to use ('lr' for Logistic Regression, 'xgb' for XGBoost).
+        2. data_configs: Configuration dictionary containing metadata about the dataset (e.g., column data type).
         """
         if meta_classifier_type not in ["lr", "xgb"]:
             raise ValueError("meta_classifier_type must be 'lr' or 'xgb'")
         self.meta_classifier_type = meta_classifier_type
+        self.data_configs = data_configs
         self.meta_classifier_ = None  # The trained model, underscore denotes fitted attribute
 
     # TODO: Add RMIA function
@@ -40,36 +41,35 @@ class BlendingPlusPlus:
         df_synth: pd.DataFrame,
         df_ref: pd.DataFrame,
         cat_cols: list,
+        cont_cols: list,
     ) -> pd.DataFrame:
-        """Private helper to assemble all features for the meta-classifier."""
-
-        print("WE HERE")
-
+        """Private helper to assemble distance-based features for the meta-classifier."""
         df_synth = df_synth.reset_index(drop=True)[df_input.columns]
 
         # 1. Get Gower distance features
-        gower_features = calculate_gower_features(df_input, df_synth, cat_cols) #shape = (20k, 9)
+        gower_features = calculate_gower_features(df_input, df_synth, cat_cols)
 
         # 2. Get DOMIAS predictions
-        domias_features = domias(df_input=df_input, df_synth=df_synth, df_ref=df_ref) 
+        domias_features = calculate_domias(df_input=df_input, df_synth=df_synth, df_ref=df_ref)
 
-        import pdb; pdb.set_trace()
+        # 3. Get RMIA signals (placeholder)
+        rmia_signals = pd.read_csv(
+            "examples/ensemble_attack_example/data/attack_data/og_rmia_train_meta_pred.csv"
+        )  # Placeholder for RMIA features
 
-        rmia_signals = pd.DataFrame(
-            np.zeros((df_input.shape[0], 1)), columns=["rmia_placeholder"], index=df_input.index
-        )
+        continuous_features = df_input.loc[
+            :, df_input.columns.isin(cont_cols)
+        ]  # Continuous features from original data
 
-        # 3. Combine all features
-        df_meta = pd.concat(
+        return pd.concat(
             [
-                # df_input[config.metadata["continuous"]],  # Original continuous features
+                continuous_features,
                 gower_features,
                 domias_features,
-                rmia_signals,  # Placeholder for RMIA features
+                rmia_signals,
             ],
             axis=1,
         )
-        return df_meta
 
     def fit(
         self,
@@ -77,50 +77,73 @@ class BlendingPlusPlus:
         y_train: np.ndarray,
         df_synth: pd.DataFrame,
         df_ref: pd.DataFrame,
-        cat_cols: list,
+        use_gpu: bool = True,
         epochs: int = 1,
     ) -> Self:
-        """
-        Trains the meta-classifier using the meta_train set.
-        """
+        """Trains the meta-classifier using the meta_train set."""
         print("Preparing meta-features for training...")
-        df_train_meta = self._prepare_meta_features(
+
+        meta_features = self._prepare_meta_features(
             df_input=df_train,
             df_synth=df_synth,
             df_ref=df_ref,
-            cat_cols=cat_cols,
+            cat_cols=self.data_configs.metadata.categorical,
+            cont_cols=self.data_configs.metadata.continuous,
         )
 
-        # self.meta_classifier_ = train_meta_classifier(
-        #     x_train=df_train_meta, y_train=y_train, model_type=self.meta_classifier_type, epochs=epochs
-        # )
+        print("Training the meta-classifier...")
 
-        # print("Blending++ meta-classifier has been trained.")
+        if self.meta_classifier_type == "xgb":
+            print("Training XGBoost meta-classifier...")
+
+            tuner = XGBoostHyperparameterTuner(
+                x=meta_features,
+                y=y_train,
+                use_gpu=use_gpu,
+            )
+
+            # Run the tuning process
+            self.meta_classifier_ = tuner.tune_hyperparameters(
+                num_optuna_trials=100,
+                num_kfolds=5,
+            )
+
+        elif self.meta_classifier_type == "lr":
+            print("Training Logistic Regression meta-classifier...")
+            lr_model = LogisticRegression(max_iter=1000)
+            self.meta_classifier_ = lr_model.fit(meta_features, y_train)
+
+        else:
+            raise ValueError(f"Unsupported meta_classifier_type: {self.meta_classifier_type}")
+
+        print("Blending++ meta-classifier has been trained.")
 
         return self
 
+    # TODO
     def predict(
         self,
         df_test: pd.DataFrame,
         df_synth: pd.DataFrame,
         df_ref: pd.DataFrame,
-        cat_cols: list,
         y_test: np.ndarray,
     ) -> np.ndarray:
-        """
-        Predicts membership probability on the meta_test set.
-        """
+        """Predicts membership probability on the meta_test set."""
         if self.meta_classifier_ is None:
             raise RuntimeError("You must call .fit() before .predict()")
 
         print("Preparing the meta-test features for prediction...")
-        df_test_features = self._prepare_meta_features(
-            df_input=df_test, df_synth=df_synth, df_ref=df_ref, cat_cols=cat_cols
-        )
+        # df_test_features = self._prepare_meta_features(
+        #     df_input=df_test,
+        #     df_synth=df_synth,
+        #     df_ref=df_ref,
+        #     cat_cols=self.data_configs.metadata.categorical,
+        #     cont_cols=self.data_configs.metadata.continuous,
+        # )
 
         print("Predicting with trained meta-classifier...")
-        pred_proba = self.meta_classifier_.predict_proba(df_test_features)
 
         # TODO: Evaluate predictions if y_test is provided
 
-        return pred_proba
+        # return self.meta_classifier_.predict_proba(df_test_features)
+        return 0
