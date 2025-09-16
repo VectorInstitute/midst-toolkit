@@ -75,7 +75,9 @@ def main(cfg: DictConfig) -> None:
 
         # Fit the metaclassifier.
         # 1. Initialize the attacker
-        blending_attacker = BlendingPlusPlus(meta_classifier_type=cfg.metaclassifier.model_type)
+        blending_attacker = BlendingPlusPlus(
+            meta_classifier_type=cfg.metaclassifier.model_type, data_configs=cfg.data_configs
+        )
 
         # 2. Train the attacker on the meta-train set
         blending_attacker.fit(
@@ -83,9 +85,6 @@ def main(cfg: DictConfig) -> None:
             y_train=y_meta_train,
             df_synth=df_synth,
             df_ref=df_ref,
-            cat_cols=cfg.data_configs.metadata.categorical,
-            cont_cols=cfg.data_configs.metadata.continuous,
-            bounds=cfg.data_configs.bounds,
             use_gpu=cfg.metaclassifier.use_gpu,
             epochs=cfg.metaclassifier.epochs,
         )

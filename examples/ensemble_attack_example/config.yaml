@@ -99,7 +99,7 @@ shadow_training:
 
 # Metaclassifier settings (placeholder)
 metaclassifier:
-  model_type: "xgb"
+  model_type: "lr"
   use_gpu: true
   epochs: 1
 

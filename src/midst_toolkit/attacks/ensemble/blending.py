@@ -6,7 +6,10 @@ import numpy as np
 import pandas as pd
 
 from midst_toolkit.attacks.ensemble.distance_features import calculate_domias, calculate_gower_features
-from midst_toolkit.attacks.ensemble.train import train_meta_classifier
+# from midst_toolkit.attacks.ensemble.train import train_meta_classifier
+from midst_toolkit.attacks.ensemble.XGBoost import XGBoostHyperparameterTuner
+from sklearn.linear_model import LogisticRegression
+
 
 
 class BlendingPlusPlus:
@@ -20,13 +23,16 @@ class BlendingPlusPlus:
     4. Predicts membership probability on new data.
     """
 
-    def __init__(self, meta_classifier_type: str = "xgb"):
+    def __init__(self, meta_classifier_type: str = "xgb", data_configs=None):
         """
-        Initializes the Blending++ attack with specified meta-classifier type.
+        Initializes the Blending++ attack with specified meta-classifier type and data configurations.
+        1. meta_classifier_type: Type of classifier to use ('lr' for Logistic Regression, 'xgb' for XGBoost).
+        2. data_configs: Configuration dictionary containing metadata about the dataset (e.g., categorical and continuous columns).
         """
         if meta_classifier_type not in ["lr", "xgb"]:
             raise ValueError("meta_classifier_type must be 'lr' or 'xgb'")
         self.meta_classifier_type = meta_classifier_type
+        self.data_configs = data_configs
         self.meta_classifier_ = None  # The trained model, underscore denotes fitted attribute
 
     # TODO: Add RMIA function
@@ -42,7 +48,7 @@ class BlendingPlusPlus:
         df_synth = df_synth.reset_index(drop=True)[df_input.columns]
 
         # 1. Get Gower distance features
-        gower_features = calculate_gower_features(df_input, df_synth, cat_cols)  # shape = (20k, 9)
+        gower_features = calculate_gower_features(df_input, df_synth, cat_cols)
 
         # 2. Get DOMIAS predictions
         domias_features = calculate_domias(df_input=df_input, df_synth=df_synth, df_ref=df_ref)
@@ -75,9 +81,6 @@ class BlendingPlusPlus:
         y_train: np.ndarray,
         df_synth: pd.DataFrame,
         df_ref: pd.DataFrame,
-        cat_cols: list,
-        cont_cols: list = None,
-        bounds: dict = {},
         use_gpu: bool = True,
         epochs: int = 1,
     ) -> Self:
@@ -87,26 +90,55 @@ class BlendingPlusPlus:
         print("Preparing meta-features for training...")
 
         meta_features = self._prepare_meta_features(
-            df_input=df_train, df_synth=df_synth, df_ref=df_ref, cat_cols=cat_cols, cont_cols=cont_cols
+            df_input=df_train,
+            df_synth=df_synth,
+            df_ref=df_ref,
+            cat_cols=self.data_configs.metadata.categorical,
+            cont_cols=self.data_configs.metadata.continuous,
         )
 
         print("Training the meta-classifier...")
 
-        self.meta_classifier_ = train_meta_classifier(
-            x_train=meta_features,
-            y_train=y_train,
-            cat_cols=cat_cols,
-            cont_cols=cont_cols,
-            bounds=bounds,
-            model_type=self.meta_classifier_type,
-            use_gpu=use_gpu,
-            epochs=epochs,
-        )
+        if self.meta_classifier_type == "xgb":
+            print("Training XGBoost meta-classifier...")
+
+            tuner = XGBoostHyperparameterTuner(
+                x=meta_features,
+                y=y_train,
+                use_gpu=use_gpu,
+            )
+
+            # Run the tuning process
+            self.meta_classifier_ = tuner.tune_hyperparameters(
+                num_optuna_trials=100,
+                num_kfolds=5,
+            )
+
+        elif self.meta_classifier_type == "lr":
+            print("Training Logistic Regression meta-classifier...")
+            self.meta_classifier_ = LogisticRegression(max_iter=1000)
+            self.meta_classifier_.fit(meta_features, y_train)
+
+
+        else:
+            raise ValueError(f"Unsupported meta_classifier_type: {self.meta_classifier_type}")
+
+
+        # self.meta_classifier_ = train_meta_classifier(
+        #     x_train=meta_features,
+        #     y_train=y_train,
+        #     model_type=self.meta_classifier_type,
+        #     use_gpu=use_gpu,
+        #     epochs=epochs,
+        # )
 
         print("Blending++ meta-classifier has been trained.")
 
+        import pdb; pdb.set_trace()
+
         return self
 
+    #TODO
     def predict(
         self,
         df_test: pd.DataFrame,
