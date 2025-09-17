@@ -10,8 +10,8 @@ import torch
 from torch.nn import functional
 
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
-from midst_toolkit.core.data_loaders import load_multi_table
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
+from midst_toolkit.models.clavaddpm.data_loaders import load_multi_table
 from midst_toolkit.models.clavaddpm.model import Classifier
 from midst_toolkit.models.clavaddpm.train import clava_training
 

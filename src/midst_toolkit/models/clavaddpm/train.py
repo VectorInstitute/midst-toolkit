@@ -13,12 +13,12 @@ from torch import Tensor, optim
 
 from midst_toolkit.common.logger import log
 from midst_toolkit.core import logger
+from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
 from midst_toolkit.models.clavaddpm.dataset import (
     Dataset,
     Transformations,
     get_T_dict,
     make_dataset_from_df,
-    prepare_fast_dataloader,
 )
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 from midst_toolkit.models.clavaddpm.model import Classifier, get_model, get_table_info

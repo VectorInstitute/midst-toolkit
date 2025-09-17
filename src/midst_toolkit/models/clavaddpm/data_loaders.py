@@ -1,16 +1,36 @@
 import json
 import os
-from typing import Any
+from collections.abc import Generator
+from logging import INFO
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
+import torch
+
+from midst_toolkit.common.logger import log
+from midst_toolkit.models.clavaddpm.dataset import Dataset
 
 
-def load_multi_table(data_dir, verbose=True):
+def load_multi_table(
+    data_dir: str, verbose: bool = True
+) -> tuple[dict[str, Any], list[tuple[str, str]], dict[str, Any]]:
+    """
+    Load the multi-table dataset from the data directory.
+
+    Args:
+        data_dir: The directory to load the dataset from.
+        verbose: Whether to print verbose output. Optional, default is True.
+
+    Returns:
+        A tuple with 3 values:
+            - The tables dictionary.
+            - The relation order between the tables.
+            - The dataset metadata dictionary.
+    """
     dataset_meta = json.load(open(os.path.join(data_dir, "dataset_meta.json"), "r"))
 
     relation_order = dataset_meta["relation_order"]
-    # relation_order_reversed = relation_order[::-1]
 
     tables = {}
 
@@ -31,7 +51,7 @@ def load_multi_table(data_dir, verbose=True):
         id_cols = [col for col in tables[table]["df"].columns if "_id" in col]
         df_no_id = tables[table]["df"].drop(columns=id_cols)
         info = get_info_from_domain(df_no_id, tables[table]["domain"])
-        data, info = pipeline_process_data(
+        _, info = pipeline_process_data(
             name=table,
             data_df=df_no_id,
             info=info,
@@ -45,7 +65,21 @@ def load_multi_table(data_dir, verbose=True):
 
 
 def get_info_from_domain(data_df: pd.DataFrame, domain_dict: dict[str, Any]) -> dict[str, Any]:
-    # ruff: noqa: D103
+    """
+    Get the information dictionaryfrom the domain dictionary.
+
+    Args:
+        data_df: The dataframe containing the data.
+        domain_dict: The domain dictionary containing metadata about the data columns.
+
+    Returns:
+        The information dictionary containing the following keys:
+        - num_col_idx: The indices of the numerical columns.
+        - cat_col_idx: The indices of the categorical columns.
+        - target_col_idx: The indices of the target columns.
+        - task_type: The type of the task.
+        - column_names: The names of the columns.
+    """
     info: dict[str, Any] = {}
     info["num_col_idx"] = []
     info["cat_col_idx"] = []
@@ -72,7 +106,30 @@ def pipeline_process_data(
     save: bool = False,
     verbose: bool = True,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    # ruff: noqa: D103
+    """
+    Process the data through the pipeline.
+
+    Args:
+        name: The name of the table.
+        data_df: The dataframe containing the data.
+        info: The information dictionary, retrieved from the get_info_from_domain function.
+        ratio: The ratio of the data to be used for training. Optional, default is 0.9.
+        save: Whether to save the data. Optional, default is False.
+        verbose: Whether to print verbose output. Optional, default is True.
+
+    Returns:
+        A tuple with 2 values:
+            - The data dictionary containing the following keys:
+                - df: The dataframe containing the data.
+                - numpy: A dictionary with the numeric data, containing the keys:
+                    - X_num_train: The numeric data for the training set.
+                    - X_cat_train: The categorical data for the training set.
+                    - y_train: The target data for the training set.
+                    - X_num_test: The numeric data for the test set.
+                    - X_cat_test: The categorical data for the test set.
+                    - y_test: The target data for the test set.
+            - The information dictionary with updated values.
+    """
     num_data = data_df.shape[0]
 
     column_names = info["column_names"] if info["column_names"] else data_df.columns.tolist()
@@ -235,21 +292,7 @@ def pipeline_process_data(
 
         str_shape += ", Numerical data shape: {}".format(X_num_train.shape)
         str_shape += ", Categorical data shape: {}".format(X_cat_train.shape)
-        print(str_shape)
-
-    # print(name)
-    # print('Total', info['train_num'] + info['test_num'] if ratio < 1 else info['train_num'])
-    # print('Train', info['train_num'])
-    # if ratio < 1:
-    #     print('Test', info['test_num'])
-    # if info['task_type'] == 'regression':
-    #     num = len(info['num_col_idx'] + info['target_col_idx'])
-    #     cat = len(info['cat_col_idx'])
-    # else:
-    #     cat = len(info['cat_col_idx'] + info['target_col_idx'])
-    #     num = len(info['num_col_idx'])
-    # print('Num', num)
-    # print('Cat', cat)
+        log(INFO, str_shape)
 
     data = {
         "df": {"train": train_df},
@@ -276,7 +319,22 @@ def get_column_name_mapping(
     target_col_idx: list[int],
     column_names: list[str] | None = None,
 ) -> tuple[dict[int, int], dict[int, int], dict[int, str]]:
-    # ruff: noqa: D103
+    """
+    Get the column name mapping.
+
+    Args:
+        data_df: The dataframe containing the data.
+        num_col_idx: The indices of the numerical columns.
+        cat_col_idx: The indices of the categorical columns.
+        target_col_idx: The indices of the target columns.
+        column_names: The names of the columns.
+
+    Returns:
+        A tuple with 3 values:
+            - The mapping of the categorical and numerical columns to the indices.
+            - The mapping of the column names to the indices.
+            - The mapping of all the indices to the column names.
+    """
     if not column_names:
         column_names = data_df.columns.tolist()
 
@@ -315,7 +373,21 @@ def train_val_test_split(
     num_train: int = 0,
     num_test: int = 0,
 ) -> tuple[pd.DataFrame, pd.DataFrame, int]:
-    # ruff: noqa: D103
+    """
+    Split the data into training and test sets.
+
+    Args:
+        data_df: The dataframe containing the data.
+        cat_columns: The names of the categorical columns.
+        num_train: The number of rows in the training set. Optional, default is 0.
+        num_test: The number of rows in the test set. Optional, default is 0.
+
+    Returns:
+        A tuple with 3 values:
+            - The training dataframe.
+            - The test dataframe.
+            - The seed used for the random number generator.
+    """
     total_num = data_df.shape[0]
     idx = np.arange(total_num)
 
@@ -342,3 +414,89 @@ def train_val_test_split(
         seed += 1
 
     return train_df, test_df, seed
+
+
+class FastTensorDataLoader:
+    """
+    Defines a faster dataloader for PyTorch tensors.
+
+    A DataLoader-like object for a set of tensors that can be much faster than
+    TensorDataset + DataLoader because dataloader grabs individual indices of
+    the dataset and calls cat (slow).
+    Source: https://discuss.pytorch.org/t/dataloader-much-slower-than-manual-batching/27014/6
+    """
+
+    def __init__(self, *tensors: torch.Tensor, batch_size: int = 32, shuffle: bool = False):
+        """
+        Initialize a FastTensorDataLoader.
+
+        Args:
+            *tensors: tensors to store. Must have the same length @ dim 0.
+            batch_size: batch size to load.
+            shuffle: if True, shuffle the data *in-place* whenever an
+                iterator is created out of this object.
+        """
+        assert all(t.shape[0] == tensors[0].shape[0] for t in tensors)
+        self.tensors = tensors
+
+        self.dataset_len = self.tensors[0].shape[0]
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+
+        # Calculate # batches
+        n_batches, remainder = divmod(self.dataset_len, self.batch_size)
+        if remainder > 0:
+            n_batches += 1
+        self.n_batches = n_batches
+
+    def __iter__(self):
+        """Defines the iterator for the FastTensorDataLoader."""
+        if self.shuffle:
+            r = torch.randperm(self.dataset_len)
+            self.tensors = [t[r] for t in self.tensors]  # type: ignore[assignment]
+        self.i = 0
+        return self
+
+    def __next__(self):
+        """Get the next batch of data from the dataset."""
+        if self.i >= self.dataset_len:
+            raise StopIteration
+        batch = tuple(t[self.i : self.i + self.batch_size] for t in self.tensors)
+        self.i += self.batch_size
+        return batch
+
+    def __len__(self):
+        """Get the number of batches in the dataset."""
+        return self.n_batches
+
+
+def prepare_fast_dataloader(
+    dataset: Dataset,
+    split: Literal["train", "val", "test"],
+    batch_size: int,
+    y_type: str = "float",
+) -> Generator[tuple[torch.Tensor, ...]]:
+    """
+    Prepare a fast dataloader for the dataset.
+
+    Args:
+        dataset: The dataset to prepare the dataloader for.
+        split: The split to prepare the dataloader for.
+        batch_size: The batch size to use for the dataloader.
+        y_type: The type of the target values. Can be "float" or "long". Default is "float".
+
+    Returns:
+        A generator of batches of data from the dataset.
+    """
+    if dataset.X_cat is not None:
+        if dataset.X_num is not None:
+            X = torch.from_numpy(np.concatenate([dataset.X_num[split], dataset.X_cat[split]], axis=1)).float()
+        else:
+            X = torch.from_numpy(dataset.X_cat[split]).float()
+    else:
+        assert dataset.X_num is not None
+        X = torch.from_numpy(dataset.X_num[split]).float()
+    y = torch.from_numpy(dataset.y[split]).float() if y_type == "float" else torch.from_numpy(dataset.y[split]).long()
+    dataloader = FastTensorDataLoader(X, y, batch_size=batch_size, shuffle=(split == "train"))
+    while True:
+        yield from dataloader

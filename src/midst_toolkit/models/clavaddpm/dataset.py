@@ -4,7 +4,6 @@ import hashlib
 import json
 import pickle
 from collections import Counter
-from collections.abc import Generator
 from copy import deepcopy
 from dataclasses import astuple, dataclass, replace
 from enum import Enum
@@ -879,89 +878,3 @@ def build_target(y: ArrayDict, policy: YPolicy | None, task_type: TaskType) -> t
     else:
         raise ValueError(f"Unknown policy: {policy}")
     return y, info
-
-
-class FastTensorDataLoader:
-    """
-    Defines a faster dataloader for PyTorch tensors.
-
-    A DataLoader-like object for a set of tensors that can be much faster than
-    TensorDataset + DataLoader because dataloader grabs individual indices of
-    the dataset and calls cat (slow).
-    Source: https://discuss.pytorch.org/t/dataloader-much-slower-than-manual-batching/27014/6
-    """
-
-    def __init__(self, *tensors: torch.Tensor, batch_size: int = 32, shuffle: bool = False):
-        """
-        Initialize a FastTensorDataLoader.
-
-        Args:
-            *tensors: tensors to store. Must have the same length @ dim 0.
-            batch_size: batch size to load.
-            shuffle: if True, shuffle the data *in-place* whenever an
-                iterator is created out of this object.
-        """
-        assert all(t.shape[0] == tensors[0].shape[0] for t in tensors)
-        self.tensors = tensors
-
-        self.dataset_len = self.tensors[0].shape[0]
-        self.batch_size = batch_size
-        self.shuffle = shuffle
-
-        # Calculate # batches
-        n_batches, remainder = divmod(self.dataset_len, self.batch_size)
-        if remainder > 0:
-            n_batches += 1
-        self.n_batches = n_batches
-
-    def __iter__(self):
-        """Defines the iterator for the FastTensorDataLoader."""
-        if self.shuffle:
-            r = torch.randperm(self.dataset_len)
-            self.tensors = [t[r] for t in self.tensors]  # type: ignore[assignment]
-        self.i = 0
-        return self
-
-    def __next__(self):
-        """Get the next batch of data from the dataset."""
-        if self.i >= self.dataset_len:
-            raise StopIteration
-        batch = tuple(t[self.i : self.i + self.batch_size] for t in self.tensors)
-        self.i += self.batch_size
-        return batch
-
-    def __len__(self):
-        """Get the number of batches in the dataset."""
-        return self.n_batches
-
-
-def prepare_fast_dataloader(
-    dataset: Dataset,
-    split: Literal["train", "val", "test"],
-    batch_size: int,
-    y_type: str = "float",
-) -> Generator[tuple[torch.Tensor, ...]]:
-    """
-    Prepare a fast dataloader for the dataset.
-
-    Args:
-        dataset: The dataset to prepare the dataloader for.
-        split: The split to prepare the dataloader for.
-        batch_size: The batch size to use for the dataloader.
-        y_type: The type of the target values. Can be "float" or "long". Default is "float".
-
-    Returns:
-        A generator of batches of data from the dataset.
-    """
-    if dataset.X_cat is not None:
-        if dataset.X_num is not None:
-            X = torch.from_numpy(np.concatenate([dataset.X_num[split], dataset.X_cat[split]], axis=1)).float()
-        else:
-            X = torch.from_numpy(dataset.X_cat[split]).float()
-    else:
-        assert dataset.X_num is not None
-        X = torch.from_numpy(dataset.X_num[split]).float()
-    y = torch.from_numpy(dataset.y[split]).float() if y_type == "float" else torch.from_numpy(dataset.y[split]).long()
-    dataloader = FastTensorDataLoader(X, y, batch_size=batch_size, shuffle=(split == "train"))
-    while True:
-        yield from dataloader
