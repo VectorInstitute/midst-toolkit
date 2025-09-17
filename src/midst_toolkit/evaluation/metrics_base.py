@@ -90,7 +90,7 @@ class SynthEvalMetric(MetricBase, ABC):
         """
         log(INFO, "Performing default preprocessing using defined columns.")
         encoder = SynthEvalDataframeEncoding(
-            real_data, synthetic_data, self.categorical_columns, self.numerical_columns, holdout_data=None
+            real_data, synthetic_data, self.categorical_columns, self.numerical_columns, holdout_data=holdout_data
         )
         real_data = encoder.encode(real_data)
         synthetic_data = encoder.encode(synthetic_data)
