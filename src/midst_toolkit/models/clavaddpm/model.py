@@ -1,14 +1,13 @@
 import math
-from collections.abc import Callable, Generator
-from typing import Any, Self
+from typing import Any, Literal, Self
 
-import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
+
+# ruff: noqa: N812
 from torch import Tensor, nn
 
-from midst_toolkit.models.clavaddpm.dataset import Dataset
 from midst_toolkit.models.clavaddpm.typing import ModuleType
 
 
@@ -23,6 +22,18 @@ class Classifier(nn.Module):
         num_heads: int = 2,
         num_layers: int = 1,
     ):
+        """
+        Initialize the classifier model.
+
+        Args:
+            d_in: The input dimension size.
+            d_out: The output dimension size.
+            dim_t: The dimension size of the timestamp.
+            hidden_sizes: The list of sizes for the hidden layers.
+            dropout_prob: The dropout probability. Optional, default is 0.5.
+            num_heads: The number of heads for the transformer layer. Optional, default is 2.
+            num_layers: The number of layers for the transformer layer. Optional, default is 1.
+        """
         super(Classifier, self).__init__()
 
         self.dim_t = dim_t
@@ -54,7 +65,17 @@ class Classifier(nn.Module):
         # Create a Sequential model from the list of layers
         self.model = nn.Sequential(*layers)
 
-    def forward(self, x, timesteps):
+    def forward(self, x: Tensor, timesteps: Tensor) -> Tensor:
+        """
+        Forward pass of the classifier model.
+
+        Args:
+            x: The input tensor.
+            timesteps: The timesteps tensor.
+
+        Returns:
+            The output tensor.
+        """
         emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
         x = self.proj(x) + emb
         # x = self.transformer_layer(x, x)
@@ -62,6 +83,24 @@ class Classifier(nn.Module):
 
 
 def get_table_info(df: pd.DataFrame, domain_dict: dict[str, Any], y_col: str) -> dict[str, Any]:
+    """
+    Get the dictionary oftable information.
+
+    Args:
+        df: The dataframe containing the data.
+        domain_dict: The domain dictionary of metadata about the data columns.
+        y_col: The name of the target column.
+
+    Returns:
+        The table information in the following format:
+        {
+            "cat_cols": list[str],
+            "num_cols": list[str],
+            "y_col": str,
+            "n_classes": int,
+            "task_type": str,
+        }
+    """
     cat_cols = []
     num_cols = []
     for col in df.columns:
@@ -81,31 +120,20 @@ def get_table_info(df: pd.DataFrame, domain_dict: dict[str, Any], y_col: str) ->
     return df_info
 
 
-def prepare_fast_dataloader(
-    D: Dataset,
-    # ruff: noqa: N803
-    split: str,
-    batch_size: int,
-    y_type: str = "float",
-) -> Generator[tuple[Tensor, ...]]:
-    if D.X_cat is not None:
-        if D.X_num is not None:
-            X = torch.from_numpy(np.concatenate([D.X_num[split], D.X_cat[split]], axis=1)).float()
-        else:
-            X = torch.from_numpy(D.X_cat[split]).float()
-    else:
-        assert D.X_num is not None
-        X = torch.from_numpy(D.X_num[split]).float()
-    y = torch.from_numpy(D.y[split]).float() if y_type == "float" else torch.from_numpy(D.y[split]).long()
-    dataloader = FastTensorDataLoader(X, y, batch_size=batch_size, shuffle=(split == "train"))
-    while True:
-        yield from dataloader
-
-
 def get_model(
-    model_name: str,
+    model_name: Literal["mlp", "resnet"],
     model_params: dict[str, Any],
 ) -> nn.Module:
+    """
+    Get the model.
+
+    Args:
+        model_name: The name of the model. Can be "mlp" or "resnet".
+        model_params: The dictionary of parameters of the model.
+
+    Returns:
+        The model.
+    """
     print(model_name)
     if model_name == "mlp":
         return MLPDiffusion(**model_params)
@@ -115,68 +143,17 @@ def get_model(
     raise ValueError("Unknown model!")
 
 
-class FastTensorDataLoader:
-    """
-    Defines a faster dataloader for PyTorch tensors.
-
-    A DataLoader-like object for a set of tensors that can be much faster than
-    TensorDataset + DataLoader because dataloader grabs individual indices of
-    the dataset and calls cat (slow).
-    Source: https://discuss.pytorch.org/t/dataloader-much-slower-than-manual-batching/27014/6
-    """
-
-    def __init__(self, *tensors: Tensor, batch_size: int = 32, shuffle: bool = False):
-        """
-        Initialize a FastTensorDataLoader.
-        :param *tensors: tensors to store. Must have the same length @ dim 0.
-        :param batch_size: batch size to load.
-        :param shuffle: if True, shuffle the data *in-place* whenever an
-            iterator is created out of this object.
-        :returns: A FastTensorDataLoader.
-        """
-        assert all(t.shape[0] == tensors[0].shape[0] for t in tensors)
-        self.tensors = tensors
-
-        self.dataset_len = self.tensors[0].shape[0]
-        self.batch_size = batch_size
-        self.shuffle = shuffle
-
-        # Calculate # batches
-        n_batches, remainder = divmod(self.dataset_len, self.batch_size)
-        if remainder > 0:
-            n_batches += 1
-        self.n_batches = n_batches
-
-    def __iter__(self):
-        # ruff: noqa: D105
-        if self.shuffle:
-            r = torch.randperm(self.dataset_len)
-            self.tensors = [t[r] for t in self.tensors]  # type: ignore[assignment]
-        self.i = 0
-        return self
-
-    def __next__(self):
-        # ruff: noqa: D105
-        if self.i >= self.dataset_len:
-            raise StopIteration
-        batch = tuple(t[self.i : self.i + self.batch_size] for t in self.tensors)
-        self.i += self.batch_size
-        return batch
-
-    def __len__(self):
-        # ruff: noqa: D105
-        return self.n_batches
-
-
 def timestep_embedding(timesteps: Tensor, dim: int, max_period: int = 10000) -> Tensor:
     """
     Create sinusoidal timestep embeddings.
 
-    :param timesteps: a 1-D Tensor of N indices, one per batch element.
-                      These may be fractional.
-    :param dim: the dimension of the output.
-    :param max_period: controls the minimum frequency of the embeddings.
-    :return: an [N x dim] Tensor of positional embeddings.
+    Args:
+        timesteps: a 1-D Tensor of N indices, one per batch element. These may be fractional.
+        dim: the dimension of the output.
+        max_period: controls the minimum frequency of the embeddings.
+
+    Returns:
+        An [N x dim] Tensor of positional embeddings.
     """
     half = dim // 2
     freqs = torch.exp(-math.log(max_period) * torch.arange(start=0, end=half, dtype=torch.float32) / half).to(
@@ -223,12 +200,31 @@ class MLP(nn.Module):
             activation: ModuleType,
             dropout: float,
         ) -> None:
+            """
+            Initialize the MLP block.
+
+            Args:
+                d_in: The input dimension size.
+                d_out: The output dimension size.
+                bias: Whether to use bias.
+                activation: The activation function.
+                dropout: The dropout probability.
+            """
             super().__init__()
             self.linear = nn.Linear(d_in, d_out, bias)
             self.activation = _make_nn_module(activation)
             self.dropout = nn.Dropout(dropout)
 
         def forward(self, x: Tensor) -> Tensor:
+            """
+            Forward pass of the MLP block.
+
+            Args:
+                x: The input tensor.
+
+            Returns:
+                The output tensor.
+            """
             return self.dropout(self.activation(self.linear(x)))
 
     def __init__(
@@ -237,12 +233,21 @@ class MLP(nn.Module):
         d_in: int,
         d_layers: list[int],
         dropouts: float | list[float],
-        activation: str | Callable[[], nn.Module],
+        activation: ModuleType,
         d_out: int,
-    ) -> None:
+    ):
         """
+        Initialize the MLP model.
+
         Note:
             `make_baseline` is the recommended constructor.
+
+        Args:
+            d_in: The input dimension size.
+            d_layers: The list of sizes for the hidden layers.
+            dropouts: Can be either a single value for the dropout rate or a list of dropout rates.
+            activation: The activation function.
+            d_out: The output dimension size.
         """
         super().__init__()
         if isinstance(dropouts, float):
@@ -308,6 +313,15 @@ class MLP(nn.Module):
         )
 
     def forward(self, x: Tensor) -> Tensor:
+        """
+        Forward pass of the MLP model.
+
+        Args:
+            x: The input tensor.
+
+        Returns:
+            The output tensor.
+        """
         x = x.float()
         for block in self.blocks:
             x = block(x)
@@ -360,7 +374,21 @@ class ResNet(nn.Module):
             normalization: ModuleType,
             activation: ModuleType,
             skip_connection: bool,
-        ) -> None:
+        ):
+            """
+            Initialize the ResNet block.
+
+            Args:
+                d_main: The input dimension size.
+                d_hidden: The output dimension size.
+                bias_first: Whether to use bias for the first linear layer.
+                bias_second: Whether to use bias for the second linear layer.
+                dropout_first: The dropout probability for the first dropout layer.
+                dropout_second: The dropout probability for the second dropout layer.
+                normalization: The normalization function.
+                activation: The activation function.
+                skip_connection: Whether to use skip connection.
+            """
             super().__init__()
             self.normalization = _make_nn_module(normalization, d_main)
             self.linear_first = nn.Linear(d_main, d_hidden, bias_first)
@@ -371,6 +399,15 @@ class ResNet(nn.Module):
             self.skip_connection = skip_connection
 
         def forward(self, x: Tensor) -> Tensor:
+            """
+            Forward pass of the ResNet block.
+
+            Args:
+                x: The input tensor.
+
+            Returns:
+                The output tensor.
+            """
             x_input = x
             x = self.normalization(x)
             x = self.linear_first(x)
@@ -393,13 +430,32 @@ class ResNet(nn.Module):
             bias: bool,
             normalization: ModuleType,
             activation: ModuleType,
-        ) -> None:
+        ):
+            """
+            Initialize the ResNet head.
+
+            Args:
+                d_in: The input dimension size.
+                d_out: The output dimension size.
+                bias: Whether to use bias.
+                normalization: The normalization function.
+                activation: The activation function.
+            """
             super().__init__()
             self.normalization = _make_nn_module(normalization, d_in)
             self.activation = _make_nn_module(activation)
             self.linear = nn.Linear(d_in, d_out, bias)
 
         def forward(self, x: Tensor) -> Tensor:
+            """
+            Forward pass of the ResNet head.
+
+            Args:
+                x: The input tensor.
+
+            Returns:
+                The output tensor.
+            """
             if self.normalization is not None:
                 x = self.normalization(x)
             x = self.activation(x)
@@ -417,10 +473,23 @@ class ResNet(nn.Module):
         normalization: ModuleType,
         activation: ModuleType,
         d_out: int,
-    ) -> None:
+    ):
         """
+        Initialize the ResNet model.
+
         Note:
             `make_baseline` is the recommended constructor.
+
+        Args:
+            d_in: The input dimension size.
+            n_blocks: The number of blocks.
+            d_main: The input dimension size.
+            d_hidden: The output dimension size.
+            dropout_first: The dropout probability for the first dropout layer.
+            dropout_second: The dropout probability for the second dropout layer.
+            normalization: The normalization function.
+            activation: The activation function.
+            d_out: The output dimension size.
         """
         super().__init__()
 
@@ -492,6 +561,15 @@ class ResNet(nn.Module):
         )
 
     def forward(self, x: Tensor) -> Tensor:
+        """
+        Forward pass of the ResNet model.
+
+        Args:
+            x: The input tensor.
+
+        Returns:
+            The output tensor.
+        """
         x = x.float()
         x = self.first_layer(x)
         x = self.blocks(x)
@@ -506,10 +584,20 @@ class MLPDiffusion(nn.Module):
         self,
         d_in: int,
         num_classes: int,
-        is_y_cond: str,
+        is_y_cond: Literal["concat", "embedding", "none"],
         rtdl_params: dict[str, Any],
         dim_t: int = 128,
     ):
+        """
+        Initialize the MLP diffusion model.
+
+        Args:
+            d_in: The input dimension size.
+            num_classes: The number of classes.
+            is_y_cond: The condition on the y column. Can be "concat", "embedding", or "none".
+            rtdl_params: The dictionary of parameters for the MLP.
+            dim_t: The dimension size of the timestamp.
+        """
         super().__init__()
         self.dim_t = dim_t
         self.num_classes = num_classes
@@ -531,7 +619,18 @@ class MLPDiffusion(nn.Module):
         self.proj = nn.Linear(d_in, dim_t)
         self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
 
-    def forward(self, x, timesteps, y=None):
+    def forward(self, x: Tensor, timesteps: Tensor, y: Tensor | None = None) -> Tensor:
+        """
+        Forward pass of the MLP diffusion model.
+
+        Args:
+            x: The input tensor.
+            timesteps: The timesteps tensor.
+            y: The y tensor. Optional, default is None.
+
+        Returns:
+            The output tensor.
+        """
         emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
         if self.is_y_cond == "embedding" and y is not None:
             y = y.squeeze() if self.num_classes > 0 else y.resize_(y.size(0), 1).float()
@@ -547,9 +646,19 @@ class ResNetDiffusion(nn.Module):
         num_classes: int,
         rtdl_params: dict[str, Any],
         dim_t: int = 256,
-        is_y_cond: str | None = None,
+        is_y_cond: Literal["concat", "embedding", "none"] | None = None,
     ):
-        # ruff: noqa: D107
+        """
+        Initialize the ResNet diffusion model.
+
+        Args:
+            d_in: The input dimension size.
+            num_classes: The number of classes.
+            rtdl_params: The dictionary of parameters for the ResNet.
+            dim_t: The dimension size of the timestamp.
+            is_y_cond: The condition on the y column. Can be "concat", "embedding", or "none".
+                Optional, default is None.
+        """
         super().__init__()
         self.dim_t = dim_t
         self.num_classes = num_classes
@@ -567,8 +676,18 @@ class ResNetDiffusion(nn.Module):
 
         self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
 
-    def forward(self, x, timesteps, y=None):
-        # ruff: noqa: D102
+    def forward(self, x: Tensor, timesteps: Tensor, y: Tensor | None = None) -> Tensor:
+        """
+        Forward pass of the ResNet diffusion model.
+
+        Args:
+            x: The input tensor.
+            timesteps: The timesteps tensor.
+            y: The y tensor. Optional, default is None.
+
+        Returns:
+            The output tensor.
+        """
         emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
         if y is not None and self.num_classes > 0:
             emb += self.label_emb(y.squeeze())
@@ -576,10 +695,17 @@ class ResNetDiffusion(nn.Module):
 
 
 def reglu(x: Tensor) -> Tensor:
-    """The ReGLU activation function from [1].
+    """
+    The ReGLU activation function from [1].
 
     References:
         [1] Noam Shazeer, "GLU Variants Improve Transformer", 2020
+
+    Args:
+        x: The input tensor.
+
+    Returns:
+        The output tensor.
     """
     assert x.shape[-1] % 2 == 0
     a, b = x.chunk(2, dim=-1)
@@ -587,10 +713,17 @@ def reglu(x: Tensor) -> Tensor:
 
 
 def geglu(x: Tensor) -> Tensor:
-    """The GEGLU activation function from [1].
+    """
+    The GEGLU activation function from [1].
 
     References:
         [1] Noam Shazeer, "GLU Variants Improve Transformer", 2020
+
+    Args:
+        x: The input tensor.
+
+    Returns:
+        The output tensor.
     """
     assert x.shape[-1] % 2 == 0
     a, b = x.chunk(2, dim=-1)
@@ -598,30 +731,42 @@ def geglu(x: Tensor) -> Tensor:
 
 
 class ReGLU(nn.Module):
-    """The ReGLU activation function from [shazeer2020glu].
+    """
+    The ReGLU activation function from [shazeer2020glu].
 
     Examples:
-        .. testcode::
-
-            module = ReGLU()
-            x = torch.randn(3, 4)
-            assert module(x).shape == (3, 2)
+        module = ReGLU()
+        x = torch.randn(3, 4)
+        assert module(x).shape == (3, 2)
 
     References:
         * [shazeer2020glu] Noam Shazeer, "GLU Variants Improve Transformer", 2020
+
+    Args:
+        x: The input tensor.
+
+    Returns:
+        The output tensor.
     """
 
     def forward(self, x: Tensor) -> Tensor:
-        # ruff: noqa: D102
+        """
+        Forward pass of the ReGLU activation function.
+
+        Args:
+            x: The input tensor.
+
+        Returns:
+            The output tensor.
+        """
         return reglu(x)
 
 
 class GEGLU(nn.Module):
-    """The GEGLU activation function from [shazeer2020glu].
+    """
+    The GEGLU activation function from [shazeer2020glu].
 
     Examples:
-        .. testcode::
-
             module = GEGLU()
             x = torch.randn(3, 4)
             assert module(x).shape == (3, 2)
@@ -631,11 +776,29 @@ class GEGLU(nn.Module):
     """
 
     def forward(self, x: Tensor) -> Tensor:
-        # ruff: noqa: D102
+        """
+        Forward pass of the GEGLU activation function.
+
+        Args:
+            x: The input tensor.
+
+        Returns:
+            The output tensor.
+        """
         return geglu(x)
 
 
-def _make_nn_module(module_type: ModuleType, *args) -> nn.Module:  # type: ignore[no-untyped-def]
+def _make_nn_module(module_type: ModuleType, *args: Any) -> nn.Module:
+    """
+    Make a neural network module.
+
+    Args:
+        module_type: The type of the module.
+        args: The arguments for the module.
+
+    Returns:
+        The neural network module.
+    """
     return (
         (ReGLU() if module_type == "ReGLU" else GEGLU() if module_type == "GEGLU" else getattr(nn, module_type)(*args))
         if isinstance(module_type, str)

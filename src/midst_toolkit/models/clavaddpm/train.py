@@ -12,14 +12,15 @@ import torch
 from torch import Tensor, optim
 
 from midst_toolkit.core import logger
-from midst_toolkit.models.clavaddpm.dataset import Dataset, Transformations, get_T_dict, make_dataset_from_df
-from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
-from midst_toolkit.models.clavaddpm.model import (
-    Classifier,
-    get_model,
-    get_table_info,
+from midst_toolkit.models.clavaddpm.dataset import (
+    Dataset,
+    Transformations,
+    get_T_dict,
+    make_dataset_from_df,
     prepare_fast_dataloader,
 )
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
+from midst_toolkit.models.clavaddpm.model import Classifier, get_model, get_table_info
 from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, create_named_schedule_sampler
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
@@ -244,7 +245,7 @@ def train_model(
     transformations_dict: dict[str, Any],
     steps: int,
     batch_size: int,
-    model_type: str,
+    model_type: Literal["mlp", "resnet"],
     gaussian_loss_type: str,
     num_timesteps: int,
     scheduler: str,
