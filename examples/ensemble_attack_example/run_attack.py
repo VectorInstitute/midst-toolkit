@@ -102,14 +102,22 @@ def main(cfg: DictConfig) -> None:
         log(INFO, "Metaclassifier model saved.")
 
         # 3. Get predictions on the test set
-        final_predictions = blending_attacker.predict(
+        probabilities, pred_score = blending_attacker.predict(
             df_test=df_meta_test,
             df_synth=df_synth,
             df_ref=df_ref,
             y_test=y_meta_test,
         )
 
-        log(INFO, "Final Blending++ predictions:", final_predictions)
+        # Save the prediction probabilities
+        np.save(
+            Path(cfg.data_paths.processed_attack_data_path) / f"{cfg.metaclassifier.model_type}_test_pred_proba.npy",
+            probabilities,
+        )
+        log(INFO, "Test set prediction probabilities saved.")
+
+        if pred_score is not None:
+            log(INFO, f"TPR at FPR=0.1: {pred_score:.4f}")
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ data_paths:
   midst_data_path: ${base_data_dir}/midst_data_all_attacks # Used only for reading the data
   population_path: ${base_data_dir}/population_data  # Path where the population data should be stored
   processed_attack_data_path: ${base_data_dir}/attack_data # Path where the processed attack real train and evaluation data is stored
+  attack_results_path: ${base_example_dir}/attack_results # Path where the attack results will be stored
 
 model_paths:
   shadow_models_path: ${base_example_dir}/shadow_models # Path where the shadow models are stored

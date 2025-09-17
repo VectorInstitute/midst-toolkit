@@ -8,6 +8,7 @@ from omegaconf import DictConfig
 from sklearn.linear_model import LogisticRegression
 
 from midst_toolkit.attacks.ensemble.distance_features import calculate_domias, calculate_gower_features
+from midst_toolkit.attacks.ensemble.train_utils import get_tpr_at_fpr
 from midst_toolkit.attacks.ensemble.XGBoost import XGBoostHyperparameterTuner
 
 
@@ -133,17 +134,20 @@ class BlendingPlusPlus:
             raise RuntimeError("You must call .fit() before .predict()")
 
         print("Preparing the meta-test features for prediction...")
-        # df_test_features = self._prepare_meta_features(
-        #     df_input=df_test,
-        #     df_synth=df_synth,
-        #     df_ref=df_ref,
-        #     cat_cols=self.data_configs.metadata.categorical,
-        #     cont_cols=self.data_configs.metadata.continuous,
-        # )
+        df_test_features = self._prepare_meta_features(
+            df_input=df_test,
+            df_synth=df_synth,
+            df_ref=df_ref,
+            cat_cols=self.data_configs.metadata.categorical,
+            cont_cols=self.data_configs.metadata.continuous,
+        )
 
-        print("Predicting with trained meta-classifier...")
+        probabilities = self.meta_classifier_.predict_proba(df_test_features)[:, 1]
 
-        # TODO: Evaluate predictions if y_test is provided
+        score = None
 
-        # return self.meta_classifier_.predict_proba(df_test_features)
-        return 0
+        # Optional: You can add an evaluation step if y_test is provided.
+        if y_test is not None:
+            score = get_tpr_at_fpr(true_membership=y_test, predictions=probabilities, max_fpr=0.1)
+
+        return probabilities, score

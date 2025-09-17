@@ -28,6 +28,7 @@ examples/**/data/
 
 # Trained metaclassifiers
 examples/ensemble_attack_example/trained_models/
+examples/ensemble_attack_example/attack_results/
 
 # hydra output
 outputs/
