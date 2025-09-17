@@ -6,6 +6,8 @@ base_data_dir: tests/unit/attacks/ensemble/assets
 data_paths:
   population_path: ${base_data_dir}/population_data  # Path where the population data should be stored
   processed_attack_data_path: ${base_data_dir}/attack_data # Path where the processed attack real train and evaluation data is stored
+  attack_results_path: ${base_example_dir}/attack_results # Path where the attack results will be stored
+  
 
 # Dataset specific information used for processing in this example
 data_processing_config:
