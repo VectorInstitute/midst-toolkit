@@ -4,12 +4,12 @@ import pandas as pd
 import xgboost as xgb
 from optuna.trial import FrozenTrial, Trial
 from sklearn.compose import ColumnTransformer
-from sklearn.metrics import make_scorer, roc_curve
+from sklearn.metrics import make_scorer
 from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-from midst_toolkit.attacks.ensemble.train_utils import get_tpr_at_fpr
 
+from midst_toolkit.attacks.ensemble.train_utils import get_tpr_at_fpr
 
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)

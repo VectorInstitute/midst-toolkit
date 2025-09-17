@@ -82,8 +82,6 @@ class BlendingPlusPlus:
         epochs: int = 1,
     ) -> Self:
         """Trains the meta-classifier using the meta_train set."""
-        print("Preparing meta-features for training...")
-
         meta_features = self._prepare_meta_features(
             df_input=df_train,
             df_synth=df_synth,
@@ -92,11 +90,7 @@ class BlendingPlusPlus:
             cont_cols=self.data_configs.metadata.continuous,
         )
 
-        print("Training the meta-classifier...")
-
         if self.meta_classifier_type == "xgb":
-            print("Training XGBoost meta-classifier...")
-
             tuner = XGBoostHyperparameterTuner(
                 x=meta_features,
                 y=y_train,
@@ -110,18 +104,14 @@ class BlendingPlusPlus:
             )
 
         elif self.meta_classifier_type == "lr":
-            print("Training Logistic Regression meta-classifier...")
             lr_model = LogisticRegression(max_iter=1000)
             self.meta_classifier_ = lr_model.fit(meta_features, y_train)
 
         else:
             raise ValueError(f"Unsupported meta_classifier_type: {self.meta_classifier_type}")
 
-        print("Blending++ meta-classifier has been trained.")
-
         return self
 
-    # TODO
     def predict(
         self,
         df_test: pd.DataFrame,
@@ -133,7 +123,6 @@ class BlendingPlusPlus:
         if self.meta_classifier_ is None:
             raise RuntimeError("You must call .fit() before .predict()")
 
-        print("Preparing the meta-test features for prediction...")
         df_test_features = self._prepare_meta_features(
             df_input=df_test,
             df_synth=df_synth,
@@ -146,7 +135,6 @@ class BlendingPlusPlus:
 
         score = None
 
-        # Optional: You can add an evaluation step if y_test is provided.
         if y_test is not None:
             score = get_tpr_at_fpr(true_membership=y_test, predictions=probabilities, max_fpr=0.1)
 
