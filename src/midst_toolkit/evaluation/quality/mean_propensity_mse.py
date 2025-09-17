@@ -1,10 +1,10 @@
 import pandas as pd
 from syntheval.metrics.utility.metric_propensity_mse import PropensityMeanSquaredError
 
-from midst_toolkit.evaluation.metrics_base import SynthEvalQualityMetric
+from midst_toolkit.evaluation.metrics_base import SynthEvalMetric
 
 
-class MeanPropensityMeanSquaredError(SynthEvalQualityMetric):
+class MeanPropensityMeanSquaredError(SynthEvalMetric):
     def __init__(
         self,
         categorical_columns: list[str],

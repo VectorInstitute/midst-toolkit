@@ -30,7 +30,7 @@ class MetricBase(ABC):
         raise NotImplementedError("Inheriting class must define compute")
 
 
-class SynthEvalQualityMetric(MetricBase, ABC):
+class SynthEvalMetric(MetricBase, ABC):
     def __init__(
         self,
         categorical_columns: list[str],
@@ -90,11 +90,11 @@ class SynthEvalQualityMetric(MetricBase, ABC):
         """
         log(INFO, "Performing default preprocessing using defined columns.")
         encoder = SynthEvalDataframeEncoding(
-            real_data, synthetic_data, self.categorical_columns, self.numerical_columns
+            real_data, synthetic_data, self.categorical_columns, self.numerical_columns, holdout_data=None
         )
         real_data = encoder.encode(real_data)
         synthetic_data = encoder.encode(synthetic_data)
-        holdout_data = encoder.encode(holdout_data) if holdout_data else None
+        holdout_data = encoder.encode(holdout_data) if holdout_data is not None else None
 
         if holdout_data is not None:
             return real_data, synthetic_data, holdout_data
