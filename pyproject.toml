@@ -122,6 +122,7 @@ ignore = [
     "D104", # Ignore package level docstrings requirement
     "D205", # 1 blank line required between summary line and description
     "D212", # Multi-line docstring summary should start at the first line
+    "D301", # r-strings for docstrings with backslashes
     "PLR2004", # Replace magic number with named constant
     "PLR0913", # Too many arguments
     "COM812", # Missing trailing comma
