@@ -11,14 +11,15 @@ from torch.nn import functional
 
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.core.data_loaders import load_multi_table
+from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 from midst_toolkit.models.clavaddpm.model import Classifier
-from midst_toolkit.models.clavaddpm.train import clava_clustering, clava_training
+from midst_toolkit.models.clavaddpm.train import clava_training
 
 
 CLUSTERING_CONFIG = {
     "parent_scale": 1.0,
     "num_clusters": 3,
-    "clustering_method": "both",
+    "clustering_method": "kmeans_and_gmm",
 }
 
 DIFFUSION_CONFIG = {

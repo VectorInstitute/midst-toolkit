@@ -1,8 +1,7 @@
 """Defines the training functions for the ClavaDDPM model."""
 
-import logging
-import os
 import pickle
+from logging import INFO, WARNING
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +10,7 @@ import pandas as pd
 import torch
 from torch import optim
 
+from midst_toolkit.common.logger import log
 from midst_toolkit.core import logger
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 from midst_toolkit.models.clavaddpm.model import (
@@ -23,111 +23,10 @@ from midst_toolkit.models.clavaddpm.model import (
     get_table_info,
     make_dataset_from_df,
     numerical_forward_backward_log,
-    pair_clustering_keep_id,
     prepare_fast_dataloader,
 )
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
-
-
-logging.basicConfig(level=logging.INFO)
-LOGGER = logging.getLogger(__name__)
-
-
-Tables = dict[str, dict[str, Any]]
-RelationOrder = list[tuple[str, str]]
-Configs = dict[str, Any]
-
-
-def clava_clustering(
-    tables: Tables,
-    relation_order: RelationOrder,
-    save_dir: Path,
-    configs: Configs,
-) -> tuple[dict[str, Any], dict[tuple[str, str], dict[int, float]]]:
-    """
-    Clustering function for the mutli-table function of the ClavaDDPM model.
-
-    Args:
-        tables: Definition of the tables and their relations. Example:
-            {
-                "table1": {
-                    "children": ["table2"],
-                    "parents": []
-                },
-                "table2": {
-                    "children": [],
-                    "parents": ["table1"]
-                }
-            }
-        relation_order: List of tuples of parent and child tables. Example:
-            [("table1", "table2"), ("table1", "table3")]
-        save_dir: Directory to save the clustering checkpoint.
-        configs: Dictionary of configurations. The following config keys are required:
-            {
-                num_clusters = int | dict,
-                parent_scale = float,
-                clustering_method = str["kmeans" | "both" | "variational" | "gmm"],
-            }
-
-    Returns:
-        A tuple with 2 values:
-            - The tables dictionary.
-            - The dictionary with the group lengths probability for all the parent-child pairs.
-    """
-    relation_order_reversed = relation_order[::-1]
-    all_group_lengths_prob_dicts = {}
-
-    # Clustering
-    if os.path.exists(save_dir / "cluster_ckpt.pkl"):
-        print("Clustering checkpoint found, loading...")
-
-        with open(save_dir / "cluster_ckpt.pkl", "rb") as f:
-            cluster_ckpt = pickle.load(f)
-
-        tables = cluster_ckpt["tables"]
-        all_group_lengths_prob_dicts = cluster_ckpt["all_group_lengths_prob_dicts"]
-    else:
-        for parent, child in relation_order_reversed:
-            if parent is not None:
-                print(f"Clustering {parent} -> {child}")
-                if isinstance(configs["num_clusters"], dict):
-                    num_clusters = configs["num_clusters"][child]
-                else:
-                    num_clusters = configs["num_clusters"]
-                (
-                    parent_df_with_cluster,
-                    child_df_with_cluster,
-                    group_lengths_prob_dicts,
-                ) = pair_clustering_keep_id(
-                    tables[child]["df"],
-                    tables[child]["domain"],
-                    tables[parent]["df"],
-                    tables[parent]["domain"],
-                    f"{child}_id",
-                    f"{parent}_id",
-                    num_clusters,
-                    configs["parent_scale"],
-                    1,  # not used for now
-                    parent,
-                    child,
-                    clustering_method=configs["clustering_method"],
-                )
-                tables[parent]["df"] = parent_df_with_cluster
-                tables[child]["df"] = child_df_with_cluster
-                all_group_lengths_prob_dicts[(parent, child)] = group_lengths_prob_dicts
-
-        cluster_ckpt = {
-            "tables": tables,
-            "all_group_lengths_prob_dicts": all_group_lengths_prob_dicts,
-        }
-        with open(save_dir / "cluster_ckpt.pkl", "wb") as f:
-            pickle.dump(cluster_ckpt, f)
-
-    for parent, child in relation_order:
-        if parent is None:
-            tables[child]["df"]["placeholder"] = list(range(len(tables[child]["df"])))
-
-    return tables, all_group_lengths_prob_dicts
+from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
 
 
 def clava_training(
@@ -208,7 +107,7 @@ def clava_training(
         target_file = target_folder / f"{parent}_{child}_ckpt.pkl"
 
         create_message = f"Creating {target_folder}. " if not target_folder.exists() else ""
-        LOGGER.info(f"{create_message}Saving {parent} -> {child} model to {target_file}")
+        log(INFO, f"{create_message}Saving {parent} -> {child} model to {target_file}")
 
         target_folder.mkdir(parents=True, exist_ok=True)
         with open(target_file, "wb") as f:
@@ -330,7 +229,7 @@ def child_training(
             )
             child_result["classifier"] = child_classifier
         else:
-            LOGGER.warning("Skipping classifier training since classifier_config['iterations'] <= 0")
+            log(WARNING, "Skipping classifier training since classifier_config['iterations'] <= 0")
 
     child_result["df_info"] = child_info
     child_result["model_params"] = child_model_params
@@ -482,7 +381,7 @@ def train_classifier(
         cluster_col: Name of the cluster column. Default is `"cluster"`.
         dim_t: Dimension of the timestamp. Default is 128.
         learning_rate: Learning rate to use for the optimizer in the classifier. Default is 0.0001.
-        classifier_evaluation_interval: The amount of classifier_steps to wait
+        classifier_evaluation_interval: The number of classifier training steps to wait
             until the next evaluation of the classifier. Default is 5.
 
     Returns:
@@ -512,7 +411,7 @@ def train_classifier(
 
     # TODO: understand what's going on here
     if dataset.X_num is None:
-        LOGGER.warning("dataset.X_num is None. num_numerical_features will be set to 0")
+        log(WARNING, "dataset.X_num is None. num_numerical_features will be set to 0")
         num_numerical_features = 0
     else:
         num_numerical_features = dataset.X_num["train"].shape[1]
@@ -617,13 +516,13 @@ def save_table_info(
         df_with_cluster = tables[child]["df"]
         df_without_id = get_df_without_id(df_with_cluster)
         df_info = result["df_info"]
-        X_num_real = df_without_id[df_info["num_cols"]].to_numpy().astype(float)
-        uniq_vals_list = []
-        for col in range(X_num_real.shape[1]):
-            uniq_vals = np.unique(X_num_real[:, col])
-            uniq_vals_list.append(uniq_vals)
+        x_num_real = df_without_id[df_info["num_cols"]].to_numpy().astype(float)
+        unique_values_list = []
+        for column in range(x_num_real.shape[1]):
+            unique_values = np.unique(x_num_real[:, column])
+            unique_values_list.append(unique_values)
         table_info[(parent, child)] = {
-            "uniq_vals_list": uniq_vals_list,
+            "uniq_vals_list": unique_values_list,
             "size": len(df_with_cluster),
             "columns": tables[child]["df"].columns,
             "parents": tables[child]["parents"],
