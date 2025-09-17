@@ -1,6 +1,5 @@
 """Defines the training functions for the ClavaDDPM model."""
 
-import logging
 import pickle
 from pathlib import Path
 from typing import Any
@@ -26,10 +25,6 @@ from midst_toolkit.models.clavaddpm.model import (
 )
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
-
-
-logging.basicConfig(level=logging.INFO)
-LOGGER = logging.getLogger(__name__)
 
 
 def clava_training(
@@ -110,7 +105,7 @@ def clava_training(
         target_file = target_folder / f"{parent}_{child}_ckpt.pkl"
 
         create_message = f"Creating {target_folder}. " if not target_folder.exists() else ""
-        LOGGER.info(f"{create_message}Saving {parent} -> {child} model to {target_file}")
+        logger.info(f"{create_message}Saving {parent} -> {child} model to {target_file}")
 
         target_folder.mkdir(parents=True, exist_ok=True)
         with open(target_file, "wb") as f:
@@ -232,7 +227,7 @@ def child_training(
             )
             child_result["classifier"] = child_classifier
         else:
-            LOGGER.warning("Skipping classifier training since classifier_config['iterations'] <= 0")
+            logger.warn("Skipping classifier training since classifier_config['iterations'] <= 0")
 
     child_result["df_info"] = child_info
     child_result["model_params"] = child_model_params
@@ -414,7 +409,7 @@ def train_classifier(
 
     # TODO: understand what's going on here
     if dataset.X_num is None:
-        LOGGER.warning("dataset.X_num is None. num_numerical_features will be set to 0")
+        logger.warn("dataset.X_num is None. num_numerical_features will be set to 0")
         num_numerical_features = 0
     else:
         num_numerical_features = dataset.X_num["train"].shape[1]
@@ -519,13 +514,13 @@ def save_table_info(
         df_with_cluster = tables[child]["df"]
         df_without_id = get_df_without_id(df_with_cluster)
         df_info = result["df_info"]
-        X_num_real = df_without_id[df_info["num_cols"]].to_numpy().astype(float)
-        uniq_vals_list = []
-        for col in range(X_num_real.shape[1]):
-            uniq_vals = np.unique(X_num_real[:, col])
-            uniq_vals_list.append(uniq_vals)
+        x_num_real = df_without_id[df_info["num_cols"]].to_numpy().astype(float)
+        unique_values_list = []
+        for column in range(x_num_real.shape[1]):
+            unique_values = np.unique(x_num_real[:, column])
+            unique_values_list.append(unique_values)
         table_info[(parent, child)] = {
-            "uniq_vals_list": uniq_vals_list,
+            "uniq_vals_list": unique_values_list,
             "size": len(df_with_cluster),
             "columns": tables[child]["df"].columns,
             "parents": tables[child]["parents"],

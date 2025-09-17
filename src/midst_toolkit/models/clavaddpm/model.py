@@ -4,7 +4,7 @@ import math
 import pickle
 from abc import ABC, abstractmethod
 from collections import Counter
-from collections.abc import Callable, Generator, Iterator
+from collections.abc import Callable, Generator
 from copy import deepcopy
 from dataclasses import astuple, dataclass, replace
 from pathlib import Path
@@ -491,22 +491,6 @@ def get_model(
         return ResNetDiffusion(**model_params)
 
     raise ValueError("Unknown model!")
-
-
-def update_ema(
-    target_params: Iterator[nn.Parameter],
-    source_params: Iterator[nn.Parameter],
-    rate: float = 0.999,
-) -> None:
-    """
-    Update target parameters to be closer to those of source parameters using
-    an exponential moving average.
-    :param target_params: the target parameter sequence.
-    :param source_params: the source parameter sequence.
-    :param rate: the EMA rate (closer to 1 means slower).
-    """
-    for targ, src in zip(target_params, source_params):
-        targ.detach().mul_(rate).add_(src.detach(), alpha=1 - rate)
 
 
 class ScheduleSampler(ABC):

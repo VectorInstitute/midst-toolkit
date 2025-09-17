@@ -23,7 +23,7 @@ def clava_clustering(
     configs: Configs,
 ) -> tuple[dict[str, Any], GroupLengthsProbDicts]:
     """
-    Clustering function for the mutli-table function of the ClavaDDPM model.
+    Clustering function for the multi-table function of the ClavaDDPM model.
 
     Args:
         tables: Definition of the tables and their relations. Example:
@@ -91,7 +91,7 @@ def _load_clustering_info_from_checkpoint(save_dir: Path) -> dict[str, Any] | No
     if not os.path.exists(save_dir / "cluster_ckpt.pkl"):
         return None
 
-    print("Clustering checkpoint found, loading...")
+    logger.info("Clustering checkpoint found, loading...")
 
     with open(save_dir / "cluster_ckpt.pkl", "rb") as f:
         return pickle.load(f)
@@ -125,7 +125,7 @@ def _run_clustering(
     relation_order_reversed = relation_order[::-1]
     for parent, child in relation_order_reversed:
         if parent is not None:
-            print(f"Clustering {parent} -> {child}")
+            logger.info(f"Clustering {parent} -> {child}")
             if isinstance(configs["num_clusters"], dict):
                 num_clusters = configs["num_clusters"][child]
             else:
@@ -328,7 +328,7 @@ def _pair_clustering_keep_id(
 
     # Compute the average agree rate across all groups
     average_agree_rate = np.mean(agree_rates)
-    print("Average agree rate: ", average_agree_rate)
+    logger.info(f"Average agree rate: {average_agree_rate}")
 
     group_assignment = np.repeat(group_cluster_labels, child_group_lengths, axis=0).reshape((-1, 1))
 
