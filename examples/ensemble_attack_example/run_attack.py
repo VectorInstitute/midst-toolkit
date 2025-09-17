@@ -52,10 +52,10 @@ def main(cfg: DictConfig) -> None:
         # Load the processed data splits.
         df_meta_train = load_dataframe(
             Path(cfg.data_paths.processed_attack_data_path),
-            "og_train_meta.csv",
+            "master_challenge_train.csv",
         )
         y_meta_train = np.load(
-            Path(cfg.data_paths.processed_attack_data_path) / "og_train_meta_label.npy",
+            Path(cfg.data_paths.processed_attack_data_path) / "master_challenge_train_labels.npy",
         )
         df_meta_test = load_dataframe(
             Path(cfg.data_paths.processed_attack_data_path),
