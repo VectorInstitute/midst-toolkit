@@ -17,6 +17,12 @@ wheels/
 # Vscode
 .vscode
 
+# PyCharm
+.idea
+
+# Cursor
+.cursor
+
 # macos
 *.DS_Store
 
@@ -29,6 +35,5 @@ examples/**/data/
 # Trained metaclassifiers
 examples/ensemble_attack_example/trained_models/
 examples/ensemble_attack_example/attack_results/
-
 # hydra output
 outputs/
