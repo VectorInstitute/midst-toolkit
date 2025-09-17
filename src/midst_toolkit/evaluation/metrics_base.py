@@ -94,8 +94,7 @@ class SynthEvalMetric(MetricBase, ABC):
         )
         real_data = encoder.encode(real_data)
         synthetic_data = encoder.encode(synthetic_data)
-        holdout_data = encoder.encode(holdout_data) if holdout_data is not None else None
 
         if holdout_data is not None:
-            return real_data, synthetic_data, holdout_data
+            return real_data, synthetic_data, encoder.encode(holdout_data)
         return real_data, synthetic_data

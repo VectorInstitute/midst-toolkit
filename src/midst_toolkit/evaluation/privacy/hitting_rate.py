@@ -35,7 +35,7 @@ class HittingRate(SynthEvalMetric):
             hitting_threshold: For numerical columns, this determines the margin, in terms of percent of the total
                 value range for a column an entry may vary by and still be considered a "hit." For example, if a
                 column values ranges from 0 to 1 with a real value of 0.3 and synthetic value of 0.32, these values are
-                still considered a match for a ``hitting_threshold`` of 1/30. Defaults to 1/30.
+                still considered a match for a ``hitting_threshold`` of 1/30. Must be in [0, 1]. Defaults to 1/30.
         """
         super().__init__(categorical_columns, numerical_columns, do_preprocess)
         assert 0 <= hitting_threshold <= 1.0, (

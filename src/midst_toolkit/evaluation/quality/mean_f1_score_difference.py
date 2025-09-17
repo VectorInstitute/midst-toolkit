@@ -1,10 +1,15 @@
+from typing import Literal
+
 import pandas as pd
+
+# NOTE: Despite the naming convention of the SynthEval metrics class, the metric is not accuracy but rather F1
+# score (of some kind).
 from syntheval.metrics.utility.metric_accuracy_difference import ClassificationAccuracy as SynthEvalF1ScoreDifference
 
 from midst_toolkit.evaluation.metrics_base import SynthEvalMetric
 
 
-def extract_from_dictionary(
+def _extract_from_dictionary(
     result: dict[str, float | dict[str, float]],
     upper_key: str,
     lower_key: str | None = None,
@@ -35,7 +40,7 @@ def extract_from_dictionary(
     return value
 
 
-def post_process_results(
+def _post_process_results(
     result: dict[str, float | dict[str, float]], process_holdout: bool = False
 ) -> dict[str, float]:
     """
@@ -53,28 +58,30 @@ def post_process_results(
         of individual classifier performances.
     """
     flat_result = {
-        "random_forest_real_train_f1": extract_from_dictionary(result, "rf", "rr_val_acc"),
-        "random_forest_synthetic_train_f1": extract_from_dictionary(result, "rf", "fr_val_acc"),
-        "adaboost_real_train_f1": extract_from_dictionary(result, "adaboost", "rr_val_acc"),
-        "adaboost_synthetic_train_f1": extract_from_dictionary(result, "adaboost", "fr_val_acc"),
-        "svm_real_train_f1": extract_from_dictionary(result, "svm", "rr_val_acc"),
-        "svm_synthetic_train_f1": extract_from_dictionary(result, "svm", "fr_val_acc"),
-        "logreg_real_train_f1": extract_from_dictionary(result, "logreg", "rr_val_acc"),
-        "logreg_synthetic_train_f1": extract_from_dictionary(result, "logreg", "fr_val_acc"),
-        "mean_f1_difference": extract_from_dictionary(result, "avg diff"),
-        "f1_difference_standard_error": extract_from_dictionary(result, "avg diff err"),
+        "random_forest_real_train_f1": _extract_from_dictionary(result, "rf", "rr_val_acc"),
+        "random_forest_synthetic_train_f1": _extract_from_dictionary(result, "rf", "fr_val_acc"),
+        "adaboost_real_train_f1": _extract_from_dictionary(result, "adaboost", "rr_val_acc"),
+        "adaboost_synthetic_train_f1": _extract_from_dictionary(result, "adaboost", "fr_val_acc"),
+        "svm_real_train_f1": _extract_from_dictionary(result, "svm", "rr_val_acc"),
+        "svm_synthetic_train_f1": _extract_from_dictionary(result, "svm", "fr_val_acc"),
+        "logreg_real_train_f1": _extract_from_dictionary(result, "logreg", "rr_val_acc"),
+        "logreg_synthetic_train_f1": _extract_from_dictionary(result, "logreg", "fr_val_acc"),
+        "mean_f1_difference": _extract_from_dictionary(result, "avg diff"),
+        "f1_difference_standard_error": _extract_from_dictionary(result, "avg diff err"),
     }
     if process_holdout:
-        flat_result["random_forest_real_train_f1_holdout"] = extract_from_dictionary(result, "rf", "rr_test_acc")
-        flat_result["random_forest_synthetic_train_f1_holdout"] = extract_from_dictionary(result, "rf", "fr_test_acc")
-        flat_result["adaboost_real_train_f1_holdout"] = extract_from_dictionary(result, "adaboost", "rr_test_acc")
-        flat_result["adaboost_synthetic_train_f1_holdout"] = extract_from_dictionary(result, "adaboost", "fr_test_acc")
-        flat_result["svm_real_train_f1_holdout"] = extract_from_dictionary(result, "svm", "rr_test_acc")
-        flat_result["svm_synthetic_train_f1_holdout"] = extract_from_dictionary(result, "svm", "fr_test_acc")
-        flat_result["logreg_real_train_f1_holdout"] = extract_from_dictionary(result, "logreg", "rr_test_acc")
-        flat_result["logreg_synthetic_train_f1_holdout"] = extract_from_dictionary(result, "logreg", "fr_test_acc")
-        flat_result["mean_f1_difference_holdout"] = extract_from_dictionary(result, "avg diff hout")
-        flat_result["f1_difference_standard_error_holdout"] = extract_from_dictionary(result, "avg diff err hout")
+        flat_result["random_forest_real_train_f1_holdout"] = _extract_from_dictionary(result, "rf", "rr_test_acc")
+        flat_result["random_forest_synthetic_train_f1_holdout"] = _extract_from_dictionary(result, "rf", "fr_test_acc")
+        flat_result["adaboost_real_train_f1_holdout"] = _extract_from_dictionary(result, "adaboost", "rr_test_acc")
+        flat_result["adaboost_synthetic_train_f1_holdout"] = _extract_from_dictionary(
+            result, "adaboost", "fr_test_acc"
+        )
+        flat_result["svm_real_train_f1_holdout"] = _extract_from_dictionary(result, "svm", "rr_test_acc")
+        flat_result["svm_synthetic_train_f1_holdout"] = _extract_from_dictionary(result, "svm", "fr_test_acc")
+        flat_result["logreg_real_train_f1_holdout"] = _extract_from_dictionary(result, "logreg", "rr_test_acc")
+        flat_result["logreg_synthetic_train_f1_holdout"] = _extract_from_dictionary(result, "logreg", "fr_test_acc")
+        flat_result["mean_f1_difference_holdout"] = _extract_from_dictionary(result, "avg diff hout")
+        flat_result["f1_difference_standard_error_holdout"] = _extract_from_dictionary(result, "avg diff err hout")
     return flat_result
 
 
@@ -86,7 +93,7 @@ class MeanF1ScoreDifference(SynthEvalMetric):
         label_column: str,
         do_preprocess: bool = False,
         folds: int = 5,
-        f1_type: str = "micro",
+        f1_type: Literal["micro", "macro", "samples", "weighted", "binary"] = "micro",
     ):
         """
         This class computes the difference in F1 score for classifiers trained on real and synthetic data. Ideally,
@@ -108,9 +115,6 @@ class MeanF1ScoreDifference(SynthEvalMetric):
         preprocessing before calling ``compute`` or by setting ``do_preprocess`` to True. Note that if
         ``do_preprocess`` is True, the default Syntheval pipeline is used, which does NOT one-hot encode the
         categoricals.
-
-        NOTE: Despite the naming convention of the SynthEval metrics class, the metric is not accuracy but rather F1
-        score (of some kind).
 
         Args:
             categorical_columns: Column names corresponding to the categorical variables of any provided dataframe.
@@ -148,7 +152,7 @@ class MeanF1ScoreDifference(SynthEvalMetric):
         validation set of real data. The average difference in performance across the folds is measured. This
         average difference is then averaged to get the final score.
 
-        If a holdout set is provided, the same process is repeated but the whole real and test datasets are used
+        If a holdout set is provided, the same process is repeated but the whole real and synthetic datasets are used
         to train models (i.e. no cross-validation for this measurement) and their performance measured on the holdout
         set. The differences in performance are then averaged.
 
@@ -157,14 +161,15 @@ class MeanF1ScoreDifference(SynthEvalMetric):
         ``do_preprocess`` is True, the default Syntheval pipeline is used, which does NOT one-hot encode the
         categoricals.
 
-        NOTE: Despite the naming convention of the SynthEval metrics class, the metric is not accuracy but rather F1
-        score (of some kind).
-
         Args:
             real_data: Real data to which the synthetic data may be compared. In many cases this will be data used
                 to TRAIN the model that generated the synthetic data, but not always.
             synthetic_data: Synthetically generated data whose quality is to be assessed.
-            holdout_data: Defaults to None.
+            holdout_data: An optional collection of real data with labels on which to measure the classifiers
+                performance. If provided, classifiers are trained on the whole real and synthetic datasets and their
+                performance measured on the holdout set. The differences in performance are then averaged. Note that
+                the holdout dataset should be preprocessed in the SAME WAY as the real and synthetic datasets.
+                Defaults to None.
 
         Returns:
             A dictionary with the performance results for the various trained classifiers and the mean f1 difference
@@ -205,4 +210,4 @@ class MeanF1ScoreDifference(SynthEvalMetric):
             analysis_target=self.label_column,
         )
         result = self.syntheval_metric.evaluate(F1_type=self.f1_type, k_folds=self.folds, full_output=False)
-        return post_process_results(result, process_holdout=(holdout_data is not None))
+        return _post_process_results(result, process_holdout=(holdout_data is not None))
