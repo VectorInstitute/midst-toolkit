@@ -125,7 +125,12 @@ class MeanHellingerDistance(SynthEvalQualityMetric):
                 distance = hellinger_distance(real_discrete_pdf, synthetic_discrete_pdf)
                 hellinger_distances.append(distance)
 
+        mean_hellinger_distance = np.mean(hellinger_distances).item()
+        hellinger_distance_standard_error = np.std(hellinger_distances, ddof=1).item() / np.sqrt(
+            len(hellinger_distances)
+        )
+
         return {
-            "mean_hellinger_distance": np.mean(hellinger_distances),
-            "hellinger_standard_error": np.std(hellinger_distances, ddof=1) / np.sqrt(len(hellinger_distances)),
+            "mean_hellinger_distance": mean_hellinger_distance,
+            "hellinger_standard_error": hellinger_distance_standard_error,
         }
