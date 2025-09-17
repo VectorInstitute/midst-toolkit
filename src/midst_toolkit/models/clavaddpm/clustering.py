@@ -3,6 +3,7 @@
 import os
 import pickle
 from collections import defaultdict
+from logging import INFO, WARNING
 from pathlib import Path
 from typing import Any, Literal
 
@@ -12,7 +13,7 @@ from sklearn.cluster import KMeans
 from sklearn.mixture import BayesianGaussianMixture, GaussianMixture
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler, OneHotEncoder, QuantileTransformer
 
-from midst_toolkit.core import logger
+from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.typing import Configs, GroupLengthsProbDicts, RelationOrder, Tables
 
 
@@ -91,7 +92,7 @@ def _load_clustering_info_from_checkpoint(save_dir: Path) -> dict[str, Any] | No
     if not os.path.exists(save_dir / "cluster_ckpt.pkl"):
         return None
 
-    logger.info("Clustering checkpoint found, loading...")
+    log(INFO, "Clustering checkpoint found, loading...")
 
     with open(save_dir / "cluster_ckpt.pkl", "rb") as f:
         return pickle.load(f)
@@ -125,7 +126,7 @@ def _run_clustering(
     relation_order_reversed = relation_order[::-1]
     for parent, child in relation_order_reversed:
         if parent is not None:
-            logger.info(f"Clustering {parent} -> {child}")
+            log(INFO, f"Clustering {parent} -> {child}")
             if isinstance(configs["num_clusters"], dict):
                 num_clusters = configs["num_clusters"][child]
             else:
@@ -242,7 +243,7 @@ def _pair_clustering_keep_id(
         for i in range(joint_cat_matrix.shape[1]):
             # A threshold of 1000 unique values is used to prevent the one-hot encoding of large categorical columns
             if len(np.unique(joint_cat_matrix[:, i])) > 1000:
-                logger.warn(f"Categorical column {i} has more than 1000 unique values, skipping...")
+                log(WARNING, f"Categorical column {i} has more than 1000 unique values, skipping...")
                 continue
             label_encoder = LabelEncoder()
             cat_converted.append(label_encoder.fit_transform(joint_cat_matrix[:, i]).astype(float))
@@ -328,7 +329,7 @@ def _pair_clustering_keep_id(
 
     # Compute the average agree rate across all groups
     average_agree_rate = np.mean(agree_rates)
-    logger.info(f"Average agree rate: {average_agree_rate}")
+    log(INFO, f"Average agree rate: {average_agree_rate}")
 
     group_assignment = np.repeat(group_cluster_labels, child_group_lengths, axis=0).reshape((-1, 1))
 
@@ -390,7 +391,7 @@ def _pair_clustering_keep_id(
         "size": len(set(parent_data_clusters_np.flatten())),
     }
 
-    logger.info(f"Number of cluster centers: {new_col_entry['size']}")
+    log(INFO, f"Number of cluster centers: {new_col_entry['size']}")
 
     parent_domain_dict[relation_cluster_name] = new_col_entry.copy()
     child_domain_dict[relation_cluster_name] = new_col_entry.copy()

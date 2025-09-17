@@ -1,6 +1,7 @@
 """Defines the training functions for the ClavaDDPM model."""
 
 import pickle
+from logging import INFO, WARNING
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,7 @@ import pandas as pd
 import torch
 from torch import optim
 
+from midst_toolkit.common.logger import log
 from midst_toolkit.core import logger
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 from midst_toolkit.models.clavaddpm.model import (
@@ -105,7 +107,7 @@ def clava_training(
         target_file = target_folder / f"{parent}_{child}_ckpt.pkl"
 
         create_message = f"Creating {target_folder}. " if not target_folder.exists() else ""
-        logger.info(f"{create_message}Saving {parent} -> {child} model to {target_file}")
+        log(INFO, f"{create_message}Saving {parent} -> {child} model to {target_file}")
 
         target_folder.mkdir(parents=True, exist_ok=True)
         with open(target_file, "wb") as f:
@@ -227,7 +229,7 @@ def child_training(
             )
             child_result["classifier"] = child_classifier
         else:
-            logger.warn("Skipping classifier training since classifier_config['iterations'] <= 0")
+            log(WARNING, "Skipping classifier training since classifier_config['iterations'] <= 0")
 
     child_result["df_info"] = child_info
     child_result["model_params"] = child_model_params
@@ -379,7 +381,7 @@ def train_classifier(
         cluster_col: Name of the cluster column. Default is `"cluster"`.
         dim_t: Dimension of the timestamp. Default is 128.
         learning_rate: Learning rate to use for the optimizer in the classifier. Default is 0.0001.
-        classifier_evaluation_interval: The amount of classifier_steps to wait
+        classifier_evaluation_interval: The number of classifier training steps to wait
             until the next evaluation of the classifier. Default is 5.
 
     Returns:
@@ -409,7 +411,7 @@ def train_classifier(
 
     # TODO: understand what's going on here
     if dataset.X_num is None:
-        logger.warn("dataset.X_num is None. num_numerical_features will be set to 0")
+        log(WARNING, "dataset.X_num is None. num_numerical_features will be set to 0")
         num_numerical_features = 0
     else:
         num_numerical_features = dataset.X_num["train"].shape[1]
