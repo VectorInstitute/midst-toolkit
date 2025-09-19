@@ -11,7 +11,7 @@ import pandas as pd
 import torch
 from torch import Tensor, optim
 
-from midst_toolkit.common.logger import log, KeyValueLogger
+from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
 from midst_toolkit.models.clavaddpm.dataset import (
     Dataset,
@@ -359,6 +359,7 @@ def train_classifier(
     dim_t: int = 128,
     learning_rate: float = 0.0001,
     classifier_evaluation_interval: int = 5,
+    logger_interval: int = 10,
 ) -> Classifier:
     """
     Training function for the classifier model.
@@ -380,6 +381,8 @@ def train_classifier(
         learning_rate: Learning rate to use for the optimizer in the classifier. Default is 0.0001.
         classifier_evaluation_interval: The number of classifier training steps to wait
             until the next evaluation of the classifier. Default is 5.
+        logger_interval: The number of classifier training steps to wait until the next logging
+            of its metrics. Default is 10.
 
     Returns:
         The trained classifier model.
@@ -441,8 +444,8 @@ def train_classifier(
 
     classifier.train()
     for step in range(classifier_steps):
-        key_value_logger.save_entry("step", step)
-        key_value_logger.save_entry("samples", (step + 1) * batch_size)
+        key_value_logger.save_entry("step", float(step))
+        key_value_logger.save_entry("samples", float((step + 1) * batch_size))
         _numerical_forward_backward_log(
             classifier,
             classifier_optimizer,
@@ -472,7 +475,8 @@ def train_classifier(
                 )
                 classifier.train()
 
-    key_value_logger.dump()
+        if not step % logger_interval:
+            key_value_logger.dump()
 
     # test classifier
     classifier.eval()
@@ -642,7 +646,8 @@ def _compute_top_k(
 
 def _log_loss_dict(
     diffusion: GaussianMultinomialDiffusion,
-    ts: Tensor, losses: dict[str, Tensor],
+    ts: Tensor,
+    losses: dict[str, Tensor],
     key_value_logger: KeyValueLogger | None = None,
 ) -> None:
     """
