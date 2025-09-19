@@ -174,3 +174,50 @@ def redirect_output(output_buffer: StringIO) -> None:
     sys.stdout = output_buffer
     sys.stderr = output_buffer
     console_handler.stream = sys.stdout
+
+
+class KeyValueLogger:
+    def __init__(self, log_level: int = logging.DEBUG):
+        self.key_to_value: dict[str, float] = {}
+        self.key_to_count: dict[str, int] = {}
+        self.log_level = log_level
+
+    def save_entry(self, key: str, value: Any) -> None:
+        print(key)
+        self.key_to_value[key] = value
+
+    def save_entry_mean(self, key: str, value: Any) -> None:
+        old_value = self.key_to_value[key]
+        count = self.key_to_count[key]
+        self.key_to_value[key] = old_value * count / (count + 1) + value / (count + 1)
+        self.key_to_count[key] = count + 1
+
+    def dump(self) -> None:
+        # Create strings for printing
+        key_to_string = {}
+        for key, value in sorted(self.key_to_value.items()):
+            value_string = "%-8.3g" % value if hasattr(value, "__float__") else str(value)
+            key_to_string[self._truncate(key)] = self._truncate(value_string)
+
+        if len(key_to_string) == 0:
+            log(self.log_level, "WARNING: tried to write empty key-value dict")
+            return
+
+        # Find max widths    
+        key_width = max(map(len, key_to_string.keys()))
+        value_width = max(map(len, key_to_string.values()))
+
+        # Write out the data
+        dashes = "-" * (key_width + value_width + 7)
+        log(self.log_level, dashes)
+        for key, value in sorted(key_to_string.items(), key=lambda kv: kv[0].lower()):
+            line = "| %s%s | %s%s |" % (key, " " * (key_width - len(key)), value, " " * (value_width - len(value)))
+            log(self.log_level, line)
+        log(self.log_level, dashes)
+
+        self.key_to_value.clear()
+        self.key_to_count.clear()
+
+    def _truncate(self, s: str) -> str:
+        max_length = 30
+        return s[: max_length - 3] + "..." if len(s) > max_length else s
