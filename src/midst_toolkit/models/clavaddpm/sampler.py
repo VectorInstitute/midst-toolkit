@@ -198,7 +198,7 @@ def create_named_schedule_sampler(
 
     Returns:
         The UniformSampler if ``name`` is "uniform", LossSecondMomentResampler if ``name``
-            is "loss-second-moment".
+        is "loss-second-moment".
     """
     if name == "uniform":
         return UniformSampler(diffusion)

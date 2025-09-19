@@ -609,6 +609,7 @@ def _numerical_forward_backward_log(
             loss.backward(loss * len(sub_batch) / len(batch))
 
 
+# TODO: Think about moving this to a metrics module
 def _compute_top_k(
     logits: Tensor,
     labels: Tensor,
