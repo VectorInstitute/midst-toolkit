@@ -1,133 +1,33 @@
 """Defines the training functions for the ClavaDDPM model."""
 
-import logging
-import os
 import pickle
+from collections.abc import Generator
+from logging import INFO, WARNING
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
 import torch
-from torch import optim
+from torch import Tensor, optim
 
+from midst_toolkit.common.logger import log
 from midst_toolkit.core import logger
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 from midst_toolkit.models.clavaddpm.model import (
     Classifier,
+    Dataset,
     Transformations,
-    create_named_schedule_sampler,
     get_model,
     get_model_params,
     get_T_dict,
     get_table_info,
     make_dataset_from_df,
-    numerical_forward_backward_log,
-    pair_clustering_keep_id,
     prepare_fast_dataloader,
 )
+from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, create_named_schedule_sampler
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
-
-
-logging.basicConfig(level=logging.INFO)
-LOGGER = logging.getLogger(__name__)
-
-
-Tables = dict[str, dict[str, Any]]
-RelationOrder = list[tuple[str, str]]
-Configs = dict[str, Any]
-
-
-def clava_clustering(
-    tables: Tables,
-    relation_order: RelationOrder,
-    save_dir: Path,
-    configs: Configs,
-) -> tuple[dict[str, Any], dict[tuple[str, str], dict[int, float]]]:
-    """
-    Clustering function for the mutli-table function of the ClavaDDPM model.
-
-    Args:
-        tables: Definition of the tables and their relations. Example:
-            {
-                "table1": {
-                    "children": ["table2"],
-                    "parents": []
-                },
-                "table2": {
-                    "children": [],
-                    "parents": ["table1"]
-                }
-            }
-        relation_order: List of tuples of parent and child tables. Example:
-            [("table1", "table2"), ("table1", "table3")]
-        save_dir: Directory to save the clustering checkpoint.
-        configs: Dictionary of configurations. The following config keys are required:
-            {
-                num_clusters = int | dict,
-                parent_scale = float,
-                clustering_method = str["kmeans" | "both" | "variational" | "gmm"],
-            }
-
-    Returns:
-        A tuple with 2 values:
-            - The tables dictionary.
-            - The dictionary with the group lengths probability for all the parent-child pairs.
-    """
-    relation_order_reversed = relation_order[::-1]
-    all_group_lengths_prob_dicts = {}
-
-    # Clustering
-    if os.path.exists(save_dir / "cluster_ckpt.pkl"):
-        print("Clustering checkpoint found, loading...")
-
-        with open(save_dir / "cluster_ckpt.pkl", "rb") as f:
-            cluster_ckpt = pickle.load(f)
-
-        tables = cluster_ckpt["tables"]
-        all_group_lengths_prob_dicts = cluster_ckpt["all_group_lengths_prob_dicts"]
-    else:
-        for parent, child in relation_order_reversed:
-            if parent is not None:
-                print(f"Clustering {parent} -> {child}")
-                if isinstance(configs["num_clusters"], dict):
-                    num_clusters = configs["num_clusters"][child]
-                else:
-                    num_clusters = configs["num_clusters"]
-                (
-                    parent_df_with_cluster,
-                    child_df_with_cluster,
-                    group_lengths_prob_dicts,
-                ) = pair_clustering_keep_id(
-                    tables[child]["df"],
-                    tables[child]["domain"],
-                    tables[parent]["df"],
-                    tables[parent]["domain"],
-                    f"{child}_id",
-                    f"{parent}_id",
-                    num_clusters,
-                    configs["parent_scale"],
-                    1,  # not used for now
-                    parent,
-                    child,
-                    clustering_method=configs["clustering_method"],
-                )
-                tables[parent]["df"] = parent_df_with_cluster
-                tables[child]["df"] = child_df_with_cluster
-                all_group_lengths_prob_dicts[(parent, child)] = group_lengths_prob_dicts
-
-        cluster_ckpt = {
-            "tables": tables,
-            "all_group_lengths_prob_dicts": all_group_lengths_prob_dicts,
-        }
-        with open(save_dir / "cluster_ckpt.pkl", "wb") as f:
-            pickle.dump(cluster_ckpt, f)
-
-    for parent, child in relation_order:
-        if parent is None:
-            tables[child]["df"]["placeholder"] = list(range(len(tables[child]["df"])))
-
-    return tables, all_group_lengths_prob_dicts
+from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
 
 
 def clava_training(
@@ -208,7 +108,7 @@ def clava_training(
         target_file = target_folder / f"{parent}_{child}_ckpt.pkl"
 
         create_message = f"Creating {target_folder}. " if not target_folder.exists() else ""
-        LOGGER.info(f"{create_message}Saving {parent} -> {child} model to {target_file}")
+        log(INFO, f"{create_message}Saving {parent} -> {child} model to {target_file}")
 
         target_folder.mkdir(parents=True, exist_ok=True)
         with open(target_file, "wb") as f:
@@ -330,7 +230,7 @@ def child_training(
             )
             child_result["classifier"] = child_classifier
         else:
-            LOGGER.warning("Skipping classifier training since classifier_config['iterations'] <= 0")
+            log(WARNING, "Skipping classifier training since classifier_config['iterations'] <= 0")
 
     child_result["df_info"] = child_info
     child_result["model_params"] = child_model_params
@@ -482,7 +382,7 @@ def train_classifier(
         cluster_col: Name of the cluster column. Default is `"cluster"`.
         dim_t: Dimension of the timestamp. Default is 128.
         learning_rate: Learning rate to use for the optimizer in the classifier. Default is 0.0001.
-        classifier_evaluation_interval: The amount of classifier_steps to wait
+        classifier_evaluation_interval: The number of classifier training steps to wait
             until the next evaluation of the classifier. Default is 5.
 
     Returns:
@@ -512,7 +412,7 @@ def train_classifier(
 
     # TODO: understand what's going on here
     if dataset.X_num is None:
-        LOGGER.warning("dataset.X_num is None. num_numerical_features will be set to 0")
+        log(WARNING, "dataset.X_num is None. num_numerical_features will be set to 0")
         num_numerical_features = 0
     else:
         num_numerical_features = dataset.X_num["train"].shape[1]
@@ -549,7 +449,7 @@ def train_classifier(
             "samples",
             (step + 1) * batch_size,
         )
-        numerical_forward_backward_log(
+        _numerical_forward_backward_log(
             classifier,
             classifier_optimizer,
             train_loader,
@@ -564,7 +464,7 @@ def train_classifier(
         if not step % classifier_evaluation_interval:
             with torch.no_grad():
                 classifier.eval()
-                numerical_forward_backward_log(
+                _numerical_forward_backward_log(
                     classifier,
                     classifier_optimizer,
                     val_loader,
@@ -617,13 +517,13 @@ def save_table_info(
         df_with_cluster = tables[child]["df"]
         df_without_id = get_df_without_id(df_with_cluster)
         df_info = result["df_info"]
-        X_num_real = df_without_id[df_info["num_cols"]].to_numpy().astype(float)
-        uniq_vals_list = []
-        for col in range(X_num_real.shape[1]):
-            uniq_vals = np.unique(X_num_real[:, col])
-            uniq_vals_list.append(uniq_vals)
+        x_num_real = df_without_id[df_info["num_cols"]].to_numpy().astype(float)
+        unique_values_list = []
+        for column in range(x_num_real.shape[1]):
+            unique_values = np.unique(x_num_real[:, column])
+            unique_values_list.append(unique_values)
         table_info[(parent, child)] = {
-            "uniq_vals_list": uniq_vals_list,
+            "uniq_vals_list": unique_values_list,
             "size": len(df_with_cluster),
             "columns": tables[child]["df"].columns,
             "parents": tables[child]["parents"],
@@ -655,3 +555,129 @@ def get_df_without_id(df: pd.DataFrame) -> pd.DataFrame:
     """
     id_cols = [col for col in df.columns if "_id" in col]
     return df.drop(columns=id_cols)
+
+
+def _numerical_forward_backward_log(
+    classifier: Classifier,
+    optimizer: torch.optim.Optimizer,
+    data_loader: Generator[tuple[Tensor, ...]],
+    dataset: Dataset,
+    schedule_sampler: ScheduleSampler,
+    diffusion: GaussianMultinomialDiffusion,
+    prefix: str = "train",
+    remove_first_col: bool = False,
+    device: str = "cuda",
+) -> None:
+    """
+    Forward and backward pass for the numerical features of the ClavaDDPM model.
+
+    Args:
+        classifier: The classifier model.
+        optimizer: The optimizer.
+        data_loader: The data loader.
+        dataset: The dataset.
+        schedule_sampler: The schedule sampler.
+        diffusion: The diffusion object.
+        prefix: The prefix for the loss. Defaults to "train".
+        remove_first_col: Whether to remove the first column of the batch. Defaults to False.
+        device: The device to use. Defaults to "cuda".
+    """
+    batch, labels = next(data_loader)
+    labels = labels.long().to(device)
+
+    if remove_first_col:
+        # Remove the first column of the batch, which is the label.
+        batch = batch[:, 1:]
+
+    num_batch = batch[:, : dataset.n_num_features].to(device)
+
+    t, _ = schedule_sampler.sample(num_batch.shape[0], device)
+    batch = diffusion.gaussian_q_sample(num_batch, t).to(device)
+
+    for i, (sub_batch, sub_labels, sub_t) in enumerate(_split_microbatches(-1, batch, labels, t)):
+        logits = classifier(sub_batch, timesteps=sub_t)
+        loss = torch.nn.functional.cross_entropy(logits, sub_labels, reduction="none")
+
+        losses = {}
+        losses[f"{prefix}_loss"] = loss.detach()
+        losses[f"{prefix}_acc@1"] = _compute_top_k(logits, sub_labels, k=1, reduction="none")
+        if logits.shape[1] >= 5:
+            losses[f"{prefix}_acc@5"] = _compute_top_k(logits, sub_labels, k=5, reduction="none")
+        _log_loss_dict(diffusion, sub_t, losses)
+        del losses
+        loss = loss.mean()
+        if loss.requires_grad:
+            if i == 0:
+                optimizer.zero_grad()
+            loss.backward(loss * len(sub_batch) / len(batch))
+
+
+# TODO: Think about moving this to a metrics module
+def _compute_top_k(
+    logits: Tensor,
+    labels: Tensor,
+    k: int,
+    reduction: Literal["mean", "none"] = "mean",
+) -> Tensor:
+    """
+    Compute the top-k accuracy.
+
+    Args:
+        logits: The logits of the classifier.
+        labels: The labels of the data.
+        k: The number of top-k.
+        reduction: The reduction method. Should be one of ["mean", "none"]. Defaults to "mean".
+
+    Returns:
+        The top-k accuracy.
+    """
+    _, top_ks = torch.topk(logits, k, dim=-1)
+    if reduction == "mean":
+        return (top_ks == labels[:, None]).float().sum(dim=-1).mean()
+    if reduction == "none":
+        return (top_ks == labels[:, None]).float().sum(dim=-1)
+
+    raise ValueError(f"reduction should be one of ['mean', 'none']: {reduction}")
+
+
+def _log_loss_dict(diffusion: GaussianMultinomialDiffusion, ts: Tensor, losses: dict[str, Tensor]) -> None:
+    """
+    Output the log loss dictionary in the logger.
+
+    Args:
+        diffusion: The diffusion object.
+        ts: The timesteps.
+        losses: The losses.
+    """
+    for key, values in losses.items():
+        logger.logkv_mean(key, values.mean().item())
+        # Log the quantiles (four quartiles, in particular).
+        for sub_t, sub_loss in zip(ts.cpu().numpy(), values.detach().cpu().numpy()):
+            quartile = int(4 * sub_t / diffusion.num_timesteps)
+            logger.logkv_mean(f"{key}_q{quartile}", sub_loss)
+
+
+def _split_microbatches(
+    microbatch: int,
+    batch: Tensor,
+    labels: Tensor,
+    t: Tensor,
+) -> Generator[tuple[Tensor, Tensor, Tensor]]:
+    """
+    Split the batch into microbatches.
+
+    Args:
+        microbatch: The size of the microbatch. If -1, the batch is not split.
+        batch: The batch of data as a tensor.
+        labels: The labels of the data as a tensor.
+        t: The timesteps tensor.
+
+    Returns:
+        A generator of for the minibatch which outputs tuples of the batch, labels, and timesteps.
+    """
+    bs = len(batch)
+    if microbatch == -1 or microbatch >= bs:
+        yield batch, labels, t
+    else:
+        for i in range(0, bs, microbatch):
+            yield batch[i : i + microbatch], labels[i : i + microbatch], t[i : i + microbatch]
