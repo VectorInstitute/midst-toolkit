@@ -191,7 +191,7 @@ class KeyValueLogger:
         self.key_to_count: defaultdict[str, int] = defaultdict(int)
         self.log_level = log_level
 
-    def save_entry(self, key: str, value: Any) -> None:
+    def save_entry(self, key: str, value: float) -> None:
         """
         Save an entry to the key-value logger.
 
@@ -201,7 +201,7 @@ class KeyValueLogger:
         """
         self.key_to_value[key] = value
 
-    def save_entry_mean(self, key: str, value: Any) -> None:
+    def save_entry_mean(self, key: str, value: float) -> None:
         """
         Save an entry to the key-value logger with mean calculation.
 
