@@ -84,3 +84,10 @@ class GaussianLossType(Enum):
 
     MSE = "mse"
     KL = "kl"
+
+
+class Scheduler(Enum):
+    """Possible types of scheduler."""
+
+    COSINE = "cosine"
+    LINEAR = "linear"

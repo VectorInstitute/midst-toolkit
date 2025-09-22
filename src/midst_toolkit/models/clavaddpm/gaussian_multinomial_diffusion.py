@@ -30,7 +30,7 @@ from midst_toolkit.models.clavaddpm.diffusion_utils import (
     sliced_logsumexp,
     sum_except_batch,
 )
-from midst_toolkit.models.clavaddpm.typing import GaussianLossType
+from midst_toolkit.models.clavaddpm.typing import GaussianLossType, Scheduler
 
 
 # Based in part on:
@@ -38,27 +38,34 @@ from midst_toolkit.models.clavaddpm.typing import GaussianLossType
 eps = 1e-8
 
 
-def get_named_beta_schedule(schedule_name: str, num_diffusion_timesteps: int) -> np.ndarray:
+def get_named_beta_schedule(scheduler: Scheduler, num_diffusion_timesteps: int) -> np.ndarray:
     """
     Get a pre-defined beta schedule for the given name.
     The beta schedule library consists of beta schedules which remain similar
     in the limit of num_diffusion_timesteps.
     Beta schedules may be added, but should not be removed or changed once
     they are committed to maintain backwards compatibility.
+
+    Args:
+        scheduler: The scheduler to use.
+        num_diffusion_timesteps: The number of diffusion timesteps.
+
+    Returns:
+        The beta schedule.
     """
-    if schedule_name == "linear":
+    if scheduler == Scheduler.LINEAR:
         # Linear schedule from Ho et al, extended to work for any number of
         # diffusion steps.
         scale = 1000 / num_diffusion_timesteps
         beta_start = scale * 0.0001
         beta_end = scale * 0.02
         return np.linspace(beta_start, beta_end, num_diffusion_timesteps, dtype=np.float64)
-    if schedule_name == "cosine":
+    if scheduler == Scheduler.COSINE:
         return betas_for_alpha_bar(
             num_diffusion_timesteps,
             lambda t: math.cos((t + 0.008) / 1.008 * math.pi / 2) ** 2,
         )
-    raise NotImplementedError(f"unknown beta schedule: {schedule_name}")
+    raise NotImplementedError(f"Unsupported scheduler: {scheduler.value}")
 
 
 def betas_for_alpha_bar(num_diffusion_timesteps: int, alpha_bar: Callable, max_beta: float = 0.999) -> np.ndarray:
@@ -92,7 +99,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         gaussian_parametrization: str = "eps",
         multinomial_loss_type: str = "vb_stochastic",
         parametrization: str = "x0",
-        scheduler: str = "cosine",
+        scheduler: Scheduler = Scheduler.COSINE,
         device: torch.device | None = None,
     ):
         # ruff: noqa: D107
