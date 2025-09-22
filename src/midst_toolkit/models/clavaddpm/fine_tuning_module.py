@@ -3,7 +3,7 @@ https://github.com/CRCHUM-CITADEL/ensemble-mia.
 """
 
 from dataclasses import asdict
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -13,7 +13,7 @@ from midst_toolkit.models.clavaddpm.dataset import Transformations, make_dataset
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
     GaussianMultinomialDiffusion,
 )
-from midst_toolkit.models.clavaddpm.model import get_model, get_table_info
+from midst_toolkit.models.clavaddpm.model import ModelType, get_table_info
 from midst_toolkit.models.clavaddpm.train import _get_model_params as get_model_params
 from midst_toolkit.models.clavaddpm.train import train_classifier
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
@@ -27,7 +27,7 @@ def fine_tune_model(
     transformations: Transformations,
     steps: int,
     batch_size: int,
-    model_type: Literal["mlp", "resnet"],
+    model_type: ModelType,
     lr: float,
     weight_decay: float,
     device: str = "cuda",
@@ -53,7 +53,7 @@ def fine_tune_model(
     d_in = np.sum(category_array) + num_numerical_features
     model_params["d_in"] = d_in
 
-    model = get_model(model_type, model_params)
+    model = model_type.get_model(model_params)
     model.to(device)
 
     train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size)
@@ -118,7 +118,7 @@ def child_fine_tuning(
         child_transformations,
         new_diffusion_iterations,  # new_diffusion_iterations used here.
         configs["diffusion"]["batch_size"],
-        configs["diffusion"]["model_type"],
+        ModelType(configs["diffusion"]["model_type"]),
         configs["diffusion"]["lr"],
         configs["diffusion"]["weight_decay"],
     )

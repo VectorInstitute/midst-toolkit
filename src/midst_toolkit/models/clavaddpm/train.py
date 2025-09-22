@@ -21,7 +21,7 @@ from midst_toolkit.models.clavaddpm.dataset import (
     make_dataset_from_df,
 )
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
-from midst_toolkit.models.clavaddpm.model import Classifier, get_model, get_table_info
+from midst_toolkit.models.clavaddpm.model import Classifier, ModelType, get_table_info
 from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, create_named_schedule_sampler
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
@@ -195,7 +195,7 @@ def child_training(
         child_transformations,
         diffusion_config["iterations"],
         diffusion_config["batch_size"],
-        diffusion_config["model_type"],
+        ModelType(diffusion_config["model_type"]),
         diffusion_config["gaussian_loss_type"],
         diffusion_config["num_timesteps"],
         diffusion_config["scheduler"],
@@ -242,7 +242,7 @@ def train_model(
     transformations: Transformations,
     steps: int,
     batch_size: int,
-    model_type: Literal["mlp", "resnet"],
+    model_type: ModelType,
     gaussian_loss_type: str,
     num_timesteps: int,
     scheduler: str,
@@ -298,7 +298,7 @@ def train_model(
     model_params["d_in"] = d_in
 
     print("Model params: {}".format(model_params))
-    model = get_model(model_type, model_params)
+    model = model_type.get_model(model_params)
     model.to(device)
 
     train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size)

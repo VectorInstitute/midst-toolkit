@@ -1,4 +1,6 @@
 import math
+from enum import Enum
+from logging import INFO
 from typing import Any, Literal, Self
 
 import pandas as pd
@@ -8,6 +10,7 @@ import torch.nn.functional as F
 # ruff: noqa: N812
 from torch import Tensor, nn
 
+from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.typing import ModuleType
 
 
@@ -118,29 +121,6 @@ def get_table_info(df: pd.DataFrame, domain_dict: dict[str, Any], y_col: str) ->
     df_info["task_type"] = "multiclass"
 
     return df_info
-
-
-def get_model(
-    model_name: Literal["mlp", "resnet"],
-    model_params: dict[str, Any],
-) -> nn.Module:
-    """
-    Get the model.
-
-    Args:
-        model_name: The name of the model. Can be "mlp" or "resnet".
-        model_params: The dictionary of parameters of the model.
-
-    Returns:
-        The model.
-    """
-    print(model_name)
-    if model_name == "mlp":
-        return MLPDiffusion(**model_params)
-    if model_name == "resnet":
-        return ResNetDiffusion(**model_params)
-
-    raise ValueError("Unknown model!")
 
 
 def timestep_embedding(timesteps: Tensor, dim: int, max_period: int = 10000) -> Tensor:
@@ -804,3 +784,28 @@ def _make_nn_module(module_type: ModuleType, *args: Any) -> nn.Module:
         if isinstance(module_type, str)
         else module_type(*args)
     )
+
+
+class ModelType(Enum):
+    """Possible model types for the ClavaDDPM model."""
+
+    MLP = "mlp"
+    RESNET = "resnet"
+
+    def get_model(self, model_params: dict[str, Any]) -> nn.Module:
+        """
+        Get the model.
+
+        Args:
+            model_params: The dictionary of parameters of the model.
+
+        Returns:
+            The model.
+        """
+        log(INFO, f"Getting model: {self.value}")
+        if self == ModelType.MLP:
+            return MLPDiffusion(**model_params)
+        if self == ModelType.RESNET:
+            return ResNetDiffusion(**model_params)
+
+        raise ValueError(f"Unsupported model type: {self.value}")
