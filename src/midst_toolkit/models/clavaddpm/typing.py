@@ -77,3 +77,10 @@ class ModelParameters:
     d_in: int = 0
     num_classes: int = 0
     is_y_cond: IsYCond = IsYCond.NONE
+
+
+class GaussianLossType(Enum):
+    """Possible types of Gaussian loss."""
+
+    MSE = "mse"
+    KL = "kl"
