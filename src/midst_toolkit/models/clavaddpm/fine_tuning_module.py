@@ -16,7 +16,7 @@ from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
 from midst_toolkit.models.clavaddpm.model import ModelType, get_table_info
 from midst_toolkit.models.clavaddpm.train import train_classifier
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
-from midst_toolkit.models.clavaddpm.typing import IsYCond, ModelParameters, RTDLParameters
+from midst_toolkit.models.clavaddpm.typing import GaussianLossType, IsYCond, ModelParameters, RTDLParameters
 
 
 def fine_tune_model(
@@ -133,7 +133,7 @@ def child_fine_tuning(
             child_transformations,
             new_classifier_iterations,  # new_classifier_iterations used here.
             configs["classifier"]["batch_size"],
-            configs["diffusion"]["gaussian_loss_type"],
+            GaussianLossType(configs["diffusion"]["gaussian_loss_type"]),
             configs["diffusion"]["num_timesteps"],
             configs["diffusion"]["scheduler"],
             cluster_col=y_col,

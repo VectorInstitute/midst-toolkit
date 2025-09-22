@@ -30,6 +30,7 @@ from midst_toolkit.models.clavaddpm.diffusion_utils import (
     sliced_logsumexp,
     sum_except_batch,
 )
+from midst_toolkit.models.clavaddpm.typing import GaussianLossType
 
 
 # Based in part on:
@@ -87,7 +88,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         num_numerical_features: int,
         denoise_fn: torch.nn.Module,
         num_timesteps: int = 1000,
-        gaussian_loss_type: str = "mse",
+        gaussian_loss_type: GaussianLossType = GaussianLossType.MSE,
         gaussian_parametrization: str = "eps",
         multinomial_loss_type: str = "vb_stochastic",
         parametrization: str = "x0",
@@ -355,9 +356,9 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             model_kwargs = {}
 
         terms = {}
-        if self.gaussian_loss_type == "mse":
+        if self.gaussian_loss_type == GaussianLossType.MSE:
             terms["loss"] = mean_flat((noise - model_out) ** 2)
-        elif self.gaussian_loss_type == "kl":
+        elif self.gaussian_loss_type == GaussianLossType.KL:
             terms["loss"] = self._vb_terms_bpd(
                 model_output=model_out,
                 x_start=x_start,
