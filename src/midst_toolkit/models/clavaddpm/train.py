@@ -2,6 +2,7 @@
 
 import pickle
 from collections.abc import Generator
+from dataclasses import asdict
 from logging import INFO, WARNING
 from pathlib import Path
 from typing import Any, Literal
@@ -17,7 +18,6 @@ from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
 from midst_toolkit.models.clavaddpm.dataset import (
     Dataset,
     Transformations,
-    get_T_dict,
     make_dataset_from_df,
 )
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
@@ -185,14 +185,14 @@ def child_training(
             "dropout": diffusion_config["dropout"],
         }
     )
-    child_T_dict = get_T_dict()
+    child_transformations = Transformations.default()
     # ruff: noqa: N806
 
     child_result = train_model(
         child_df_with_cluster,
         child_info,
         child_model_params,
-        child_T_dict,
+        child_transformations,
         diffusion_config["iterations"],
         diffusion_config["batch_size"],
         diffusion_config["model_type"],
@@ -213,7 +213,7 @@ def child_training(
                 child_df_with_cluster,
                 child_info,
                 child_model_params,
-                child_T_dict,
+                child_transformations,
                 classifier_config["iterations"],
                 classifier_config["batch_size"],
                 diffusion_config["gaussian_loss_type"],
@@ -231,7 +231,7 @@ def child_training(
 
     child_result["df_info"] = child_info
     child_result["model_params"] = child_model_params
-    child_result["T_dict"] = child_T_dict
+    child_result["T_dict"] = asdict(child_transformations)
     return child_result
 
 
@@ -239,7 +239,7 @@ def train_model(
     data_frame: pd.DataFrame,
     data_frame_info: pd.DataFrame,
     model_params: dict[str, Any],
-    transformations_dict: dict[str, Any],
+    transformations: Transformations,
     steps: int,
     batch_size: int,
     model_type: Literal["mlp", "resnet"],
@@ -257,7 +257,7 @@ def train_model(
         data_frame: DataFrame to train the model on.
         data_frame_info: Dictionary of the table information.
         model_params: Dictionary of the model parameters.
-        transformations_dict: Dictionary of the transformations.
+        transformations: The transformations to apply to the dataset.
         steps: Number of steps to train the model.
         batch_size: Batch size to use for training.
         model_type: Type of the model to use.
@@ -275,7 +275,6 @@ def train_model(
             - dataset: The dataset.
             - column_orders: The column orders.
     """
-    transformations = Transformations(**transformations_dict)
     # ruff: noqa: N806
     dataset, label_encoders, column_orders = make_dataset_from_df(
         data_frame,
@@ -288,7 +287,7 @@ def train_model(
 
     category_sizes = np.array(dataset.get_category_sizes("train"))
     # ruff: noqa: N806
-    if len(category_sizes) == 0 or transformations_dict["cat_encoding"] == "one-hot":
+    if len(category_sizes) == 0 or transformations.cat_encoding == "one-hot":
         category_sizes = np.array([0])
         # ruff: noqa: N806
 
@@ -348,7 +347,7 @@ def train_classifier(
     data_frame: pd.DataFrame,
     data_frame_info: pd.DataFrame,
     model_params: dict[str, Any],
-    transformations_dict: dict[str, Any],
+    transformations: Transformations,
     classifier_steps: int,
     batch_size: int,
     gaussian_loss_type: str,
@@ -369,7 +368,7 @@ def train_classifier(
         data_frame: DataFrame to train the model on.
         data_frame_info: Dictionary of the table information.
         model_params: Dictionary of the model parameters.
-        transformations_dict: Dictionary of the transformations.
+        transformations: The transformations to apply to the dataset.
         classifier_steps: Number of steps to train the classifier.
         batch_size: Batch size to use for training.
         gaussian_loss_type: Type of the gaussian loss to use.
@@ -387,7 +386,6 @@ def train_classifier(
     Returns:
         The trained classifier model.
     """
-    transformations = Transformations(**transformations_dict)
     # ruff: noqa: N806
     dataset, label_encoders, column_orders = make_dataset_from_df(
         data_frame,
@@ -404,7 +402,7 @@ def train_classifier(
 
     category_sizes = np.array(dataset.get_category_sizes("train"))
     # ruff: noqa: N806
-    if len(category_sizes) == 0 or transformations_dict["cat_encoding"] == "one-hot":
+    if len(category_sizes) == 0 or transformations.cat_encoding == "one-hot":
         category_sizes = np.array([0])
         # ruff: noqa: N806
     print(category_sizes)
@@ -493,7 +491,7 @@ def train_classifier(
             correct += (pred.argmax(dim=1) == test_y).sum().item()
 
     acc = correct / (3000 * batch_size)
-    print(acc)
+    log(INFO, f"Classifier accuracy: {acc}")
 
     return classifier
 

@@ -2,25 +2,21 @@
 https://github.com/CRCHUM-CITADEL/ensemble-mia.
 """
 
-from typing import Any
+from dataclasses import asdict
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
 
+from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
+from midst_toolkit.models.clavaddpm.dataset import Transformations, make_dataset_from_df
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
     GaussianMultinomialDiffusion,
 )
-from midst_toolkit.models.clavaddpm.model import (
-    Trainer,
-    Transformations,
-    get_model,
-    get_model_params,
-    get_T_dict,
-    get_table_info,
-    make_dataset_from_df,
-    prepare_fast_dataloader,
-    train_classifier,
-)
+from midst_toolkit.models.clavaddpm.model import get_model, get_table_info
+from midst_toolkit.models.clavaddpm.train import _get_model_params as get_model_params
+from midst_toolkit.models.clavaddpm.train import train_classifier
+from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 
 
 def fine_tune_model(
@@ -28,16 +24,15 @@ def fine_tune_model(
     df: pd.DataFrame,
     df_info: pd.DataFrame,
     model_params: dict[str, Any],
-    t_dict: dict[str, Any],
+    transformations: Transformations,
     steps: int,
     batch_size: int,
-    model_type: str,
+    model_type: Literal["mlp", "resnet"],
     lr: float,
     weight_decay: float,
     device: str = "cuda",
 ) -> dict[str, Any]:
     """Fine-tune a a trained diffusion model on a new dataset."""
-    transformations = Transformations(**t_dict)
     dataset, label_encoders, column_orders = make_dataset_from_df(
         df,
         transformations,
@@ -51,7 +46,7 @@ def fine_tune_model(
     num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
 
     category_array = np.array(dataset.get_category_sizes("train"))
-    if len(category_array) == 0 or t_dict["cat_encoding"] == "one-hot":
+    if len(category_array) == 0 or transformations.cat_encoding == "one-hot":
         category_array = np.array([0])
 
     num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
@@ -67,7 +62,7 @@ def fine_tune_model(
     diffusion.to(device)
     diffusion.train()
 
-    trainer = Trainer(
+    trainer = ClavaDDPMTrainer(
         diffusion,
         train_loader,
         lr=lr,
@@ -75,7 +70,7 @@ def fine_tune_model(
         steps=steps,
         device=device,
     )
-    trainer.run_loop()
+    trainer.train()
 
     if model_params["is_y_cond"] == "concat":
         column_orders = column_orders[1:] + [column_orders[0]]
@@ -113,14 +108,14 @@ def child_fine_tuning(
             "dropout": configs["diffusion"]["dropout"],
         }
     )
-    child_t_dict = get_T_dict()
+    child_transformations = Transformations.default()
 
     child_result = fine_tune_model(
         pre_trained_model["diffusion"],
         child_df_with_cluster,
         child_info,
         child_model_params,
-        child_t_dict,
+        child_transformations,
         new_diffusion_iterations,  # new_diffusion_iterations used here.
         configs["diffusion"]["batch_size"],
         configs["diffusion"]["model_type"],
@@ -135,7 +130,7 @@ def child_fine_tuning(
             child_df_with_cluster,
             child_info,
             child_model_params,
-            child_t_dict,
+            child_transformations,
             new_classifier_iterations,  # new_classifier_iterations used here.
             configs["classifier"]["batch_size"],
             configs["diffusion"]["gaussian_loss_type"],
@@ -144,14 +139,14 @@ def child_fine_tuning(
             cluster_col=y_col,
             d_layers=configs["classifier"]["d_layers"],
             dim_t=configs["classifier"]["dim_t"],
-            lr=configs["classifier"]["lr"],
+            learning_rate=configs["classifier"]["lr"],
             pre_trained_classifier=pre_trained_model["classifier"],
         )
         child_result["classifier"] = child_classifier
 
     child_result["df_info"] = child_info
     child_result["model_params"] = child_model_params
-    child_result["T_dict"] = child_t_dict
+    child_result["T_dict"] = asdict(child_transformations)
     return child_result
 
 

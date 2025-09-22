@@ -72,25 +72,18 @@ class Transformations:
     cat_encoding: CatEncoding | None = None
     y_policy: YPolicy | None = "default"
 
-
-# TODO move this into the Transformations' class init
-def get_T_dict() -> dict[str, Any]:
-    """
-    Return a dictionary used to initialize the transformation object.
-
-    Returns:
-        The transformation object default parameters.
-    """
-    # ruff: noqa: N802
-    return {
-        "seed": 0,
-        "normalization": "quantile",
-        "num_nan_policy": None,
-        "cat_nan_policy": None,
-        "cat_min_frequency": None,
-        "cat_encoding": None,
-        "y_policy": "default",
-    }
+    @classmethod
+    def default(cls) -> Self:
+        """Return the default transformations."""
+        return cls(
+            seed=0,
+            normalization="quantile",
+            num_nan_policy=None,
+            cat_nan_policy=None,
+            cat_min_frequency=None,
+            cat_encoding=None,
+            y_policy="default",
+        )
 
 
 @dataclass(frozen=False)
@@ -372,8 +365,7 @@ def _get_labels_and_probs(
 def make_dataset_from_df(
     # ruff: noqa: PLR0915, PLR0912
     df: pd.DataFrame,
-    T: Transformations,
-    # ruff: noqa: N803
+    transformations: Transformations,
     is_y_cond: Literal["concat", "embedding", "none"],
     df_info: pd.DataFrame,
     ratios: list[float] | None = None,
@@ -391,7 +383,7 @@ def make_dataset_from_df(
 
     Args:
         df: The pandas DataFrame to generate the dataset from.
-        T: The transformations to apply to the dataset.
+        transformations: The transformations to apply to the dataset.
         is_y_cond: The condition on the y column.
             concat: y is concatenated to X, the model learn a joint distribution of (y, X)
             embedding: y is not concatenated to X. During computations, y is embedded
@@ -528,7 +520,7 @@ def make_dataset_from_df(
         n_classes=df_info["n_classes"],
     )
 
-    return transform_dataset(D, T, None), label_encoders, column_orders
+    return transform_dataset(D, transformations, None), label_encoders, column_orders
 
 
 def transform_dataset(
