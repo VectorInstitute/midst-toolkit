@@ -178,7 +178,7 @@ def redirect_output(output_buffer: StringIO) -> None:
 
 
 class KeyValueLogger:
-    """Logger for key-value pairs."""
+    """Logger for key-value pairs of numerical metrics."""
 
     def __init__(self, log_level: int = logging.DEBUG):
         """
