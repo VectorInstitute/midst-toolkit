@@ -53,8 +53,8 @@ def extract_columns_based_on_meta_info(
     Args:
         data: Dataframe to be filtered using the meta information
         meta_info: JSON with meta information about the columns and their corresponding types that should be
-            considered. At minimum, it should have the keys 'num_col_idx', 'cat_col_idx', 'target_col_idx', and
-            'task_type'
+            considered. At minimum, it should have the keys 'num_col_idx', 'cat_col_idx'. If it also has a
+            'target_col_idx' it must also specify a 'task_type'.
 
     Returns:
         Filtered dataframes. The first dataframe is the filtered set of columns associated with numerical data. The
@@ -71,13 +71,14 @@ def extract_columns_based_on_meta_info(
     numerical_column_idx = meta_info["num_col_idx"]
     categorical_column_idx = meta_info["cat_col_idx"]
 
-    # Target columns are also part of the generation, just need to add it to the right "category"
-    target_col_idx = meta_info["target_col_idx"]
-    task_type = TaskType(meta_info["task_type"])
-    if task_type == TaskType.REGRESSION:
-        numerical_column_idx = numerical_column_idx + target_col_idx
-    else:
-        categorical_column_idx = categorical_column_idx + target_col_idx
+    if "target_col_idx" in meta_info:
+        # Target columns are also part of the generation, just need to add it to the right "category"
+        target_col_idx = meta_info["target_col_idx"]
+        task_type = TaskType(meta_info["task_type"])
+        if task_type == TaskType.REGRESSION:
+            numerical_column_idx = numerical_column_idx + target_col_idx
+        else:
+            categorical_column_idx = categorical_column_idx + target_col_idx
 
     numerical_data = data[numerical_column_idx]
     categorical_data = data[categorical_column_idx]
