@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from enum import Enum
 from logging import INFO
 from typing import Any, Literal, Self
@@ -310,6 +311,32 @@ class MLP(nn.Module):
         return self.head(x)
 
 
+@dataclass
+class RTDLParameters:
+    """Parameters for the RTDL model."""
+
+    d_layers: list[int]
+    dropout: float
+    d_in: int = 0
+    d_out: int = 0
+    emb_d: int = 0
+    n_blocks: int = 0
+    d_main: int = 0
+    d_hidden: int = 0
+    dropout_first: float = 0
+    dropout_second: float = 0
+
+
+@dataclass
+class ModelParameters:
+    """Parameters for the ClavaDDPM model."""
+
+    rtdl_parameters: RTDLParameters
+    d_in: int = 0
+    num_classes: int = 0
+    is_y_cond: Literal["concat", "embedding", "none"] = "none"
+
+
 class ResNet(nn.Module):
     """
     The ResNet model used in [gorishniy2021revisiting].
@@ -567,7 +594,7 @@ class MLPDiffusion(nn.Module):
         d_in: int,
         num_classes: int,
         is_y_cond: Literal["concat", "embedding", "none"],
-        rtdl_params: dict[str, Any],
+        rtdl_parameters: RTDLParameters,
         dim_t: int = 128,
     ):
         """
@@ -577,20 +604,24 @@ class MLPDiffusion(nn.Module):
             d_in: The input dimension size.
             num_classes: The number of classes.
             is_y_cond: The condition on the y column. Can be "concat", "embedding", or "none".
-            rtdl_params: The dictionary of parameters for the MLP.
-            dim_t: The dimension size of the timestep.
+            rtdl_parameters: The parameters for the MLP.
+            dim_t: The dimension size of the timestamp.
         """
         super().__init__()
         self.dim_t = dim_t
         self.num_classes = num_classes
         self.is_y_cond = is_y_cond
 
-        # d0 = rtdl_params['d_layers'][0]
+        self.rtdl_parameters = rtdl_parameters
+        self.rtdl_parameters.d_in = dim_t
+        self.rtdl_parameters.d_out = d_in
 
-        rtdl_params["d_in"] = dim_t
-        rtdl_params["d_out"] = d_in
-
-        self.mlp = MLP.make_baseline(**rtdl_params)
+        self.mlp = MLP.make_baseline(
+            d_in=self.rtdl_parameters.d_in,
+            d_layers=self.rtdl_parameters.d_layers,
+            dropout=self.rtdl_parameters.dropout,
+            d_out=self.rtdl_parameters.d_out,
+        )
 
         self.label_emb: nn.Embedding | nn.Linear
         if self.num_classes > 0 and is_y_cond == "embedding":
@@ -626,7 +657,7 @@ class ResNetDiffusion(nn.Module):
         self,
         d_in: int,
         num_classes: int,
-        rtdl_params: dict[str, Any],
+        rtdl_parameters: RTDLParameters,
         dim_t: int = 256,
         is_y_cond: Literal["concat", "embedding", "none"] | None = None,
     ):
@@ -636,7 +667,7 @@ class ResNetDiffusion(nn.Module):
         Args:
             d_in: The input dimension size.
             num_classes: The number of classes.
-            rtdl_params: The dictionary of parameters for the ResNet.
+            rtdl_parameters: The parameters for the ResNet.
             dim_t: The dimension size of the timestep.
             is_y_cond: The condition on the y column. Can be "concat", "embedding", or "none".
                 Optional, default is None.
@@ -644,11 +675,22 @@ class ResNetDiffusion(nn.Module):
         super().__init__()
         self.dim_t = dim_t
         self.num_classes = num_classes
+        self.is_y_cond = is_y_cond
 
-        rtdl_params["d_in"] = d_in
-        rtdl_params["d_out"] = d_in
-        rtdl_params["emb_d"] = dim_t
-        self.resnet = ResNet.make_baseline(**rtdl_params)
+        self.rtdl_parameters = rtdl_parameters
+        self.rtdl_parameters.d_in = d_in
+        self.rtdl_parameters.d_out = d_in
+        self.rtdl_parameters.emb_d = dim_t
+
+        self.resnet = ResNet.make_baseline(
+            d_in=rtdl_parameters.d_in,
+            n_blocks=rtdl_parameters.n_blocks,
+            d_main=rtdl_parameters.d_main,
+            d_hidden=rtdl_parameters.d_hidden,
+            dropout_first=rtdl_parameters.dropout_first,
+            dropout_second=rtdl_parameters.dropout_second,
+            d_out=rtdl_parameters.d_out,
+        )
 
         self.label_emb: nn.Embedding | nn.Linear
         if self.num_classes > 0 and is_y_cond == "embedding":
@@ -794,20 +836,29 @@ class ModelType(Enum):
     MLP = "mlp"
     RESNET = "resnet"
 
-    def get_model(self, model_params: dict[str, Any]) -> nn.Module:
+    def get_model(self, model_parameters: ModelParameters) -> nn.Module:
         """
         Get the model.
 
         Args:
-            model_params: The dictionary of parameters of the model.
+            model_parameters: The parameters of the model.
 
         Returns:
             The model.
         """
         log(INFO, f"Getting model: {self.value}")
         if self == ModelType.MLP:
-            return MLPDiffusion(**model_params)
+            return MLPDiffusion(
+                d_in=model_parameters.d_in,
+                num_classes=model_parameters.num_classes,
+                is_y_cond=model_parameters.is_y_cond,
+                rtdl_parameters=model_parameters.rtdl_parameters,
+            )
         if self == ModelType.RESNET:
-            return ResNetDiffusion(**model_params)
+            return ResNetDiffusion(
+                d_in=model_parameters.d_in,
+                num_classes=model_parameters.num_classes,
+                rtdl_parameters=model_parameters.rtdl_parameters,
+            )
 
         raise ValueError(f"Unsupported model type: {self.value}")
