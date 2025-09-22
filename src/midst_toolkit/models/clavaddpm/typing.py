@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from enum import Enum
 from typing import Any
 
 import numpy as np
@@ -12,3 +13,12 @@ RelationOrder = list[tuple[str, str]]
 GroupLengthsProbDicts = dict[tuple[str, str], dict[int, dict[int, float]]]
 ArrayDict = dict[str, np.ndarray]
 ModuleType = str | Callable[..., nn.Module]
+
+
+class ClusteringMethod(Enum):
+    """Possioble clustering methods for multi-table training."""
+
+    KMEANS = "kmeans"
+    GMM = "gmm"
+    KMEANS_AND_GMM = "kmeans_and_gmm"
+    VARIATIONAL = "variational"

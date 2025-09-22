@@ -5,7 +5,7 @@ import pickle
 from collections import defaultdict
 from logging import INFO, WARNING
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -14,7 +14,13 @@ from sklearn.mixture import BayesianGaussianMixture, GaussianMixture
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler, OneHotEncoder, QuantileTransformer
 
 from midst_toolkit.common.logger import log
-from midst_toolkit.models.clavaddpm.typing import Configs, GroupLengthsProbDicts, RelationOrder, Tables
+from midst_toolkit.models.clavaddpm.typing import (
+    ClusteringMethod,
+    Configs,
+    GroupLengthsProbDicts,
+    RelationOrder,
+    Tables,
+)
 
 
 def clava_clustering(
@@ -142,7 +148,7 @@ def _run_clustering(
                 num_clusters,
                 configs["parent_scale"],
                 1,  # not used for now
-                clustering_method=configs["clustering_method"],
+                clustering_method=ClusteringMethod(configs["clustering_method"]),
             )
             tables[parent]["df"] = parent_df_with_cluster
             tables[child]["df"] = child_df_with_cluster
@@ -159,7 +165,7 @@ def _pair_clustering_keep_id(
     num_clusters: int,
     parent_scale: float,
     key_scale: float,
-    clustering_method: Literal["kmeans", "gmm", "kmeans_and_gmm", "variational"] = "kmeans",
+    clustering_method: ClusteringMethod = ClusteringMethod.KMEANS,
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict[int, dict[int, float]]]:
     """
     Pairs clustering information to the parent and child dataframes.
@@ -176,8 +182,7 @@ def _pair_clustering_keep_id(
         key_scale: Scaling factor applied to the foreign key values that link
             the child table to the parent table. This will weight how much influence
             the parent-child relationship has in the clustering algorithm.
-        clustering_method: Method of clustering. Has to be one of ["kmeans", "gmm", "kmeans_and_gmm", "variational"].
-            Default is "kmeans".
+        clustering_method: Method of clustering. Default is ClusteringMethod.KMEANS.
 
     Returns:
         Tuple with 3 elements:
@@ -287,11 +292,11 @@ def _pair_clustering_keep_id(
     child_group_lengths = np.array([len(group) for group in child_group_data], dtype=int)
     num_clusters = min(num_clusters, len(cluster_data))
 
-    if clustering_method == "kmeans":
+    if clustering_method == ClusteringMethod.KMEANS:
         kmeans = KMeans(n_clusters=num_clusters, n_init="auto", init="k-means++")
         kmeans.fit(cluster_data)
         cluster_labels = kmeans.labels_
-    elif clustering_method == "kmeans_and_gmm":
+    elif clustering_method == ClusteringMethod.KMEANS_AND_GMM:
         gmm = GaussianMixture(
             n_components=num_clusters,
             verbose=1,
@@ -301,7 +306,7 @@ def _pair_clustering_keep_id(
         )
         gmm.fit(cluster_data)
         cluster_labels = gmm.predict(cluster_data)
-    elif clustering_method == "variational":
+    elif clustering_method == ClusteringMethod.VARIATIONAL:
         bgmm = BayesianGaussianMixture(
             n_components=num_clusters,
             verbose=1,
@@ -311,7 +316,7 @@ def _pair_clustering_keep_id(
         )
         bgmm.fit(cluster_data)
         cluster_labels = bgmm.predict_proba(cluster_data)
-    elif clustering_method == "gmm":
+    elif clustering_method == ClusteringMethod.GMM:
         gmm = GaussianMixture(
             n_components=num_clusters,
             verbose=1,
@@ -320,7 +325,7 @@ def _pair_clustering_keep_id(
         gmm.fit(cluster_data)
         cluster_labels = gmm.predict(cluster_data)
 
-    if clustering_method == "variational":
+    if clustering_method == ClusteringMethod.VARIATIONAL:
         group_cluster_labels, agree_rates = _aggregate_and_sample(cluster_labels, child_group_lengths)
     else:
         group_cluster_labels, agree_rates = _get_group_cluster_labels_through_voting(
