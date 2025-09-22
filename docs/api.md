@@ -7,13 +7,6 @@
       show_root_heading: true
       show_root_full_path: true
 
-## Data Loaders Module
-
-::: midst_toolkit.core.data_loaders
-    options:
-      show_root_heading: true
-      show_root_full_path: true
-
 ## Logger Module
 
 ::: midst_toolkit.core.logger
