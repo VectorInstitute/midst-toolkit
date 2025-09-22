@@ -119,7 +119,7 @@ def minimum_distances(
     """
     if batch_size is None:
         # If batch size isn't specified, do it all at once.
-        batch_size = target_data.size(0)
+        batch_size = reference_data.size(0)
 
     # Create a minimum distance for each target data sample
     if skip_diagonal:
@@ -136,9 +136,9 @@ def minimum_distances(
             min_batch_distances = compute_top_k_distances(target_data, reference_data_batch, norm, top_k=2)
             combined_distances = torch.cat((min_distances, min_batch_distances), dim=1)
             min_distances, _ = torch.topk(combined_distances, 2, dim=1, largest=False)
-
-        min_batch_distances = compute_top_k_distances(target_data, reference_data_batch, norm, top_k=1)
-        min_distances = torch.minimum(min_distances, min_batch_distances.squeeze())
+        else:
+            min_batch_distances = compute_top_k_distances(target_data, reference_data_batch, norm, top_k=1)
+            min_distances = torch.minimum(min_distances, min_batch_distances.squeeze())
 
     if skip_diagonal:
         # Smallest distance should be point to itself. Second smallest is the rest.
