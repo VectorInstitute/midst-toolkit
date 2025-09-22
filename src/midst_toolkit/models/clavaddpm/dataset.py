@@ -73,25 +73,18 @@ class Transformations:
     cat_encoding: CatEncoding | None = None
     y_policy: YPolicy | None = "default"
 
-
-# TODO move this into the Transformations' class init
-def get_T_dict() -> dict[str, Any]:
-    """
-    Return a dictionary used to initialize the transformation object.
-
-    Returns:
-        The transformation object default parameters.
-    """
-    # ruff: noqa: N802
-    return {
-        "seed": 0,
-        "normalization": "quantile",
-        "num_nan_policy": None,
-        "cat_nan_policy": None,
-        "cat_min_frequency": None,
-        "cat_encoding": None,
-        "y_policy": "default",
-    }
+    @classmethod
+    def default(cls) -> Self:
+        """Return the default transformations."""
+        return cls(
+            seed=0,
+            normalization="quantile",
+            num_nan_policy=None,
+            cat_nan_policy=None,
+            cat_min_frequency=None,
+            cat_encoding=None,
+            y_policy="default",
+        )
 
 
 @dataclass(frozen=False)
