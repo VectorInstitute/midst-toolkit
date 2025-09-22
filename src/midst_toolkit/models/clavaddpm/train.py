@@ -21,7 +21,7 @@ from midst_toolkit.models.clavaddpm.dataset import (
 )
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 from midst_toolkit.models.clavaddpm.model import Classifier, ModelType, get_table_info
-from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, create_named_schedule_sampler
+from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, ScheduleSamplerType
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 from midst_toolkit.models.clavaddpm.typing import (
     Configs,
@@ -447,7 +447,10 @@ def train_classifier(
 
     classifier_optimizer = optim.AdamW(classifier.parameters(), lr=learning_rate)
 
-    empty_diffusion = GaussianMultinomialDiffusion(
+    schedule_sampler = ScheduleSamplerType.UNIFORM.create_named_schedule_sampler(num_timesteps)
+    key_value_logger = KeyValueLogger()
+
+    diffusion_model = GaussianMultinomialDiffusion(
         num_classes=category_sizes,
         num_numerical_features=num_numerical_features,
         denoise_fn=None,  # type: ignore[arg-type]
@@ -456,10 +459,7 @@ def train_classifier(
         scheduler=scheduler,
         device=torch.device(device),
     )
-    empty_diffusion.to(device)
-
-    schedule_sampler = create_named_schedule_sampler("uniform", empty_diffusion)
-    key_value_logger = KeyValueLogger()
+    diffusion_model.to(device)
 
     classifier.train()
     for step in range(classifier_steps):
@@ -471,7 +471,7 @@ def train_classifier(
             train_loader,
             dataset,
             schedule_sampler,
-            empty_diffusion,
+            diffusion_model,
             prefix="train",
             device=device,
             key_value_logger=key_value_logger,
@@ -487,7 +487,7 @@ def train_classifier(
                     val_loader,
                     dataset,
                     schedule_sampler,
-                    empty_diffusion,
+                    diffusion_model,
                     prefix="val",
                     device=device,
                     key_value_logger=key_value_logger,
