@@ -21,10 +21,17 @@ from midst_toolkit.models.clavaddpm.dataset import (
     make_dataset_from_df,
 )
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
-from midst_toolkit.models.clavaddpm.model import Classifier, ModelParameters, ModelType, RTDLParameters, get_table_info
+from midst_toolkit.models.clavaddpm.model import Classifier, ModelType, get_table_info
 from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, create_named_schedule_sampler
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
-from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
+from midst_toolkit.models.clavaddpm.typing import (
+    Configs,
+    IsYCond,
+    ModelParameters,
+    RelationOrder,
+    RTDLParameters,
+    Tables,
+)
 
 
 def clava_training(
@@ -325,7 +332,7 @@ def train_model(
     )
     trainer.train()
 
-    if model_params.is_y_cond == "concat":
+    if model_params.is_y_cond == IsYCond.CONCAT:
         column_orders = column_orders[1:] + [column_orders[0]]
     else:
         column_orders = column_orders + [data_frame_info["y_col"]]
@@ -414,7 +421,7 @@ def train_classifier(
     else:
         num_numerical_features = dataset.X_num["train"].shape[1]
 
-    if model_params.is_y_cond == "concat":
+    if model_params.is_y_cond == IsYCond.CONCAT:
         num_numerical_features -= 1
 
     if pre_trained_classifier is None:
@@ -485,7 +492,7 @@ def train_classifier(
     for _ in range(3000):
         test_x, test_y = next(test_loader)
         test_y = test_y.long().to(device)
-        test_x = test_x[:, 1:].to(device) if model_params.is_y_cond == "concat" else test_x.to(device)
+        test_x = test_x[:, 1:].to(device) if model_params.is_y_cond == IsYCond.CONCAT else test_x.to(device)
         with torch.no_grad():
             pred = classifier(test_x, timesteps=torch.zeros(test_x.shape[0]).to(device))
             correct += (pred.argmax(dim=1) == test_y).sum().item()

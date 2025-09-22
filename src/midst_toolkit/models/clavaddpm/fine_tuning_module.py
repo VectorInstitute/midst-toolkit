@@ -13,9 +13,10 @@ from midst_toolkit.models.clavaddpm.dataset import Transformations, make_dataset
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
     GaussianMultinomialDiffusion,
 )
-from midst_toolkit.models.clavaddpm.model import ModelParameters, ModelType, RTDLParameters, get_table_info
+from midst_toolkit.models.clavaddpm.model import ModelType, get_table_info
 from midst_toolkit.models.clavaddpm.train import train_classifier
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
+from midst_toolkit.models.clavaddpm.typing import IsYCond, ModelParameters, RTDLParameters
 
 
 def fine_tune_model(
@@ -71,7 +72,7 @@ def fine_tune_model(
     )
     trainer.train()
 
-    if model_params.is_y_cond == "concat":
+    if model_params.is_y_cond == IsYCond.CONCAT:
         column_orders = column_orders[1:] + [column_orders[0]]
     else:
         column_orders = column_orders + [df_info["y_col"]]

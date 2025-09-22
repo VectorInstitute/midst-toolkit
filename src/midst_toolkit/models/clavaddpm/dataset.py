@@ -28,7 +28,7 @@ from sklearn.preprocessing import (
     StandardScaler,
 )
 
-from midst_toolkit.models.clavaddpm.typing import ArrayDict
+from midst_toolkit.models.clavaddpm.typing import ArrayDict, IsYCond
 
 
 CAT_MISSING_VALUE = "__nan__"
@@ -366,7 +366,7 @@ def make_dataset_from_df(
     # ruff: noqa: PLR0915, PLR0912
     df: pd.DataFrame,
     transformations: Transformations,
-    is_y_cond: Literal["concat", "embedding", "none"],
+    is_y_cond: IsYCond,
     df_info: pd.DataFrame,
     ratios: list[float] | None = None,
     std: float = 0,
@@ -422,14 +422,16 @@ def make_dataset_from_df(
     column_to_index = {col: i for i, col in enumerate(index_to_column)}
 
     if df_info["n_classes"] > 0:
-        X_cat: dict[str, np.ndarray] | None = {} if df_info["cat_cols"] is not None or is_y_cond == "concat" else None
+        X_cat: dict[str, np.ndarray] | None = (
+            {} if df_info["cat_cols"] is not None or is_y_cond == IsYCond.CONCAT else None
+        )
         X_num: dict[str, np.ndarray] | None = {} if df_info["num_cols"] is not None else None
         y = {}
 
         cat_cols_with_y = []
         if df_info["cat_cols"] is not None:
             cat_cols_with_y += df_info["cat_cols"]
-        if is_y_cond == "concat":
+        if is_y_cond == IsYCond.CONCAT:
             cat_cols_with_y = [df_info["y_col"]] + cat_cols_with_y
 
         if len(cat_cols_with_y) > 0:
@@ -451,13 +453,13 @@ def make_dataset_from_df(
 
     else:
         X_cat = {} if df_info["cat_cols"] is not None else None
-        X_num = {} if df_info["num_cols"] is not None or is_y_cond == "concat" else None
+        X_num = {} if df_info["num_cols"] is not None or is_y_cond == IsYCond.CONCAT else None
         y = {}
 
         num_cols_with_y = []
         if df_info["num_cols"] is not None:
             num_cols_with_y += df_info["num_cols"]
-        if is_y_cond == "concat":
+        if is_y_cond == IsYCond.CONCAT:
             num_cols_with_y = [df_info["y_col"]] + num_cols_with_y
 
         if len(num_cols_with_y) > 0:

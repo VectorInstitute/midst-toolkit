@@ -1,8 +1,7 @@
 import math
-from dataclasses import dataclass
 from enum import Enum
 from logging import INFO
-from typing import Any, Literal, Self
+from typing import Any, Self
 
 import pandas as pd
 import torch
@@ -12,7 +11,7 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 
 from midst_toolkit.common.logger import log
-from midst_toolkit.models.clavaddpm.typing import ModuleType
+from midst_toolkit.models.clavaddpm.typing import IsYCond, ModelParameters, ModuleType, RTDLParameters
 
 
 class Classifier(nn.Module):
@@ -309,32 +308,6 @@ class MLP(nn.Module):
         return self.head(x)
 
 
-@dataclass
-class RTDLParameters:
-    """Parameters for the RTDL model."""
-
-    d_layers: list[int]
-    dropout: float
-    d_in: int = 0
-    d_out: int = 0
-    emb_d: int = 0
-    n_blocks: int = 0
-    d_main: int = 0
-    d_hidden: int = 0
-    dropout_first: float = 0
-    dropout_second: float = 0
-
-
-@dataclass
-class ModelParameters:
-    """Parameters for the ClavaDDPM model."""
-
-    rtdl_parameters: RTDLParameters
-    d_in: int = 0
-    num_classes: int = 0
-    is_y_cond: Literal["concat", "embedding", "none"] = "none"
-
-
 class ResNet(nn.Module):
     """
     The ResNet model used in [gorishniy2021revisiting].
@@ -591,7 +564,7 @@ class MLPDiffusion(nn.Module):
         self,
         d_in: int,
         num_classes: int,
-        is_y_cond: Literal["concat", "embedding", "none"],
+        is_y_cond: IsYCond,
         rtdl_parameters: RTDLParameters,
         dim_t: int = 128,
     ):
@@ -601,7 +574,7 @@ class MLPDiffusion(nn.Module):
         Args:
             d_in: The input dimension size.
             num_classes: The number of classes.
-            is_y_cond: The condition on the y column. Can be "concat", "embedding", or "none".
+            is_y_cond: The condition on the y column.
             rtdl_parameters: The parameters for the MLP.
             dim_t: The dimension size of the timestamp.
         """
@@ -622,9 +595,9 @@ class MLPDiffusion(nn.Module):
         )
 
         self.label_emb: nn.Embedding | nn.Linear
-        if self.num_classes > 0 and is_y_cond == "embedding":
+        if self.num_classes > 0 and is_y_cond == IsYCond.EMBEDDING:
             self.label_emb = nn.Embedding(self.num_classes, dim_t)
-        elif self.num_classes == 0 and is_y_cond == "embedding":
+        elif self.num_classes == 0 and is_y_cond == IsYCond.EMBEDDING:
             self.label_emb = nn.Linear(1, dim_t)
 
         self.proj = nn.Linear(d_in, dim_t)
@@ -643,7 +616,7 @@ class MLPDiffusion(nn.Module):
             The output tensor.
         """
         emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
-        if self.is_y_cond == "embedding" and y is not None:
+        if self.is_y_cond == IsYCond.EMBEDDING and y is not None:
             y = y.squeeze() if self.num_classes > 0 else y.resize_(y.size(0), 1).float()
             emb += F.silu(self.label_emb(y))
         x = self.proj(x) + emb
@@ -657,7 +630,7 @@ class ResNetDiffusion(nn.Module):
         num_classes: int,
         rtdl_parameters: RTDLParameters,
         dim_t: int = 256,
-        is_y_cond: Literal["concat", "embedding", "none"] | None = None,
+        is_y_cond: IsYCond | None = None,
     ):
         """
         Initialize the ResNet diffusion model.
@@ -667,8 +640,7 @@ class ResNetDiffusion(nn.Module):
             num_classes: The number of classes.
             rtdl_parameters: The parameters for the ResNet.
             dim_t: The dimension size of the timestamp.
-            is_y_cond: The condition on the y column. Can be "concat", "embedding", or "none".
-                Optional, default is None.
+            is_y_cond: The condition on the y column. Optional, default is None.
         """
         super().__init__()
         self.dim_t = dim_t
@@ -691,9 +663,9 @@ class ResNetDiffusion(nn.Module):
         )
 
         self.label_emb: nn.Embedding | nn.Linear
-        if self.num_classes > 0 and is_y_cond == "embedding":
+        if self.num_classes > 0 and is_y_cond == IsYCond.EMBEDDING:
             self.label_emb = nn.Embedding(self.num_classes, dim_t)
-        elif self.num_classes == 0 and is_y_cond == "embedding":
+        elif self.num_classes == 0 and is_y_cond == IsYCond.EMBEDDING:
             self.label_emb = nn.Linear(1, dim_t)
 
         self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
