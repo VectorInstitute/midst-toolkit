@@ -1,13 +1,11 @@
 """Samplers for the ClavaDDPM model."""
 
 from abc import ABC, abstractmethod
-from typing import Literal
+from enum import Enum
 
 import numpy as np
 import torch
 from torch import Tensor
-
-from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 
 
 class ScheduleSampler(ABC):
@@ -54,15 +52,15 @@ class ScheduleSampler(ABC):
 
 
 class UniformSampler(ScheduleSampler):
-    def __init__(self, diffusion: GaussianMultinomialDiffusion):
+    def __init__(self, num_timesteps: int):
         """
         Initialize the UniformSampler.
 
         Args:
-            diffusion: The diffusion object.
+            num_timesteps: The number of diffusion timesteps.
         """
-        self.diffusion = diffusion
-        self._weights = torch.from_numpy(np.ones([diffusion.num_timesteps]))
+        self.num_timesteps = num_timesteps
+        self._weights = torch.from_numpy(np.ones([num_timesteps]))
 
     def weights(self) -> Tensor:
         """Return the weights."""
@@ -125,7 +123,7 @@ class LossAwareSampler(ScheduleSampler):
 class LossSecondMomentResampler(LossAwareSampler):
     def __init__(
         self,
-        diffusion: GaussianMultinomialDiffusion,
+        num_timesteps: int,
         history_per_term: int = 10,
         uniform_prob: float = 0.001,
     ):
@@ -133,15 +131,15 @@ class LossSecondMomentResampler(LossAwareSampler):
         Initialize the LossSecondMomentResampler.
 
         Args:
-            diffusion: The diffusion object.
+            num_timesteps: The number of diffusion timesteps.
             history_per_term: The number of losses to keep for each timestep.
             uniform_prob: The probability of sampling a uniform timestep.
         """
-        self.diffusion = diffusion
+        self.num_timesteps = num_timesteps
         self.history_per_term = history_per_term
         self.uniform_prob = uniform_prob
-        self._loss_history = np.zeros([diffusion.num_timesteps, history_per_term], dtype=np.float64)
-        self._loss_counts = np.zeros([diffusion.num_timesteps], dtype=np.uint)
+        self._loss_history = np.zeros([num_timesteps, history_per_term], dtype=np.float64)
+        self._loss_counts = np.zeros([num_timesteps], dtype=np.uint)
 
     def weights(self):
         """
@@ -150,7 +148,7 @@ class LossSecondMomentResampler(LossAwareSampler):
         Warms up the sampler if it's not warmed up.
         """
         if not self._warmed_up():
-            return np.ones([self.diffusion.num_timesteps], dtype=np.float64)
+            return np.ones([self.num_timesteps], dtype=np.float64)
         weights = np.sqrt(np.mean(self._loss_history**2, axis=-1))
         weights /= np.sum(weights)
         weights *= 1 - self.uniform_prob
@@ -185,23 +183,25 @@ class LossSecondMomentResampler(LossAwareSampler):
         return (self._loss_counts == self.history_per_term).all()
 
 
-def create_named_schedule_sampler(
-    name: Literal["uniform", "loss-second-moment"],
-    diffusion: GaussianMultinomialDiffusion,
-) -> ScheduleSampler:
-    """
-    Create a ScheduleSampler from a library of pre-defined samplers.
+class ScheduleSamplerType(Enum):
+    """Possible types of schedule sampler."""
 
-    Args:
-        name: The name of the sampler. Should be one of ["uniform", "loss-second-moment"].
-        diffusion: The diffusion object to sample for.
+    UNIFORM = "uniform"
+    LOSS_SECOND_MOMENT = "loss-second-moment"
 
-    Returns:
-        The UniformSampler if ``name`` is "uniform", LossSecondMomentResampler if ``name``
-        is "loss-second-moment".
-    """
-    if name == "uniform":
-        return UniformSampler(diffusion)
-    if name == "loss-second-moment":
-        return LossSecondMomentResampler(diffusion)
-    raise NotImplementedError(f"unknown schedule sampler: {name}")
+    def create_named_schedule_sampler(self, num_timesteps: int) -> ScheduleSampler:
+        """
+        Create a ScheduleSampler from a library of pre-defined samplers.
+
+        Args:
+            num_timesteps: The number of diffusion timesteps.
+
+        Returns:
+            The UniformSampler if ScheduleSamplerType.UNIFORM, LossSecondMomentResampler
+            if ScheduleSamplerType.LOSS_SECOND_MOMENT.
+        """
+        if self == ScheduleSamplerType.UNIFORM:
+            return UniformSampler(num_timesteps)
+        if self == ScheduleSamplerType.LOSS_SECOND_MOMENT:
+            return LossSecondMomentResampler(num_timesteps)
+        raise NotImplementedError(f"Unsupported schedule sampler: {self.value}")

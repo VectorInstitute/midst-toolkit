@@ -22,7 +22,7 @@ from midst_toolkit.models.clavaddpm.dataset import (
 )
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 from midst_toolkit.models.clavaddpm.model import Classifier, ModelType, get_table_info
-from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, create_named_schedule_sampler
+from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, ScheduleSamplerType
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 from midst_toolkit.models.clavaddpm.typing import (
     Configs,
@@ -450,7 +450,7 @@ def train_classifier(
     )
     empty_diffusion.to(device)
 
-    schedule_sampler = create_named_schedule_sampler("uniform", empty_diffusion)
+    schedule_sampler = ScheduleSamplerType.UNIFORM.create_named_schedule_sampler(num_timesteps)
 
     classifier.train()
     for step in range(classifier_steps):
