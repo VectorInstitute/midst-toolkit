@@ -13,8 +13,7 @@ from midst_toolkit.models.clavaddpm.dataset import Transformations, make_dataset
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
     GaussianMultinomialDiffusion,
 )
-from midst_toolkit.models.clavaddpm.model import ModelType, get_table_info
-from midst_toolkit.models.clavaddpm.train import _get_model_params as get_model_params
+from midst_toolkit.models.clavaddpm.model import ModelParameters, ModelType, RTDLParameters, get_table_info
 from midst_toolkit.models.clavaddpm.train import train_classifier
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 
@@ -23,7 +22,7 @@ def fine_tune_model(
     trained_diffusion: GaussianMultinomialDiffusion,
     df: pd.DataFrame,
     df_info: pd.DataFrame,
-    model_params: dict[str, Any],
+    model_params: ModelParameters,
     transformations: Transformations,
     steps: int,
     batch_size: int,
@@ -36,7 +35,7 @@ def fine_tune_model(
     dataset, label_encoders, column_orders = make_dataset_from_df(
         df,
         transformations,
-        is_y_cond=model_params["is_y_cond"],
+        is_y_cond=model_params.is_y_cond,
         ratios=[0.99, 0.005, 0.005],
         df_info=df_info,
         std=0,
@@ -51,7 +50,7 @@ def fine_tune_model(
 
     num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
     d_in = np.sum(category_array) + num_numerical_features
-    model_params["d_in"] = d_in
+    model_params.d_in = d_in
 
     model = model_type.get_model(model_params)
     model.to(device)
@@ -72,7 +71,7 @@ def fine_tune_model(
     )
     trainer.train()
 
-    if model_params["is_y_cond"] == "concat":
+    if model_params.is_y_cond == "concat":
         column_orders = column_orders[1:] + [column_orders[0]]
     else:
         column_orders = column_orders + [df_info["y_col"]]
@@ -102,11 +101,11 @@ def child_fine_tuning(
     else:
         y_col = f"{parent_name}_{child_name}_cluster"
     child_info = get_table_info(child_df_with_cluster, child_domain_dict, y_col)
-    child_model_params = get_model_params(
-        {
-            "d_layers": configs["diffusion"]["d_layers"],
-            "dropout": configs["diffusion"]["dropout"],
-        }
+    child_model_params = ModelParameters(
+        rtdl_parameters=RTDLParameters(
+            d_layers=configs["diffusion"]["d_layers"],
+            dropout=configs["diffusion"]["dropout"],
+        ),
     )
     child_transformations = Transformations.default()
 

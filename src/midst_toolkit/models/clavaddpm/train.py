@@ -21,7 +21,7 @@ from midst_toolkit.models.clavaddpm.dataset import (
     make_dataset_from_df,
 )
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
-from midst_toolkit.models.clavaddpm.model import Classifier, ModelType, get_table_info
+from midst_toolkit.models.clavaddpm.model import Classifier, ModelParameters, ModelType, RTDLParameters, get_table_info
 from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, create_named_schedule_sampler
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
@@ -179,11 +179,11 @@ def child_training(
     else:
         y_col = f"{parent_name}_{child_name}_cluster"
     child_info = get_table_info(child_df_with_cluster, child_domain_dict, y_col)
-    child_model_params = _get_model_params(
-        {
-            "d_layers": diffusion_config["d_layers"],
-            "dropout": diffusion_config["dropout"],
-        }
+    child_model_params = ModelParameters(
+        rtdl_parameters=RTDLParameters(
+            d_layers=diffusion_config["d_layers"],
+            dropout=diffusion_config["dropout"],
+        ),
     )
     child_transformations = Transformations.default()
     # ruff: noqa: N806
@@ -230,7 +230,7 @@ def child_training(
             log(WARNING, "Skipping classifier training since classifier_config['iterations'] <= 0")
 
     child_result["df_info"] = child_info
-    child_result["model_params"] = child_model_params
+    child_result["model_params"] = asdict(child_model_params)
     child_result["T_dict"] = asdict(child_transformations)
     return child_result
 
@@ -238,7 +238,7 @@ def child_training(
 def train_model(
     data_frame: pd.DataFrame,
     data_frame_info: pd.DataFrame,
-    model_params: dict[str, Any],
+    model_params: ModelParameters,
     transformations: Transformations,
     steps: int,
     batch_size: int,
@@ -256,7 +256,7 @@ def train_model(
     Args:
         data_frame: DataFrame to train the model on.
         data_frame_info: Dictionary of the table information.
-        model_params: Dictionary of the model parameters.
+        model_params: The model parameters.
         transformations: The transformations to apply to the dataset.
         steps: Number of steps to train the model.
         batch_size: Batch size to use for training.
@@ -279,7 +279,7 @@ def train_model(
     dataset, label_encoders, column_orders = make_dataset_from_df(
         data_frame,
         transformations,
-        is_y_cond=model_params["is_y_cond"],
+        is_y_cond=model_params.is_y_cond,
         ratios=[0.99, 0.005, 0.005],
         df_info=data_frame_info,
         std=0,
@@ -295,7 +295,7 @@ def train_model(
 
     num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
     d_in = np.sum(category_sizes) + num_numerical_features
-    model_params["d_in"] = d_in
+    model_params.d_in = d_in
 
     print("Model params: {}".format(model_params))
     model = model_type.get_model(model_params)
@@ -325,7 +325,7 @@ def train_model(
     )
     trainer.train()
 
-    if model_params["is_y_cond"] == "concat":
+    if model_params.is_y_cond == "concat":
         column_orders = column_orders[1:] + [column_orders[0]]
     else:
         column_orders = column_orders + [data_frame_info["y_col"]]
@@ -346,7 +346,7 @@ def train_model(
 def train_classifier(
     data_frame: pd.DataFrame,
     data_frame_info: pd.DataFrame,
-    model_params: dict[str, Any],
+    model_params: ModelParameters,
     transformations: Transformations,
     classifier_steps: int,
     batch_size: int,
@@ -367,7 +367,7 @@ def train_classifier(
     Args:
         data_frame: DataFrame to train the model on.
         data_frame_info: Dictionary of the table information.
-        model_params: Dictionary of the model parameters.
+        model_params: The model parameters.
         transformations: The transformations to apply to the dataset.
         classifier_steps: Number of steps to train the classifier.
         batch_size: Batch size to use for training.
@@ -390,7 +390,7 @@ def train_classifier(
     dataset, label_encoders, column_orders = make_dataset_from_df(
         data_frame,
         transformations,
-        is_y_cond=model_params["is_y_cond"],
+        is_y_cond=model_params.is_y_cond,
         ratios=[0.99, 0.005, 0.005],
         df_info=data_frame_info,
         std=0,
@@ -414,7 +414,7 @@ def train_classifier(
     else:
         num_numerical_features = dataset.X_num["train"].shape[1]
 
-    if model_params["is_y_cond"] == "concat":
+    if model_params.is_y_cond == "concat":
         num_numerical_features -= 1
 
     if pre_trained_classifier is None:
@@ -485,7 +485,7 @@ def train_classifier(
     for _ in range(3000):
         test_x, test_y = next(test_loader)
         test_y = test_y.long().to(device)
-        test_x = test_x[:, 1:].to(device) if model_params["is_y_cond"] == "concat" else test_x.to(device)
+        test_x = test_x[:, 1:].to(device) if model_params.is_y_cond == "concat" else test_x.to(device)
         with torch.no_grad():
             pred = classifier(test_x, timesteps=torch.zeros(test_x.shape[0]).to(device))
             correct += (pred.argmax(dim=1) == test_y).sum().item()
@@ -682,36 +682,3 @@ def _split_microbatches(
     else:
         for i in range(0, bs, microbatch):
             yield batch[i : i + microbatch], labels[i : i + microbatch], t[i : i + microbatch]
-
-
-# TODO make this into a class with default parameters
-def _get_model_params(rtdl_params: dict[str, Any] | None = None) -> dict[str, Any]:
-    """
-    Return the model parameters.
-
-    Args:
-        rtdl_params: The parameters for the RTDL model. If None, the default parameters below are used:
-            {
-                "d_layers": [512, 1024, 1024, 1024, 1024, 512],
-                "dropout": 0.0,
-            }
-
-    Returns:
-        The model parameters as a dictionary containing the following keys:
-            - num_classes: The number of classes. Defaults to 0.
-            - is_y_cond: Affects how y is generated. For more information, see the documentation
-                of the `make_dataset_from_df` function. Can be any of ["none", "concat", "embedding"].
-                Defaults to "none".
-            - rtdl_params: The parameters for the RTDL model.
-    """
-    if rtdl_params is None:
-        rtdl_params = {
-            "d_layers": [512, 1024, 1024, 1024, 1024, 512],
-            "dropout": 0.0,
-        }
-
-    return {
-        "num_classes": 0,
-        "is_y_cond": "none",
-        "rtdl_params": rtdl_params,
-    }
