@@ -119,26 +119,24 @@ def test_nndr_score_small_data_with_categoricals_one_hot() -> None:
 
 
 def test_nndr_score() -> None:
-    real_data_train, synthetic_data, real_data_test, meta_info = load_midst_data_with_test(
+    real_data, synthetic_data, holdout_data, meta_info = load_midst_data_with_test(
         REAL_DATA_TRAIN_PATH, SYNTHETIC_DATA_PATH, META_INFO_PATH, REAL_DATA_TEST_PATH
     )
 
-    synthetic_data, real_data_train, real_data_test = preprocess(
-        meta_info, synthetic_data, real_data_train, real_data_test
-    )
+    synthetic_data, real_data, holdout_data = preprocess(meta_info, synthetic_data, real_data, holdout_data)
     nndr_metric = NearestNeighborDistanceRatio()
-    results = nndr_metric.compute(real_data_train, synthetic_data, real_data_test)
+    results = nndr_metric.compute(real_data, synthetic_data, holdout_data)
     assert pytest.approx(results["mean_nndr"], abs=1e-8) == 0.9782823717907417
     assert pytest.approx(results["privacy_loss"], abs=1e-8) == 0.005370743246908338
 
 
 def test_nndr_score_with_preprocess() -> None:
-    real_data_train, synthetic_data, real_data_test, meta_info = load_midst_data_with_test(
+    real_data, synthetic_data, holdout_data, meta_info = load_midst_data_with_test(
         REAL_DATA_TRAIN_PATH, SYNTHETIC_DATA_PATH, META_INFO_PATH, REAL_DATA_TEST_PATH
     )
 
     # Preprocessing internally should return the same result
     nndr_metric = NearestNeighborDistanceRatio(meta_info=meta_info, do_preprocess=True)
-    results = nndr_metric.compute(real_data_train, synthetic_data, real_data_test)
+    results = nndr_metric.compute(real_data, synthetic_data, holdout_data)
     assert pytest.approx(results["mean_nndr"], abs=1e-8) == 0.9782823717907417
     assert pytest.approx(results["privacy_loss"], abs=1e-8) == 0.005370743246908338
