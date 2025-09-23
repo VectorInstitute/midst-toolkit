@@ -91,3 +91,11 @@ class Scheduler(Enum):
 
     COSINE = "cosine"
     LINEAR = "linear"
+
+
+class ReductionMethod(Enum):
+    """Possible methods of reduction."""
+
+    MEAN = "mean"
+    SUM = "sum"
+    NONE = "none"

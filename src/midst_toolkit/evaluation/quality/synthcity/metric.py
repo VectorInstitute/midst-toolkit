@@ -84,7 +84,13 @@ class MetricEvaluator(metaclass=ABCMeta):
 
     @classmethod
     def fqdn(cls) -> str:
-        """No idea."""
+        """
+        Return the fully qualified domain name of the metric.
+
+        Returns:
+            The fully qualified domain name of the metric, composed of the
+            type and name of the metric, separated by a dot.
+        """
         return f"{cls.type()}.{cls.name()}"
 
     def reduction(self) -> Callable:
