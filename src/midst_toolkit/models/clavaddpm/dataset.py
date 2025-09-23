@@ -31,6 +31,7 @@ from sklearn.preprocessing import (
 from midst_toolkit.models.clavaddpm.typing import ArrayDict
 
 
+# TODO: Dunders are special case in python, rename these values to something else.
 CAT_MISSING_VALUE = "__nan__"
 CAT_RARE_VALUE = "__rare__"
 
@@ -105,33 +106,46 @@ class Dataset:
     num_transform: StandardScaler | None = None
 
     @classmethod
-    def from_dir(cls, dir_: Path | str) -> Self:
+    def from_dir(cls, directory: Path) -> Self:
         """
         Load a dataset from a directory.
 
         Args:
-            dir_: The directory to load the dataset from. Can be a Path object or a path string.
+            directory: The directory to load the dataset from. Can be a Path object or a path string.
 
         Returns:
             The loaded dataset.
         """
-        dir_ = Path(dir_)
-        splits = [k for k in ["train", "val", "test"] if dir_.joinpath(f"y_{k}.npy").exists()]
-
-        def load(item: str) -> ArrayDict:
-            return {x: cast(np.ndarray, np.load(dir_ / f"{item}_{x}.npy", allow_pickle=True)) for x in splits}
-
-        if Path(dir_ / "info.json").exists():
-            info = json.loads(Path(dir_ / "info.json").read_text())
+        if Path(directory / "info.json").exists():
+            info = json.loads(Path(directory / "info.json").read_text())
 
         return cls(
-            load("X_num") if dir_.joinpath("X_num_train.npy").exists() else None,
-            load("X_cat") if dir_.joinpath("X_cat_train.npy").exists() else None,
-            load("y"),
+            cls._load_datasets(directory, "X_num") if directory.joinpath("X_num_train.npy").exists() else None,
+            cls._load_datasets(directory, "X_cat") if directory.joinpath("X_cat_train.npy").exists() else None,
+            cls._load_datasets(directory, "y"),
             {},
             TaskType(info["task_type"]),
             info.get("n_classes"),
         )
+
+    @classmethod
+    def _load_datasets(cls, directory: Path, dataset_name: str) -> ArrayDict:
+        """
+        Load all the dataset splits from a directory.
+
+        Will check which of the splits exist in the directory for the
+        given dataset_name and load all of them.
+
+        Args:
+            directory: The directory to load the dataset from.
+            dataset_name: The dataset_name to load.
+
+        Returns:
+            The loaded datasets with all the splits.
+        """
+        splits = [k for k in ["train", "val", "test"] if directory.joinpath(f"y_{k}.npy").exists()]
+        # TODO: figure out if there is a way of getting rid of the cast
+        return {x: cast(np.ndarray, np.load(directory / f"{dataset_name}_{x}.npy", allow_pickle=True)) for x in splits}
 
     @property
     def is_binclass(self) -> bool:
@@ -168,6 +182,8 @@ class Dataset:
         """
         Get the number of numerical features in the dataset.
 
+        That number should be in the second dimension of the tensors of X_num.
+
         Returns:
             The number of numerical features in the dataset.
         """
@@ -177,6 +193,8 @@ class Dataset:
     def n_cat_features(self) -> int:
         """
         Get the number of categorical features in the dataset.
+
+        That number should be in the second dimension of the tensors of X_cat tensor.
 
         Returns:
             The number of categorical features in the dataset.
@@ -194,23 +212,27 @@ class Dataset:
         return self.n_num_features + self.n_cat_features
 
     # TODO: make partition into an Enum
-    def size(self, partition: Literal["train", "val", "test"] | None) -> int:
+    def size(self, split: Literal["train", "val", "test"] | None) -> int:
         """
-        Get the size of the dataset.
+        Get the size of a dataset split. If no split is provided, the size of
+        the entire dataset is returned.
 
         Args:
-            partition: The partition of the dataset to get the size of.
+            split: The split of the dataset to get the size of.
                 If None, the size of the entire dataset is returned.
 
         Returns:
             The size of the dataset.
         """
-        return sum(map(len, self.y.values())) if partition is None else len(self.y[partition])
+        return sum(map(len, self.y.values())) if split is None else len(self.y[split])
 
     @property
     def nn_output_dim(self) -> int:
         """
         Get the output dimension of the neural network.
+
+        This only works for multiclass classification and regression tasks. Binary classification
+        tasks have output dimension of 2.
 
         Returns:
             The output dimension of the neural network.
@@ -220,17 +242,17 @@ class Dataset:
             return self.n_classes
         return 1
 
-    def get_category_sizes(self, partition: Literal["train", "val", "test"]) -> list[int]:
+    def get_category_sizes(self, split: Literal["train", "val", "test"]) -> list[int]:
         """
-        Get the size of the categories in the dataset.
+        Get the size of the categories in the specified split of the dataset.
 
         Args:
-            partition: The partition of the dataset to get the size of the categories of.
+            split: The split of the dataset to get the size of the categories of.
 
         Returns:
-            The size of the categories in the partition of the dataset.
+            The size of the categories in the specified split of the dataset.
         """
-        return [] if self.X_cat is None else get_category_sizes(self.X_cat[partition])
+        return [] if self.X_cat is None else get_category_sizes(self.X_cat[split])
 
     # TODO: prediciton_type should be of type PredictionType
     def calculate_metrics(
@@ -312,6 +334,7 @@ def calculate_metrics(
         result = {"rmse": rmse, "r2": r2}
     else:
         labels, probs = _get_labels_and_probs(y_pred, task_type, prediction_type)
+        # TODO: figure out if there is a way of getting rid of the cast
         result = cast(dict[str, Any], classification_report(y_true, labels, output_dict=True))
         if task_type == TaskType.BINCLASS:
             result["roc_auc"] = roc_auc_score(y_true, probs)
