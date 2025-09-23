@@ -5,7 +5,7 @@ from collections.abc import Generator
 from dataclasses import asdict
 from logging import INFO, WARNING
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -28,6 +28,7 @@ from midst_toolkit.models.clavaddpm.typing import (
     GaussianLossType,
     IsYCond,
     ModelParameters,
+    ReductionMethod,
     RelationOrder,
     RTDLParameters,
     Scheduler,
@@ -624,9 +625,9 @@ def _numerical_forward_backward_log(
 
         losses = {}
         losses[f"{prefix}_loss"] = loss.detach()
-        losses[f"{prefix}_acc@1"] = _compute_top_k(logits, sub_labels, k=1, reduction="none")
+        losses[f"{prefix}_acc@1"] = _compute_top_k(logits, sub_labels, k=1, reduction=ReductionMethod.NONE)
         if logits.shape[1] >= 5:
-            losses[f"{prefix}_acc@5"] = _compute_top_k(logits, sub_labels, k=5, reduction="none")
+            losses[f"{prefix}_acc@5"] = _compute_top_k(logits, sub_labels, k=5, reduction=ReductionMethod.NONE)
         _log_loss_dict(diffusion, sub_t, losses, key_value_logger)
         del losses
         loss = loss.mean()
@@ -641,7 +642,7 @@ def _compute_top_k(
     logits: Tensor,
     labels: Tensor,
     k: int,
-    reduction: Literal["mean", "none"] = "mean",
+    reduction: ReductionMethod = ReductionMethod.MEAN,
 ) -> Tensor:
     """
     Compute the top-k accuracy.
@@ -650,18 +651,18 @@ def _compute_top_k(
         logits: The logits of the classifier.
         labels: The labels of the data.
         k: The number of top-k.
-        reduction: The reduction method. Should be one of ["mean", "none"]. Defaults to "mean".
+        reduction: The reduction method. Defaults to ReductionMethod.MEAN.
 
     Returns:
         The top-k accuracy.
     """
     _, top_ks = torch.topk(logits, k, dim=-1)
-    if reduction == "mean":
+    if reduction == ReductionMethod.MEAN:
         return (top_ks == labels[:, None]).float().sum(dim=-1).mean()
-    if reduction == "none":
+    if reduction == ReductionMethod.NONE:
         return (top_ks == labels[:, None]).float().sum(dim=-1)
 
-    raise ValueError(f"reduction should be one of ['mean', 'none']: {reduction}")
+    raise ValueError(f"Unsupported reduction method: {reduction.value}.")
 
 
 def _log_loss_dict(
