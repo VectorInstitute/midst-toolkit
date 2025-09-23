@@ -475,7 +475,8 @@ def train_classifier(
                 )
                 classifier.train()
 
-        if not step % logger_interval:
+        if step % logger_interval == 0:
+            # Dump the metrics every logger_interval number of steps
             key_value_logger.dump()
 
     # test classifier
@@ -584,7 +585,7 @@ def _numerical_forward_backward_log(
         prefix: The prefix for the loss. Defaults to "train".
         remove_first_col: Whether to remove the first column of the batch. Defaults to False.
         device: The device to use. Defaults to "cuda".
-        key_value_logger: The key-value logger to log ther losses. If None, the losses are not logged.
+        key_value_logger: The key-value logger to log the losses. If None, the losses are not logged.
     """
     batch, labels = next(data_loader)
     labels = labels.long().to(device)
@@ -646,7 +647,7 @@ def _compute_top_k(
 
 def _log_loss_dict(
     diffusion: GaussianMultinomialDiffusion,
-    ts: Tensor,
+    timesteps: Tensor,
     losses: dict[str, Tensor],
     key_value_logger: KeyValueLogger | None = None,
 ) -> None:
@@ -655,9 +656,9 @@ def _log_loss_dict(
 
     Args:
         diffusion: The diffusion object.
-        ts: The timesteps.
+        timesteps: The timesteps tensor.
         losses: The losses.
-        key_value_logger: The key-value logger. If None, the losses are not logged.
+        key_value_logger: The key-value logger to log the losses. If None, the losses are not logged.
     """
     if key_value_logger is None:
         return
@@ -665,7 +666,7 @@ def _log_loss_dict(
     for key, values in losses.items():
         key_value_logger.save_entry_mean(key, values.mean().item())
         # Log the quantiles (four quartiles, in particular).
-        for sub_t, sub_loss in zip(ts.cpu().numpy(), values.detach().cpu().numpy()):
+        for sub_t, sub_loss in zip(timesteps.cpu().numpy(), values.detach().cpu().numpy()):
             quartile = int(4 * sub_t / diffusion.num_timesteps)
             key_value_logger.save_entry_mean(f"{key}_q{quartile}", sub_loss)
 
