@@ -6,7 +6,6 @@ import pickle
 from collections import Counter
 from copy import deepcopy
 from dataclasses import astuple, dataclass, replace
-from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Self, cast
 
@@ -28,62 +27,22 @@ from sklearn.preprocessing import (
     StandardScaler,
 )
 
-from midst_toolkit.models.clavaddpm.typing import ArrayDict, IsYCond
+from midst_toolkit.models.clavaddpm.typing import (
+    ArrayDict,
+    CatEncoding,
+    CatNanPolicy,
+    IsYCond,
+    Normalization,
+    NumNanPolicy,
+    PredictionType,
+    TaskType,
+    Transformations,
+    YPolicy,
+)
 
 
 CAT_MISSING_VALUE = "__nan__"
 CAT_RARE_VALUE = "__rare__"
-
-
-Normalization = Literal["standard", "quantile", "minmax"]
-NumNanPolicy = Literal["drop-rows", "mean"]
-CatNanPolicy = Literal["most_frequent"]
-CatEncoding = Literal["one-hot", "counter"]
-YPolicy = Literal["default"]
-
-
-class TaskType(Enum):
-    BINCLASS = "binclass"
-    MULTICLASS = "multiclass"
-    REGRESSION = "regression"
-
-    def __str__(self) -> str:
-        """
-        Return the string representation of the task type, which is the value of the enum.
-
-        Returns:
-            The string representation of the task type.
-        """
-        return self.value
-
-
-class PredictionType(Enum):
-    LOGITS = "logits"
-    PROBS = "probs"
-
-
-@dataclass(frozen=True)
-class Transformations:
-    seed: int = 0
-    normalization: Normalization | None = None
-    num_nan_policy: NumNanPolicy | None = None
-    cat_nan_policy: CatNanPolicy | None = None
-    cat_min_frequency: float | None = None
-    cat_encoding: CatEncoding | None = None
-    y_policy: YPolicy | None = "default"
-
-    @classmethod
-    def default(cls) -> Self:
-        """Return the default transformations."""
-        return cls(
-            seed=0,
-            normalization="quantile",
-            num_nan_policy=None,
-            cat_nan_policy=None,
-            cat_min_frequency=None,
-            cat_encoding=None,
-            y_policy="default",
-        )
 
 
 @dataclass(frozen=False)
@@ -225,11 +184,10 @@ class Dataset:
         """
         return [] if self.X_cat is None else get_category_sizes(self.X_cat[partition])
 
-    # TODO: prediciton_type should be of type PredictionType
     def calculate_metrics(
         self,
         predictions: dict[str, np.ndarray],
-        prediction_type: str | PredictionType | None,
+        prediction_type: PredictionType | None,
     ) -> dict[str, Any]:
         """
         Calculate the metrics of the predictions.
@@ -274,14 +232,14 @@ def get_category_sizes(X: torch.Tensor | np.ndarray) -> list[int]:
 def calculate_metrics(
     y_true: np.ndarray,
     y_pred: np.ndarray,
-    task_type: str | TaskType,
-    prediction_type: str | PredictionType | None,
+    task_type: TaskType,
+    prediction_type: PredictionType | None,
     y_info: dict[str, Any],
 ) -> dict[str, Any]:
     """
     Calculate the metrics of the predictions.
 
-    Usage: calculate_metrics(y_true, y_pred, 'binclass', 'logits', {})
+    Usage: calculate_metrics(y_true, y_pred, TaskType.BINCLASS, PredictionType.LOGITS, {})
 
     Args:
         y_true: The true labels as a numpy array.
@@ -293,10 +251,6 @@ def calculate_metrics(
     Returns:
         The metrics of the predictions.
     """
-    task_type = TaskType(task_type)
-    if prediction_type is not None:
-        prediction_type = PredictionType(prediction_type)
-
     if task_type == TaskType.REGRESSION:
         assert prediction_type is None
         assert "std" in y_info
@@ -338,14 +292,16 @@ def _get_labels_and_probs(
 
     Args:
         y_pred: The predicted labels as a numpy array.
-        task_type: The type of the task.
-        prediction_type: The type of the predictions.
+        task_type: The type of the task. Can be TaskType.BINCLASS or TaskType.MULTICLASS.
+            Other task types are not supported.
+        prediction_type: The type of the predictions. If None, will return the predictions as labels
+            and probabilities as None.
 
     Returns:
         A tuple with the labels and probabilities. The probabilities are None
             if the prediction_type is None.
     """
-    assert task_type in (TaskType.BINCLASS, TaskType.MULTICLASS)
+    assert task_type in (TaskType.BINCLASS, TaskType.MULTICLASS), f"Unsupported task type: {task_type.value}"
 
     if prediction_type is None:
         return y_pred, None
@@ -355,7 +311,7 @@ def _get_labels_and_probs(
     elif prediction_type == PredictionType.PROBS:
         probs = y_pred
     else:
-        raise ValueError(f"Unknown prediction_type: {prediction_type}")
+        raise ValueError(f"Unsupported prediction_type: {prediction_type.value}")
 
     assert probs is not None
     labels = np.round(probs) if task_type == TaskType.BINCLASS else probs.argmax(axis=1)
@@ -645,7 +601,7 @@ def normalize(
 
     Args:
         X: The data to normalize.
-        normalization: The normalization to use. Can be "standard", "minmax", or "quantile".
+        normalization: The normalization to use.
         seed: The seed to use for the random state. Optional, default is None.
         return_normalizer: Whether to return the normalizer. Optional, default is False.
 
@@ -654,11 +610,11 @@ def normalize(
             normalized data and the normalizer.
     """
     X_train = X["train"]
-    if normalization == "standard":
+    if normalization == Normalization.STANDARD:
         normalizer = StandardScaler()
-    elif normalization == "minmax":
+    elif normalization == Normalization.MINMAX:
         normalizer = MinMaxScaler()
-    elif normalization == "quantile":
+    elif normalization == Normalization.QUANTILE:
         normalizer = QuantileTransformer(
             output_distribution="normal",
             n_quantiles=max(min(X["train"].shape[0] // 30, 1000), 10),
@@ -666,7 +622,8 @@ def normalize(
             random_state=seed,
         )
     else:
-        raise ValueError(f"Unknown normalization: {normalization}")
+        raise ValueError(f"Unsupported normalization: {normalization.value}")
+
     normalizer.fit(X_train)
     if return_normalizer:
         return {k: normalizer.transform(v) for k, v in X.items()}, normalizer
@@ -681,8 +638,7 @@ def num_process_nans(dataset: Dataset, policy: NumNanPolicy | None) -> Dataset:
 
     Args:
         dataset: The dataset to process.
-        policy: The policy to use to process the NaN values. Can be "drop-rows" or "mean".
-            Optional, default is None.
+        policy: The policy to use to process the NaN values.
 
     Returns:
         The processed dataset.
@@ -694,7 +650,7 @@ def num_process_nans(dataset: Dataset, policy: NumNanPolicy | None) -> Dataset:
         return dataset
 
     assert policy is not None
-    if policy == "drop-rows":
+    if policy == NumNanPolicy.DROP_ROWS:
         valid_masks = {k: ~v.any(1) for k, v in nan_masks.items()}
         assert valid_masks["test"].all(), "Cannot drop test rows, since this will affect the final metrics."
         new_data = {}
@@ -703,15 +659,17 @@ def num_process_nans(dataset: Dataset, policy: NumNanPolicy | None) -> Dataset:
             if data_dict is not None:
                 new_data[data_name] = {k: v[valid_masks[k]] for k, v in data_dict.items()}
         dataset = replace(dataset, **new_data)  # type: ignore[arg-type]
-    elif policy == "mean":
+
+    elif policy == NumNanPolicy.MEAN:
         new_values = np.nanmean(dataset.X_num["train"], axis=0)  # type: ignore[index]
         X_num = deepcopy(dataset.X_num)
         for k, v in X_num.items():  # type: ignore[union-attr]
             num_nan_indices = np.where(nan_masks[k])
             v[num_nan_indices] = np.take(new_values, num_nan_indices[1])
         dataset = replace(dataset, X_num=X_num)
+
     else:
-        raise ValueError(f"Unknown policy: {policy}")
+        raise ValueError(f"Unsupported policy: {policy.value}")
     return dataset
 
 
@@ -721,8 +679,7 @@ def cat_process_nans(X: ArrayDict, policy: CatNanPolicy | None) -> ArrayDict:
 
     Args:
         X: The data to process.
-        policy: The policy to use to process the NaN values. Can be "most_frequent".
-            Optional, default is None.
+        policy: The policy to use to process the NaN values. If none, will no-op.
 
     Returns:
         The processed data.
@@ -732,12 +689,12 @@ def cat_process_nans(X: ArrayDict, policy: CatNanPolicy | None) -> ArrayDict:
     if any(x.any() for x in nan_masks.values()):
         if policy is None:
             X_new = X
-        elif policy == "most_frequent":
-            imputer = SimpleImputer(missing_values=CAT_MISSING_VALUE, strategy=policy)
+        elif policy == CatNanPolicy.MOST_FREQUENT:
+            imputer = SimpleImputer(missing_values=CAT_MISSING_VALUE, strategy=policy.value)
             imputer.fit(X["train"])
             X_new = {k: cast(np.ndarray, imputer.transform(v)) for k, v in X.items()}
         else:
-            raise ValueError(f"Unknown cat_nan_policy: {policy}")
+            raise ValueError(f"Unsupported cat_nan_policy: {policy.value}")
     else:
         assert policy is None
         X_new = X
@@ -770,7 +727,7 @@ def cat_drop_rare(X: ArrayDict, min_frequency: float) -> ArrayDict:
 
 def cat_encode(
     X: ArrayDict,
-    encoding: CatEncoding | None,  # TODO: add "ordinal" as one of the options, maybe?
+    encoding: CatEncoding | None,
     y_train: np.ndarray | None,
     seed: int | None,
     return_encoder: bool = False,
@@ -780,8 +737,7 @@ def cat_encode(
 
     Args:
         X: The data to encode.
-        encoding: The encoding to use. Can be "one-hot" or "counter". Default is None.
-            If None, will use the "ordinal" encoding.
+        encoding: The encoding to use. If None, will use CatEncoding.ORDINAL.
         y_train: The target values. Optional, default is None. Will only be used for the "counter" encoding.
         seed: The seed to use for the random state. Optional, default is None.
         return_encoder: Whether to return the encoder. Optional, default is False.
@@ -792,12 +748,12 @@ def cat_encode(
             - A boolean value indicating if the data was converted to numerical.
             - The encoder, if return_encoder is True. None otherwise.
     """
-    if encoding != "counter":
+    if encoding != CatEncoding.COUNTER:
         y_train = None
 
     # Step 1. Map strings to 0-based ranges
 
-    if encoding is None:
+    if encoding is None or encoding == CatEncoding.ORDINAL:
         unknown_value = np.iinfo("int64").max - 3
         oe = OrdinalEncoder(
             handle_unknown="use_encoded_value",
@@ -819,7 +775,7 @@ def cat_encode(
 
     # Step 2. Encode.
 
-    if encoding == "one-hot":
+    if encoding == CatEncoding.ONE_HOT:
         ohe = OneHotEncoder(
             handle_unknown="ignore",
             sparse=False,
@@ -830,7 +786,7 @@ def cat_encode(
         # encoder.steps.append(('ohe', ohe))
         encoder.fit(X["train"])
         X = {k: encoder.transform(v) for k, v in X.items()}
-    elif encoding == "counter":
+    elif encoding == CatEncoding.COUNTER:
         assert y_train is not None
         assert seed is not None
         loe = LeaveOneOutEncoder(sigma=0.1, random_state=seed, return_df=False)
@@ -840,7 +796,7 @@ def cat_encode(
         if not isinstance(X["train"], pd.DataFrame):
             X = {k: v.values for k, v in X.items()}  # type: ignore[attr-defined]
     else:
-        raise ValueError(f"Unknown encoding: {encoding}")
+        raise ValueError(f"Unsupported encoding: {encoding.value}")
 
     if return_encoder:
         return X, True, encoder
@@ -853,8 +809,7 @@ def build_target(y: ArrayDict, policy: YPolicy | None, task_type: TaskType) -> t
 
     Args:
         y: The target values.
-        policy: The policy to use to build the target. Can be "default". Optional, default is None.
-            If none, it will no-op.
+        policy: The policy to use to build the target. Can be YPolicy.DEFAULT. If none, it will no-op.
         task_type: The type of the task.
 
     Returns:
@@ -863,12 +818,13 @@ def build_target(y: ArrayDict, policy: YPolicy | None, task_type: TaskType) -> t
     info: dict[str, Any] = {"policy": policy}
     if policy is None:
         pass
-    elif policy == "default":
+    elif policy == YPolicy.DEFAULT:
         if task_type == TaskType.REGRESSION:
             mean, std = float(y["train"].mean()), float(y["train"].std())
             y = {k: (v - mean) / std for k, v in y.items()}
             info["mean"] = mean
             info["std"] = std
     else:
-        raise ValueError(f"Unknown policy: {policy}")
+        raise ValueError(f"Unsupported policy: {policy.value}")
+
     return y, info
