@@ -7,6 +7,8 @@ from midst_toolkit.evaluation.metrics_base import SynthEvalMetric
 
 
 class EpsilonIdentifiabilityNorm(Enum):
+    """These are the valid norms for SynthEval measures."""
+
     L2 = "euclid"
     GOWER = "gower"
 
@@ -30,19 +32,19 @@ class EpsilonIdentifiabilityRisk(SynthEvalMetric):
         negative. In this scenario, it is typical that the real data was USED TO TRAIN a model that generated the
         synthetic data and the holdout set represents real data that was NOT.
 
-        NOTE: Points are not uniformly weighted. Samples are weighted by their inverse column entropy to provide
-        greater attention to rare data points.
+        NOTE: Dimensions are not uniformly weighted. They are weighted by their inverse column entropy to provide
+        greater attention to rare data points. This is formally defined in
+
+        Yoon, J., Drumright, L.N., Schaar, M.: Anonymization through data synthesis using generative adversarial
+        networks (ADS-GAN). IEEE J. Biomed. Health Informatics 24(8), 2378–2388 (2020)
+        https://doi.org/10.1109/JBHI.2020.2980262
 
         NOTE: The dataframes provided need to be pre-processed into numerical values for each column in some way. That
         is, for example, the categorical variables may be one-hot encoded and the numerical values normalized in
         some way. This can be done via the ``preprocess`` function in ``distance_preprocess.py`` beforehand or it can
         be done within compute if ``do_preprocess`` is True using the SynthEval pipeline.
 
-        This is formally defined in
 
-        Yoon, J., Drumright, L.N., Schaar, M.: Anonymization through data synthesis using generative adversarial
-        networks (ADS-GAN). IEEE J. Biomed. Health Informatics 24(8), 2378–2388 (2020)
-        https://doi.org/10.1109/JBHI.2020.2980262
 
         Args:
             categorical_columns: Column names corresponding to the categorical variables of any provided dataframe.
@@ -75,10 +77,8 @@ class EpsilonIdentifiabilityRisk(SynthEvalMetric):
         scenario, it is typical that the real data was USED TO TRAIN a model that generated the synthetic data and the
         holdout set represents real data that was NOT.
 
-        NOTE: Column-wise distances (i.e. data point dimensions) are not uniformly weighted. They are weighted by
-        their inverse column entropy to provide greater attention to rare data points.
-
-        This is formally defined in
+        NOTE: Dimensions are not uniformly weighted. They are weighted by their inverse column entropy to provide
+        greater attention to rare data points. This is formally defined in
 
         Yoon, J., Drumright, L.N., Schaar, M.: Anonymization through data synthesis using generative adversarial
         networks (ADS-GAN). IEEE J. Biomed. Health Informatics 24(8), 2378–2388 (2020)
@@ -94,12 +94,12 @@ class EpsilonIdentifiabilityRisk(SynthEvalMetric):
                 to TRAIN the model that generated the synthetic data, but not always.
             synthetic_data: Synthetically generated data whose quality is to be assessed.
             holdout_data: Real data to which the synthetic data may also be compared. In many cases this will be data
-                was NOT used in training the generating model. If none, then 'privacy_loss' is not computed
+                was NOT used in training the generating model. If none, then 'privacy_loss' is not computed.
 
         Returns:
             A dictionary of Epsilon Identifiability Risk results. Regardless of input, the estimated epsilon
-            identifiability risk for ``real_data`` is reported keyed by 'epsilon_identifiability_risk'. If
-            ``holdout_data`` is provided. The difference of the the risk for ``real_data`` and ``holdout_data`` is
+            identifiability risk for ``real_data`` is reported, keyed by 'epsilon_identifiability_risk'. If
+            ``holdout_data`` is provided. The difference of the risk for ``real_data`` and ``holdout_data`` is
             reported, keyed by 'privacy_loss'.
         """
         if self.do_preprocess:

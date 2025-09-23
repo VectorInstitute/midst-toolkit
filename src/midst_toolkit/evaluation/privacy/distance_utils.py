@@ -58,7 +58,7 @@ def compute_top_k_distances(
     """
     This function computes the ``top_k`` SMALLEST distances for each point in ``target_data`` to points in
     ``reference_data``. A matrix is returned whose rows correspond to the smallest distances from a point in
-    ``target_data`` to any points in reference data. The rows are in ascending order and ONLY the distances are
+    ``target_data`` to any points in reference data. The columns are in ascending order and ONLY the distances are
     returned.
 
     Args:

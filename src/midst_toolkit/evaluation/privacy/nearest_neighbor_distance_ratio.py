@@ -39,7 +39,7 @@ class NearestNeighborDistanceRatio(MetricBase):
         If a holdout dataset, composed of real data points that were NOT used to train the generating model, is
         provided the same computation comparing the synthetic data to the holdout set is performed. The difference
         between the two ratios (train and holdout comparisons) is a score comparing the "privacy loss." The more
-        positive, the more the data may reveal about the original training set.
+        positive, the more the synthetic data may reveal about the original training set.
 
         NOTE: The dataframes provided need to be pre-processed into numerical values for each column in some way. That
         is, for example, the categorical variables may be one-hot encoded and the numerical values normalized in
@@ -48,13 +48,14 @@ class NearestNeighborDistanceRatio(MetricBase):
 
         Args:
             norm: Determines what norm the distances are computed in. Defaults to NormType.L2.
-            batch_size: Batch size used to compute the DCR iteratively. Just needed to manage memory. Defaults to 1000.
+            batch_size: Batch size used to compute the NNDR iteratively. Just needed to manage memory. Defaults to
+                1000.
             device: What device the tensors should be sent to in order to perform the calculations. Defaults to DEVICE.
             meta_info: This is only required/used if ``do_preprocess`` is True. JSON with meta information about the
                 columns and their corresponding types that should be considered. At minimum, it should have the keys
                 'num_col_idx' and 'cat_col_idx'. If 'target_col_idx' is specified then 'task_type' must also exist.
                 If None, then no preprocessing is expected to be done. Defaults to None.
-            do_preprocess: Whether or not to preprocess the dataframes before performing the NNDR values.
+            do_preprocess: Whether or not to preprocess the dataframes before performing the NNDR calculations.
                 Preprocessing is performed with the ``preprocess`` function of ``distance_preprocess.py``. Defaults to
                 False.
             epsilon: Regularization term that ensures that we do not divide by 0. Defaults to 1e-8
@@ -81,7 +82,7 @@ class NearestNeighborDistanceRatio(MetricBase):
         If a holdout dataset, composed of real data points that were NOT used to train the generating model, is
         provided the same computation comparing the synthetic data to the holdout set is performed. The difference
         between the two ratios (train and holdout comparisons) is a score comparing the "privacy loss." The more
-        positive, the more the data may reveal about the original training set.
+        positive, the more th synthetic data may reveal about the original training set.
 
         NOTE: The dataframes provided need to be pre-processed into numerical values for each column in some way. That
         is, for example, the categorical variables may be one-hot encoded and the numerical values normalized in
@@ -98,9 +99,9 @@ class NearestNeighborDistanceRatio(MetricBase):
 
         Returns:
             A dictionary of NNDR results. Regardless of input, the mean of the NNDR values for each synthetic data
-            point and standard error of the mean are reported keyed by 'mean_nndr' and 'nndr_standard_error',
+            point and standard error of the mean are reported, keyed by 'mean_nndr' and 'nndr_standard_error',
             respectively. If ``holdout_data`` is provided. The difference of the mean nndr using ``real_data`` and
-            ``holdout_data`` is reported as 'privacy_loss', along with the sum of the standard errors for both
+            ``holdout_data`` is reported as 'privacy_loss', along with the pooled standard errors for both
             mean nndr values (key: 'privacy_loss_standard_error').
         """
         if self.do_preprocess:
