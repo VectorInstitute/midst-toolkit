@@ -19,8 +19,8 @@ from midst_toolkit.models.clavaddpm.model import (
     get_table_info,
     make_dataset_from_df,
     prepare_fast_dataloader,
-    train_classifier,
 )
+from midst_toolkit.models.clavaddpm.train import train_classifier
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 
 

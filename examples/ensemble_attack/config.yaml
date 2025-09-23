@@ -11,7 +11,7 @@ data_paths:
 
 # Pipeline control
 pipeline:
-  run_data_processing: true
+  run_data_processing: false
 
 # Dataset specific information used for processing in this example
 data_processing_config:

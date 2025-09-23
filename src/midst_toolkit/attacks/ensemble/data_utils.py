@@ -96,7 +96,7 @@ def load_multi_table(data_dir, train_df=None, verbose=True):
 
 
 # TODO: the following function is directly copied from the midst reference code since
-# I need it to run the code, but, it should be moved to somewhere else.
+# I need it to run the attack code, but, it should be moved to somewhere else.
 def load_configs(config_path):
     configs = json.load(open(config_path, "r"))
 

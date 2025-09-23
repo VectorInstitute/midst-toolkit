@@ -7,13 +7,11 @@ from typing import Any
 import pandas as pd
 
 from midst_toolkit.attacks.ensemble.data_utils import load_configs, load_multi_table
-from midst_toolkit.models.clavaddpm.fine_tuning_module import clava_fine_tuning
+from midst_toolkit.attacks.ensemble.fine_tuning_module import clava_fine_tuning
 
-# TODO: The following unrecognized modules should be imported from our own library once these
-# functions are added. Right now the following modules are implemented in
-# "midst_models/single_table_TabDDPM/complex_pipeline.py"
 from midst_toolkit.models.clavaddpm.synthesizing import clava_synthesizing
-from midst_toolkit.models.clavaddpm.train import clava_clustering, clava_training
+from midst_toolkit.models.clavaddpm.train import clava_training
+from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 
 
 def config_tabddpm(

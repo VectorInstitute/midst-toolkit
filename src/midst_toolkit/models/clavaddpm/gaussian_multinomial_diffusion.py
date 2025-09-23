@@ -86,7 +86,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         num_classes: np.ndarray,
         num_numerical_features: int,
         denoise_fn: torch.nn.Module,
-        num_timesteps: int = 2,
+        num_timesteps: int = 1000,
         gaussian_loss_type: str = "mse",
         gaussian_parametrization: str = "eps",
         multinomial_loss_type: str = "vb_stochastic",
