@@ -6,12 +6,12 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import torch
 
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
     GaussianMultinomialDiffusion,
 )
 from midst_toolkit.models.clavaddpm.model import (
-    Trainer,
     Transformations,
     get_model,
     get_model_params,
@@ -21,6 +21,7 @@ from midst_toolkit.models.clavaddpm.model import (
     prepare_fast_dataloader,
     train_classifier,
 )
+from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 
 
 def fine_tune_model(
@@ -34,7 +35,7 @@ def fine_tune_model(
     model_type: str,
     lr: float,
     weight_decay: float,
-    device: str = "cuda",
+    device: str = "cuda" if torch.cuda.is_available() else "cpu",
 ) -> dict[str, Any]:
     """Fine-tune a a trained diffusion model on a new dataset."""
     transformations = Transformations(**t_dict)
@@ -67,7 +68,7 @@ def fine_tune_model(
     diffusion.to(device)
     diffusion.train()
 
-    trainer = Trainer(
+    trainer = ClavaDDPMTrainer(
         diffusion,
         train_loader,
         lr=lr,
@@ -75,7 +76,7 @@ def fine_tune_model(
         steps=steps,
         device=device,
     )
-    trainer.run_loop()
+    trainer.train()
 
     if model_params["is_y_cond"] == "concat":
         column_orders = column_orders[1:] + [column_orders[0]]
@@ -97,8 +98,8 @@ def child_fine_tuning(
     parent_name: str | None,
     child_name: str,
     configs: dict[str, Any],
-    new_diffusion_iterations: int,
-    new_classifier_iterations: int,
+    fine_tuning_diffusion_iterations: int,
+    fine_tuning_classifier_iterations: int,
 ) -> dict[str, Any]:
     """Fine-tune a child model based on the parent model."""
     if parent_name is None:
@@ -121,7 +122,7 @@ def child_fine_tuning(
         child_info,
         child_model_params,
         child_t_dict,
-        new_diffusion_iterations,  # new_diffusion_iterations used here.
+        fine_tuning_diffusion_iterations,  # fine_tuning_diffusion_iterations used here.
         configs["diffusion"]["batch_size"],
         configs["diffusion"]["model_type"],
         configs["diffusion"]["lr"],
@@ -136,7 +137,7 @@ def child_fine_tuning(
             child_info,
             child_model_params,
             child_t_dict,
-            new_classifier_iterations,  # new_classifier_iterations used here.
+            fine_tuning_classifier_iterations,  # fine_tuning_classifier_iterations used here.
             configs["classifier"]["batch_size"],
             configs["diffusion"]["gaussian_loss_type"],
             configs["diffusion"]["num_timesteps"],
@@ -160,8 +161,8 @@ def clava_fine_tuning(
     new_tables: dict[str, Any],
     relation_order: dict[Any, Any],
     configs: dict[str, Any],
-    new_diffusion_iterations: int,
-    new_classifier_iterations: int,
+    fine_tuning_diffusion_iterations: int,
+    fine_tuning_classifier_iterations: int,
 ) -> dict[tuple[str | None, str], Any]:
     """Fine-tune the trained models on new tables data."""
     new_models = {}
@@ -169,15 +170,16 @@ def clava_fine_tuning(
         df_with_cluster = new_tables[child]["df"]
         id_cols = [col for col in df_with_cluster.columns if "_id" in col]
         df_without_id = df_with_cluster.drop(columns=id_cols)
+        child_model = trained_models[(parent, child)]
         result = child_fine_tuning(
-            trained_models,
+            child_model,
             df_without_id,
             new_tables[child]["domain"],
             parent,
             child,
             configs,
-            new_diffusion_iterations,
-            new_classifier_iterations,
+            fine_tuning_diffusion_iterations,
+            fine_tuning_classifier_iterations,
         )
         new_models[(parent, child)] = result
 

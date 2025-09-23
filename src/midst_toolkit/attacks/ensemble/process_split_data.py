@@ -150,8 +150,9 @@ def process_split_data(
     processed_attack_data_path: Path,
     column_to_stratify: str,
     num_total_samples: int = 40000,
+    challenge_data_size: int = 10000,
     random_seed: int = 42,
-) -> None:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Splits the data into train, validation, and test sets according to the attack design.
 
@@ -159,8 +160,13 @@ def process_split_data(
         all_population_data: The total population data that the attacker has access to as a DataFrame.
         processed_attack_data_path: Path where the processed attack data will be saved.
         column_to_stratify: Column name to use for stratified splitting.
-        num_total_samples: Number os samples that I randomly selected from the population. Defaults to 40000.
+        num_total_samples: Number os samples that are randomly selected from the population. Defaults to 40000.
         random_seed: Random seed used for reproducibility. Defaults to 42.
+
+    Returns:
+        A tuple containing the train, validation, and test dataframes for real data,
+        as well as the validation and test dataframes for the challenge dataset.
+
     """
     # Original Ensemble attack samples 40k data points to construct
     # 1) the main population (real data) used for training the synthetic data generator model,
@@ -212,3 +218,5 @@ def process_split_data(
         y_test,
     )
     log(INFO, f"Data splits saved to {processed_attack_data_path}")
+
+    return df_real_train, df_real_val, df_real_test, df_val, df_test
