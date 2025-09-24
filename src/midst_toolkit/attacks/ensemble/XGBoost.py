@@ -16,17 +16,7 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
 class XGBoostHyperparameterTuner:
-    """
-    A class for performing hyperparameter tuning of an XGBoost classifier using Optuna.
-
-    Attributes:
-        x (pd.DataFrame): The input features.
-        y (np.ndarray): The target variable.
-        continuous_cols (List[str]): Names of continuous columns.
-        categorical_cols (List[str]): Names of categorical columns.
-        bounds (dict): Dictionary with categories for each categorical column.
-        use_gpu (bool): Flag to enable GPU acceleration.
-    """
+    """Class for tuning XGBoost hyperparameters using Optuna."""
 
     def __init__(
         self,
@@ -36,9 +26,12 @@ class XGBoostHyperparameterTuner:
     ):
         """
         Initializes the tuner with data and column information.
-        :param x: Input features as a DataFrame.
-        :param y: Target variable as a numpy array.
-        :param use_gpu: Whether to use GPU acceleration.
+
+
+        Args:
+            x: Input features as a DataFrame.
+            y: Target variable as a numpy array.
+            use_gpu: Whether to use GPU acceleration. Defaults to False.
         """
         self.x = x
         self.y = y
@@ -48,7 +41,9 @@ class XGBoostHyperparameterTuner:
         """
         Creates a preprocessing pipeline for the input features.
         It only scales continuous features using StandardScaler.
-        :return: A ColumnTransformer for preprocessing.
+
+        Returns:
+            A ColumnTransformer for preprocessing.
         """
         return ColumnTransformer(
             [
@@ -59,7 +54,15 @@ class XGBoostHyperparameterTuner:
         )
 
     def _create_xgb_pipeline(self, trial: Trial | FrozenTrial) -> Pipeline:
-        """Creates a XGBoost pipeline for an Optuna trial."""
+        """
+        Creates a XGBoost pipeline for an Optuna trial.
+
+        Args:
+            trial: An Optuna trial object, which can either be dynamic or immutable.
+
+        Returns:
+            A Scikit-learn Pipeline with preprocessing and XGBoost classifier.
+        """
         preprocessing = self._create_preprocessing_pipeline()
         return Pipeline(
             steps=[
@@ -74,7 +77,8 @@ class XGBoostHyperparameterTuner:
                         colsample_bytree=trial.suggest_float("colsample_bylevel", 0.5, 1),
                         reg_alpha=trial.suggest_categorical("reg_alpha", [0, 0.1, 0.5, 1, 5, 10]),
                         reg_lambda=trial.suggest_categorical("reg_lambda", [0, 0.1, 0.5, 1, 5, 10, 100]),
-                        tree_method="auto" if not self.use_gpu else "gpu_hist",
+                        tree_method="auto",
+                        # if not self.use_gpu else "gpu_hist",
                         objective="binary:logistic",
                         seed=np.random.randint(1000),
                         verbosity=1,
@@ -84,8 +88,16 @@ class XGBoostHyperparameterTuner:
         )
 
     def _evaluate_pipeline_cv(self, trial: Trial, num_kfolds: int) -> float:
-        # Runs k-fold cross-validation to evaluate the pipeline for a given trial.
+        """
+        Performs cross-validation on the pipeline and returns the mean TPR at a fixed FPR.
 
+        Args:
+            trial: An Optuna trial object.
+            num_kfolds: Number of folds for cross-validation.
+
+        Returns:
+            Mean TPR at the specified FPR across all folds.
+        """
         pipeline = self._create_xgb_pipeline(trial)
         tpr_scorer = make_scorer(get_tpr_at_fpr)
 
@@ -104,11 +116,15 @@ class XGBoostHyperparameterTuner:
         num_kfolds: int = 5,
     ) -> Pipeline:
         """
-        Performs hyperparameter tuning and returns the best model.
+        Performs hyperparameter tuning using Optuna and returns the best pipeline.
 
-        :param num_optuna_trials: Number of trials for the optimization.
-        :param num_kfolds: Number of folds for cross-validation.
-        :return: The best Scikit-learn Pipeline with optimized hyperparameters.
+        Args:
+            num_optuna_trials: Number of Optuna trials for hyperparameter optimization. Defaults to 50.
+            num_kfolds: Number of folds for cross-validation. Defaults to 5.
+
+        Returns:
+            The best Scikit-learn Pipeline with optimized hyperparameters.
+
         """
 
         def objective(trial: Trial) -> float:
