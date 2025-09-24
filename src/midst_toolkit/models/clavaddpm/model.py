@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import hashlib
 import json
 import math
@@ -255,7 +257,7 @@ class Classifier(nn.Module):
         # Create a Sequential model from the list of layers
         self.model = nn.Sequential(*layers)
 
-    def forward(self, x, timesteps):
+    def forward(self, x: Tensor, timesteps: Tensor) -> Tensor:
         emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
         x = self.proj(x) + emb
         # x = self.transformer_layer(x, x)
@@ -310,10 +312,10 @@ def make_dataset_from_df(
     df: pd.DataFrame,
     T: Transformations,
     is_y_cond: str,
-    df_info: pd.DataFrame,
+    df_info: dict[str, Any],
     ratios: list[float] | None = None,
     std: float = 0,
-) -> tuple[Dataset, dict[int, LabelEncoder], list[int]]:
+) -> tuple[Dataset, dict[int, LabelEncoder], list[str]]:
     """
     The order of the generated dataset: (y, X_num, X_cat).
 
@@ -357,7 +359,7 @@ def make_dataset_from_df(
         X_num: dict[str, np.ndarray] | None = {} if df_info["num_cols"] is not None else None
         y = {}
 
-        cat_cols_with_y = []
+        cat_cols_with_y: list[str] = []
         if df_info["cat_cols"] is not None:
             cat_cols_with_y += df_info["cat_cols"]
         if is_y_cond == "concat":
@@ -385,31 +387,33 @@ def make_dataset_from_df(
         X_num = {} if df_info["num_cols"] is not None or is_y_cond == "concat" else None
         y = {}
 
-        num_cols_with_y = []
+        num_cols_with_y: list[str] = []
         if df_info["num_cols"] is not None:
             num_cols_with_y += df_info["num_cols"]
         if is_y_cond == "concat":
             num_cols_with_y = [df_info["y_col"]] + num_cols_with_y
 
         if len(num_cols_with_y) > 0:
-            X_num["train"] = train_df[num_cols_with_y].values.astype(np.float32)  # type: ignore[index]
-            X_num["val"] = val_df[num_cols_with_y].values.astype(np.float32)  # type: ignore[index]
-            X_num["test"] = test_df[num_cols_with_y].values.astype(np.float32)  # type: ignore[index]
+            assert X_num is not None
+            X_num["train"] = train_df[num_cols_with_y].values.astype(np.float32)
+            X_num["val"] = val_df[num_cols_with_y].values.astype(np.float32)
+            X_num["test"] = test_df[num_cols_with_y].values.astype(np.float32)
 
         y["train"] = train_df[df_info["y_col"]].values.astype(np.float32)
         y["val"] = val_df[df_info["y_col"]].values.astype(np.float32)
         y["test"] = test_df[df_info["y_col"]].values.astype(np.float32)
 
         if df_info["cat_cols"] is not None:
-            X_cat["train"] = train_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)  # type: ignore[index]
-            X_cat["val"] = val_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)  # type: ignore[index]
-            X_cat["test"] = test_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)  # type: ignore[index]
+            assert X_cat is not None
+            X_cat["train"] = train_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+            X_cat["val"] = val_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+            X_cat["test"] = test_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
 
         cat_column_orders = [column_to_index[col] for col in df_info["cat_cols"]]
         num_column_orders = [column_to_index[col] for col in num_cols_with_y]
 
-    column_orders = num_column_orders + cat_column_orders
-    column_orders = [index_to_column[index] for index in column_orders]
+    column_orders_indices = num_column_orders + cat_column_orders
+    column_orders = [index_to_column[index] for index in column_orders_indices]
 
     label_encoders = {}
     if X_cat is not None and len(df_info["cat_cols"]) > 0:
@@ -434,12 +438,16 @@ def make_dataset_from_df(
         X_cat["test"] = X_cat_converted[train_num + val_num :, :]  # type: ignore[call-overload]
 
         if X_num and len(X_num) > 0:
+            assert X_num is not None
             X_num["train"] = np.concatenate((X_num["train"], X_cat["train"]), axis=1)
             X_num["val"] = np.concatenate((X_num["val"], X_cat["val"]), axis=1)
             X_num["test"] = np.concatenate((X_num["test"], X_cat["test"]), axis=1)
         else:
             X_num = X_cat
             X_cat = None
+
+    n_classes = df_info["n_classes"]
+    assert isinstance(n_classes, int)
 
     D = Dataset(
         # ruff: noqa: N806
@@ -448,7 +456,7 @@ def make_dataset_from_df(
         y,
         y_info={},
         task_type=TaskType(df_info["task_type"]),
-        n_classes=df_info["n_classes"],
+        n_classes=n_classes,
     )
 
     return transform_dataset(D, T, None), label_encoders, column_orders
@@ -778,7 +786,7 @@ class FastTensorDataLoader:
             n_batches += 1
         self.n_batches = n_batches
 
-    def __iter__(self):
+    def __iter__(self) -> FastTensorDataLoader:
         # ruff: noqa: D105
         if self.shuffle:
             r = torch.randperm(self.dataset_len)
@@ -786,7 +794,7 @@ class FastTensorDataLoader:
         self.i = 0
         return self
 
-    def __next__(self):
+    def __next__(self) -> tuple[Tensor, ...]:
         # ruff: noqa: D105
         if self.i >= self.dataset_len:
             raise StopIteration
@@ -794,7 +802,7 @@ class FastTensorDataLoader:
         self.i += self.batch_size
         return batch
 
-    def __len__(self):
+    def __len__(self) -> int:
         # ruff: noqa: D105
         return self.n_batches
 
@@ -1162,7 +1170,7 @@ class MLPDiffusion(nn.Module):
         self.proj = nn.Linear(d_in, dim_t)
         self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
 
-    def forward(self, x, timesteps, y=None):
+    def forward(self, x: Tensor, timesteps: Tensor, y: Tensor | None = None) -> Tensor:
         emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
         if self.is_y_cond == "embedding" and y is not None:
             y = y.squeeze() if self.num_classes > 0 else y.resize_(y.size(0), 1).float()
@@ -1198,7 +1206,7 @@ class ResNetDiffusion(nn.Module):
 
         self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
 
-    def forward(self, x, timesteps, y=None):
+    def forward(self, x: Tensor, timesteps: Tensor, y: Tensor | None = None) -> Tensor:
         # ruff: noqa: D102
         emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
         if y is not None and self.num_classes > 0:
