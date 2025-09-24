@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import hashlib
 import json
 import math
 import pickle
-from abc import ABC, abstractmethod
 from collections import Counter
 from collections.abc import Callable, Generator
 from copy import deepcopy
@@ -38,10 +39,6 @@ from sklearn.preprocessing import (
 from torch import Tensor, nn
 
 from midst_toolkit.common.enumerations import PredictionType, TaskType
-from midst_toolkit.core import logger
-from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
-    GaussianMultinomialDiffusion,
-)
 
 
 Normalization = Literal["standard", "quantile", "minmax"]
@@ -260,7 +257,7 @@ class Classifier(nn.Module):
         # Create a Sequential model from the list of layers
         self.model = nn.Sequential(*layers)
 
-    def forward(self, x, timesteps):
+    def forward(self, x: Tensor, timesteps: Tensor) -> Tensor:
         emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
         x = self.proj(x) + emb
         # x = self.transformer_layer(x, x)
@@ -315,10 +312,10 @@ def make_dataset_from_df(
     df: pd.DataFrame,
     T: Transformations,
     is_y_cond: str,
-    df_info: pd.DataFrame,
+    df_info: dict[str, Any],
     ratios: list[float] | None = None,
     std: float = 0,
-) -> tuple[Dataset, dict[int, LabelEncoder], list[int]]:
+) -> tuple[Dataset, dict[int, LabelEncoder], list[str]]:
     """
     The order of the generated dataset: (y, X_num, X_cat).
 
@@ -362,7 +359,7 @@ def make_dataset_from_df(
         X_num: dict[str, np.ndarray] | None = {} if df_info["num_cols"] is not None else None
         y = {}
 
-        cat_cols_with_y = []
+        cat_cols_with_y: list[str] = []
         if df_info["cat_cols"] is not None:
             cat_cols_with_y += df_info["cat_cols"]
         if is_y_cond == "concat":
@@ -390,31 +387,33 @@ def make_dataset_from_df(
         X_num = {} if df_info["num_cols"] is not None or is_y_cond == "concat" else None
         y = {}
 
-        num_cols_with_y = []
+        num_cols_with_y: list[str] = []
         if df_info["num_cols"] is not None:
             num_cols_with_y += df_info["num_cols"]
         if is_y_cond == "concat":
             num_cols_with_y = [df_info["y_col"]] + num_cols_with_y
 
         if len(num_cols_with_y) > 0:
-            X_num["train"] = train_df[num_cols_with_y].values.astype(np.float32)  # type: ignore[index]
-            X_num["val"] = val_df[num_cols_with_y].values.astype(np.float32)  # type: ignore[index]
-            X_num["test"] = test_df[num_cols_with_y].values.astype(np.float32)  # type: ignore[index]
+            assert X_num is not None
+            X_num["train"] = train_df[num_cols_with_y].values.astype(np.float32)
+            X_num["val"] = val_df[num_cols_with_y].values.astype(np.float32)
+            X_num["test"] = test_df[num_cols_with_y].values.astype(np.float32)
 
         y["train"] = train_df[df_info["y_col"]].values.astype(np.float32)
         y["val"] = val_df[df_info["y_col"]].values.astype(np.float32)
         y["test"] = test_df[df_info["y_col"]].values.astype(np.float32)
 
         if df_info["cat_cols"] is not None:
-            X_cat["train"] = train_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)  # type: ignore[index]
-            X_cat["val"] = val_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)  # type: ignore[index]
-            X_cat["test"] = test_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)  # type: ignore[index]
+            assert X_cat is not None
+            X_cat["train"] = train_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+            X_cat["val"] = val_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+            X_cat["test"] = test_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
 
         cat_column_orders = [column_to_index[col] for col in df_info["cat_cols"]]
         num_column_orders = [column_to_index[col] for col in num_cols_with_y]
 
-    column_orders = num_column_orders + cat_column_orders
-    column_orders = [index_to_column[index] for index in column_orders]
+    column_orders_indices = num_column_orders + cat_column_orders
+    column_orders = [index_to_column[index] for index in column_orders_indices]
 
     label_encoders = {}
     if X_cat is not None and len(df_info["cat_cols"]) > 0:
@@ -439,12 +438,16 @@ def make_dataset_from_df(
         X_cat["test"] = X_cat_converted[train_num + val_num :, :]  # type: ignore[call-overload]
 
         if X_num and len(X_num) > 0:
+            assert X_num is not None
             X_num["train"] = np.concatenate((X_num["train"], X_cat["train"]), axis=1)
             X_num["val"] = np.concatenate((X_num["val"], X_cat["val"]), axis=1)
             X_num["test"] = np.concatenate((X_num["test"], X_cat["test"]), axis=1)
         else:
             X_num = X_cat
             X_cat = None
+
+    n_classes = df_info["n_classes"]
+    assert isinstance(n_classes, int)
 
     D = Dataset(
         # ruff: noqa: N806
@@ -453,7 +456,7 @@ def make_dataset_from_df(
         y,
         y_info={},
         task_type=TaskType(df_info["task_type"]),
-        n_classes=df_info["n_classes"],
+        n_classes=n_classes,
     )
 
     return transform_dataset(D, T, None), label_encoders, column_orders
@@ -491,228 +494,6 @@ def get_model(
         return ResNetDiffusion(**model_params)
 
     raise ValueError("Unknown model!")
-
-
-class ScheduleSampler(ABC):
-    """
-    A distribution over timesteps in the diffusion process, intended to reduce
-    variance of the objective.
-
-    By default, samplers perform unbiased importance sampling, in which the
-    objective's mean is unchanged.
-    However, subclasses may override sample() to change how the resampled
-    terms are reweighted, allowing for actual changes in the objective.
-    """
-
-    @abstractmethod
-    def weights(self) -> Tensor:
-        """
-        Get a numpy array of weights, one per diffusion step.
-
-        The weights needn't be normalized, but must be positive.
-        """
-
-    def sample(self, batch_size: int, device: str) -> tuple[Tensor, Tensor]:
-        """
-        Importance-sample timesteps for a batch.
-
-        :param batch_size: the number of timesteps.
-        :param device: the torch device to save to.
-        :return: a tuple (timesteps, weights):
-                 - timesteps: a tensor of timestep indices.
-                 - weights: a tensor of weights to scale the resulting losses.
-        """
-        w = self.weights().cpu().numpy()
-        p = w / np.sum(w)
-        indices_np = np.random.choice(len(p), size=(batch_size,), p=p)
-        indices = torch.from_numpy(indices_np).long().to(device)
-        weights_np = 1 / (len(p) * p[indices_np])
-        weights = torch.from_numpy(weights_np).float().to(device)
-        return indices, weights
-
-
-class UniformSampler(ScheduleSampler):
-    def __init__(self, diffusion: GaussianMultinomialDiffusion):
-        self.diffusion = diffusion
-        self._weights = torch.from_numpy(np.ones([diffusion.num_timesteps]))
-
-    def weights(self) -> Tensor:
-        return self._weights
-
-
-class LossAwareSampler(ScheduleSampler):
-    def update_with_local_losses(self, local_ts: Tensor, local_losses: Tensor) -> None:
-        """
-        Update the reweighting using losses from a model.
-
-        Call this method from each rank with a batch of timesteps and the
-        corresponding losses for each of those timesteps.
-        This method will perform synchronization to make sure all of the ranks
-        maintain the exact same reweighting.
-
-        :param local_ts: an integer Tensor of timesteps.
-        :param local_losses: a 1D Tensor of losses.
-        """
-        batch_sizes = [
-            torch.tensor([0], dtype=torch.int32, device=local_ts.device)
-            for _ in range(torch.distributed.get_world_size())
-        ]
-        torch.distributed.all_gather(
-            batch_sizes,
-            torch.tensor([len(local_ts)], dtype=torch.int32, device=local_ts.device),
-        )
-
-        # Pad all_gather batches to be the maximum batch size.
-        max_bs = max([int(x.item()) for x in batch_sizes])
-
-        timestep_batches = [torch.zeros(max_bs).to(local_ts) for bs in batch_sizes]
-        loss_batches = [torch.zeros(max_bs).to(local_losses) for bs in batch_sizes]
-        torch.distributed.all_gather(timestep_batches, local_ts)
-        torch.distributed.all_gather(loss_batches, local_losses)
-        timesteps = [x.item() for y, bs in zip(timestep_batches, batch_sizes) for x in y[:bs]]
-        losses = [x.item() for y, bs in zip(loss_batches, batch_sizes) for x in y[:bs]]
-        self.update_with_all_losses(timesteps, losses)
-
-    @abstractmethod
-    def update_with_all_losses(self, ts: list[int], losses: list[float]) -> None:
-        """
-        Update the reweighting using losses from a model.
-
-        Sub-classes should override this method to update the reweighting
-        using losses from the model.
-
-        This method directly updates the reweighting without synchronizing
-        between workers. It is called by update_with_local_losses from all
-        ranks with identical arguments. Thus, it should have deterministic
-        behavior to maintain state across workers.
-
-        :param ts: a list of int timesteps.
-        :param losses: a list of float losses, one per timestep.
-        """
-
-
-class LossSecondMomentResampler(LossAwareSampler):
-    def __init__(
-        self,
-        diffusion: GaussianMultinomialDiffusion,
-        history_per_term: int = 10,
-        uniform_prob: float = 0.001,
-    ):
-        self.diffusion = diffusion
-        self.history_per_term = history_per_term
-        self.uniform_prob = uniform_prob
-        self._loss_history = np.zeros([diffusion.num_timesteps, history_per_term], dtype=np.float64)
-        self._loss_counts = np.zeros([diffusion.num_timesteps], dtype=np.uint)
-
-    def weights(self):
-        if not self._warmed_up():
-            return np.ones([self.diffusion.num_timesteps], dtype=np.float64)
-        weights = np.sqrt(np.mean(self._loss_history**2, axis=-1))
-        weights /= np.sum(weights)
-        weights *= 1 - self.uniform_prob
-        weights += self.uniform_prob / len(weights)
-        return weights
-
-    def update_with_all_losses(self, ts: list[int], losses: list[float]) -> None:
-        for t, loss in zip(ts, losses):
-            if self._loss_counts[t] == self.history_per_term:
-                # Shift out the oldest loss term.
-                self._loss_history[t, :-1] = self._loss_history[t, 1:]
-                self._loss_history[t, -1] = loss
-            else:
-                self._loss_history[t, self._loss_counts[t]] = loss
-                self._loss_counts[t] += 1
-
-    def _warmed_up(self) -> bool:
-        return (self._loss_counts == self.history_per_term).all()
-
-
-def create_named_schedule_sampler(name: str, diffusion: GaussianMultinomialDiffusion) -> ScheduleSampler:
-    """
-    Create a ScheduleSampler from a library of pre-defined samplers.
-
-    :param name: the name of the sampler.
-    :param diffusion: the diffusion object to sample for.
-    """
-    if name == "uniform":
-        return UniformSampler(diffusion)
-    if name == "loss-second-moment":
-        return LossSecondMomentResampler(diffusion)
-    raise NotImplementedError(f"unknown schedule sampler: {name}")
-
-
-def split_microbatches(
-    microbatch: int,
-    batch: Tensor,
-    labels: Tensor,
-    t: Tensor,
-) -> Generator[tuple[Tensor, Tensor, Tensor]]:
-    bs = len(batch)
-    if microbatch == -1 or microbatch >= bs:
-        yield batch, labels, t
-    else:
-        for i in range(0, bs, microbatch):
-            yield batch[i : i + microbatch], labels[i : i + microbatch], t[i : i + microbatch]
-
-
-def compute_top_k(logits: Tensor, labels: Tensor, k: int, reduction: str = "mean") -> Tensor:
-    _, top_ks = torch.topk(logits, k, dim=-1)
-    if reduction == "mean":
-        return (top_ks == labels[:, None]).float().sum(dim=-1).mean()
-    if reduction == "none":
-        return (top_ks == labels[:, None]).float().sum(dim=-1)
-
-    raise ValueError(f"reduction should be one of ['mean', 'none']: {reduction}")
-
-
-def log_loss_dict(diffusion: GaussianMultinomialDiffusion, ts: Tensor, losses: dict[str, Tensor]) -> None:
-    for key, values in losses.items():
-        logger.logkv_mean(key, values.mean().item())
-        # Log the quantiles (four quartiles, in particular).
-        for sub_t, sub_loss in zip(ts.cpu().numpy(), values.detach().cpu().numpy()):
-            quartile = int(4 * sub_t / diffusion.num_timesteps)
-            logger.logkv_mean(f"{key}_q{quartile}", sub_loss)
-
-
-def numerical_forward_backward_log(
-    classifier: nn.Module,
-    optimizer: torch.optim.Optimizer,
-    data_loader: Generator[tuple[Tensor, ...]],
-    dataset: Dataset,
-    schedule_sampler: ScheduleSampler,
-    diffusion: GaussianMultinomialDiffusion,
-    prefix: str = "train",
-    remove_first_col: bool = False,
-    device: str = "cuda",
-) -> None:
-    batch, labels = next(data_loader)
-    labels = labels.long().to(device)
-
-    if remove_first_col:
-        # Remove the first column of the batch, which is the label.
-        batch = batch[:, 1:]
-
-    num_batch = batch[:, : dataset.n_num_features].to(device)
-
-    t, _ = schedule_sampler.sample(num_batch.shape[0], device)
-    batch = diffusion.gaussian_q_sample(num_batch, t).to(device)
-
-    for i, (sub_batch, sub_labels, sub_t) in enumerate(split_microbatches(-1, batch, labels, t)):
-        logits = classifier(sub_batch, timesteps=sub_t)
-        loss = F.cross_entropy(logits, sub_labels, reduction="none")
-
-        losses = {}
-        losses[f"{prefix}_loss"] = loss.detach()
-        losses[f"{prefix}_acc@1"] = compute_top_k(logits, sub_labels, k=1, reduction="none")
-        if logits.shape[1] >= 5:
-            losses[f"{prefix}_acc@5"] = compute_top_k(logits, sub_labels, k=5, reduction="none")
-        log_loss_dict(diffusion, sub_t, losses)
-        del losses
-        loss = loss.mean()
-        if loss.requires_grad:
-            if i == 0:
-                optimizer.zero_grad()
-            loss.backward(loss * len(sub_batch) / len(batch))
 
 
 def transform_dataset(
@@ -1005,7 +786,7 @@ class FastTensorDataLoader:
             n_batches += 1
         self.n_batches = n_batches
 
-    def __iter__(self):
+    def __iter__(self) -> FastTensorDataLoader:
         # ruff: noqa: D105
         if self.shuffle:
             r = torch.randperm(self.dataset_len)
@@ -1013,7 +794,7 @@ class FastTensorDataLoader:
         self.i = 0
         return self
 
-    def __next__(self):
+    def __next__(self) -> tuple[Tensor, ...]:
         # ruff: noqa: D105
         if self.i >= self.dataset_len:
             raise StopIteration
@@ -1021,7 +802,7 @@ class FastTensorDataLoader:
         self.i += self.batch_size
         return batch
 
-    def __len__(self):
+    def __len__(self) -> int:
         # ruff: noqa: D105
         return self.n_batches
 
@@ -1389,7 +1170,7 @@ class MLPDiffusion(nn.Module):
         self.proj = nn.Linear(d_in, dim_t)
         self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
 
-    def forward(self, x, timesteps, y=None):
+    def forward(self, x: Tensor, timesteps: Tensor, y: Tensor | None = None) -> Tensor:
         emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
         if self.is_y_cond == "embedding" and y is not None:
             y = y.squeeze() if self.num_classes > 0 else y.resize_(y.size(0), 1).float()
@@ -1425,7 +1206,7 @@ class ResNetDiffusion(nn.Module):
 
         self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
 
-    def forward(self, x, timesteps, y=None):
+    def forward(self, x: Tensor, timesteps: Tensor, y: Tensor | None = None) -> Tensor:
         # ruff: noqa: D102
         emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
         if y is not None and self.num_classes > 0:
