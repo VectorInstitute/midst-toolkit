@@ -23,7 +23,7 @@ class AttackType(Enum):
     CLAVADDPM_WHITE_BOX = "clavaddpm_white_box"
 
 
-def expand_ranges(ranges):
+def expand_ranges(ranges: list[tuple[int, int]]) -> list[int]:
     """
     Reads a list of tuples representing ranges and expands them into a flat list of integers.
 

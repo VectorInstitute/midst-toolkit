@@ -13,14 +13,19 @@ import numpy as np
 from omegaconf import DictConfig
 
 from examples.ensemble_attack_example.real_data_collection import collect_population_data_ensemble
-from midst_toolkit.attacks.ensemble.blending import MetaClassifierType, BlendingPlusPlus
+from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.common.logger import log
 
 
-def run_data_processing(config):
-    """Function to run the data processing pipeline."""
+def run_data_processing(config: DictConfig) -> None:
+    """
+    Function to run the data processing pipeline.
+
+    Args:
+        config: Configuration object set in config.yaml.
+    """
     log(INFO, "Running data processing pipeline...")
     # Collect the real data from the MIDST challenge resources.
     population_data = collect_population_data_ensemble(
@@ -40,8 +45,13 @@ def run_data_processing(config):
     log(INFO, "Data processing pipeline finished.")
 
 
-def run_metaclassifier_training(config):
-    """Function to run the metaclassifier training and evaluation pipeline."""
+def run_metaclassifier_training(config: DictConfig) -> None:
+    """
+    Fuction to run the metaclassifier training and evaluation.
+
+    Args:
+        config: Configuration object set in config.yaml.
+    """
     log(INFO, "Running metaclassifier training...")
     # Load the processed data splits.
     df_meta_train = load_dataframe(
@@ -73,9 +83,7 @@ def run_metaclassifier_training(config):
     meta_classifier_enum = MetaClassifierType(config.metaclassifier.model_type)
 
     # 1. Initialize the attacker
-    blending_attacker = BlendingPlusPlus(
-        meta_classifier_type=meta_classifier_enum, data_configs=config.data_configs
-    )
+    blending_attacker = BlendingPlusPlus(meta_classifier_type=meta_classifier_enum, data_configs=config.data_configs)
     log(INFO, "Metaclassifier created, starting training...")
 
     # 2. Train the attacker on the meta-train set
