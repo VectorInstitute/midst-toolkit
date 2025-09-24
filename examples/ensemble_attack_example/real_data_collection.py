@@ -33,7 +33,7 @@ def expand_ranges(ranges):
     Returns:
         A flat list of integers covering the ranges.
     """
-    expanded: list = []
+    expanded: list[int] = []
     for r in ranges:
         start, end = r
         expanded.extend(range(start, end))

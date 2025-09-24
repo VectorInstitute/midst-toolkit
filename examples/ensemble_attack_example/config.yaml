@@ -29,7 +29,7 @@ data_processing_config:
             "tabsyn_white_box",
             "clavaddpm_black_box",
             "clavaddpm_white_box",
-        ]
+          ]
   # The column name in the data to be used for stratified splitting.
   column_to_stratify: "trans_type"  # Attention: This value is not documented in the original codebase.
   folder_ranges:

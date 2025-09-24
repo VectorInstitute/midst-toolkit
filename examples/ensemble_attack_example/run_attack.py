@@ -13,7 +13,7 @@ import numpy as np
 from omegaconf import DictConfig
 
 from examples.ensemble_attack_example.real_data_collection import collect_population_data_ensemble
-from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus
+from midst_toolkit.attacks.ensemble.blending import MetaClassifierType, BlendingPlusPlus
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.common.logger import log
@@ -70,10 +70,13 @@ def run_metaclassifier_training(config):
     )
 
     # Fit the metaclassifier.
+    meta_classifier_enum = MetaClassifierType(config.metaclassifier.model_type)
+
     # 1. Initialize the attacker
     blending_attacker = BlendingPlusPlus(
-        meta_classifier_type=config.metaclassifier.model_type, data_configs=config.data_configs
+        meta_classifier_type=meta_classifier_enum, data_configs=config.data_configs
     )
+    log(INFO, "Metaclassifier created, starting training...")
 
     # 2. Train the attacker on the meta-train set
 
@@ -93,7 +96,7 @@ def run_metaclassifier_training(config):
     with open(Path(config.model_paths.metaclassifier_model_path) / model_filename, "wb") as f:
         pickle.dump(blending_attacker.meta_classifier_, f)
 
-    log(INFO, "Metaclassifier model saved.")
+    log(INFO, "Metaclassifier model saved, starting evaluation...")
 
     # 3. Get predictions on the test set
     probabilities, pred_score = blending_attacker.predict(

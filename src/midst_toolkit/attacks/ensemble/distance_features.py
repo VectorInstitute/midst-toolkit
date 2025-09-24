@@ -1,6 +1,4 @@
-# calculate distance features such as Gower distance, DOMIAS, etc.
-
-# FROM GEMINI:
+# Calculate distance features such as Gower distance, DOMIAS, etc.
 
 import gower
 import numpy as np

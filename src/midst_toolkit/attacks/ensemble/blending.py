@@ -1,6 +1,7 @@
-# Blending++ orchestrator, equivalent to blending_plus_plus.py in the submission repo
+""" Blending++ orchestrator, equivalent to blending_plus_plus.py in the submission repo"""
 
 from typing import Self
+from enum import Enum
 
 import numpy as np
 import pandas as pd
@@ -11,26 +12,27 @@ from midst_toolkit.attacks.ensemble.distance_features import calculate_domias, c
 from midst_toolkit.attacks.ensemble.train_utils import get_tpr_at_fpr
 from midst_toolkit.attacks.ensemble.XGBoost import XGBoostHyperparameterTuner
 
+class MetaClassifierType(Enum):
+    LR = "lr"
+    XGB = "xgb"
+
 
 class BlendingPlusPlus:
     """
-    Implements the Blending++ Membership Inference Attack.
-
-    This class encapsulates the entire workflow:
-    1. Generates features from Gower distance and DOMIAS.
-    2. Assembles a meta-feature set.
-    3. Trains a meta-classifier on these features.
-    4. Predicts membership probability on new data.
+    Blending++ attack implementation.
     """
 
-    def __init__(self, data_configs: DictConfig, meta_classifier_type: str = "xgb"):
+    def __init__(self, data_configs: DictConfig, meta_classifier_type = MetaClassifierType.XGB):
         """
-        Initializes the Blending++ attack with specified meta-classifier type and data configurations.
-        1. meta_classifier_type: Type of classifier to use ('lr' for Logistic Regression, 'xgb' for XGBoost).
-        2. data_configs: Configuration dictionary containing metadata about the dataset (e.g., column data type).
+        Initializes the Blending++ attack with specified data configurations and meta-classifier type.
+
+        Args:
+            data_configs: Data configuration dictionary.
+            meta_classifier_type: Type of meta classifier model. Defaults to MetaClassifierType.XGB.
+
         """
-        if meta_classifier_type not in ["lr", "xgb"]:
-            raise ValueError("meta_classifier_type must be 'lr' or 'xgb'")
+        # if meta_classifier_type not in ["lr", "xgb"]:
+        #     raise ValueError("meta_classifier_type must be 'lr' or 'xgb'")
         self.meta_classifier_type = meta_classifier_type
         self.data_configs = data_configs
         self.meta_classifier_ = None  # The trained model, underscore denotes fitted attribute
@@ -89,8 +91,9 @@ class BlendingPlusPlus:
             cat_cols=self.data_configs.metadata.categorical,
             cont_cols=self.data_configs.metadata.continuous,
         )
+        # import pdb; pdb.set_trace()
 
-        if self.meta_classifier_type == "xgb":
+        if self.meta_classifier_type == MetaClassifierType.XGB:
             tuner = XGBoostHyperparameterTuner(
                 x=meta_features,
                 y=y_train,
@@ -103,7 +106,7 @@ class BlendingPlusPlus:
                 num_kfolds=5,
             )
 
-        elif self.meta_classifier_type == "lr":
+        elif self.meta_classifier_type == MetaClassifierType.LR:
             lr_model = LogisticRegression(max_iter=1000)
             self.meta_classifier_ = lr_model.fit(meta_features, y_train)
 
