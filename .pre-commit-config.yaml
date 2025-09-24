@@ -34,13 +34,12 @@ repos:
       types_or: [python, jupyter]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.16.0
+    rev: v1.18.2
     hooks:
-    - id: mypy
-      entry: python3 -m mypy --config-file pyproject.toml
-      language: system
-      types: [python]
-      exclude: "tests"
+      - id: mypy
+        name: mypy
+        entry: ./run_mypy.sh
+        language: system
 
   - repo: local
     hooks:

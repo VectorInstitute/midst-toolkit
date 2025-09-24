@@ -70,7 +70,7 @@ class NearestNeighborDistanceRatio(MetricBase):
         self.epsilon = epsilon
 
     def compute(
-        self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame, holdout_data: pd.DataFrame = None
+        self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame, holdout_data: pd.DataFrame | None = None
     ) -> dict[str, float]:
         """
         Computes the nearest neighbor distance ratio (NNDR) between synthetic and real datasets. The primary, real

@@ -1,30 +1,31 @@
 """Defines the training functions for the ClavaDDPM model."""
 
 import pickle
+from collections.abc import Generator
 from logging import INFO, WARNING
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
 import torch
-from torch import optim
+from torch import Tensor, optim
 
 from midst_toolkit.common.logger import log
 from midst_toolkit.core import logger
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 from midst_toolkit.models.clavaddpm.model import (
     Classifier,
+    Dataset,
     Transformations,
-    create_named_schedule_sampler,
     get_model,
     get_model_params,
     get_T_dict,
     get_table_info,
     make_dataset_from_df,
-    numerical_forward_backward_log,
     prepare_fast_dataloader,
 )
+from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, create_named_schedule_sampler
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
 
@@ -239,7 +240,7 @@ def child_training(
 
 def train_model(
     data_frame: pd.DataFrame,
-    data_frame_info: pd.DataFrame,
+    data_frame_info: dict[str, Any],
     model_params: dict[str, Any],
     transformations_dict: dict[str, Any],
     steps: int,
@@ -348,7 +349,7 @@ def train_model(
 
 def train_classifier(
     data_frame: pd.DataFrame,
-    data_frame_info: pd.DataFrame,
+    data_frame_info: dict[str, Any],
     model_params: dict[str, Any],
     transformations_dict: dict[str, Any],
     classifier_steps: int,
@@ -448,7 +449,7 @@ def train_classifier(
             "samples",
             (step + 1) * batch_size,
         )
-        numerical_forward_backward_log(
+        _numerical_forward_backward_log(
             classifier,
             classifier_optimizer,
             train_loader,
@@ -463,7 +464,7 @@ def train_classifier(
         if not step % classifier_evaluation_interval:
             with torch.no_grad():
                 classifier.eval()
-                numerical_forward_backward_log(
+                _numerical_forward_backward_log(
                     classifier,
                     classifier_optimizer,
                     val_loader,
@@ -554,3 +555,129 @@ def get_df_without_id(df: pd.DataFrame) -> pd.DataFrame:
     """
     id_cols = [col for col in df.columns if "_id" in col]
     return df.drop(columns=id_cols)
+
+
+def _numerical_forward_backward_log(
+    classifier: Classifier,
+    optimizer: torch.optim.Optimizer,
+    data_loader: Generator[tuple[Tensor, ...]],
+    dataset: Dataset,
+    schedule_sampler: ScheduleSampler,
+    diffusion: GaussianMultinomialDiffusion,
+    prefix: str = "train",
+    remove_first_col: bool = False,
+    device: str = "cuda",
+) -> None:
+    """
+    Forward and backward pass for the numerical features of the ClavaDDPM model.
+
+    Args:
+        classifier: The classifier model.
+        optimizer: The optimizer.
+        data_loader: The data loader.
+        dataset: The dataset.
+        schedule_sampler: The schedule sampler.
+        diffusion: The diffusion object.
+        prefix: The prefix for the loss. Defaults to "train".
+        remove_first_col: Whether to remove the first column of the batch. Defaults to False.
+        device: The device to use. Defaults to "cuda".
+    """
+    batch, labels = next(data_loader)
+    labels = labels.long().to(device)
+
+    if remove_first_col:
+        # Remove the first column of the batch, which is the label.
+        batch = batch[:, 1:]
+
+    num_batch = batch[:, : dataset.n_num_features].to(device)
+
+    t, _ = schedule_sampler.sample(num_batch.shape[0], device)
+    batch = diffusion.gaussian_q_sample(num_batch, t).to(device)
+
+    for i, (sub_batch, sub_labels, sub_t) in enumerate(_split_microbatches(-1, batch, labels, t)):
+        logits = classifier(sub_batch, timesteps=sub_t)
+        loss = torch.nn.functional.cross_entropy(logits, sub_labels, reduction="none")
+
+        losses = {}
+        losses[f"{prefix}_loss"] = loss.detach()
+        losses[f"{prefix}_acc@1"] = _compute_top_k(logits, sub_labels, k=1, reduction="none")
+        if logits.shape[1] >= 5:
+            losses[f"{prefix}_acc@5"] = _compute_top_k(logits, sub_labels, k=5, reduction="none")
+        _log_loss_dict(diffusion, sub_t, losses)
+        del losses
+        loss = loss.mean()
+        if loss.requires_grad:
+            if i == 0:
+                optimizer.zero_grad()
+            loss.backward(loss * len(sub_batch) / len(batch))
+
+
+# TODO: Think about moving this to a metrics module
+def _compute_top_k(
+    logits: Tensor,
+    labels: Tensor,
+    k: int,
+    reduction: Literal["mean", "none"] = "mean",
+) -> Tensor:
+    """
+    Compute the top-k accuracy.
+
+    Args:
+        logits: The logits of the classifier.
+        labels: The labels of the data.
+        k: The number of top-k.
+        reduction: The reduction method. Should be one of ["mean", "none"]. Defaults to "mean".
+
+    Returns:
+        The top-k accuracy.
+    """
+    _, top_ks = torch.topk(logits, k, dim=-1)
+    if reduction == "mean":
+        return (top_ks == labels[:, None]).float().sum(dim=-1).mean()
+    if reduction == "none":
+        return (top_ks == labels[:, None]).float().sum(dim=-1)
+
+    raise ValueError(f"reduction should be one of ['mean', 'none']: {reduction}")
+
+
+def _log_loss_dict(diffusion: GaussianMultinomialDiffusion, ts: Tensor, losses: dict[str, Tensor]) -> None:
+    """
+    Output the log loss dictionary in the logger.
+
+    Args:
+        diffusion: The diffusion object.
+        ts: The timesteps.
+        losses: The losses.
+    """
+    for key, values in losses.items():
+        logger.logkv_mean(key, values.mean().item())
+        # Log the quantiles (four quartiles, in particular).
+        for sub_t, sub_loss in zip(ts.cpu().numpy(), values.detach().cpu().numpy()):
+            quartile = int(4 * sub_t / diffusion.num_timesteps)
+            logger.logkv_mean(f"{key}_q{quartile}", sub_loss)
+
+
+def _split_microbatches(
+    microbatch: int,
+    batch: Tensor,
+    labels: Tensor,
+    t: Tensor,
+) -> Generator[tuple[Tensor, Tensor, Tensor]]:
+    """
+    Split the batch into microbatches.
+
+    Args:
+        microbatch: The size of the microbatch. If -1, the batch is not split.
+        batch: The batch of data as a tensor.
+        labels: The labels of the data as a tensor.
+        t: The timesteps tensor.
+
+    Returns:
+        A generator of for the minibatch which outputs tuples of the batch, labels, and timesteps.
+    """
+    bs = len(batch)
+    if microbatch == -1 or microbatch >= bs:
+        yield batch, labels, t
+    else:
+        for i in range(0, bs, microbatch):
+            yield batch[i : i + microbatch], labels[i : i + microbatch], t[i : i + microbatch]
