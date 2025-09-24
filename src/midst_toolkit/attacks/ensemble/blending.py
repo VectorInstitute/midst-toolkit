@@ -115,7 +115,6 @@ class BlendingPlusPlus:
             cat_cols=self.data_configs.metadata.categorical,
             cont_cols=self.data_configs.metadata.continuous,
         )
-        
 
         if self.meta_classifier_type == MetaClassifierType.XGB:
             tuner = XGBoostHyperparameterTuner(
