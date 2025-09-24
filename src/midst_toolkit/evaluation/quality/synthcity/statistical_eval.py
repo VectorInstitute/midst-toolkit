@@ -191,8 +191,8 @@ class AlphaPrecision(StatisticalEvaluator):
         Returns:
             Tuple[pd.DataFrame, pd.DataFrame]: normalized version of the datasets
         """
-        x_gt_norm = x.dataframe().copy()
-        x_syn_norm = x_syn.dataframe().copy()
+        x_gt_norm = x.to_dataframe().copy()
+        x_syn_norm = x_syn.to_dataframe().copy()
         if self._task_type != "survival_analysis":
             if hasattr(x, "target_column"):
                 x_gt_norm = x_gt_norm.drop(columns=[x.target_column])
@@ -202,18 +202,18 @@ class AlphaPrecision(StatisticalEvaluator):
         if hasattr(x, "target_column"):
             x_gt_norm_df = pd.DataFrame(
                 scaler.transform(x_gt_norm),
-                columns=[col for col in x.train().dataframe().columns if col != x.target_column],
+                columns=[col for col in x.train().to_dataframe().columns if col != x.target_column],
             )
         else:
-            x_gt_norm_df = pd.DataFrame(scaler.transform(x_gt_norm), columns=x.train().dataframe().columns)
+            x_gt_norm_df = pd.DataFrame(scaler.transform(x_gt_norm), columns=x.train().to_dataframe().columns)
 
         if hasattr(x_syn, "target_column"):
             x_syn_norm_df = pd.DataFrame(
                 scaler.transform(x_syn_norm),
-                columns=[col for col in x_syn.dataframe().columns if col != x_syn.target_column],
+                columns=[col for col in x_syn.to_dataframe().columns if col != x_syn.target_column],
             )
         else:
-            x_syn_norm_df = pd.DataFrame(scaler.transform(x_syn_norm), columns=x_syn.dataframe().columns)
+            x_syn_norm_df = pd.DataFrame(scaler.transform(x_syn_norm), columns=x_syn.to_dataframe().columns)
 
         return x_gt_norm_df, x_syn_norm_df
 
@@ -234,8 +234,8 @@ class AlphaPrecision(StatisticalEvaluator):
         """
         results = {}
 
-        x_ = x.numpy().reshape(len(x), -1)
-        x_syn_ = x_syn.numpy().reshape(len(x_syn), -1)
+        x_ = x.to_numpy().reshape(len(x), -1)
+        x_syn_ = x_syn.to_numpy().reshape(len(x_syn), -1)
 
         # OneClass representation
         emb = "_OC"
