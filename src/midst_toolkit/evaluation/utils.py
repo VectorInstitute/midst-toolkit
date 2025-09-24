@@ -64,7 +64,7 @@ def extract_columns_based_on_meta_info(
     # Training the diffusion generators.
 
     # Enumerate columns and replace column name with index
-    data.columns = range(len(data.columns))
+    data.columns = list(range(len(data.columns)))
 
     # Get numerical and categorical column indices from meta info
     # NOTE: numerical and categorical columns are the only admissible/generate-able types"
