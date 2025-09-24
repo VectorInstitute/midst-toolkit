@@ -57,32 +57,6 @@ docs = [
 [tool.uv]
 default-groups = ["dev", "docs"]
 
-[tool.mypy]
-follow_imports = "normal"
-ignore_missing_imports = false
-install_types = true
-pretty = true
-non_interactive = true
-disallow_untyped_defs = false
-no_implicit_optional = true
-check_untyped_defs = true
-namespace_packages = true
-explicit_package_bases = true
-warn_unused_configs = true
-allow_subclassing_any = false
-allow_untyped_calls = true
-allow_incomplete_defs = false
-allow_untyped_decorators = false
-warn_redundant_casts = true
-warn_unused_ignores = true
-implicit_reexport = false
-strict_equality = true
-extra_checks = true
-mypy_path = "src"
-files = ["src", "examples"]
-exclude = [
-    "examples/tutorial/.*"
-]
 
 [tool.ruff]
 include = ["*.py", "pyproject.toml"]

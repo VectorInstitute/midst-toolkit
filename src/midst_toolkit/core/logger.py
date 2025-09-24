@@ -15,7 +15,7 @@ import tempfile
 import time
 import warnings
 from collections import defaultdict
-from collections.abc import Generator, Iterable
+from collections.abc import Callable, Generator, Iterable
 from contextlib import contextmanager
 from typing import IO, Any
 
@@ -55,7 +55,7 @@ class HumanOutputFormat(KVWriter, SeqWriter):
             self.file = filename_or_file  # type: ignore[assignment]
             self.own_file = False
 
-    def writekvs(self, kvs):
+    def writekvs(self, kvs: dict[str, Any]) -> None:
         # Create strings for printing
         key2str = {}
         for key, val in sorted(kvs.items()):
@@ -84,7 +84,7 @@ class HumanOutputFormat(KVWriter, SeqWriter):
         maxlen = 30
         return s[: maxlen - 3] + "..." if len(s) > maxlen else s
 
-    def writeseq(self, seq):
+    def writeseq(self, seq: Iterable[str]) -> None:
         seq = list(seq)
         for i, elem in enumerate(seq):
             self.file.write(elem)
@@ -103,7 +103,7 @@ class JSONOutputFormat(KVWriter):
         self.file = open(filename, "wt")
         # ruff: noqa: SIM115
 
-    def writekvs(self, kvs):
+    def writekvs(self, kvs: dict[str, Any]) -> None:
         for k, v in sorted(kvs.items()):
             if hasattr(v, "dtype"):
                 kvs[k] = float(v)
@@ -121,7 +121,7 @@ class CSVOutputFormat(KVWriter):
         self.keys: list[str] = []
         self.sep = ","
 
-    def writekvs(self, kvs):
+    def writekvs(self, kvs: dict[str, Any]) -> None:
         # Add our current row to the history
         extra_keys = list(kvs.keys() - self.keys)
         extra_keys.sort()
@@ -297,7 +297,7 @@ def profile_kv(scopename: str) -> Generator[None, None, None]:
         get_current().name2val[logkey] += time.time() - tstart
 
 
-def profile(n):
+def profile(n: str) -> Callable:
     """
     Usage.
 
@@ -305,8 +305,8 @@ def profile(n):
     def my_func(): code
     """
 
-    def decorator_with_name(func):
-        def func_wrapper(*args, **kwargs):
+    def decorator_with_name(func):  # type: ignore
+        def func_wrapper(*args, **kwargs):  # type: ignore
             with profile_kv(n):
                 return func(*args, **kwargs)
 
@@ -483,7 +483,7 @@ def reset() -> None:
 
 
 @contextmanager
-def scoped_configure(dir=None, format_strs=None, comm=None):
+def scoped_configure(dir=None, format_strs=None, comm=None):  # type: ignore
     # ruff: noqa: D103
     prevlogger = Logger.CURRENT
     configure(dir=dir, format_strs=format_strs, comm=comm)
