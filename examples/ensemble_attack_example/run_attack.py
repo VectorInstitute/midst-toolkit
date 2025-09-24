@@ -83,7 +83,7 @@ def run_metaclassifier_training(config: DictConfig) -> None:
     meta_classifier_enum = MetaClassifierType(config.metaclassifier.model_type)
 
     # 1. Initialize the attacker
-    blending_attacker = BlendingPlusPlus(meta_classifier_type=meta_classifier_enum, data_configs=config.data_configs)
+    blending_attacker = BlendingPlusPlus(data_configs=config.data_configs, meta_classifier_type=meta_classifier_enum)
     log(INFO, "Metaclassifier created, starting training...")
 
     # 2. Train the attacker on the meta-train set

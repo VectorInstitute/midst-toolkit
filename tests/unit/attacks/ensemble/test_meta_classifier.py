@@ -7,7 +7,8 @@ from hydra import compose, initialize
 from omegaconf import DictConfig
 
 # The class to be tested
-from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus
+from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
+
 
 
 # --- Fixtures: Reusable setup code for tests ---
@@ -73,26 +74,28 @@ class TestBlendingPlusPlus:
     def test_init_success(self, mock_data_configs):
         """Tests successful initialization with valid meta-classifier types."""
         # Test with XGBoost
-        bpp_xgb = BlendingPlusPlus(data_configs=mock_data_configs, meta_classifier_type="xgb")
-        assert bpp_xgb.meta_classifier_type == "xgb"
+        bpp_xgb = BlendingPlusPlus(data_configs=mock_data_configs, meta_classifier_type=MetaClassifierType("xgb"))
+        assert bpp_xgb.meta_classifier_type == MetaClassifierType.XGB
         assert bpp_xgb.data_configs == mock_data_configs
         assert bpp_xgb.meta_classifier_ is None
 
         # Test with Logistic Regression
-        bpp_lr = BlendingPlusPlus(data_configs=mock_data_configs, meta_classifier_type="lr")
-        assert bpp_lr.meta_classifier_type == "lr"
+        bpp_lr = BlendingPlusPlus(data_configs=mock_data_configs, meta_classifier_type=MetaClassifierType("lr"))
+        assert bpp_lr.meta_classifier_type == MetaClassifierType.LR
+        assert bpp_xgb.data_configs == mock_data_configs
+        assert bpp_xgb.meta_classifier_ is None
 
     def test_init_invalid_type_raises_error(self, mock_data_configs):
         """Tests that initialization with an invalid type raises a ValueError."""
-        with pytest.raises(ValueError, match="meta_classifier_type must be 'lr' or 'xgb'"):
-            BlendingPlusPlus(data_configs=mock_data_configs, meta_classifier_type="svm")
+        with pytest.raises(ValueError):
+            BlendingPlusPlus(data_configs=mock_data_configs, meta_classifier_type=MetaClassifierType("svm"))
 
     ## Test _prepare_meta_features ##
     # -------------------------------
 
     # We patch all external dependencies to isolate the method's logic
     @patch("midst_toolkit.attacks.ensemble.blending.calculate_gower_features")
-    @patch("midst_toolkit.attacks.ensemble.blending.calculate_domias")
+    @patch("midst_toolkit.attacks.ensemble.blending.calculate_domias_score")
     @patch("pandas.read_csv")
     def test_prepare_meta_features(self, mock_read_csv, mock_domias, mock_gower, mock_data_configs, sample_dataframes):
         """Tests that _prepare_meta_features correctly calls dependencies and concatenates their outputs."""
@@ -141,7 +144,7 @@ class TestBlendingPlusPlus:
         mock_lr_instance.fit.return_value = mock_lr_instance
 
         # 2. Instantiate and fit
-        bpp = BlendingPlusPlus(data_configs=mock_data_configs, meta_classifier_type="lr")
+        bpp = BlendingPlusPlus(data_configs=mock_data_configs, meta_classifier_type=MetaClassifierType("lr"))
         bpp.fit(
             df_train=sample_dataframes["df_train"],
             y_train=sample_dataframes["y_train"],
@@ -169,7 +172,7 @@ class TestBlendingPlusPlus:
         mock_tuner_class.return_value = mock_tuner_instance
 
         # 2. Instantiate and fit
-        bpp = BlendingPlusPlus(data_configs=mock_data_configs, meta_classifier_type="xgb")
+        bpp = BlendingPlusPlus(data_configs=mock_data_configs, meta_classifier_type=MetaClassifierType("xgb"))
         bpp.fit(
             df_train=sample_dataframes["df_train"],
             y_train=sample_dataframes["y_train"],
@@ -189,7 +192,7 @@ class TestBlendingPlusPlus:
     def test_predict_raises_error_if_not_fit(self, mock_data_configs, sample_dataframes):
         """Tests that calling .predict() before .fit() raises a RuntimeError."""
         bpp = BlendingPlusPlus(data_configs=mock_data_configs)
-        with pytest.raises(RuntimeError):
+        with pytest.raises(AssertionError):
             bpp.predict(
                 df_test=sample_dataframes["df_test"],
                 df_synth=sample_dataframes["df_synth"],
