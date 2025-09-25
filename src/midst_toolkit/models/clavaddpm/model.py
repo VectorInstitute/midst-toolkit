@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import math
 from typing import Any, Literal, Self
 
@@ -28,7 +30,7 @@ class Classifier(nn.Module):
         Args:
             d_in: The input dimension size.
             d_out: The output dimension size.
-            dim_t: The dimension size of the timestamp.
+            dim_t: The dimension size of the timestep.
             hidden_sizes: The list of sizes for the hidden layers.
             dropout_prob: The dropout probability. Optional, default is 0.5.
             num_heads: The number of heads for the transformer layer. Optional, default is 2.
@@ -84,7 +86,7 @@ class Classifier(nn.Module):
 
 def get_table_info(df: pd.DataFrame, domain_dict: dict[str, Any], y_col: str) -> dict[str, Any]:
     """
-    Get the dictionary oftable information.
+    Get the dictionary of table information.
 
     Args:
         df: The dataframe containing the data.
@@ -596,7 +598,7 @@ class MLPDiffusion(nn.Module):
             num_classes: The number of classes.
             is_y_cond: The condition on the y column. Can be "concat", "embedding", or "none".
             rtdl_params: The dictionary of parameters for the MLP.
-            dim_t: The dimension size of the timestamp.
+            dim_t: The dimension size of the timestep.
         """
         super().__init__()
         self.dim_t = dim_t
@@ -655,7 +657,7 @@ class ResNetDiffusion(nn.Module):
             d_in: The input dimension size.
             num_classes: The number of classes.
             rtdl_params: The dictionary of parameters for the ResNet.
-            dim_t: The dimension size of the timestamp.
+            dim_t: The dimension size of the timestep.
             is_y_cond: The condition on the y column. Can be "concat", "embedding", or "none".
                 Optional, default is None.
         """

@@ -74,9 +74,9 @@ class FeatureEncoder(TransformerMixin, BaseEstimator):  # type: ignore
         Returns:
             The fitted FeatureEncoder object.
         """
-        self.feature_name_in = x.name
+        self.feature_name_in = str(x.name)
         self.feature_type_in = self._get_feature_type(x)
-        input = validate_shape(x.values, self.n_dim_in)
+        input = validate_shape(x.to_numpy(), self.n_dim_in)
         output = self._fit(input, **kwargs)._transform(input)
         self._out_shape = (-1, *output.shape[1:])  # for inverse_transform
         output = validate_shape(output, self.n_dim_out)
@@ -101,7 +101,7 @@ class FeatureEncoder(TransformerMixin, BaseEstimator):  # type: ignore
         Returns:
             The transformed input.
         """
-        data = validate_shape(x.values, self.n_dim_in)
+        data = validate_shape(x.to_numpy(), self.n_dim_in)
         out = self._transform(data)
         out = validate_shape(out, self.n_dim_out)
         if self.n_dim_out == 1:
@@ -135,7 +135,7 @@ class FeatureEncoder(TransformerMixin, BaseEstimator):  # type: ignore
 
     def inverse_transform(self, df: pd.DataFrame | pd.Series) -> pd.Series:
         """Reverse the encoder mapping."""
-        y = df.values.reshape(self._out_shape)
+        y = df.to_numpy().reshape(self._out_shape)
         x = self._inverse_transform(y)
         x = validate_shape(x, 1)
         return pd.Series(x, name=self.feature_name_in)
@@ -197,4 +197,4 @@ class DatetimeEncoder(FeatureEncoder):
         return pd.to_numeric(x).astype(float)
 
     def _inverse_transform(self, data: np.ndarray) -> np.ndarray:
-        return pd.to_datetime(data)
+        return pd.to_datetime(data).to_numpy()
