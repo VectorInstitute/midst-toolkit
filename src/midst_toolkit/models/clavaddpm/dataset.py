@@ -227,15 +227,15 @@ class Dataset:
         return sum(map(len, self.y.values())) if split is None else len(self.y[split])
 
     @property
-    def nn_output_dim(self) -> int:
+    def output_dimension(self) -> int:
         """
-        Get the output dimension of the neural network.
+        Get the output dimension of the model.
 
         This only works for multiclass classification and regression tasks. Binary classification
         tasks have output dimension of 2.
 
         Returns:
-            The output dimension of the neural network.
+            The output dimension of the model.
         """
         if self.is_multiclass:
             assert self.n_classes is not None
