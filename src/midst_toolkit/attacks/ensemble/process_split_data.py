@@ -110,7 +110,7 @@ def generate_train_test_challenge_splits(
     # Shuffle data
     df_val = df_val.sample(frac=1, random_state=random_seed).reset_index(drop=True)
 
-    y_val = df_val["is_train"].values
+    y_val = df_val["is_train"].to_numpy()
     df_val = df_val.drop(columns=["is_train"])
 
     # Test set
@@ -139,7 +139,7 @@ def generate_train_test_challenge_splits(
 
     df_test = df_test.sample(frac=1, random_state=random_seed).reset_index(drop=True)
 
-    y_test = df_test["is_train"].values
+    y_test = df_test["is_train"].to_numpy()
     df_test = df_test.drop(columns=["is_train"])
 
     return df_val, y_val, df_test, y_test

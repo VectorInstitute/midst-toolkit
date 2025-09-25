@@ -43,7 +43,7 @@ class SynthEvalDataframeEncoding:
         synthetic_data: pd.DataFrame,
         categorical_columns: list[str] | None,
         numerical_columns: list[str] | None,
-        holdout_data: pd.DataFrame = None,
+        holdout_data: pd.DataFrame | None = None,
     ) -> None:
         """
         A class responsible for fitting encoders and scalers for categorical and numerical columns of dataframes,
@@ -214,6 +214,6 @@ def is_column_type_numerical(dataframe: pd.DataFrame, column_name: str) -> bool:
     Returns:
         True if the column contains numerical values. False otherwise.
     """
-    column_dtype = dataframe[column_name].dtype
+    column_dtype = dataframe[column_name].to_numpy().dtype
 
     return np.issubdtype(column_dtype, np.integer) or np.issubdtype(column_dtype, np.floating)
