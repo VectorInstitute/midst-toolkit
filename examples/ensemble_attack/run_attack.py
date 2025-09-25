@@ -116,7 +116,8 @@ def run_metaclassifier_training(config: DictConfig) -> None:
 
     # Save the prediction probabilities
     np.save(
-        Path(config.data_paths.attack_results_path) / f"{timestamp}_{config.metaclassifier.model_type}_test_pred_proba.npy",
+        Path(config.data_paths.attack_results_path)
+        / f"{timestamp}_{config.metaclassifier.model_type}_test_pred_proba.npy",
         probabilities,
     )
     log(INFO, "Test set prediction probabilities saved.")
