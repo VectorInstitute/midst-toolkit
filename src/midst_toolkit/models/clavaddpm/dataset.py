@@ -436,7 +436,7 @@ def make_dataset_from_df(
     df_info: dict[str, Any],
     ratios: list[float] | None = None,
     std: float = 0,
-) -> tuple[Dataset, dict[int, LabelEncoder], list[int]]:
+) -> tuple[Dataset, dict[int, LabelEncoder], list[str]]:
     """
     Generate a dataset from a pandas DataFrame.
 
@@ -495,7 +495,7 @@ def make_dataset_from_df(
         X_num: dict[str, np.ndarray] | None = {} if df_info["num_cols"] is not None else None
         y = {}
 
-        cat_cols_with_y = []
+        cat_cols_with_y: list[str] = []
         if df_info["cat_cols"] is not None:
             cat_cols_with_y += df_info["cat_cols"]
         if is_y_cond == "concat":
@@ -523,31 +523,33 @@ def make_dataset_from_df(
         X_num = {} if df_info["num_cols"] is not None or is_y_cond == "concat" else None
         y = {}
 
-        num_cols_with_y = []
+        num_cols_with_y: list[str] = []
         if df_info["num_cols"] is not None:
             num_cols_with_y += df_info["num_cols"]
         if is_y_cond == "concat":
             num_cols_with_y = [df_info["y_col"]] + num_cols_with_y
 
         if len(num_cols_with_y) > 0:
-            X_num["train"] = train_df[num_cols_with_y].values.astype(np.float32)  # type: ignore[index]
-            X_num["val"] = val_df[num_cols_with_y].values.astype(np.float32)  # type: ignore[index]
-            X_num["test"] = test_df[num_cols_with_y].values.astype(np.float32)  # type: ignore[index]
+            assert X_num is not None
+            X_num["train"] = train_df[num_cols_with_y].values.astype(np.float32)
+            X_num["val"] = val_df[num_cols_with_y].values.astype(np.float32)
+            X_num["test"] = test_df[num_cols_with_y].values.astype(np.float32)
 
         y["train"] = train_df[df_info["y_col"]].values.astype(np.float32)
         y["val"] = val_df[df_info["y_col"]].values.astype(np.float32)
         y["test"] = test_df[df_info["y_col"]].values.astype(np.float32)
 
         if df_info["cat_cols"] is not None:
-            X_cat["train"] = train_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)  # type: ignore[index]
-            X_cat["val"] = val_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)  # type: ignore[index]
-            X_cat["test"] = test_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)  # type: ignore[index]
+            assert X_cat is not None
+            X_cat["train"] = train_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+            X_cat["val"] = val_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+            X_cat["test"] = test_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
 
         cat_column_orders = [column_to_index[col] for col in df_info["cat_cols"]]
         num_column_orders = [column_to_index[col] for col in num_cols_with_y]
 
-    column_orders = num_column_orders + cat_column_orders
-    column_orders = [index_to_column[index] for index in column_orders]
+    column_orders_indices = num_column_orders + cat_column_orders
+    column_orders = [index_to_column[index] for index in column_orders_indices]
 
     label_encoders = {}
     if X_cat is not None and len(df_info["cat_cols"]) > 0:
@@ -572,6 +574,7 @@ def make_dataset_from_df(
         X_cat["test"] = X_cat_converted[train_num + val_num :, :]  # type: ignore[call-overload]
 
         if X_num and len(X_num) > 0:
+            assert X_num is not None
             X_num["train"] = np.concatenate((X_num["train"], X_cat["train"]), axis=1)
             X_num["val"] = np.concatenate((X_num["val"], X_cat["val"]), axis=1)
             X_num["test"] = np.concatenate((X_num["test"], X_cat["test"]), axis=1)
@@ -579,13 +582,16 @@ def make_dataset_from_df(
             X_num = X_cat
             X_cat = None
 
+    n_classes = df_info["n_classes"]
+    assert isinstance(n_classes, int)
+
     dataset = Dataset(
         X_num,
         None,
         y,
         y_info={},
         task_type=TaskType(df_info["task_type"]),
-        n_classes=df_info["n_classes"],
+        n_classes=n_classes,
     )
 
     return transform_dataset(dataset, transformations, None), label_encoders, column_orders

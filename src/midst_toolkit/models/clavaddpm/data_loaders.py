@@ -3,7 +3,7 @@ import os
 from collections.abc import Generator
 from logging import INFO
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 import numpy as np
 import pandas as pd
@@ -110,7 +110,7 @@ def pipeline_process_data(
     ratio: float = 0.9,
     save: bool = False,
     verbose: bool = True,
-) -> tuple[dict[str, Any], dict[str, Any]]:
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     """
     Processes the data to be sent through the pipeline.
 
@@ -167,15 +167,18 @@ def pipeline_process_data(
     num_train = int(num_data * ratio)
     num_test = num_data - num_train
 
+    test_df: pd.DataFrame | None = None
+
     if ratio < 1:
         train_df, test_df, seed = train_test_split(data_df, cat_columns, num_train, num_test)
     else:
         train_df = data_df.copy()
 
-    train_df.columns = range(len(train_df.columns))
+    train_df.columns = list(range(len(train_df.columns)))
 
     if ratio < 1:
-        test_df.columns = range(len(test_df.columns))
+        assert test_df is not None
+        test_df.columns = list(range(len(test_df.columns)))
 
     col_info: dict[Any, Any] = {}
 
@@ -205,6 +208,7 @@ def pipeline_process_data(
 
     train_df.rename(columns=idx_name_mapping, inplace=True)
     if ratio < 1:
+        assert test_df is not None
         test_df.rename(columns=idx_name_mapping, inplace=True)
 
     for col in num_columns:
@@ -213,6 +217,7 @@ def pipeline_process_data(
         train_df.loc[train_df[col] == "?", col] = "nan"
 
     if ratio < 1:
+        assert test_df is not None
         for col in num_columns:
             test_df.loc[test_df[col] == "?", col] = np.nan
         for col in cat_columns:
@@ -222,7 +227,12 @@ def pipeline_process_data(
     X_cat_train = train_df[cat_columns].to_numpy()
     y_train = train_df[target_columns].to_numpy()
 
+    X_num_test: np.ndarray | None = None
+    X_cat_test: np.ndarray | None = None
+    y_test: np.ndarray | None = None
+
     if ratio < 1:
+        assert test_df is not None
         X_num_test = test_df[num_columns].to_numpy().astype(np.float32)
         X_cat_test = test_df[cat_columns].to_numpy()
         y_test = test_df[target_columns].to_numpy()
@@ -234,6 +244,7 @@ def pipeline_process_data(
         np.save(f"{save_dir}/y_train.npy", y_train)
 
         if ratio < 1:
+            assert X_num_test is not None and X_cat_test is not None and y_test is not None
             np.save(f"{save_dir}/X_num_test.npy", X_num_test)
             np.save(f"{save_dir}/X_cat_test.npy", X_cat_test)
             np.save(f"{save_dir}/y_test.npy", y_test)
@@ -241,12 +252,14 @@ def pipeline_process_data(
     train_df[num_columns] = train_df[num_columns].astype(np.float32)
 
     if ratio < 1:
+        assert test_df is not None
         test_df[num_columns] = test_df[num_columns].astype(np.float32)
 
     if save:
         train_df.to_csv(f"{save_dir}/train.csv", index=False)
 
         if ratio < 1:
+            assert test_df is not None
             test_df.to_csv(f"{save_dir}/test.csv", index=False)
 
         if not os.path.exists(f"synthetic/{name}"):
@@ -255,12 +268,14 @@ def pipeline_process_data(
         train_df.to_csv(f"synthetic/{name}/real.csv", index=False)
 
         if ratio < 1:
+            assert test_df is not None
             test_df.to_csv(f"synthetic/{name}/test.csv", index=False)
 
     info["column_names"] = column_names
     info["train_num"] = train_df.shape[0]
 
     if ratio < 1:
+        assert test_df is not None
         info["test_num"] = test_df.shape[0]
 
     info["idx_mapping"] = idx_mapping
@@ -301,6 +316,7 @@ def pipeline_process_data(
 
     if verbose:
         if ratio < 1:
+            assert test_df is not None
             str_shape = f"Train dataframe shape: {train_df.shape}, Test dataframe shape: {test_df.shape}, Total dataframe shape: {data_df.shape}"
         else:
             str_shape = f"Table name: {name}, Total dataframe shape: {data_df.shape}"
@@ -309,7 +325,7 @@ def pipeline_process_data(
         str_shape += f", Categorical data shape: {X_cat_train.shape}"
         log(INFO, str_shape)
 
-    data = {
+    data: dict[str, dict[str, Any]] = {
         "df": {"train": train_df},
         "numpy": {
             "X_num_train": X_num_train,
@@ -319,6 +335,7 @@ def pipeline_process_data(
     }
 
     if ratio < 1:
+        assert test_df is not None and X_num_test is not None and X_cat_test is not None and y_test is not None
         data["df"]["test"] = test_df
         data["numpy"]["X_num_test"] = X_num_test
         data["numpy"]["X_cat_test"] = X_cat_test
@@ -474,15 +491,20 @@ class FastTensorDataLoader:
             n_batches += 1
         self.n_batches = n_batches
 
-    def __iter__(self):
-        """Define the iterator for the FastTensorDataLoader."""
+    def __iter__(self) -> Self:
+        """
+        Define the iterator for the FastTensorDataLoader.
+
+        Returns:
+            The FastTensorDataLoader prepared for iteration.
+        """
         if self.shuffle:
             r = torch.randperm(self.dataset_len)
             self.tensors = [t[r] for t in self.tensors]  # type: ignore[assignment]
         self.i = 0
         return self
 
-    def __next__(self):
+    def __next__(self) -> tuple[torch.Tensor, ...]:
         """Get the next batch of data from the dataset.
 
         Returns:
@@ -494,7 +516,7 @@ class FastTensorDataLoader:
         self.i += self.batch_size
         return batch
 
-    def __len__(self):
+    def __len__(self) -> int:
         """
         Get the number of batches in the dataset.
 
