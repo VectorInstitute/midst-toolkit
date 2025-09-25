@@ -70,7 +70,7 @@ class BlendingPlusPlus:
 
         # 3. Get RMIA signals (placeholder)
         rmia_signals = pd.read_csv(
-            "examples/ensemble_attack_example/data/attack_data/og_rmia_train_meta_pred.csv"
+            "examples/ensemble_attack/data/attack_data/og_rmia_train_meta_pred.csv"
         )  # Placeholder for RMIA features
 
         continuous_features = df_input.loc[

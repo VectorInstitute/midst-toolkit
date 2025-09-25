@@ -33,7 +33,9 @@ wheels/
 examples/**/data/
 
 # Trained metaclassifiers
-examples/ensemble_attack_example/trained_models/
-examples/ensemble_attack_example/attack_results/
+examples/ensemble_attack/trained_models/
+examples/ensemble_attack/attack_results/
+examples/ensemble_attack_example/
+
 # hydra output
 outputs/
