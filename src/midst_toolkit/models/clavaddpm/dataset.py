@@ -194,7 +194,7 @@ class Dataset:
         """
         Get the number of categorical features in the dataset.
 
-        That number should be in the second dimension of the tensors of X_cat tensor.
+        That number should be in the second dimension of the tensors of X_cat.
 
         Returns:
             The number of categorical features in the dataset.
@@ -288,7 +288,8 @@ class Dataset:
 # TODO consider moving all the functions below into the Dataset class
 def get_category_sizes(X: torch.Tensor | np.ndarray) -> list[int]:
     """
-    Get the size of the categories in the data.
+    Get the size of the categories in the data by counting the number of
+    unique values in each column.
 
     Args:
         X: The data to get the size of the categories of.
@@ -320,7 +321,40 @@ def calculate_metrics(
         y_info: A dictionary with metadata about the labels.
 
     Returns:
-        The metrics of the predictions.
+        The metrics of the predictions as a dictionary with the following keys:
+            If the task type is TaskType.REGRESSION:
+                {
+                    "rmse": The root mean squared error.
+                    "r2": The R^2 score.
+                }
+
+            If the task type is TaskType.MULTICLASS, it will have a key for each label
+            with the following metrics (result of sklearn.metrics.classification_report):
+                {
+                    "label-1": {
+                        "precision": The precision of the label.
+                        "recall": The recall of the label.
+                        "f1-score": The F1 score of the label.
+                        "support": The number of occurrences of this label in y_true.
+                    },
+                    "label-2": {...}
+                    ...
+                }
+
+            If the task type is TaskType.BINCLASS, it will have a key for each label
+            with the following metrics ((result of sklearn.metrics.classification_report),
+            and an additional ROC AUC metric:
+                {
+                    "label-1": {
+                        "precision": The precision of the label.
+                        "recall": The recall of the label.
+                        "f1-score": The F1 score of the label.
+                        "support": The number of occurrences of this label in y_true.
+                    },
+                    "label-2": {...}
+                    ...
+                    "roc_auc": The ROC AUC score.
+                }
     """
     task_type = TaskType(task_type)
     if prediction_type is not None:
@@ -333,7 +367,7 @@ def calculate_metrics(
         r2 = r2_score(y_true, y_pred)
         result = {"rmse": rmse, "r2": r2}
     else:
-        labels, probs = _get_labels_and_probs(y_pred, task_type, prediction_type)
+        labels, probs = _get_predicted_labels_and_probs(y_pred, task_type, prediction_type)
         # TODO: figure out if there is a way of getting rid of the cast
         result = cast(dict[str, Any], classification_report(y_true, labels, output_dict=True))
         if task_type == TaskType.BINCLASS:
@@ -360,11 +394,13 @@ def calculate_rmse(y_true: np.ndarray, y_pred: np.ndarray, std: float | None) ->
     return rmse
 
 
-def _get_labels_and_probs(
+def _get_predicted_labels_and_probs(
     y_pred: np.ndarray, task_type: TaskType, prediction_type: PredictionType | None
 ) -> tuple[np.ndarray, np.ndarray | None]:
     """
     Get the labels and probabilities from the predictions.
+    If prediction_type is None, will return the predicted labels as is
+    and the probabilities as None.
 
     Args:
         y_pred: The predicted labels as a numpy array.
@@ -395,10 +431,9 @@ def _get_labels_and_probs(
 def make_dataset_from_df(
     # ruff: noqa: PLR0915, PLR0912
     df: pd.DataFrame,
-    T: Transformations,
-    # ruff: noqa: N803
+    transformations: Transformations,
     is_y_cond: Literal["concat", "embedding", "none"],
-    df_info: pd.DataFrame,
+    df_info: dict[str, Any],
     ratios: list[float] | None = None,
     std: float = 0,
 ) -> tuple[Dataset, dict[int, LabelEncoder], list[int]]:
@@ -414,9 +449,9 @@ def make_dataset_from_df(
 
     Args:
         df: The pandas DataFrame to generate the dataset from.
-        T: The transformations to apply to the dataset.
+        transformations: The transformations to apply to the dataset.
         is_y_cond: The condition on the y column.
-            concat: y is concatenated to X, the model learn a joint distribution of (y, X)
+            concat: y is concatenated to X, the model learns a joint distribution of (y, X)
             embedding: y is not concatenated to X. During computations, y is embedded
                 and added to the latent vector of X
             none: y column is completely ignored
@@ -435,7 +470,8 @@ def make_dataset_from_df(
                     In this case, y is completely independent of X.
 
         df_info: A dictionary with metadata about the DataFrame.
-        ratios: The ratios of the dataset to split into train, val, and test. Optional, default is [0.7, 0.2, 0.1].
+        ratios: The ratios of the dataset to split into train, val, and test. The sum of
+            the ratios must amount to 1 (with a tolerance of 0.01). Optional, default is [0.7, 0.2, 0.1].
         std: The standard deviation of the labels. Optional, default is 0.
 
     Returns:
@@ -443,6 +479,8 @@ def make_dataset_from_df(
     """
     if ratios is None:
         ratios = [0.7, 0.2, 0.1]
+
+    assert np.isclose(sum(ratios), 1, atol=0.01), "The sum of the ratios must amount to 1 (with a tolerance of 0.01)."
 
     train_val_df, test_df = train_test_split(df, test_size=ratios[2], random_state=42)
     train_df, val_df = train_test_split(train_val_df, test_size=ratios[1] / (ratios[0] + ratios[1]), random_state=42)
@@ -541,8 +579,7 @@ def make_dataset_from_df(
             X_num = X_cat
             X_cat = None
 
-    D = Dataset(
-        # ruff: noqa: N806
+    dataset = Dataset(
         X_num,
         None,
         y,
@@ -551,7 +588,7 @@ def make_dataset_from_df(
         n_classes=df_info["n_classes"],
     )
 
-    return transform_dataset(D, T, None), label_encoders, column_orders
+    return transform_dataset(dataset, transformations, None), label_encoders, column_orders
 
 
 def transform_dataset(

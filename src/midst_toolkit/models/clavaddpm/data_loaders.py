@@ -495,7 +495,12 @@ class FastTensorDataLoader:
         return batch
 
     def __len__(self):
-        """Get the number of batches in the dataset."""
+        """
+        Get the number of batches in the dataset.
+
+        Returns:
+            (int) The number of batches in the dataset.
+        """
         return self.n_batches
 
 
