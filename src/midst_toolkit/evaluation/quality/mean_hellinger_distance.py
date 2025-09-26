@@ -56,7 +56,7 @@ class MeanHellingerDistance(SynthEvalQualityMetric):
 
         NOTE: The categorical columns MUST BE PREPROCESSED into numerical values otherwise the evaluation will fail.
         This function will NOT WORK WITH ONE-HOT ENCODINGS. This can be achieved by separately preprocessing the
-        dataframes before calling compute or by setting ``do_preprocess`` to True
+        dataframes before calling compute or by setting ``do_preprocess`` to True.
 
         Args:
             categorical_columns: Column names corresponding to the categorical variables of any provided dataframe.
@@ -82,7 +82,7 @@ class MeanHellingerDistance(SynthEvalQualityMetric):
 
         NOTE: The categorical columns MUST BE PREPROCESSED into numerical values otherwise the evaluation will fail.
         This function will NOT WORK WITH ONE-HOT ENCODINGS. This can be achieved by separately preprocessing the
-        dataframes before calling compute or by setting ``do_preprocess`` to True
+        dataframes before calling compute or by setting ``do_preprocess`` to True.
 
         Args:
             real_data: Real data to which the synthetic data may be compared. In many cases this will be data used

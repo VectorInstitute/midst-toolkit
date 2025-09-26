@@ -17,9 +17,9 @@ class MeanPropensityMeanSquaredError(SynthEvalQualityMetric):
         """
         This class measures how well a ``LogisticRegression`` model from sklearn (as implemented in SynthEval) can
         distinguish between real and synthetic data. The classification model is trained on a subset of the two data
-        sources and then applied to a heldout portion of the mixed data. The average pMSE for synthetic vs. real
-        predictions and macro F1 scores across the folds are reported along with the standard error of these mean
-        values.
+        sources and then applied to a validation split of the mixed data, created through cross-validation folds. The
+        average pMSE for synthetic vs. real predictions and macro F1 scores across the folds are reported along with
+        the standard error of these mean values.
 
         Computation of pMSE is based on the formula in:
 
@@ -55,8 +55,9 @@ class MeanPropensityMeanSquaredError(SynthEvalQualityMetric):
         """
         Computes how well a LogisticRegression model from sklearn (as implemented in SynthEval) can distinguish between
         real and synthetic data. The classification model is trained on a subset of the two data sources and then
-        applied to a heldout portion of the mixed data. The average pMSE of the 0 - synthetic, 1 - real predictions and
-        macro F1 scores across the folds are reported along with the standard error of these mean values.
+        applied to a validation split of the mixed data, created through cross-fold validation on the combination of
+        the two datasets. The average pMSE of the 0 = synthetic, 1 = real predictions and macro F1 scores across the
+        folds are reported along with the standard error of these mean values.
 
         NOTE: Categorical variables need to be encoded before training the classifier. This can be accomplished by
         preprocessing before calling ``compute`` or by setting ``do_preprocess`` to True. Note that if
