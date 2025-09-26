@@ -39,12 +39,12 @@ class BaseNet(nn.Module):
         """Base class for all neural networks."""
         super().__init__()
 
-    def forward(self, X: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Abstract forward pass through the network.
 
         Args:
-            X: input to the network
+            x: input to the network
 
         Raises:
             NotImplementedError: Must be implemented by the inheriting network
