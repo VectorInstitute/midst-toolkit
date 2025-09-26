@@ -1,16 +1,19 @@
 import pickle
 import random
 import shutil
-from pathlib import Path
 from logging import INFO
+from pathlib import Path
+
 import pandas as pd
 from omegaconf import DictConfig
-from midst_toolkit.common.logger import log
+
 from midst_toolkit.attacks.ensemble.tabddpm_training import (
     config_tabddpm,
     fine_tune_tabddpm_and_synthesize,
     train_tabddpm_and_synthesize,
 )
+from midst_toolkit.common.logger import log
+
 
 def train_fine_tuning_shadows(
     n_models: int,
@@ -55,7 +58,6 @@ def train_fine_tuning_shadows(
             None
 
     """
-
     # Pre-training set should not contain any sample that is in challenge points
     unique_ids = master_challenge_data["trans_id"].unique().tolist()
     train_pop = population_data[~population_data["trans_id"].isin(unique_ids)]
@@ -97,14 +99,10 @@ def train_fine_tuning_shadows(
 
         # Save the initial model
         # Pickle dump the results
-        with open(
-            Path(save_dir / f"rmia_initial_model_{init_model_id}.pkl"), "wb"
-        ) as file:
+        with open(Path(save_dir / f"rmia_initial_model_{init_model_id}.pkl"), "wb") as file:
             pickle.dump(initial_model, file)
     else:
-        initial_model = pickle.load(
-            open(Path(save_dir / f"rmia_initial_model_{init_model_id}.pkl"), "rb")
-        )
+        initial_model = pickle.load(open(Path(save_dir / f"rmia_initial_model_{init_model_id}.pkl"), "rb"))
     assert initial_model["models"][(None, "trans")]["diffusion"] is not None
 
     # Then create 4 random list of challenge points for each shadow model
@@ -123,9 +121,7 @@ def train_fine_tuning_shadows(
 
     for model_id, ref_list in enumerate(lists):
         log(INFO, f"Reference model number: {model_id}")
-        selected_challenges = master_challenge_data[
-            master_challenge_data["trans_id"].isin(ref_list)
-        ]
+        selected_challenges = master_challenge_data[master_challenge_data["trans_id"].isin(ref_list)]
         # Repeat each row n_reps times
         selected_challenges = pd.concat([selected_challenges] * n_reps, ignore_index=True)
         # Shuffle the dataset
@@ -212,9 +208,7 @@ def train_shadow_on_half_challenge_data(
     for model_id, ref_list in enumerate(lists):
         log(INFO, f"Reference model number: {model_id}")
 
-        selected_challenges = master_challenge_data[
-            master_challenge_data["trans_id"].isin(ref_list)
-        ]
+        selected_challenges = master_challenge_data[master_challenge_data["trans_id"].isin(ref_list)]
         log(INFO, f"Number of selected challenges to train the shadow model: {len(selected_challenges)}")
         # Repeat each row n_reps times
         selected_challenges = pd.concat([selected_challenges] * n_reps, ignore_index=True)
@@ -273,7 +267,7 @@ def run_shadow_model_training(
         shadow_models_data_path=shadow_models_data_path,
         training_json_config_paths=training_json_config_paths,
         shadow_training_config=shadow_training_config,
-        init_model_id=1, # To distinguish these shadow models from the next ones
+        init_model_id=1,  # To distinguish these shadow models from the next ones
         init_data_seed=random_seed,
         pre_training_data_size=shadow_training_config.pre_train_data_size,
         random_seed=random_seed,

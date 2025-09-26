@@ -1,16 +1,17 @@
 import copy
 import json
+from logging import INFO
 from pathlib import Path
 from typing import Any
-from logging import INFO
+
 import pandas as pd
 
 from midst_toolkit.attacks.ensemble.data_utils import load_configs, load_multi_table
 from midst_toolkit.attacks.ensemble.fine_tuning_module import clava_fine_tuning
 from midst_toolkit.common.logger import log
+from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 from midst_toolkit.models.clavaddpm.synthesizing import clava_synthesizing
 from midst_toolkit.models.clavaddpm.train import clava_training
-from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 
 
 def config_tabddpm(
@@ -29,6 +30,7 @@ def config_tabddpm(
             final_json_path: Path where the modified configuration JSON file will be saved.
             experiment_name: Name of the experiment, used to create a unique save directory.
             workspace_name: Name of the workspace, used to create a unique save directory.
+
     Returns:
             configs: Loaded configuration dictionary for TabDDPM.
             save_dir: Directory path where results will be saved.
@@ -104,7 +106,7 @@ def train_tabddpm_and_synthesize(
     )
     material["models"] = models
 
-    if n_synth>0:
+    if n_synth > 0:
         # Determine the sample scale:
         # By default, we want the length of the final synthetic data to be len(provided_synth_data) = 20,000
         # But with a smaller scale, we can generate less synthetic data for testing purposes.
@@ -180,12 +182,12 @@ def fine_tune_tabddpm_and_synthesize(
         relation_order,
         diffusion_config=configs["diffusion"],
         classifier_config=configs["classifier"],
-        fine_tuning_diffusion_iterations = fine_tuning_diffusion_iterations,
-        fine_tuning_classifier_iterations = fine_tuning_classifier_iterations,
+        fine_tuning_diffusion_iterations=fine_tuning_diffusion_iterations,
+        fine_tuning_classifier_iterations=fine_tuning_classifier_iterations,
     )
     material["new_models"] = new_models
 
-    if n_synth>0:
+    if n_synth > 0:
         # Determine the sample scale:
         # By default, we want the length of the final synthetic data to be len(provided_synth_data) = 20,000
         # But with a smaller scale, we can generate less synthetic data for testing purposes.

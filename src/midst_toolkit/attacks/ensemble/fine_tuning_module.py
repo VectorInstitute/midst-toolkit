@@ -2,19 +2,21 @@
 https://github.com/CRCHUM-CITADEL/ensemble-mia.
 """
 
-from typing import Any
 from logging import WARNING
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import torch
 from torch import optim
+
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
     GaussianMultinomialDiffusion,
 )
 from midst_toolkit.models.clavaddpm.model import (
-    Transformations,
     Classifier,
+    Transformations,
     get_model,
     get_model_params,
     get_T_dict,
@@ -22,11 +24,11 @@ from midst_toolkit.models.clavaddpm.model import (
     make_dataset_from_df,
     prepare_fast_dataloader,
 )
-from midst_toolkit.models.clavaddpm.train import (
-    _numerical_forward_backward_log,
-)
 from midst_toolkit.models.clavaddpm.sampler import (
     create_named_schedule_sampler,
+)
+from midst_toolkit.models.clavaddpm.train import (
+    _numerical_forward_backward_log,
 )
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
@@ -118,10 +120,11 @@ def fine_tune_model(
         "column_orders": column_orders,
     }
 
+
 # This function will not be called since ensemble is for single-table data, but I am adding it here for completeness
 # in case we wanted to experiment with multi-table as well.
 def fine_tune_classifier(
-    pre_trained_classifier:Classifier,
+    pre_trained_classifier: Classifier,
     data_frame: pd.DataFrame,
     data_frame_info: dict[str, Any],
     model_params: dict[str, Any],
@@ -163,9 +166,7 @@ def fine_tune_classifier(
         df_info=data_frame_info,
         std=0,
     )
-    train_loader = prepare_fast_dataloader(
-        dataset, split="train", batch_size=batch_size, y_type="long"
-    )
+    train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size, y_type="long")
 
     category_sizes = np.array(dataset.get_category_sizes("train"))
     # ruff: noqa: N806
@@ -260,9 +261,7 @@ def child_fine_tuning(
         child_result["classifier"] = None
     else:
         log(WARNING, "Ensemble attack is designed for single table. You are using multi-table fine-tuning.")
-        assert (
-            classifier_config is not None
-        ), "Classifier config is required for multi-table training"
+        assert classifier_config is not None, "Classifier config is required for multi-table training"
         if classifier_config["iterations"] > 0:
             child_classifier = fine_tune_classifier(
                 pre_trained_model["classifier"],

@@ -52,7 +52,7 @@ def main(cfg: DictConfig) -> None:
             random_seed=cfg.random_seed,
         )
         log(INFO, "Data processing pipeline finished.")
-    
+
     if cfg.pipeline.run_shadow_model_training:
         log(INFO, "Running shadow model training...")
         # Load the required dataframes for shadow model training.
