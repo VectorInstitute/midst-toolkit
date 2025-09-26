@@ -14,7 +14,7 @@ class ConfidenceLevel(IntEnum):
     NinetyNine = 99
 
 
-class MeanConfidenceInternalOverlap(SynthEvalMetric):
+class MeanConfidenceIntervalOverlap(SynthEvalMetric):
     def __init__(
         self,
         categorical_columns: list[str],

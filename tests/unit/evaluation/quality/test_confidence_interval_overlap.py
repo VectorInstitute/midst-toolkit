@@ -3,7 +3,7 @@ import pytest
 
 from midst_toolkit.evaluation.quality.confidence_interval_overlap import (
     ConfidenceLevel,
-    MeanConfidenceInternalOverlap,
+    MeanConfidenceIntervalOverlap,
 )
 
 
@@ -16,7 +16,7 @@ def test_confidence_interval_overlap_no_preprocess() -> None:
     )
 
     # Default confidence level
-    metric = MeanConfidenceInternalOverlap(
+    metric = MeanConfidenceIntervalOverlap(
         categorical_columns=["column_c"], numerical_columns=["column_a", "column_b", "column_d"], do_preprocess=False
     )
 
@@ -42,7 +42,7 @@ def test_confidence_interval_overlap_no_preprocess() -> None:
     assert score["frac non-overlaps"] == 1.0 / 3.0
 
     # 99 confidence level
-    metric = MeanConfidenceInternalOverlap(
+    metric = MeanConfidenceIntervalOverlap(
         categorical_columns=["column_c"],
         numerical_columns=["column_a", "column_b", "column_d"],
         do_preprocess=False,
@@ -79,7 +79,7 @@ def test_confidence_interval_overlap_with_preprocess() -> None:
         {"column_a": [1, 2, 3], "column_b": [4, 6, 6], "column_c": ["cat", "dog", "horse"], "column_d": [6, 6, 7]}
     )
 
-    metric = MeanConfidenceInternalOverlap(
+    metric = MeanConfidenceIntervalOverlap(
         categorical_columns=["column_c"], numerical_columns=["column_a", "column_b", "column_d"], do_preprocess=True
     )
 
