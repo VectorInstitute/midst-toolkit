@@ -40,7 +40,7 @@ def clava_training(
     save_dir: Path,
     diffusion_config: Configs,
     classifier_config: Configs | None,
-    device: str = "cuda",
+    device: str = "cuda" if torch.cuda.is_available() else "cpu",
 ) -> tuple[Tables, dict[tuple[str, str], dict[str, Any]]]:
     """
     Training function for the ClavaDDPM model.
@@ -262,7 +262,7 @@ def train_model(
     learning_rate: float,
     weight_decay: float,
     data_split_ratios: list[float],
-    device: str = "cuda",
+    device: str = "cuda" if torch.cuda.is_available() else "cpu",
 ) -> dict[str, Any]:
     """
     Training function for the diffusion model.
@@ -318,7 +318,7 @@ def train_model(
     model.to(device)
 
     train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size)
-
+    print("creating new diffusion with num_timesteps:", num_timesteps)
     diffusion = GaussianMultinomialDiffusion(
         num_classes=category_sizes,
         num_numerical_features=num_numerical_features,
