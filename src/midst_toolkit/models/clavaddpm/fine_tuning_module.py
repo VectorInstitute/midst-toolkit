@@ -9,20 +9,28 @@ import numpy as np
 import pandas as pd
 
 from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
-from midst_toolkit.models.clavaddpm.dataset import Transformations, make_dataset_from_df
+from midst_toolkit.models.clavaddpm.dataset import make_dataset_from_df
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
     GaussianMultinomialDiffusion,
 )
 from midst_toolkit.models.clavaddpm.model import ModelType, get_table_info
 from midst_toolkit.models.clavaddpm.train import train_classifier
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
-from midst_toolkit.models.clavaddpm.typing import GaussianLossType, IsYCond, ModelParameters, RTDLParameters, Scheduler
+from midst_toolkit.models.clavaddpm.typing import (
+    CatEncoding,
+    GaussianLossType,
+    IsYCond,
+    ModelParameters,
+    RTDLParameters,
+    Scheduler,
+    Transformations,
+)
 
 
 def fine_tune_model(
     trained_diffusion: GaussianMultinomialDiffusion,
     df: pd.DataFrame,
-    df_info: pd.DataFrame,
+    df_info: dict[str, Any],
     model_params: ModelParameters,
     transformations: Transformations,
     steps: int,
@@ -46,7 +54,7 @@ def fine_tune_model(
     num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
 
     category_array = np.array(dataset.get_category_sizes("train"))
-    if len(category_array) == 0 or transformations.cat_encoding == "one-hot":
+    if len(category_array) == 0 or transformations.cat_encoding == CatEncoding.ONE_HOT:
         category_array = np.array([0])
 
     num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0

@@ -39,6 +39,18 @@ class Classifier(nn.Module):
             num_heads: The number of heads for the transformer layer. Optional, default is 2.
             num_layers: The number of layers for the transformer layer. Optional, default is 1.
         """
+        """
+        Initialize the classifier model.
+
+        Args:
+            d_in: The input dimension size.
+            d_out: The output dimension size.
+            dim_t: The dimension size of the timestep.
+            hidden_sizes: The list of sizes for the hidden layers.
+            dropout_prob: The dropout probability. Optional, default is 0.5.
+            num_heads: The number of heads for the transformer layer. Optional, default is 2.
+            num_layers: The number of layers for the transformer layer. Optional, default is 1.
+        """
         super(Classifier, self).__init__()
 
         self.dim_t = dim_t
@@ -81,6 +93,16 @@ class Classifier(nn.Module):
         Returns:
             The output tensor.
         """
+        """
+        Forward pass of the classifier model.
+
+        Args:
+            x: The input tensor.
+            timesteps: The timesteps tensor.
+
+        Returns:
+            The output tensor.
+        """
         emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
         x = self.proj(x) + emb
         # x = self.transformer_layer(x, x)
@@ -88,6 +110,24 @@ class Classifier(nn.Module):
 
 
 def get_table_info(df: pd.DataFrame, domain_dict: dict[str, Any], y_col: str) -> dict[str, Any]:
+    """
+    Get the dictionary of table information.
+
+    Args:
+        df: The dataframe containing the data.
+        domain_dict: The domain dictionary of metadata about the data columns.
+        y_col: The name of the target column.
+
+    Returns:
+        The table information in the following format:
+        {
+            "cat_cols": list[str],
+            "num_cols": list[str],
+            "y_col": str,
+            "n_classes": int,
+            "task_type": str,
+        }
+    """
     """
     Get the dictionary of table information.
 
@@ -128,6 +168,14 @@ def get_table_info(df: pd.DataFrame, domain_dict: dict[str, Any], y_col: str) ->
 def timestep_embedding(timesteps: Tensor, dim: int, max_period: int = 10000) -> Tensor:
     """
     Create sinusoidal timestep embeddings.
+
+    Args:
+        timesteps: a 1-D Tensor of N indices, one per batch element. These may be fractional.
+        dim: the dimension of the output.
+        max_period: controls the minimum frequency of the embeddings.
+
+    Returns:
+        An [N x dim] Tensor of positional embeddings.
 
     Args:
         timesteps: a 1-D Tensor of N indices, one per batch element. These may be fractional.
@@ -192,12 +240,31 @@ class MLP(nn.Module):
                 activation: The activation function.
                 dropout: The dropout probability.
             """
+            """
+            Initialize the MLP block.
+
+            Args:
+                d_in: The input dimension size.
+                d_out: The output dimension size.
+                bias: Whether to use bias.
+                activation: The activation function.
+                dropout: The dropout probability.
+            """
             super().__init__()
             self.linear = nn.Linear(d_in, d_out, bias)
             self.activation = _make_nn_module(activation)
             self.dropout = nn.Dropout(dropout)
 
         def forward(self, x: Tensor) -> Tensor:
+            """
+            Forward pass of the MLP block.
+
+            Args:
+                x: The input tensor.
+
+            Returns:
+                The output tensor.
+            """
             """
             Forward pass of the MLP block.
 
@@ -223,6 +290,13 @@ class MLP(nn.Module):
 
         Note:
             `make_baseline` is the recommended constructor.
+
+        Args:
+            d_in: The input dimension size.
+            d_layers: The list of sizes for the hidden layers.
+            dropouts: Can be either a single value for the dropout rate or a list of dropout rates.
+            activation: The activation function.
+            d_out: The output dimension size.
 
         Args:
             d_in: The input dimension size.
@@ -295,6 +369,15 @@ class MLP(nn.Module):
         )
 
     def forward(self, x: Tensor) -> Tensor:
+        """
+        Forward pass of the MLP model.
+
+        Args:
+            x: The input tensor.
+
+        Returns:
+            The output tensor.
+        """
         """
         Forward pass of the MLP model.
 

@@ -15,16 +15,13 @@ from torch import Tensor, optim
 from midst_toolkit.common.logger import log
 from midst_toolkit.core import logger
 from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
-from midst_toolkit.models.clavaddpm.dataset import (
-    Dataset,
-    Transformations,
-    make_dataset_from_df,
-)
+from midst_toolkit.models.clavaddpm.dataset import Dataset, make_dataset_from_df
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 from midst_toolkit.models.clavaddpm.model import Classifier, ModelType, get_table_info
 from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, ScheduleSamplerType
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 from midst_toolkit.models.clavaddpm.typing import (
+    CatEncoding,
     Configs,
     GaussianLossType,
     IsYCond,
@@ -34,6 +31,7 @@ from midst_toolkit.models.clavaddpm.typing import (
     RTDLParameters,
     Scheduler,
     Tables,
+    Transformations,
 )
 
 
@@ -297,7 +295,7 @@ def train_model(
 
     category_sizes = np.array(dataset.get_category_sizes("train"))
     # ruff: noqa: N806
-    if len(category_sizes) == 0 or transformations.cat_encoding == "one-hot":
+    if len(category_sizes) == 0 or transformations.cat_encoding == CatEncoding.ONE_HOT:
         category_sizes = np.array([0])
         # ruff: noqa: N806
 
@@ -412,7 +410,7 @@ def train_classifier(
 
     category_sizes = np.array(dataset.get_category_sizes("train"))
     # ruff: noqa: N806
-    if len(category_sizes) == 0 or transformations.cat_encoding == "one-hot":
+    if len(category_sizes) == 0 or transformations.cat_encoding == CatEncoding.ONE_HOT:
         category_sizes = np.array([0])
         # ruff: noqa: N806
     print(category_sizes)
