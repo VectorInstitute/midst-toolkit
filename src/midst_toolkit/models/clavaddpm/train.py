@@ -12,8 +12,7 @@ import pandas as pd
 import torch
 from torch import Tensor, optim
 
-from midst_toolkit.common.logger import log
-from midst_toolkit.core import logger
+from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
 from midst_toolkit.models.clavaddpm.dataset import Dataset, make_dataset_from_df
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
@@ -367,6 +366,7 @@ def train_classifier(
     dim_t: int = 128,
     learning_rate: float = 0.0001,
     classifier_evaluation_interval: int = 5,
+    logger_interval: int = 10,
     pre_trained_classifier: Classifier | None = None,
 ) -> Classifier:
     """
@@ -389,6 +389,8 @@ def train_classifier(
         learning_rate: Learning rate to use for the optimizer in the classifier. Default is 0.0001.
         classifier_evaluation_interval: The number of classifier training steps to wait
             until the next evaluation of the classifier. Default is 5.
+        logger_interval: The number of classifier training steps to wait until the next logging
+            of its metrics. Default is 10.
         pre_trained_classifier: Pre-trained classifier model. If None, a new classifier model is trained.
 
     Returns:
@@ -450,14 +452,12 @@ def train_classifier(
     empty_diffusion.to(device)
 
     schedule_sampler = ScheduleSamplerType.UNIFORM.create_named_schedule_sampler(num_timesteps)
+    key_value_logger = KeyValueLogger()
 
     classifier.train()
     for step in range(classifier_steps):
-        logger.logkv("step", step)
-        logger.logkv(
-            "samples",
-            (step + 1) * batch_size,
-        )
+        key_value_logger.save_entry("step", float(step))
+        key_value_logger.save_entry("samples", float((step + 1) * batch_size))
         _numerical_forward_backward_log(
             classifier,
             classifier_optimizer,
@@ -467,6 +467,7 @@ def train_classifier(
             empty_diffusion,
             prefix="train",
             device=device,
+            key_value_logger=key_value_logger,
         )
 
         classifier_optimizer.step()
@@ -482,8 +483,13 @@ def train_classifier(
                     empty_diffusion,
                     prefix="val",
                     device=device,
+                    key_value_logger=key_value_logger,
                 )
                 classifier.train()
+
+        if step % logger_interval == 0:
+            # Dump the metrics every logger_interval number of steps
+            key_value_logger.dump()
 
     # test classifier
     classifier.eval()
@@ -576,6 +582,7 @@ def _numerical_forward_backward_log(
     prefix: str = "train",
     remove_first_col: bool = False,
     device: str = "cuda",
+    key_value_logger: KeyValueLogger | None = None,
 ) -> None:
     """
     Forward and backward pass for the numerical features of the ClavaDDPM model.
@@ -590,6 +597,7 @@ def _numerical_forward_backward_log(
         prefix: The prefix for the loss. Defaults to "train".
         remove_first_col: Whether to remove the first column of the batch. Defaults to False.
         device: The device to use. Defaults to "cuda".
+        key_value_logger: The key-value logger to log the losses. If None, the losses are not logged.
     """
     batch, labels = next(data_loader)
     labels = labels.long().to(device)
@@ -612,7 +620,7 @@ def _numerical_forward_backward_log(
         losses[f"{prefix}_acc@1"] = _compute_top_k(logits, sub_labels, k=1, reduction=ReductionMethod.NONE)
         if logits.shape[1] >= 5:
             losses[f"{prefix}_acc@5"] = _compute_top_k(logits, sub_labels, k=5, reduction=ReductionMethod.NONE)
-        _log_loss_dict(diffusion, sub_t, losses)
+        _log_loss_dict(diffusion, sub_t, losses, key_value_logger)
         del losses
         loss = loss.mean()
         if loss.requires_grad:
@@ -649,21 +657,30 @@ def _compute_top_k(
     raise ValueError(f"Unsupported reduction method: {reduction.value}.")
 
 
-def _log_loss_dict(diffusion: GaussianMultinomialDiffusion, ts: Tensor, losses: dict[str, Tensor]) -> None:
+def _log_loss_dict(
+    diffusion: GaussianMultinomialDiffusion,
+    timesteps: Tensor,
+    losses: dict[str, Tensor],
+    key_value_logger: KeyValueLogger | None = None,
+) -> None:
     """
     Output the log loss dictionary in the logger.
 
     Args:
         diffusion: The diffusion object.
-        ts: The timesteps.
+        timesteps: The timesteps tensor.
         losses: The losses.
+        key_value_logger: The key-value logger to log the losses. If None, the losses are not logged.
     """
+    if key_value_logger is None:
+        return
+
     for key, values in losses.items():
-        logger.logkv_mean(key, values.mean().item())
+        key_value_logger.save_entry_mean(key, values.mean().item())
         # Log the quantiles (four quartiles, in particular).
-        for sub_t, sub_loss in zip(ts.cpu().numpy(), values.detach().cpu().numpy()):
+        for sub_t, sub_loss in zip(timesteps.cpu().numpy(), values.detach().cpu().numpy()):
             quartile = int(4 * sub_t / diffusion.num_timesteps)
-            logger.logkv_mean(f"{key}_q{quartile}", sub_loss)
+            key_value_logger.save_entry_mean(f"{key}_q{quartile}", sub_loss)
 
 
 def _split_microbatches(
