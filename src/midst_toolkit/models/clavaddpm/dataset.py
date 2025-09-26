@@ -481,6 +481,7 @@ def make_dataset_from_df(
     if ratios is None:
         ratios = [0.7, 0.2, 0.1]
 
+    assert len(ratios) == 3, "The ratios must be a list of 3 values (train, validation, test)."
     assert np.isclose(sum(ratios), 1, atol=0.01), "The sum of the ratios must amount to 1 (with a tolerance of 0.01)."
 
     train_val_df, test_df = train_test_split(df, test_size=ratios[2], random_state=42)
