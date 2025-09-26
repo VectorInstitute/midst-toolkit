@@ -302,7 +302,7 @@ def train_model(
 
     _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.y["train"]), return_counts=True)
 
-    num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
+    num_numerical_features = dataset.x_num["train"].shape[1] if dataset.x_num is not None else 0
     d_in = np.sum(category_sizes) + num_numerical_features
     model_params["d_in"] = d_in
 
@@ -422,11 +422,11 @@ def train_classifier(
     print(category_sizes)
 
     # TODO: understand what's going on here
-    if dataset.X_num is None:
-        log(WARNING, "dataset.X_num is None. num_numerical_features will be set to 0")
+    if dataset.x_num is None:
+        log(WARNING, "dataset.x_num is None. num_numerical_features will be set to 0")
         num_numerical_features = 0
     else:
-        num_numerical_features = dataset.X_num["train"].shape[1]
+        num_numerical_features = dataset.x_num["train"].shape[1]
 
     if model_params["is_y_cond"] == "concat":
         num_numerical_features -= 1
