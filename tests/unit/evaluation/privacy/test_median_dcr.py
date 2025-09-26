@@ -8,8 +8,8 @@ from midst_toolkit.data_processing.midst_data_processing import load_midst_data
 from midst_toolkit.evaluation.privacy.distance_closest_record import (
     MedianDistanceToClosestRecordScore,
     minimum_distances,
-    preprocess,
 )
+from midst_toolkit.evaluation.privacy.distance_preprocess import preprocess
 from midst_toolkit.evaluation.privacy.distance_utils import NormType
 
 

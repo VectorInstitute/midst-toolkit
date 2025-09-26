@@ -33,6 +33,7 @@ DIFFUSION_CONFIG = {
     "gaussian_loss_type": "mse",
     "weight_decay": 1e-05,
     "scheduler": "cosine",
+    "data_split_ratios": [0.99, 0.005, 0.005],
 }
 
 CLASSIFIER_CONFIG = {
@@ -41,6 +42,7 @@ CLASSIFIER_CONFIG = {
     "dim_t": 128,
     "batch_size": 24,
     "iterations": 1000,
+    "data_split_ratios": [0.99, 0.005, 0.005],
 }
 
 
@@ -268,7 +270,7 @@ def test_train_single_table(tmp_path: Path):
         table_info[key]["empirical_class_dist"].float(),
         ddim=False,
     )
-    X_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
+    x_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
 
     with open("tests/integration/assets/single_table/assertion_data/syntetic_data.json", "r") as f:
         expected_results = json.load(f)
@@ -291,7 +293,7 @@ def test_train_single_table(tmp_path: Path):
 
         # TODO: Figure out if there is a good way of testing the synthetic data results
         # on multiple platforms. https://app.clickup.com/t/868f43wp0
-        assert np.allclose(X_gen, expected_results["X_gen"])
+        assert np.allclose(x_gen, expected_results["X_gen"])
         assert np.allclose(y_gen, expected_results["y_gen"])
 
     else:
@@ -325,7 +327,7 @@ def test_train_multi_table(tmp_path: Path):
         table_info[key]["empirical_class_dist"].float(),
         ddim=False,
     )
-    X_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
+    x_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
 
     with open("tests/integration/assets/multi_table/assertion_data/syntetic_data.json", "r") as f:
         expected_results = json.load(f)
@@ -350,7 +352,7 @@ def test_train_multi_table(tmp_path: Path):
 
         # TODO: Figure out if there is a good way of testing the synthetic data results
         # on multiple platforms. https://app.clickup.com/t/868f43wp0
-        assert np.allclose(X_gen, expected_results["X_gen"])
+        assert np.allclose(x_gen, expected_results["X_gen"])
         assert np.allclose(y_gen, expected_results["y_gen"])
 
     else:

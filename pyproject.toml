@@ -113,7 +113,7 @@ ignore = [
 "tests/*" = ["D103", "D105", "D107", "PLR2004"]
 
 [tool.ruff.lint.pep8-naming]
-ignore-names = ["X*", "setUp"]
+ignore-names = ["setUp"]
 
 [tool.ruff.lint.isort]
 lines-after-imports = 2

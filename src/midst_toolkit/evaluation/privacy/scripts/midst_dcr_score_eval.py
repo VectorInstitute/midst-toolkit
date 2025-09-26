@@ -6,10 +6,8 @@ import pandas as pd
 
 from midst_toolkit.common.logger import log
 from midst_toolkit.data_processing.midst_data_processing import load_midst_data_with_test
-from midst_toolkit.evaluation.privacy.distance_closest_record import (
-    DistanceToClosestRecordScore,
-    preprocess,
-)
+from midst_toolkit.evaluation.privacy.distance_closest_record import DistanceToClosestRecordScore
+from midst_toolkit.evaluation.privacy.distance_preprocess import preprocess
 
 
 # Killing a benign pandas warning
