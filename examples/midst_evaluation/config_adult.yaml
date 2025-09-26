@@ -15,31 +15,31 @@ metric_report_path: report_path/placeholder.txt
 
 # Privacy Evaluation Configurations
 dcr:
-  run: False
+  run: True
   norm: "l2"
   batch_size: 1000
 
 median_dcr:
-  run: False
+  run: True
   norm: "l2"
   batch_size: 1000
 
 hitting_rate:
-  run: False
+  run: True
   hitting_threshold: 0.03
 
 eir:
-  run: False
+  run: True
   norm: "gower"
 
 nndr:
-  run: False
+  run: True
   norm: "l2"
   batch_size: 1000
 
 # Quality Evaluation Configurations
 ks_tv:
-  run: False
+  run: True
   significance_level: 0.05
   permutations: 1000
 
@@ -48,32 +48,32 @@ alpha_precision:
   naive_only: False
 
 ci_overlap:
-  run: False
+  run: True
   confidence_level: 95
 
 correlation_diff:
-  run: False
+  run: True
   compute_mixed_correlations: True
 
 mean_diff:
-  run: False
+  run: True
 
 f1_score_diff:
-  run: False
+  run: True
   label_column: "income"
   folds: 5
   f1_type: "macro"
 
 hellinger:
-  run: False
+  run: True
   include_numerical_columns: True
 
 propensity_mse:
-  run: False
+  run: True
   folds: 5
   max_iterations: 50
   solver: "liblinear"
 
 mutual_information:
-  run: False
+  run: True
   include_numerical_columns: False
