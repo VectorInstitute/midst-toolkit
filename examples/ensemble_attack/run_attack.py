@@ -23,6 +23,7 @@ def main(cfg: DictConfig) -> None:
     """
     Run the Ensemble Attack example pipeline.
     As the first step, data processing is done.
+    Second step is shadow model training used for RMIA attack.
 
     Args:
         cfg: Attack OmegaConf DictConfig object.
@@ -51,27 +52,32 @@ def main(cfg: DictConfig) -> None:
             random_seed=cfg.random_seed,
         )
         log(INFO, "Data processing pipeline finished.")
-
-    # For shadow model training we need
-    df_master_challenge_train = load_dataframe(
-        Path(cfg.data_paths.processed_attack_data_path),
-        "master_challenge_train.csv",
-    )
-    df_population_with_challenge = load_dataframe(
-        Path(cfg.data_paths.population_path), "population_all_with_challenge.csv"
-    )
-    # ``population_data`` in ensemble attack is often used for shadow pre-training, and
-    # ``master_challenge_df`` is used for fine-tuning.
-    run_shadow_model_training(
-        population_data=df_population_with_challenge,
-        master_challenge_df=df_master_challenge_train,
-        shadow_models_data_path=Path(cfg.shadow_training.shadow_models_data_path),
-        training_json_config_paths=cfg.shadow_training.training_json_config_paths,
-        shadow_training_config=cfg.shadow_training,
-        n_models=2,  # 4 based on the original code, must be even
-        n_reps=12,  # 12 based on the original code
-        random_seed=cfg.random_seed,
-    )
+    
+    if cfg.pipeline.run_shadow_model_training:
+        log(INFO, "Running shadow model training...")
+        # Load the required dataframes for shadow model training.
+        # For shadow model training we need master_challenge_train and population data.
+        # Master challenge is the main training (or fine-tuning) data for the shadow models.
+        df_master_challenge_train = load_dataframe(
+            Path(cfg.data_paths.processed_attack_data_path),
+            "master_challenge_train.csv",
+        )
+        # Population data is used to pre-train some of the shadow models.
+        df_population_with_challenge = load_dataframe(
+            Path(cfg.data_paths.population_path), "population_all_with_challenge.csv"
+        )
+        # ``population_data`` in ensemble attack is often used for shadow pre-training, and
+        # ``master_challenge_df`` is used for fine-tuning.
+        run_shadow_model_training(
+            population_data=df_population_with_challenge,
+            master_challenge_data=df_master_challenge_train,
+            shadow_models_data_path=Path(cfg.shadow_training.shadow_models_data_path),
+            training_json_config_paths=cfg.shadow_training.training_json_config_paths,
+            shadow_training_config=cfg.shadow_training,
+            n_models=2,  # 4 based on the original code, must be even
+            n_reps=12,  # 12 based on the original code
+            random_seed=cfg.random_seed,
+        )
 
 
 if __name__ == "__main__":

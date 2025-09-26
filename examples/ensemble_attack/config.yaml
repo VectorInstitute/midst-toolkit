@@ -11,7 +11,8 @@ data_paths:
 
 # Pipeline control
 pipeline:
-  run_data_processing: false
+  run_data_processing: false # Set this to false if you have already saved the processed data
+  run_shadow_model_training: True
 
 # Dataset specific information used for processing in this example
 data_processing_config:
@@ -36,21 +37,21 @@ data_processing_config:
   challenge_data_file_name: "challenge_with_id.csv"
   population_sample_size: 30
 
-# Training settings (placeholder)
+# Training and data settings for shadow models
 shadow_training:
   # Data Config files path used for training a TabDDPM model
   training_json_config_paths: # Config json files used for tabddpm training on the trans table
     trans_domain_file_path: ${base_example_dir}/data_configs/trans_domain.json
     dataset_meta_file_path: ${base_example_dir}/data_configs/dataset_meta.json
     tabddpm_training_config_path: ${base_example_dir}/data_configs/trans.json
-  fine_tune_diffusion_iterations: 2
-  fine_tune_classifier_iterations: 2
-  num_synth_samples: 3 #original code:20000
-  model_type: "tabddpm"
   # Model training artifacts are saved under shadow_models_data_path/workspace_name/exp_name
   # Also, training configs for each shadow model are created under shadow_models_data_path.
   shadow_models_data_path: ${base_data_dir}/shadow_models_data
-  pre_train_data_size: 10
+  fine_tune_diffusion_iterations: 2
+  fine_tune_classifier_iterations: 2
+  num_synth_samples: 3 # Original code:20000
+  model_type: "tabddpm"
+  pre_train_data_size: 10 #10 for test run. Original code: 60000
 
 
 

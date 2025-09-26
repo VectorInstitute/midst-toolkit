@@ -1,14 +1,13 @@
 import copy
 import json
-import logging
 from pathlib import Path
 from typing import Any
-
+from logging import INFO
 import pandas as pd
 
 from midst_toolkit.attacks.ensemble.data_utils import load_configs, load_multi_table
 from midst_toolkit.attacks.ensemble.fine_tuning_module import clava_fine_tuning
-
+from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.synthesizing import clava_synthesizing
 from midst_toolkit.models.clavaddpm.train import clava_training
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
@@ -18,19 +17,21 @@ def config_tabddpm(
     data_dir: Path,
     training_json_path: Path,
     final_json_path: Path,
-    experiment_name: str = "tmp",
+    experiment_name: str = "attack_experiment",
     workspace_name: str = "shadow_workspace",
 ) -> tuple[dict, Path]:
     """
-    Modifies a TabDDPM configuration JSON file with specified parameters and loads the resulting configuration.
+    Modifies a TabDDPM configuration JSON file with specified folder names and loads the resulting configuration.
 
     Args:
-            data_dir (Path): Directory containing dataset_meta.json, trans_domain.json, and trans.json files.
-            # TODO: fix docstring
+            data_dir: Directory containing dataset_meta.json, trans_domain.json, and trans.json files.
+            training_json_path Path to the original TabDDPM training configuration JSON file.
+            final_json_path: Path where the modified configuration JSON file will be saved.
+            experiment_name: Name of the experiment, used to create a unique save directory.
+            workspace_name: Name of the workspace, used to create a unique save directory.
     Returns:
-            tuple[dict, str]:
-                - configs (dict): Loaded configuration dictionary for TabDDPM.
-                - save_dir (str): Directory path where results will be saved.
+            configs: Loaded configuration dictionary for TabDDPM.
+            save_dir: Directory path where results will be saved.
     """
     # modify the config file to give the correct training data and saving directory
 
@@ -46,7 +47,7 @@ def config_tabddpm(
     with open(final_json_path, "w") as file:
         json.dump(data, file, indent=4)
 
-    logging.info(f"DataFrame saved to {final_json_path}")
+    log(INFO, f"DataFrame saved to {final_json_path}")
 
     # Set up the config
     configs, save_dir = load_configs(str(final_json_path))
@@ -58,18 +59,19 @@ def train_tabddpm_and_synthesize(
     train_set: pd.DataFrame,
     configs: dict[str, Any],
     save_dir: Path,
-    synthesize: bool = True,
+    n_synth: int = 20000,
 ) -> dict[str, Any]:
     """
-    Train a TabDDPM model on the provided training set. The, synthesize data using the trained model.
+    Train a TabDDPM model on the provided training set. Then, synthesizes data using the trained model.
 
     Args:
-        train_set (pd.DataFrame): The training dataset as a pandas DataFrame.
-        configs (dict): TabDDPM configuration dictionary.
-        save_dir (Path): Directory path where results will be saved.
+        train_set: The training dataset.
+        configs: TabDDPM configuration dictionary.
+        save_dir: Directory path where results will be saved.
+        n_synth: Number of synthetic data points to be returned. Defaults to 20000.
 
     Returns:
-        dict[str, Any]: A dictionary containing tables, trained models and synthetic data.
+        A dictionary containing, but not limited to, tables, trained models and synthetic data.
     """
     material = {
         "tables": {},
@@ -102,13 +104,13 @@ def train_tabddpm_and_synthesize(
     )
     material["models"] = models
 
-    if synthesize:
-        # Determine the sample scale
-        # We want the final synthetic data = len(provided_synth_data) = 20,000
-        # TODO: fix sample scale to sample based on the requested number of synth data points
-        # sample_scale = 20000 / len(tables["trans"]["df"])
-        sample_scale = 1.0
-
+    if n_synth>0:
+        # Determine the sample scale:
+        # By default, we want the length of the final synthetic data to be len(provided_synth_data) = 20,000
+        # But with a smaller scale, we can generate less synthetic data for testing purposes.
+        # by default sample_scale should be 20000 / len(tables["trans"]["df"])
+        # Sample scale is later multiplied by the size of training data to determine the size of synthetic data.
+        sample_scale = n_synth / len(tables["trans"]["df"])
         # Generate synthetic data from scratch
         cleaned_tables, synthesizing_time_spent, matching_time_spent = clava_synthesizing(
             tables,
@@ -138,13 +140,13 @@ def fine_tune_tabddpm_and_synthesize(
     Given a the trained models and a new training set, fine-tune the TabDDPM model.
 
     Args:
-        trained_models (dict[str, any]): The previously trained model material.
-        new_train_set (pd.DataFrame): The new training dataset as a pandas DataFrame.
-        configs (dict[str, Any]): The TabDDPM configuration dictionary.
-        save_dir (Path): Directory path where results will be saved.
-        new_diffusion_iterations (int): Diffusion iterations for fine tuning. Defaults to 100.
-        new_classifier_iterations (int): Number of training iterations for the new classifier model. Defaults to 10.
-        n_synth (int, optional): Number of synthetic data points to be returned. Defaults to 20000.
+        trained_models: The previously trained model material.
+        new_train_set: The new training dataset.
+        configs: The TabDDPM configuration dictionary.
+        save_dir: Directory path where results will be saved.
+        fine_tuning_diffusion_iterations: Diffusion iterations for fine tuning. Defaults to 100.
+        fine_tuning_classifier_iterations: Number of training iterations for the new classifier model. Defaults to 10.
+        n_synth: Number of synthetic data points to be returned. Defaults to 20000.
 
     Returns:
         dict[str, Any]: The newly trained model material, including tables,
@@ -176,29 +178,31 @@ def fine_tune_tabddpm_and_synthesize(
         copied_models,
         new_tables,
         relation_order,
-        configs,
-        fine_tuning_diffusion_iterations,
-        fine_tuning_classifier_iterations,
+        diffusion_config=configs["diffusion"],
+        classifier_config=configs["classifier"],
+        fine_tuning_diffusion_iterations = fine_tuning_diffusion_iterations,
+        fine_tuning_classifier_iterations = fine_tuning_classifier_iterations,
     )
     material["new_models"] = new_models
 
-    # Determine the sample scale
-    # We want the final synthetic data = len(provided_synth_data) = 20,000
-    # TODO: fix next line
-    # sample_scale = n_synth / len(new_tables["trans"]["df"])
-    sample_scale = 0.001
+    if n_synth>0:
+        # Determine the sample scale:
+        # By default, we want the length of the final synthetic data to be len(provided_synth_data) = 20,000
+        # But with a smaller scale, we can generate less synthetic data for testing purposes.
+        # by default sample_scale should be 20000 / len(tables["trans"]["df"])
+        # Sample scale is later multiplied by the size of training data to determine the size of synthetic data.
+        sample_scale = n_synth / len(new_tables["trans"]["df"])
+        # Generate synthetic data from scratch
+        cleaned_tables, synthesizing_time_spent, matching_time_spent = clava_synthesizing(
+            new_tables,
+            relation_order,
+            save_dir,
+            all_group_lengths_prob_dicts,
+            new_models,
+            configs,
+            sample_scale=sample_scale,
+        )
 
-    # Generate synthetic data from scratch
-    cleaned_tables, synthesizing_time_spent, matching_time_spent = clava_synthesizing(
-        new_tables,
-        relation_order,
-        save_dir,
-        all_group_lengths_prob_dicts,
-        new_models,
-        configs,
-        sample_scale=sample_scale,
-    )
-
-    material["synth_data"] = cleaned_tables["trans"]
+        material["synth_data"] = cleaned_tables["trans"]
 
     return material
