@@ -13,18 +13,15 @@ from torch import Tensor, optim
 
 from midst_toolkit.common.logger import log
 from midst_toolkit.core import logger
-from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
-from midst_toolkit.models.clavaddpm.model import (
-    Classifier,
+from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
+from midst_toolkit.models.clavaddpm.dataset import (
     Dataset,
     Transformations,
-    get_model,
-    get_model_params,
     get_T_dict,
-    get_table_info,
     make_dataset_from_df,
-    prepare_fast_dataloader,
 )
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
+from midst_toolkit.models.clavaddpm.model import Classifier, get_model, get_table_info
 from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, create_named_schedule_sampler
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
@@ -182,7 +179,7 @@ def child_training(
     else:
         y_col = f"{parent_name}_{child_name}_cluster"
     child_info = get_table_info(child_df_with_cluster, child_domain_dict, y_col)
-    child_model_params = get_model_params(
+    child_model_params = _get_model_params(
         {
             "d_layers": diffusion_config["d_layers"],
             "dropout": diffusion_config["dropout"],
@@ -245,7 +242,7 @@ def train_model(
     transformations_dict: dict[str, Any],
     steps: int,
     batch_size: int,
-    model_type: str,
+    model_type: Literal["mlp", "resnet"],
     gaussian_loss_type: str,
     num_timesteps: int,
     scheduler: str,
@@ -681,3 +678,36 @@ def _split_microbatches(
     else:
         for i in range(0, bs, microbatch):
             yield batch[i : i + microbatch], labels[i : i + microbatch], t[i : i + microbatch]
+
+
+# TODO make this into a class with default parameters
+def _get_model_params(rtdl_params: dict[str, Any] | None = None) -> dict[str, Any]:
+    """
+    Return the model parameters.
+
+    Args:
+        rtdl_params: The parameters for the RTDL model. If None, the default parameters below are used:
+            {
+                "d_layers": [512, 1024, 1024, 1024, 1024, 512],
+                "dropout": 0.0,
+            }
+
+    Returns:
+        The model parameters as a dictionary containing the following keys:
+            - num_classes: The number of classes. Defaults to 0.
+            - is_y_cond: Affects how y is generated. For more information, see the documentation
+                of the `make_dataset_from_df` function. Can be any of ["none", "concat", "embedding"].
+                Defaults to "none".
+            - rtdl_params: The parameters for the RTDL model.
+    """
+    if rtdl_params is None:
+        rtdl_params = {
+            "d_layers": [512, 1024, 1024, 1024, 1024, 512],
+            "dropout": 0.0,
+        }
+
+    return {
+        "num_classes": 0,
+        "is_y_cond": "none",
+        "rtdl_params": rtdl_params,
+    }
