@@ -64,6 +64,8 @@ def clava_training(
                 scheduler = str["cosine" | "linear"],
                 lr = float,
                 weight_decay = float,
+                data_split_ratios = list[float], # [train_ratio, validation_ratio, test_ratio], must amount to 1
+                    (with a tolerance of 0.01)
             }
         classifier_config: Dictionary of configurations for the classifier model. Not required for single table
             training. The following config keys are required for multi-table training:
@@ -153,6 +155,8 @@ def child_training(
                 scheduler = str["cosine" | "linear"],
                 lr = float,
                 weight_decay = float,
+                data_split_ratios = list[float], # [train_ratio, validation_ratio, test_ratio], must amount to 1
+                    (with a tolerance of 0.01)
             }
         classifier_config: Dictionary of configurations for the classifier model. Not required for single table
             training. The following config keys are required for multi-table training:
@@ -200,6 +204,7 @@ def child_training(
         diffusion_config["scheduler"],
         diffusion_config["lr"],
         diffusion_config["weight_decay"],
+        diffusion_config["data_split_ratios"],
         device=device,
     )
 
@@ -223,6 +228,7 @@ def child_training(
                 dim_t=classifier_config["dim_t"],
                 learning_rate=classifier_config["lr"],
                 device=device,
+                data_split_ratios=classifier_config["data_split_ratios"],
             )
             child_result["classifier"] = child_classifier
         else:
@@ -247,6 +253,7 @@ def train_model(
     scheduler: str,
     learning_rate: float,
     weight_decay: float,
+    data_split_ratios: list[float],
     device: str = "cuda",
 ) -> dict[str, Any]:
     """
@@ -265,6 +272,8 @@ def train_model(
         scheduler: Scheduler to use for the diffusion model.
         learning_rate: Learning rate to use for the optimizer in the diffusion model.
         weight_decay: Weight decay to use for the optimizer in the diffusion model.
+        data_split_ratios: The ratios of the dataset to split into train, val, and test. The sum of
+            the ratios must amount to 1 (with a tolerance of 0.01).
         device: Device to use for training. Default is `"cuda"`.
 
     Returns:
@@ -280,7 +289,7 @@ def train_model(
         data_frame,
         transformations,
         is_y_cond=model_params["is_y_cond"],
-        ratios=[0.99, 0.005, 0.005],
+        ratios=data_split_ratios,
         df_info=data_frame_info,
         std=0,
     )
@@ -354,6 +363,7 @@ def train_classifier(
     num_timesteps: int,
     scheduler: str,
     d_layers: list[int],
+    data_split_ratios: list[float],
     device: str = "cuda",
     cluster_col: str = "cluster",
     dim_t: int = 128,
@@ -375,6 +385,8 @@ def train_classifier(
         num_timesteps: Number of timesteps to use for the diffusion model.
         scheduler: Scheduler to use for the diffusion model.
         d_layers: List of the hidden sizes of the classifier.
+        data_split_ratios: The ratios of the dataset to split into train, val, and test. The sum of
+            the ratios must amount to 1 (with a tolerance of 0.01).
         device: Device to use for training. Default is `"cuda"`.
         cluster_col: Name of the cluster column. Default is `"cluster"`.
         dim_t: Dimension of the timestamp. Default is 128.
@@ -393,7 +405,7 @@ def train_classifier(
         data_frame,
         transformations,
         is_y_cond=model_params["is_y_cond"],
-        ratios=[0.99, 0.005, 0.005],
+        ratios=data_split_ratios,
         df_info=data_frame_info,
         std=0,
     )
