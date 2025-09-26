@@ -96,8 +96,8 @@ def get_T_dict() -> dict[str, Any]:
 
 @dataclass(frozen=False)
 class Dataset:
-    X_num: ArrayDict | None
-    X_cat: ArrayDict | None
+    x_num: ArrayDict | None
+    x_cat: ArrayDict | None
     y: ArrayDict
     y_info: dict[str, Any]
     task_type: TaskType
@@ -120,8 +120,8 @@ class Dataset:
             info = json.loads(Path(directory / "info.json").read_text())
 
         return cls(
-            cls._load_datasets(directory, "X_num") if directory.joinpath("X_num_train.npy").exists() else None,
-            cls._load_datasets(directory, "X_cat") if directory.joinpath("X_cat_train.npy").exists() else None,
+            cls._load_datasets(directory, "x_num") if directory.joinpath("x_num_train.npy").exists() else None,
+            cls._load_datasets(directory, "x_cat") if directory.joinpath("x_cat_train.npy").exists() else None,
             cls._load_datasets(directory, "y"),
             {},
             TaskType(info["task_type"]),
@@ -182,24 +182,24 @@ class Dataset:
         """
         Get the number of numerical features in the dataset.
 
-        That number should be in the second dimension of the tensors of X_num.
+        That number should be in the second dimension of the tensors of x_num.
 
         Returns:
             The number of numerical features in the dataset.
         """
-        return 0 if self.X_num is None else self.X_num["train"].shape[1]
+        return 0 if self.x_num is None else self.x_num["train"].shape[1]
 
     @property
     def n_cat_features(self) -> int:
         """
         Get the number of categorical features in the dataset.
 
-        That number should be in the second dimension of the tensors of X_cat.
+        That number should be in the second dimension of the tensors of x_cat.
 
         Returns:
             The number of categorical features in the dataset.
         """
-        return 0 if self.X_cat is None else self.X_cat["train"].shape[1]
+        return 0 if self.x_cat is None else self.x_cat["train"].shape[1]
 
     @property
     def n_features(self) -> int:
@@ -253,9 +253,9 @@ class Dataset:
         Returns:
             The size of the categories in the specified split of the dataset.
         """
-        return [] if self.X_cat is None else get_category_sizes(self.X_cat[split])
+        return [] if self.x_cat is None else get_category_sizes(self.x_cat[split])
 
-    # TODO: prediciton_type should be of type PredictionType
+    # TODO: prediction_type should be of type PredictionType
     def calculate_metrics(
         self,
         predictions: dict[str, np.ndarray],
@@ -287,19 +287,19 @@ class Dataset:
 
 
 # TODO consider moving all the functions below into the Dataset class
-def get_category_sizes(X: torch.Tensor | np.ndarray) -> list[int]:
+def get_category_sizes(x: torch.Tensor | np.ndarray) -> list[int]:
     """
     Get the size of the categories in the data by counting the number of
     unique values in each column.
 
     Args:
-        X: The data to get the size of the categories of.
+        x: The data to get the size of the categories of.
 
     Returns:
         A list with the category sizes in the data.
     """
-    XT = X.T.cpu().tolist() if isinstance(X, torch.Tensor) else X.T.tolist()
-    return [len(set(x)) for x in XT]
+    x_t = x.T.cpu().tolist() if isinstance(x, torch.Tensor) else x.T.tolist()
+    return [len(set(xt)) for xt in x_t]
 
 
 def calculate_metrics(
@@ -441,10 +441,10 @@ def make_dataset_from_df(
     """
     Generate a dataset from a pandas DataFrame.
 
-    The order of the generated dataset: (y, X_num, X_cat).
+    The order of the generated dataset: (y, x_num, x_cat).
 
     Note: For now, n_classes has to be set to 0. This is because our matrix is the concatenation
-    of (X_num, X_cat). In this case, if we have is_y_cond == 'concat', we can guarantee that y
+    of (x_num, x_cat). In this case, if we have is_y_cond == 'concat', we can guarantee that y
     is the first column of the matrix.
     However, if we have n_classes > 0, then y is not the first column of the matrix.
 
@@ -481,6 +481,7 @@ def make_dataset_from_df(
     if ratios is None:
         ratios = [0.7, 0.2, 0.1]
 
+    assert len(ratios) == 3, "The ratios must be a list of 3 values (train, validation, test)."
     assert np.isclose(sum(ratios), 1, atol=0.01), "The sum of the ratios must amount to 1 (with a tolerance of 0.01)."
 
     train_val_df, test_df = train_test_split(df, test_size=ratios[2], random_state=42)
@@ -492,8 +493,8 @@ def make_dataset_from_df(
     column_to_index = {col: i for i, col in enumerate(index_to_column)}
 
     if df_info["n_classes"] > 0:
-        X_cat: dict[str, np.ndarray] | None = {} if df_info["cat_cols"] is not None or is_y_cond == "concat" else None
-        X_num: dict[str, np.ndarray] | None = {} if df_info["num_cols"] is not None else None
+        x_cat: dict[str, np.ndarray] | None = {} if df_info["cat_cols"] is not None or is_y_cond == "concat" else None
+        x_num: dict[str, np.ndarray] | None = {} if df_info["num_cols"] is not None else None
         y = {}
 
         cat_cols_with_y: list[str] = []
@@ -503,25 +504,25 @@ def make_dataset_from_df(
             cat_cols_with_y = [df_info["y_col"]] + cat_cols_with_y
 
         if len(cat_cols_with_y) > 0:
-            X_cat["train"] = train_df[cat_cols_with_y].to_numpy(dtype=np.str_)  # type: ignore[index]
-            X_cat["val"] = val_df[cat_cols_with_y].to_numpy(dtype=np.str_)  # type: ignore[index]
-            X_cat["test"] = test_df[cat_cols_with_y].to_numpy(dtype=np.str_)  # type: ignore[index]
+            x_cat["train"] = train_df[cat_cols_with_y].to_numpy(dtype=np.str_)  # type: ignore[index]
+            x_cat["val"] = val_df[cat_cols_with_y].to_numpy(dtype=np.str_)  # type: ignore[index]
+            x_cat["test"] = test_df[cat_cols_with_y].to_numpy(dtype=np.str_)  # type: ignore[index]
 
         y["train"] = train_df[df_info["y_col"]].values.astype(np.float32)
         y["val"] = val_df[df_info["y_col"]].values.astype(np.float32)
         y["test"] = test_df[df_info["y_col"]].values.astype(np.float32)
 
         if df_info["num_cols"] is not None:
-            X_num["train"] = train_df[df_info["num_cols"]].values.astype(np.float32)  # type: ignore[index]
-            X_num["val"] = val_df[df_info["num_cols"]].values.astype(np.float32)  # type: ignore[index]
-            X_num["test"] = test_df[df_info["num_cols"]].values.astype(np.float32)  # type: ignore[index]
+            x_num["train"] = train_df[df_info["num_cols"]].values.astype(np.float32)  # type: ignore[index]
+            x_num["val"] = val_df[df_info["num_cols"]].values.astype(np.float32)  # type: ignore[index]
+            x_num["test"] = test_df[df_info["num_cols"]].values.astype(np.float32)  # type: ignore[index]
 
         cat_column_orders = [column_to_index[col] for col in cat_cols_with_y]
         num_column_orders = [column_to_index[col] for col in df_info["num_cols"]]
 
     else:
-        X_cat = {} if df_info["cat_cols"] is not None else None
-        X_num = {} if df_info["num_cols"] is not None or is_y_cond == "concat" else None
+        x_cat = {} if df_info["cat_cols"] is not None else None
+        x_num = {} if df_info["num_cols"] is not None or is_y_cond == "concat" else None
         y = {}
 
         num_cols_with_y: list[str] = []
@@ -531,20 +532,20 @@ def make_dataset_from_df(
             num_cols_with_y = [df_info["y_col"]] + num_cols_with_y
 
         if len(num_cols_with_y) > 0:
-            assert X_num is not None
-            X_num["train"] = train_df[num_cols_with_y].values.astype(np.float32)
-            X_num["val"] = val_df[num_cols_with_y].values.astype(np.float32)
-            X_num["test"] = test_df[num_cols_with_y].values.astype(np.float32)
+            assert x_num is not None
+            x_num["train"] = train_df[num_cols_with_y].values.astype(np.float32)
+            x_num["val"] = val_df[num_cols_with_y].values.astype(np.float32)
+            x_num["test"] = test_df[num_cols_with_y].values.astype(np.float32)
 
         y["train"] = train_df[df_info["y_col"]].values.astype(np.float32)
         y["val"] = val_df[df_info["y_col"]].values.astype(np.float32)
         y["test"] = test_df[df_info["y_col"]].values.astype(np.float32)
 
         if df_info["cat_cols"] is not None:
-            assert X_cat is not None
-            X_cat["train"] = train_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
-            X_cat["val"] = val_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
-            X_cat["test"] = test_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+            assert x_cat is not None
+            x_cat["train"] = train_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+            x_cat["val"] = val_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+            x_cat["test"] = test_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
 
         cat_column_orders = [column_to_index[col] for col in df_info["cat_cols"]]
         num_column_orders = [column_to_index[col] for col in num_cols_with_y]
@@ -553,41 +554,40 @@ def make_dataset_from_df(
     column_orders = [index_to_column[index] for index in column_orders_indices]
 
     label_encoders = {}
-    if X_cat is not None and len(df_info["cat_cols"]) > 0:
-        X_cat_all = np.vstack((X_cat["train"], X_cat["val"], X_cat["test"]))
-        X_cat_converted = []
-        for col_index in range(X_cat_all.shape[1]):
+    if x_cat is not None and len(df_info["cat_cols"]) > 0:
+        x_cat_all = np.vstack((x_cat["train"], x_cat["val"], x_cat["test"]))
+        x_cat_converted = []
+        for col_index in range(x_cat_all.shape[1]):
             label_encoder = LabelEncoder()
-            X_cat_converted.append(label_encoder.fit_transform(X_cat_all[:, col_index]).astype(float))
+            x_cat_converted.append(label_encoder.fit_transform(x_cat_all[:, col_index]).astype(float))
             if std > 0:
                 # add noise
-                X_cat_converted[-1] += np.random.normal(0, std, X_cat_converted[-1].shape)
+                x_cat_converted[-1] += np.random.normal(0, std, x_cat_converted[-1].shape)
             label_encoders[col_index] = label_encoder
 
-        X_cat_converted = np.vstack(X_cat_converted).T  # type: ignore[assignment]
+        x_cat_converted = np.vstack(x_cat_converted).T  # type: ignore[assignment]
 
-        train_num = X_cat["train"].shape[0]
-        val_num = X_cat["val"].shape[0]
-        # test_num = X_cat["test"].shape[0]
+        train_num = x_cat["train"].shape[0]
+        val_num = x_cat["val"].shape[0]
 
-        X_cat["train"] = X_cat_converted[:train_num, :]  # type: ignore[call-overload]
-        X_cat["val"] = X_cat_converted[train_num : train_num + val_num, :]  # type: ignore[call-overload]
-        X_cat["test"] = X_cat_converted[train_num + val_num :, :]  # type: ignore[call-overload]
+        x_cat["train"] = x_cat_converted[:train_num, :]  # type: ignore[call-overload]
+        x_cat["val"] = x_cat_converted[train_num : train_num + val_num, :]  # type: ignore[call-overload]
+        x_cat["test"] = x_cat_converted[train_num + val_num :, :]  # type: ignore[call-overload]
 
-        if X_num and len(X_num) > 0:
-            assert X_num is not None
-            X_num["train"] = np.concatenate((X_num["train"], X_cat["train"]), axis=1)
-            X_num["val"] = np.concatenate((X_num["val"], X_cat["val"]), axis=1)
-            X_num["test"] = np.concatenate((X_num["test"], X_cat["test"]), axis=1)
+        if x_num and len(x_num) > 0:
+            assert x_num is not None
+            x_num["train"] = np.concatenate((x_num["train"], x_cat["train"]), axis=1)
+            x_num["val"] = np.concatenate((x_num["val"], x_cat["val"]), axis=1)
+            x_num["test"] = np.concatenate((x_num["test"], x_cat["test"]), axis=1)
         else:
-            X_num = X_cat
-            X_cat = None
+            x_num = x_cat
+            x_cat = None
 
     n_classes = df_info["n_classes"]
     assert isinstance(n_classes, int)
 
     dataset = Dataset(
-        X_num,
+        x_num,
         None,
         y,
         y_info={},
@@ -632,44 +632,44 @@ def transform_dataset(
                 return value
             raise RuntimeError(f"Hash collision for {cache_path}")
 
-    if dataset.X_num is not None:
+    if dataset.x_num is not None:
         dataset = num_process_nans(dataset, transformations.num_nan_policy)
 
     num_transform = None
     cat_transform = None
-    X_num = dataset.X_num
+    x_num = dataset.x_num
 
-    if X_num is not None and transformations.normalization is not None:
-        X_num, num_transform = normalize(  # type: ignore[assignment]
-            X_num,
+    if x_num is not None and transformations.normalization is not None:
+        x_num, num_transform = normalize(  # type: ignore[assignment]
+            x_num,
             transformations.normalization,
             transformations.seed,
             return_normalizer=True,
         )
 
-    if dataset.X_cat is None:
+    if dataset.x_cat is None:
         assert transformations.cat_nan_policy is None
         assert transformations.cat_min_frequency is None
         # assert transformations.cat_encoding is None
-        X_cat = None
+        x_cat = None
     else:
-        X_cat = cat_process_nans(dataset.X_cat, transformations.cat_nan_policy)
+        x_cat = cat_process_nans(dataset.x_cat, transformations.cat_nan_policy)
         if transformations.cat_min_frequency is not None:
-            X_cat = cat_drop_rare(X_cat, transformations.cat_min_frequency)
-        X_cat, is_num, cat_transform = cat_encode(
-            X_cat,
+            x_cat = cat_drop_rare(x_cat, transformations.cat_min_frequency)
+        x_cat, is_num, cat_transform = cat_encode(
+            x_cat,
             transformations.cat_encoding,
             dataset.y["train"],
             transformations.seed,
             return_encoder=True,
         )
         if is_num:
-            X_num = X_cat if X_num is None else {x: np.hstack([X_num[x], X_cat[x]]) for x in X_num}
-            X_cat = None
+            x_num = x_cat if x_num is None else {x: np.hstack([x_num[x], x_cat[x]]) for x in x_num}
+            x_cat = None
 
     y, y_info = build_target(dataset.y, transformations.y_policy, dataset.task_type)
 
-    dataset = replace(dataset, X_num=X_num, X_cat=X_cat, y=y, y_info=y_info)
+    dataset = replace(dataset, x_num=x_num, x_cat=x_cat, y=y, y_info=y_info)
     dataset.num_transform = num_transform
     dataset.cat_transform = cat_transform
 
@@ -708,7 +708,7 @@ def dump_pickle(x: Any, path: Path | str, **kwargs: Any) -> None:
 # Inspired by: https://github.com/yandex-research/rtdl/blob/a4c93a32b334ef55d2a0559a4407c8306ffeeaee/lib/data.py#L20
 # TODO: fix this hideous output type
 def normalize(
-    X: ArrayDict,
+    x: ArrayDict,
     normalization: Normalization,
     seed: int | None,
     return_normalizer: bool = False,
@@ -717,7 +717,7 @@ def normalize(
     Normalize the input data.
 
     Args:
-        X: The data to normalize.
+        x: The data to normalize.
         normalization: The normalization to use. Can be "standard", "minmax", or "quantile".
         seed: The seed to use for the random state. Optional, default is None.
         return_normalizer: Whether to return the normalizer. Optional, default is False.
@@ -726,7 +726,7 @@ def normalize(
         The normalized data. If return_normalizer is True, will return a tuple with the
             normalized data and the normalizer.
     """
-    X_train = X["train"]
+    x_train = x["train"]
     if normalization == "standard":
         normalizer = StandardScaler()
     elif normalization == "minmax":
@@ -734,16 +734,16 @@ def normalize(
     elif normalization == "quantile":
         normalizer = QuantileTransformer(
             output_distribution="normal",
-            n_quantiles=max(min(X["train"].shape[0] // 30, 1000), 10),
+            n_quantiles=max(min(x["train"].shape[0] // 30, 1000), 10),
             subsample=int(1e9),
             random_state=seed,
         )
     else:
         raise ValueError(f"Unknown normalization: {normalization}")
-    normalizer.fit(X_train)
+    normalizer.fit(x_train)
     if return_normalizer:
-        return {k: normalizer.transform(v) for k, v in X.items()}, normalizer
-    return {k: normalizer.transform(v) for k, v in X.items()}
+        return {k: normalizer.transform(v) for k, v in x.items()}, normalizer
+    return {k: normalizer.transform(v) for k, v in x.items()}
 
 
 # TODO: is there any relationship between this function and the cat_process_nans function?
@@ -760,9 +760,9 @@ def num_process_nans(dataset: Dataset, policy: NumNanPolicy | None) -> Dataset:
     Returns:
         The processed dataset.
     """
-    assert dataset.X_num is not None
-    nan_masks = {k: np.isnan(v) for k, v in dataset.X_num.items()}
-    if not any(x.any() for x in nan_masks.values()):
+    assert dataset.x_num is not None
+    nan_masks = {k: np.isnan(v) for k, v in dataset.x_num.items()}
+    if not any(mask.any() for mask in nan_masks.values()):
         assert policy is None
         return dataset
 
@@ -771,78 +771,78 @@ def num_process_nans(dataset: Dataset, policy: NumNanPolicy | None) -> Dataset:
         valid_masks = {k: ~v.any(1) for k, v in nan_masks.items()}
         assert valid_masks["test"].all(), "Cannot drop test rows, since this will affect the final metrics."
         new_data = {}
-        for data_name in ["X_num", "X_cat", "y"]:
+        for data_name in ["x_num", "x_cat", "y"]:
             data_dict = getattr(dataset, data_name)
             if data_dict is not None:
                 new_data[data_name] = {k: v[valid_masks[k]] for k, v in data_dict.items()}
         dataset = replace(dataset, **new_data)  # type: ignore[arg-type]
     elif policy == "mean":
-        new_values = np.nanmean(dataset.X_num["train"], axis=0)  # type: ignore[index]
-        X_num = deepcopy(dataset.X_num)
-        for k, v in X_num.items():  # type: ignore[union-attr]
+        new_values = np.nanmean(dataset.x_num["train"], axis=0)  # type: ignore[index]
+        x_num = deepcopy(dataset.x_num)
+        for k, v in x_num.items():  # type: ignore[union-attr]
             num_nan_indices = np.where(nan_masks[k])
             v[num_nan_indices] = np.take(new_values, num_nan_indices[1])
-        dataset = replace(dataset, X_num=X_num)
+        dataset = replace(dataset, x_num=x_num)
     else:
         raise ValueError(f"Unknown policy: {policy}")
     return dataset
 
 
-def cat_process_nans(X: ArrayDict, policy: CatNanPolicy | None) -> ArrayDict:
+def cat_process_nans(x: ArrayDict, policy: CatNanPolicy | None) -> ArrayDict:
     """
     Process the NaN values in the categorical data.
 
     Args:
-        X: The data to process.
+        x: The data to process.
         policy: The policy to use to process the NaN values. Can be "most_frequent".
             Optional, default is None.
 
     Returns:
         The processed data.
     """
-    assert X is not None
-    nan_masks = {k: v == CAT_MISSING_VALUE for k, v in X.items()}
-    if any(x.any() for x in nan_masks.values()):
+    assert x is not None
+    nan_masks = {k: v == CAT_MISSING_VALUE for k, v in x.items()}
+    if any(mask.any() for mask in nan_masks.values()):
         if policy is None:
-            X_new = X
+            x_new = x
         elif policy == "most_frequent":
             imputer = SimpleImputer(missing_values=CAT_MISSING_VALUE, strategy=policy)
-            imputer.fit(X["train"])
-            X_new = {k: cast(np.ndarray, imputer.transform(v)) for k, v in X.items()}
+            imputer.fit(x["train"])
+            x_new = {k: cast(np.ndarray, imputer.transform(v)) for k, v in x.items()}
         else:
             raise ValueError(f"Unknown cat_nan_policy: {policy}")
     else:
         assert policy is None
-        X_new = X
-    return X_new
+        x_new = x
+    return x_new
 
 
-def cat_drop_rare(X: ArrayDict, min_frequency: float) -> ArrayDict:
+def cat_drop_rare(x: ArrayDict, min_frequency: float) -> ArrayDict:
     """
     Drop the rare categories in the categorical data.
 
     Args:
-        X: The data to drop the rare categories from.
+        x: The data to drop the rare categories from.
         min_frequency: The minimum frequency threshold of the categories to keep. Has to be between 0 and 1.
 
     Returns:
         The processed data.
     """
     assert 0.0 < min_frequency < 1.0, "min_frequency has to be between 0 and 1"
-    min_count = round(len(X["train"]) * min_frequency)
-    X_new: dict[str, list[Any]] = {x: [] for x in X}
-    for column_idx in range(X["train"].shape[1]):
-        counter = Counter(X["train"][:, column_idx].tolist())
+    min_count = round(len(x["train"]) * min_frequency)
+    x_new: dict[str, list[Any]] = {key: [] for key in x}
+    for column_idx in range(x["train"].shape[1]):
+        counter = Counter(x["train"][:, column_idx].tolist())
         popular_categories = {k for k, v in counter.items() if v >= min_count}
-        for part, _ in X_new.items():
-            X_new[part].append(
-                [(x if x in popular_categories else CAT_RARE_VALUE) for x in X[part][:, column_idx].tolist()]
+        for part, _ in x_new.items():
+            x_new[part].append(
+                [(cat if cat in popular_categories else CAT_RARE_VALUE) for cat in x[part][:, column_idx].tolist()]
             )
-    return {k: np.array(v).T for k, v in X_new.items()}
+    return {k: np.array(v).T for k, v in x_new.items()}
 
 
 def cat_encode(
-    X: ArrayDict,
+    x: ArrayDict,
     encoding: CatEncoding | None,  # TODO: add "ordinal" as one of the options, maybe?
     y_train: np.ndarray | None,
     seed: int | None,
@@ -852,7 +852,7 @@ def cat_encode(
     Encode the categorical data.
 
     Args:
-        X: The data to encode.
+        x: The data to encode.
         encoding: The encoding to use. Can be "one-hot" or "counter". Default is None.
             If None, will use the "ordinal" encoding.
         y_train: The target values. Optional, default is None. Will only be used for the "counter" encoding.
@@ -876,19 +876,19 @@ def cat_encode(
             handle_unknown="use_encoded_value",
             unknown_value=unknown_value,
             dtype="int64",
-        ).fit(X["train"])
+        ).fit(x["train"])
         encoder = make_pipeline(oe)
-        encoder.fit(X["train"])
-        X = {k: encoder.transform(v) for k, v in X.items()}
-        max_values = X["train"].max(axis=0)
-        for part in X:
+        encoder.fit(x["train"])
+        x = {k: encoder.transform(v) for k, v in x.items()}
+        max_values = x["train"].max(axis=0)
+        for part in x:
             if part == "train":
                 continue
-            for column_idx in range(X[part].shape[1]):
-                X[part][X[part][:, column_idx] == unknown_value, column_idx] = max_values[column_idx] + 1
+            for column_idx in range(x[part].shape[1]):
+                x[part][x[part][:, column_idx] == unknown_value, column_idx] = max_values[column_idx] + 1
         if return_encoder:
-            return X, False, encoder
-        return X, False, None
+            return x, False, encoder
+        return x, False, None
 
     # Step 2. Encode.
 
@@ -901,23 +901,23 @@ def cat_encode(
         encoder = make_pipeline(ohe)
 
         # encoder.steps.append(('ohe', ohe))
-        encoder.fit(X["train"])
-        X = {k: encoder.transform(v) for k, v in X.items()}
+        encoder.fit(x["train"])
+        x = {k: encoder.transform(v) for k, v in x.items()}
     elif encoding == "counter":
         assert y_train is not None
         assert seed is not None
         loe = LeaveOneOutEncoder(sigma=0.1, random_state=seed, return_df=False)
         encoder.steps.append(("loe", loe))
-        encoder.fit(X["train"], y_train)
-        X = {k: encoder.transform(v).astype("float32") for k, v in X.items()}
-        if not isinstance(X["train"], pd.DataFrame):
-            X = {k: v.values for k, v in X.items()}  # type: ignore[attr-defined]
+        encoder.fit(x["train"], y_train)
+        x = {k: encoder.transform(v).astype("float32") for k, v in x.items()}
+        if not isinstance(x["train"], pd.DataFrame):
+            x = {k: v.values for k, v in x.items()}  # type: ignore[attr-defined]
     else:
         raise ValueError(f"Unknown encoding: {encoding}")
 
     if return_encoder:
-        return X, True, encoder
-    return X, True, None
+        return x, True, encoder
+    return x, True, None
 
 
 def build_target(y: ArrayDict, policy: YPolicy | None, task_type: TaskType) -> tuple[ArrayDict, dict[str, Any]]:
