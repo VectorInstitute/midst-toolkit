@@ -411,7 +411,7 @@ def train_classifier(
 
     # TODO: understand what's going on here
     if dataset.x_num is None:
-        log(WARNING, "dataset.X_num is None. num_numerical_features will be set to 0")
+        log(WARNING, "dataset.x_num is None. num_numerical_features will be set to 0")
         num_numerical_features = 0
     else:
         num_numerical_features = dataset.x_num["train"].shape[1]

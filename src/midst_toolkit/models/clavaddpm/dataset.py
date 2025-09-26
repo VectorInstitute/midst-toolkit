@@ -120,8 +120,8 @@ class Dataset:
             info = json.loads(Path(directory / "info.json").read_text())
 
         return cls(
-            cls._load_datasets(directory, "X_num") if directory.joinpath("X_num_train.npy").exists() else None,
-            cls._load_datasets(directory, "X_cat") if directory.joinpath("X_cat_train.npy").exists() else None,
+            cls._load_datasets(directory, "x_num") if directory.joinpath("x_num_train.npy").exists() else None,
+            cls._load_datasets(directory, "x_cat") if directory.joinpath("x_cat_train.npy").exists() else None,
             cls._load_datasets(directory, "y"),
             {},
             TaskType(info["task_type"]),
@@ -182,7 +182,7 @@ class Dataset:
         """
         Get the number of numerical features in the dataset.
 
-        That number should be in the second dimension of the tensors of X_num.
+        That number should be in the second dimension of the tensors of x_num.
 
         Returns:
             The number of numerical features in the dataset.
@@ -194,7 +194,7 @@ class Dataset:
         """
         Get the number of categorical features in the dataset.
 
-        That number should be in the second dimension of the tensors of X_cat.
+        That number should be in the second dimension of the tensors of x_cat.
 
         Returns:
             The number of categorical features in the dataset.
@@ -441,10 +441,10 @@ def make_dataset_from_df(
     """
     Generate a dataset from a pandas DataFrame.
 
-    The order of the generated dataset: (y, X_num, X_cat).
+    The order of the generated dataset: (y, x_num, x_cat).
 
     Note: For now, n_classes has to be set to 0. This is because our matrix is the concatenation
-    of (X_num, X_cat). In this case, if we have is_y_cond == 'concat', we can guarantee that y
+    of (x_num, x_cat). In this case, if we have is_y_cond == 'concat', we can guarantee that y
     is the first column of the matrix.
     However, if we have n_classes > 0, then y is not the first column of the matrix.
 
@@ -568,7 +568,6 @@ def make_dataset_from_df(
 
         train_num = x_cat["train"].shape[0]
         val_num = x_cat["val"].shape[0]
-        # test_num = X_cat["test"].shape[0]
 
         x_cat["train"] = x_cat_converted[:train_num, :]  # type: ignore[call-overload]
         x_cat["val"] = x_cat_converted[train_num : train_num + val_num, :]  # type: ignore[call-overload]
@@ -762,7 +761,7 @@ def num_process_nans(dataset: Dataset, policy: NumNanPolicy | None) -> Dataset:
     """
     assert dataset.x_num is not None
     nan_masks = {k: np.isnan(v) for k, v in dataset.x_num.items()}
-    if not any(x.any() for x in nan_masks.values()):
+    if not any(mask.any() for mask in nan_masks.values()):
         assert policy is None
         return dataset
 
@@ -771,7 +770,7 @@ def num_process_nans(dataset: Dataset, policy: NumNanPolicy | None) -> Dataset:
         valid_masks = {k: ~v.any(1) for k, v in nan_masks.items()}
         assert valid_masks["test"].all(), "Cannot drop test rows, since this will affect the final metrics."
         new_data = {}
-        for data_name in ["X_num", "X_cat", "y"]:
+        for data_name in ["x_num", "x_cat", "y"]:
             data_dict = getattr(dataset, data_name)
             if data_dict is not None:
                 new_data[data_name] = {k: v[valid_masks[k]] for k, v in data_dict.items()}

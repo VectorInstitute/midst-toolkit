@@ -135,11 +135,11 @@ def pipeline_process_data(
                     - "train": The dataframe containing the training set.
                     - "test": The dataframe containing the test set. It will be absent if ratio == 1.
                 - "numpy": A dictionary with the numeric data, containing the keys:
-                    - "X_num_train": The numeric data for the training set.
-                    - "X_cat_train": The categorical data for the training set.
+                    - "x_num_train": The numeric data for the training set.
+                    - "x_cat_train": The categorical data for the training set.
                     - "y_train": The target data for the training set.
-                    - "X_num_test": The numeric data for the test set. It will be absent if ratio == 1.
-                    - "X_cat_test": The categorical data for the test set. It will be absent if ratio == 1.
+                    - "x_num_test": The numeric data for the test set. It will be absent if ratio == 1.
+                    - "x_cat_test": The categorical data for the test set. It will be absent if ratio == 1.
                     - "y_test": The target data for the test set. It will be absent if ratio == 1.
             - The information dictionary with updated values.
     """
@@ -239,14 +239,14 @@ def pipeline_process_data(
 
     if save:
         save_dir = f"data/{name}"
-        np.save(f"{save_dir}/X_num_train.npy", x_num_train)
-        np.save(f"{save_dir}/X_cat_train.npy", x_cat_train)
+        np.save(f"{save_dir}/x_num_train.npy", x_num_train)
+        np.save(f"{save_dir}/x_cat_train.npy", x_cat_train)
         np.save(f"{save_dir}/y_train.npy", y_train)
 
         if ratio < 1:
             assert x_num_test is not None and x_cat_test is not None and y_test is not None
-            np.save(f"{save_dir}/X_num_test.npy", x_num_test)
-            np.save(f"{save_dir}/X_cat_test.npy", x_cat_test)
+            np.save(f"{save_dir}/x_num_test.npy", x_num_test)
+            np.save(f"{save_dir}/x_cat_test.npy", x_cat_test)
             np.save(f"{save_dir}/y_test.npy", y_test)
 
     train_df[num_columns] = train_df[num_columns].astype(np.float32)
@@ -328,8 +328,8 @@ def pipeline_process_data(
     data: dict[str, dict[str, Any]] = {
         "df": {"train": train_df},
         "numpy": {
-            "X_num_train": x_num_train,
-            "X_cat_train": x_cat_train,
+            "x_num_train": x_num_train,
+            "x_cat_train": x_cat_train,
             "y_train": y_train,
         },
     }
@@ -337,8 +337,8 @@ def pipeline_process_data(
     if ratio < 1:
         assert test_df is not None and x_num_test is not None and x_cat_test is not None and y_test is not None
         data["df"]["test"] = test_df
-        data["numpy"]["X_num_test"] = x_num_test
-        data["numpy"]["X_cat_test"] = x_cat_test
+        data["numpy"]["x_num_test"] = x_num_test
+        data["numpy"]["x_cat_test"] = x_cat_test
         data["numpy"]["y_test"] = y_test
 
     return data, info
