@@ -1,10 +1,10 @@
 import pandas as pd
 from syntheval.metrics.utility.metric_dimensionwise_means import MetricClassName as SynthEvalDwm
 
-from midst_toolkit.evaluation.metrics_base import SynthEvalQualityMetric
+from midst_toolkit.evaluation.metrics_base import SynthEvalMetric
 
 
-class DimensionwiseMeanDifference(SynthEvalQualityMetric):
+class DimensionwiseMeanDifference(SynthEvalMetric):
     def compute(self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> dict[str, float]:
         """
         Function to compute the dimensionwise mean difference between the dataframe of real data and the provided

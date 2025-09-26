@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from midst_toolkit.evaluation.metrics_base import SynthEvalQualityMetric
+from midst_toolkit.evaluation.metrics_base import SynthEvalMetric
 
 
 def hellinger_distance(discrete_distribution_1: np.ndarray, discrete_distribution_2: np.ndarray) -> float:
@@ -28,7 +28,7 @@ def hellinger_distance(discrete_distribution_1: np.ndarray, discrete_distributio
     return 1 / np.sqrt(2) * np.linalg.norm(difference)
 
 
-class MeanHellingerDistance(SynthEvalQualityMetric):
+class MeanHellingerDistance(SynthEvalMetric):
     def __init__(
         self,
         categorical_columns: list[str],
