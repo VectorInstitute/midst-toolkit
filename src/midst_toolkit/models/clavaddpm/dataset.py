@@ -307,7 +307,6 @@ def calculate_metrics(
                     "roc_auc": The ROC AUC score.
                 }
     """
-
     if task_type == TaskType.REGRESSION:
         assert prediction_type is None
         assert "std" in y_info
