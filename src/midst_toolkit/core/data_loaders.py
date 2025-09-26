@@ -151,30 +151,30 @@ def pipeline_process_data(
         for col in cat_columns:
             test_df.loc[test_df[col] == "?", col] = "nan"
 
-    X_num_train = train_df[num_columns].to_numpy().astype(np.float32)
-    X_cat_train = train_df[cat_columns].to_numpy()
+    x_num_train = train_df[num_columns].to_numpy().astype(np.float32)
+    x_cat_train = train_df[cat_columns].to_numpy()
     y_train = train_df[target_columns].to_numpy()
 
-    X_num_test: np.ndarray | None = None
-    X_cat_test: np.ndarray | None = None
+    x_num_test: np.ndarray | None = None
+    x_cat_test: np.ndarray | None = None
     y_test: np.ndarray | None = None
 
     if ratio < 1:
         assert test_df is not None
-        X_num_test = test_df[num_columns].to_numpy().astype(np.float32)
-        X_cat_test = test_df[cat_columns].to_numpy()
+        x_num_test = test_df[num_columns].to_numpy().astype(np.float32)
+        x_cat_test = test_df[cat_columns].to_numpy()
         y_test = test_df[target_columns].to_numpy()
 
     if save:
         save_dir = f"data/{name}"
-        np.save(f"{save_dir}/X_num_train.npy", X_num_train)
-        np.save(f"{save_dir}/X_cat_train.npy", X_cat_train)
+        np.save(f"{save_dir}/X_num_train.npy", x_num_train)
+        np.save(f"{save_dir}/X_cat_train.npy", x_cat_train)
         np.save(f"{save_dir}/y_train.npy", y_train)
 
         if ratio < 1:
-            assert X_num_test is not None and X_cat_test is not None and y_test is not None
-            np.save(f"{save_dir}/X_num_test.npy", X_num_test)
-            np.save(f"{save_dir}/X_cat_test.npy", X_cat_test)
+            assert x_num_test is not None and x_cat_test is not None and y_test is not None
+            np.save(f"{save_dir}/X_num_test.npy", x_num_test)
+            np.save(f"{save_dir}/X_cat_test.npy", x_cat_test)
             np.save(f"{save_dir}/y_test.npy", y_test)
 
     train_df[num_columns] = train_df[num_columns].astype(np.float32)
@@ -251,8 +251,8 @@ def pipeline_process_data(
         else:
             str_shape = "Table name: {}, Total dataframe shape: {}".format(name, data_df.shape)
 
-        str_shape += ", Numerical data shape: {}".format(X_num_train.shape)
-        str_shape += ", Categorical data shape: {}".format(X_cat_train.shape)
+        str_shape += ", Numerical data shape: {}".format(x_num_train.shape)
+        str_shape += ", Categorical data shape: {}".format(x_cat_train.shape)
         print(str_shape)
 
     # print(name)
@@ -272,17 +272,17 @@ def pipeline_process_data(
     data: dict[str, dict[str, Any]] = {
         "df": {"train": train_df},
         "numpy": {
-            "X_num_train": X_num_train,
-            "X_cat_train": X_cat_train,
+            "X_num_train": x_num_train,
+            "X_cat_train": x_cat_train,
             "y_train": y_train,
         },
     }
 
     if ratio < 1:
-        assert test_df is not None and X_num_test is not None and X_cat_test is not None and y_test is not None
+        assert test_df is not None and x_num_test is not None and x_cat_test is not None and y_test is not None
         data["df"]["test"] = test_df
-        data["numpy"]["X_num_test"] = X_num_test
-        data["numpy"]["X_cat_test"] = X_cat_test
+        data["numpy"]["X_num_test"] = x_num_test
+        data["numpy"]["X_cat_test"] = x_cat_test
         data["numpy"]["y_test"] = y_test
 
     return data, info
