@@ -247,7 +247,7 @@ def child_training(
 
 def train_model(
     data_frame: pd.DataFrame,
-    data_frame_info: pd.DataFrame,
+    data_frame_info: dict[str, Any],
     model_params: ModelParameters,
     transformations: Transformations,
     steps: int,
@@ -355,7 +355,7 @@ def train_model(
 
 def train_classifier(
     data_frame: pd.DataFrame,
-    data_frame_info: pd.DataFrame,
+    data_frame_info: dict[str, Any],
     model_params: ModelParameters,
     transformations: Transformations,
     classifier_steps: int,

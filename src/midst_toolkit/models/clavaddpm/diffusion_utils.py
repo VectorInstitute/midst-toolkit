@@ -1,5 +1,6 @@
 """PLACEHOLDER."""
 
+from collections.abc import Callable
 from inspect import isfunction
 from typing import Any
 
@@ -18,7 +19,7 @@ def normal_kl(
     logvar2: Tensor | float,
 ) -> Tensor:
     """
-    Compute the KL divergence between two gaussians.
+    Compute the KL divergence between two Gaussians.
 
     Shapes are automatically broadcasted, so batches can be compared to
     scalars, among other use cases.
@@ -133,11 +134,14 @@ def extract(a: Tensor, t: Tensor, x_shape: tuple[int, ...]) -> Tensor:
     return out.expand(x_shape)
 
 
-def default(val, d):
+def default(val: Tensor, d: Callable[[], Tensor] | Tensor) -> Tensor:
     # ruff: noqa: D103
     if exists(val):
         return val
-    return d() if isfunction(d) else d
+    if isfunction(d):
+        return d()
+    assert isinstance(d, Tensor)
+    return d
 
 
 def log_categorical(log_x_start: Tensor, log_prob: Tensor) -> Tensor:
@@ -155,7 +159,7 @@ def index_to_log_onehot(x: Tensor, num_classes: Tensor) -> Tensor:
     return torch.log(x_onehot.float().clamp(min=1e-30))
 
 
-def log_sum_exp_by_classes(x, slices):
+def log_sum_exp_by_classes(x: Tensor, slices: Tensor) -> Tensor:
     # ruff: noqa: D103
     res = torch.zeros_like(x)
     for ixs in slices:
@@ -167,14 +171,14 @@ def log_sum_exp_by_classes(x, slices):
 
 
 @torch.jit.script
-def log_sub_exp(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+def log_sub_exp(a: Tensor, b: Tensor) -> Tensor:
     # ruff: noqa: D103
     m = torch.maximum(a, b)
     return torch.log(torch.exp(a - m) - torch.exp(b - m)) + m
 
 
 @torch.jit.script
-def sliced_logsumexp(x, slices):
+def sliced_logsumexp(x: Tensor, slices: Tensor) -> Tensor:
     # ruff: noqa: D103
     lse = torch.logcumsumexp(torch.nn.functional.pad(x, [1, 0, 0, 0], value=-float("inf")), dim=-1)
 
@@ -185,7 +189,7 @@ def sliced_logsumexp(x, slices):
     return torch.repeat_interleave(slice_lse, slice_ends - slice_starts, dim=-1)
 
 
-def log_onehot_to_index(log_x):
+def log_onehot_to_index(log_x: Tensor) -> Tensor:
     # ruff: noqa: D103
     return log_x.argmax(1)
 
@@ -193,6 +197,6 @@ def log_onehot_to_index(log_x):
 class FoundNANsError(BaseException):
     """Found NANs during sampling."""
 
-    def __init__(self, message="Found NANs during sampling."):
+    def __init__(self, message: str = "Found NANs during sampling.") -> None:
         # ruff: noqa: D107
         super(FoundNANsError, self).__init__(message)

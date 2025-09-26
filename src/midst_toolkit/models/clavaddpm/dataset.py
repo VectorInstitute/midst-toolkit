@@ -41,6 +41,7 @@ from midst_toolkit.models.clavaddpm.typing import (
 )
 
 
+# TODO: Dunders are special case in python, rename these values to something else.
 CAT_MISSING_VALUE = "__nan__"
 CAT_RARE_VALUE = "__rare__"
 
@@ -57,33 +58,46 @@ class Dataset:
     num_transform: StandardScaler | None = None
 
     @classmethod
-    def from_dir(cls, dir_: Path | str) -> Self:
+    def from_dir(cls, directory: Path) -> Self:
         """
         Load a dataset from a directory.
 
         Args:
-            dir_: The directory to load the dataset from. Can be a Path object or a path string.
+            directory: The directory to load the dataset from. Can be a Path object or a path string.
 
         Returns:
             The loaded dataset.
         """
-        dir_ = Path(dir_)
-        splits = [k for k in ["train", "val", "test"] if dir_.joinpath(f"y_{k}.npy").exists()]
-
-        def load(item: str) -> ArrayDict:
-            return {x: cast(np.ndarray, np.load(dir_ / f"{item}_{x}.npy", allow_pickle=True)) for x in splits}
-
-        if Path(dir_ / "info.json").exists():
-            info = json.loads(Path(dir_ / "info.json").read_text())
+        if Path(directory / "info.json").exists():
+            info = json.loads(Path(directory / "info.json").read_text())
 
         return cls(
-            load("X_num") if dir_.joinpath("X_num_train.npy").exists() else None,
-            load("X_cat") if dir_.joinpath("X_cat_train.npy").exists() else None,
-            load("y"),
+            cls._load_datasets(directory, "X_num") if directory.joinpath("X_num_train.npy").exists() else None,
+            cls._load_datasets(directory, "X_cat") if directory.joinpath("X_cat_train.npy").exists() else None,
+            cls._load_datasets(directory, "y"),
             {},
             TaskType(info["task_type"]),
             info.get("n_classes"),
         )
+
+    @classmethod
+    def _load_datasets(cls, directory: Path, dataset_name: str) -> ArrayDict:
+        """
+        Load all the dataset splits from a directory.
+
+        Will check which of the splits exist in the directory for the
+        given dataset_name and load all of them.
+
+        Args:
+            directory: The directory to load the dataset from.
+            dataset_name: The dataset_name to load.
+
+        Returns:
+            The loaded datasets with all the splits.
+        """
+        splits = [k for k in ["train", "val", "test"] if directory.joinpath(f"y_{k}.npy").exists()]
+        # TODO: figure out if there is a way of getting rid of the cast
+        return {x: cast(np.ndarray, np.load(directory / f"{dataset_name}_{x}.npy", allow_pickle=True)) for x in splits}
 
     @property
     def is_binclass(self) -> bool:
@@ -120,6 +134,8 @@ class Dataset:
         """
         Get the number of numerical features in the dataset.
 
+        That number should be in the second dimension of the tensors of X_num.
+
         Returns:
             The number of numerical features in the dataset.
         """
@@ -129,6 +145,8 @@ class Dataset:
     def n_cat_features(self) -> int:
         """
         Get the number of categorical features in the dataset.
+
+        That number should be in the second dimension of the tensors of X_cat.
 
         Returns:
             The number of categorical features in the dataset.
@@ -146,43 +164,47 @@ class Dataset:
         return self.n_num_features + self.n_cat_features
 
     # TODO: make partition into an Enum
-    def size(self, partition: Literal["train", "val", "test"] | None) -> int:
+    def size(self, split: Literal["train", "val", "test"] | None) -> int:
         """
-        Get the size of the dataset.
+        Get the size of a dataset split. If no split is provided, the size of
+        the entire dataset is returned.
 
         Args:
-            partition: The partition of the dataset to get the size of.
+            split: The split of the dataset to get the size of.
                 If None, the size of the entire dataset is returned.
 
         Returns:
             The size of the dataset.
         """
-        return sum(map(len, self.y.values())) if partition is None else len(self.y[partition])
+        return sum(map(len, self.y.values())) if split is None else len(self.y[split])
 
     @property
-    def nn_output_dim(self) -> int:
+    def output_dimension(self) -> int:
         """
-        Get the output dimension of the neural network.
+        Get the output dimension of the model.
+
+        This only works for multiclass classification and regression tasks. Binary classification
+        tasks have output dimension of 2.
 
         Returns:
-            The output dimension of the neural network.
+            The output dimension of the model.
         """
         if self.is_multiclass:
             assert self.n_classes is not None
             return self.n_classes
         return 1
 
-    def get_category_sizes(self, partition: Literal["train", "val", "test"]) -> list[int]:
+    def get_category_sizes(self, split: Literal["train", "val", "test"]) -> list[int]:
         """
-        Get the size of the categories in the dataset.
+        Get the size of the categories in the specified split of the dataset.
 
         Args:
-            partition: The partition of the dataset to get the size of the categories of.
+            split: The split of the dataset to get the size of the categories of.
 
         Returns:
-            The size of the categories in the partition of the dataset.
+            The size of the categories in the specified split of the dataset.
         """
-        return [] if self.X_cat is None else get_category_sizes(self.X_cat[partition])
+        return [] if self.X_cat is None else get_category_sizes(self.X_cat[split])
 
     def calculate_metrics(
         self,
@@ -217,7 +239,8 @@ class Dataset:
 # TODO consider moving all the functions below into the Dataset class
 def get_category_sizes(X: torch.Tensor | np.ndarray) -> list[int]:
     """
-    Get the size of the categories in the data.
+    Get the size of the categories in the data by counting the number of
+    unique values in each column.
 
     Args:
         X: The data to get the size of the categories of.
@@ -249,8 +272,42 @@ def calculate_metrics(
         y_info: A dictionary with metadata about the labels.
 
     Returns:
-        The metrics of the predictions.
+        The metrics of the predictions as a dictionary with the following keys:
+            If the task type is TaskType.REGRESSION:
+                {
+                    "rmse": The root mean squared error.
+                    "r2": The R^2 score.
+                }
+
+            If the task type is TaskType.MULTICLASS, it will have a key for each label
+            with the following metrics (result of sklearn.metrics.classification_report):
+                {
+                    "label-1": {
+                        "precision": The precision of the label.
+                        "recall": The recall of the label.
+                        "f1-score": The F1 score of the label.
+                        "support": The number of occurrences of this label in y_true.
+                    },
+                    "label-2": {...}
+                    ...
+                }
+
+            If the task type is TaskType.BINCLASS, it will have a key for each label
+            with the following metrics ((result of sklearn.metrics.classification_report),
+            and an additional ROC AUC metric:
+                {
+                    "label-1": {
+                        "precision": The precision of the label.
+                        "recall": The recall of the label.
+                        "f1-score": The F1 score of the label.
+                        "support": The number of occurrences of this label in y_true.
+                    },
+                    "label-2": {...}
+                    ...
+                    "roc_auc": The ROC AUC score.
+                }
     """
+
     if task_type == TaskType.REGRESSION:
         assert prediction_type is None
         assert "std" in y_info
@@ -258,7 +315,8 @@ def calculate_metrics(
         r2 = r2_score(y_true, y_pred)
         result = {"rmse": rmse, "r2": r2}
     else:
-        labels, probs = _get_labels_and_probs(y_pred, task_type, prediction_type)
+        labels, probs = _get_predicted_labels_and_probs(y_pred, task_type, prediction_type)
+        # TODO: figure out if there is a way of getting rid of the cast
         result = cast(dict[str, Any], classification_report(y_true, labels, output_dict=True))
         if task_type == TaskType.BINCLASS:
             result["roc_auc"] = roc_auc_score(y_true, probs)
@@ -284,11 +342,13 @@ def calculate_rmse(y_true: np.ndarray, y_pred: np.ndarray, std: float | None) ->
     return rmse
 
 
-def _get_labels_and_probs(
+def _get_predicted_labels_and_probs(
     y_pred: np.ndarray, task_type: TaskType, prediction_type: PredictionType | None
 ) -> tuple[np.ndarray, np.ndarray | None]:
     """
     Get the labels and probabilities from the predictions.
+    If prediction_type is None, will return the predicted labels as is
+    and the probabilities as None.
 
     Args:
         y_pred: The predicted labels as a numpy array.
@@ -323,10 +383,10 @@ def make_dataset_from_df(
     df: pd.DataFrame,
     transformations: Transformations,
     is_y_cond: IsYCond,
-    df_info: pd.DataFrame,
+    df_info: dict[str, Any],
     ratios: list[float] | None = None,
     std: float = 0,
-) -> tuple[Dataset, dict[int, LabelEncoder], list[int]]:
+) -> tuple[Dataset, dict[int, LabelEncoder], list[str]]:
     """
     Generate a dataset from a pandas DataFrame.
 
@@ -341,7 +401,7 @@ def make_dataset_from_df(
         df: The pandas DataFrame to generate the dataset from.
         transformations: The transformations to apply to the dataset.
         is_y_cond: The condition on the y column.
-            concat: y is concatenated to X, the model learn a joint distribution of (y, X)
+            concat: y is concatenated to X, the model learns a joint distribution of (y, X)
             embedding: y is not concatenated to X. During computations, y is embedded
                 and added to the latent vector of X
             none: y column is completely ignored
@@ -360,7 +420,8 @@ def make_dataset_from_df(
                     In this case, y is completely independent of X.
 
         df_info: A dictionary with metadata about the DataFrame.
-        ratios: The ratios of the dataset to split into train, val, and test. Optional, default is [0.7, 0.2, 0.1].
+        ratios: The ratios of the dataset to split into train, val, and test. The sum of
+            the ratios must amount to 1 (with a tolerance of 0.01). Optional, default is [0.7, 0.2, 0.1].
         std: The standard deviation of the labels. Optional, default is 0.
 
     Returns:
@@ -368,6 +429,8 @@ def make_dataset_from_df(
     """
     if ratios is None:
         ratios = [0.7, 0.2, 0.1]
+
+    assert np.isclose(sum(ratios), 1, atol=0.01), "The sum of the ratios must amount to 1 (with a tolerance of 0.01)."
 
     train_val_df, test_df = train_test_split(df, test_size=ratios[2], random_state=42)
     train_df, val_df = train_test_split(train_val_df, test_size=ratios[1] / (ratios[0] + ratios[1]), random_state=42)
@@ -384,7 +447,7 @@ def make_dataset_from_df(
         X_num: dict[str, np.ndarray] | None = {} if df_info["num_cols"] is not None else None
         y = {}
 
-        cat_cols_with_y = []
+        cat_cols_with_y: list[str] = []
         if df_info["cat_cols"] is not None:
             cat_cols_with_y += df_info["cat_cols"]
         if is_y_cond == IsYCond.CONCAT:
@@ -412,31 +475,33 @@ def make_dataset_from_df(
         X_num = {} if df_info["num_cols"] is not None or is_y_cond == IsYCond.CONCAT else None
         y = {}
 
-        num_cols_with_y = []
+        num_cols_with_y: list[str] = []
         if df_info["num_cols"] is not None:
             num_cols_with_y += df_info["num_cols"]
         if is_y_cond == IsYCond.CONCAT:
             num_cols_with_y = [df_info["y_col"]] + num_cols_with_y
 
         if len(num_cols_with_y) > 0:
-            X_num["train"] = train_df[num_cols_with_y].values.astype(np.float32)  # type: ignore[index]
-            X_num["val"] = val_df[num_cols_with_y].values.astype(np.float32)  # type: ignore[index]
-            X_num["test"] = test_df[num_cols_with_y].values.astype(np.float32)  # type: ignore[index]
+            assert X_num is not None
+            X_num["train"] = train_df[num_cols_with_y].values.astype(np.float32)
+            X_num["val"] = val_df[num_cols_with_y].values.astype(np.float32)
+            X_num["test"] = test_df[num_cols_with_y].values.astype(np.float32)
 
         y["train"] = train_df[df_info["y_col"]].values.astype(np.float32)
         y["val"] = val_df[df_info["y_col"]].values.astype(np.float32)
         y["test"] = test_df[df_info["y_col"]].values.astype(np.float32)
 
         if df_info["cat_cols"] is not None:
-            X_cat["train"] = train_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)  # type: ignore[index]
-            X_cat["val"] = val_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)  # type: ignore[index]
-            X_cat["test"] = test_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)  # type: ignore[index]
+            assert X_cat is not None
+            X_cat["train"] = train_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+            X_cat["val"] = val_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+            X_cat["test"] = test_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
 
         cat_column_orders = [column_to_index[col] for col in df_info["cat_cols"]]
         num_column_orders = [column_to_index[col] for col in num_cols_with_y]
 
-    column_orders = num_column_orders + cat_column_orders
-    column_orders = [index_to_column[index] for index in column_orders]
+    column_orders_indices = num_column_orders + cat_column_orders
+    column_orders = [index_to_column[index] for index in column_orders_indices]
 
     label_encoders = {}
     if X_cat is not None and len(df_info["cat_cols"]) > 0:
@@ -461,6 +526,7 @@ def make_dataset_from_df(
         X_cat["test"] = X_cat_converted[train_num + val_num :, :]  # type: ignore[call-overload]
 
         if X_num and len(X_num) > 0:
+            assert X_num is not None
             X_num["train"] = np.concatenate((X_num["train"], X_cat["train"]), axis=1)
             X_num["val"] = np.concatenate((X_num["val"], X_cat["val"]), axis=1)
             X_num["test"] = np.concatenate((X_num["test"], X_cat["test"]), axis=1)
@@ -468,17 +534,19 @@ def make_dataset_from_df(
             X_num = X_cat
             X_cat = None
 
-    D = Dataset(
-        # ruff: noqa: N806
+    n_classes = df_info["n_classes"]
+    assert isinstance(n_classes, int)
+
+    dataset = Dataset(
         X_num,
         None,
         y,
         y_info={},
         task_type=TaskType(df_info["task_type"]),
-        n_classes=df_info["n_classes"],
+        n_classes=n_classes,
     )
 
-    return transform_dataset(D, transformations, None), label_encoders, column_orders
+    return transform_dataset(dataset, transformations, None), label_encoders, column_orders
 
 
 def transform_dataset(

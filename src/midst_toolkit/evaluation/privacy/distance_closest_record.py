@@ -120,6 +120,9 @@ def preprocess(
 
     if real_data_test is None:
         return (processed_synthetic_data, processed_real_data_train)
+
+    assert num_real_data_test_np is not None
+    assert cat_real_data_test_oh is not None
     return (
         processed_synthetic_data,
         processed_real_data_train,

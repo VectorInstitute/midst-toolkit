@@ -5,7 +5,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import torch
 from sklearn.model_selection import train_test_split
 
 
@@ -83,19 +82,19 @@ class DataLoader(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def dataframe(self) -> pd.DataFrame:
+    def to_dataframe(self) -> pd.DataFrame:
         """A method that returns the pandas dataframe that contains all features and samples."""
         ...
 
     @abstractmethod
-    def numpy(self) -> np.ndarray:
+    def to_numpy(self) -> np.ndarray:
         """A method that returns the numpy array that contains all features and samples."""
         ...
 
     @property
     def values(self) -> np.ndarray:
         """Pass through to the numpy method."""
-        return self.numpy()
+        return self.to_numpy()
 
     @abstractmethod
     def info(self) -> dict:
@@ -145,11 +144,11 @@ class DataLoader(metaclass=ABCMeta):
 
     def __repr__(self, *args: Any, **kwargs: Any) -> str:
         """Return a string representation."""
-        return self.dataframe().__repr__(*args, **kwargs)
+        return self.to_dataframe().__repr__(*args, **kwargs)
 
     def _repr_html_(self, *args: Any, **kwargs: Any) -> Any:
         """Return a string representation in html format."""
-        return self.dataframe()._repr_html_(*args, **kwargs)
+        return self.to_dataframe().to_html(*args, **kwargs)
 
     @abstractmethod
     def fillna(self, value: Any) -> DataLoader:
@@ -266,13 +265,13 @@ class GenericDataLoader(DataLoader):
             return np.asarray(x), np.asarray(y)
         return x, y
 
-    def dataframe(self) -> pd.DataFrame:
+    def to_dataframe(self) -> pd.DataFrame:
         """A method that returns the pandas dataframe that contains all features and samples."""
         return self.data
 
-    def numpy(self) -> np.ndarray:
+    def to_numpy(self) -> np.ndarray:
         """A method that returns the numpy array that contains all features and samples."""
-        return self.dataframe().values
+        return self.to_dataframe().to_numpy()
 
     def info(self) -> dict:
         """A method that returns a dictionary of DataLoader information."""
@@ -376,7 +375,7 @@ class GenericDataLoader(DataLoader):
         return True
 
 
-def create_from_info(data: pd.DataFrame | torch.utils.data.Dataset, info: dict) -> DataLoader:
+def create_from_info(data: pd.DataFrame, info: dict) -> DataLoader:
     """Helper for creating a DataLoader from existing information."""
     if info["data_type"] == "generic":
         return GenericDataLoader.from_info(data, info)

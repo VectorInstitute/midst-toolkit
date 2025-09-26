@@ -759,7 +759,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         return loss_multi.mean(), loss_gauss.mean()
 
     @torch.no_grad()
-    def mixed_elbo(self, x0, out_dict):
+    def mixed_elbo(self, x0: Tensor, out_dict: dict[str, Tensor]) -> dict[str, Tensor]:
         b = x0.size(0)
         device = x0.device
 
@@ -883,7 +883,15 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         return mean_pred + nonzero_mask * sigma * noise
 
     @torch.no_grad()
-    def gaussian_ddim_sample(self, noise, T, out_dict, eta=0.0, model_kwargs=None, cond_fn=None):
+    def gaussian_ddim_sample(
+        self,
+        noise: Tensor,
+        T: int,
+        out_dict: dict[str, Tensor],
+        eta: float = 0.0,
+        model_kwargs: Any | None = None,
+        cond_fn: Callable | None = None,
+    ) -> Tensor:
         # ruff: noqa: D102, N803
         x = noise
         b = x.shape[0]
@@ -926,11 +934,11 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
     @torch.no_grad()
     def gaussian_ddim_reverse_sample(
         self,
-        x,
-        T,
+        x: Tensor,
+        T: int,
         # ruff: noqa: N803
-        out_dict,
-    ):
+        out_dict: dict[str, Tensor],
+    ) -> Tensor:
         # ruff: noqa: D102
         b = x.shape[0]
         device = x.device
