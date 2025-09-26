@@ -223,30 +223,30 @@ def pipeline_process_data(
         for col in cat_columns:
             test_df.loc[test_df[col] == "?", col] = "nan"
 
-    X_num_train = train_df[num_columns].to_numpy().astype(np.float32)
-    X_cat_train = train_df[cat_columns].to_numpy()
+    x_num_train = train_df[num_columns].to_numpy().astype(np.float32)
+    x_cat_train = train_df[cat_columns].to_numpy()
     y_train = train_df[target_columns].to_numpy()
 
-    X_num_test: np.ndarray | None = None
-    X_cat_test: np.ndarray | None = None
+    x_num_test: np.ndarray | None = None
+    x_cat_test: np.ndarray | None = None
     y_test: np.ndarray | None = None
 
     if ratio < 1:
         assert test_df is not None
-        X_num_test = test_df[num_columns].to_numpy().astype(np.float32)
-        X_cat_test = test_df[cat_columns].to_numpy()
+        x_num_test = test_df[num_columns].to_numpy().astype(np.float32)
+        x_cat_test = test_df[cat_columns].to_numpy()
         y_test = test_df[target_columns].to_numpy()
 
     if save:
         save_dir = f"data/{name}"
-        np.save(f"{save_dir}/X_num_train.npy", X_num_train)
-        np.save(f"{save_dir}/X_cat_train.npy", X_cat_train)
+        np.save(f"{save_dir}/X_num_train.npy", x_num_train)
+        np.save(f"{save_dir}/X_cat_train.npy", x_cat_train)
         np.save(f"{save_dir}/y_train.npy", y_train)
 
         if ratio < 1:
-            assert X_num_test is not None and X_cat_test is not None and y_test is not None
-            np.save(f"{save_dir}/X_num_test.npy", X_num_test)
-            np.save(f"{save_dir}/X_cat_test.npy", X_cat_test)
+            assert x_num_test is not None and x_cat_test is not None and y_test is not None
+            np.save(f"{save_dir}/X_num_test.npy", x_num_test)
+            np.save(f"{save_dir}/X_cat_test.npy", x_cat_test)
             np.save(f"{save_dir}/y_test.npy", y_test)
 
     train_df[num_columns] = train_df[num_columns].astype(np.float32)
@@ -321,24 +321,24 @@ def pipeline_process_data(
         else:
             str_shape = f"Table name: {name}, Total dataframe shape: {data_df.shape}"
 
-        str_shape += f", Numerical data shape: {X_num_train.shape}"
-        str_shape += f", Categorical data shape: {X_cat_train.shape}"
+        str_shape += f", Numerical data shape: {x_num_train.shape}"
+        str_shape += f", Categorical data shape: {x_cat_train.shape}"
         log(INFO, str_shape)
 
     data: dict[str, dict[str, Any]] = {
         "df": {"train": train_df},
         "numpy": {
-            "X_num_train": X_num_train,
-            "X_cat_train": X_cat_train,
+            "X_num_train": x_num_train,
+            "X_cat_train": x_cat_train,
             "y_train": y_train,
         },
     }
 
     if ratio < 1:
-        assert test_df is not None and X_num_test is not None and X_cat_test is not None and y_test is not None
+        assert test_df is not None and x_num_test is not None and x_cat_test is not None and y_test is not None
         data["df"]["test"] = test_df
-        data["numpy"]["X_num_test"] = X_num_test
-        data["numpy"]["X_cat_test"] = X_cat_test
+        data["numpy"]["X_num_test"] = x_num_test
+        data["numpy"]["X_cat_test"] = x_cat_test
         data["numpy"]["y_test"] = y_test
 
     return data, info
@@ -545,15 +545,15 @@ def prepare_fast_dataloader(
     Returns:
         A generator of batches of data from the dataset.
     """
-    if dataset.X_cat is not None:
-        if dataset.X_num is not None:
-            X = torch.from_numpy(np.concatenate([dataset.X_num[split], dataset.X_cat[split]], axis=1)).float()
+    if dataset.x_cat is not None:
+        if dataset.x_num is not None:
+            x = torch.from_numpy(np.concatenate([dataset.x_num[split], dataset.x_cat[split]], axis=1)).float()
         else:
-            X = torch.from_numpy(dataset.X_cat[split]).float()
+            x = torch.from_numpy(dataset.x_cat[split]).float()
     else:
-        assert dataset.X_num is not None
-        X = torch.from_numpy(dataset.X_num[split]).float()
+        assert dataset.x_num is not None
+        x = torch.from_numpy(dataset.x_num[split]).float()
     y = torch.from_numpy(dataset.y[split]).float() if y_type == "float" else torch.from_numpy(dataset.y[split]).long()
-    dataloader = FastTensorDataLoader((X, y), batch_size=batch_size, shuffle=(split == "train"))
+    dataloader = FastTensorDataLoader((x, y), batch_size=batch_size, shuffle=(split == "train"))
     while True:
         yield from dataloader
