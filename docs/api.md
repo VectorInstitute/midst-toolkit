@@ -7,13 +7,6 @@
       show_root_heading: true
       show_root_full_path: true
 
-## Logger Module
-
-::: midst_toolkit.core.logger
-    options:
-      show_root_heading: true
-      show_root_full_path: true
-
 ## Diffusion Utils Module
 
 ::: midst_toolkit.models.clavaddpm.diffusion_utils
