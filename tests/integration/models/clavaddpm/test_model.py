@@ -33,6 +33,7 @@ DIFFUSION_CONFIG = {
     "gaussian_loss_type": "mse",
     "weight_decay": 1e-05,
     "scheduler": "cosine",
+    "data_split_ratios": [0.99, 0.005, 0.005],
 }
 
 CLASSIFIER_CONFIG = {
@@ -41,6 +42,7 @@ CLASSIFIER_CONFIG = {
     "dim_t": 128,
     "batch_size": 24,
     "iterations": 1000,
+    "data_split_ratios": [0.99, 0.005, 0.005],
 }
 
 
