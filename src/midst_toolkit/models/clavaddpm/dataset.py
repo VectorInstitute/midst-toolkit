@@ -231,8 +231,9 @@ class Dataset:
         """
         Get the output dimension of the model.
 
-        This only works for multiclass classification and regression tasks. Binary classification
-        tasks have output dimension of 2.
+        For self.task_type == TaskType.MULTICLASS, the output dimension is the number of classes.
+        For self.task_type == TaskType.REGRESSION, the output dimension is 1.
+        For self.task_type == TaskType.BINCLASS, the output dimension is also 1 because it is label encoded.
 
         Returns:
             The output dimension of the model.
