@@ -38,6 +38,9 @@ from midst_toolkit.evaluation.quality import (
 from midst_toolkit.evaluation.quality.confidence_interval_overlap import ConfidenceLevel
 
 
+SEPARATOR = "-" * 80
+
+
 def log_metrics(header: str, results: dict[str, float]) -> None:
     """
     Helper function to log metrics associated with the results dictionary in a structured fashion. The header
@@ -47,10 +50,10 @@ def log_metrics(header: str, results: dict[str, float]) -> None:
         header: String to describe the set of metrics that will be logged.
         results: Dictionary of metric names (keys) and metric values (values) to be logged.
     """
-    log(INFO, f"\n{header}\n------------------------------------------------------------------------------------\n")
+    log(INFO, f"\n{header}\n{SEPARATOR}\n")
     for metric_name, metric_value in results.items():
         log(INFO, f"Metric: {metric_name}\tMetric: {metric_value}")
-    log(INFO, "------------------------------------------------------------------------------------\n")
+    log(INFO, f"{SEPARATOR}\n")
 
 
 def write_metrics(metric_report_path: Path, header: str, results: dict[str, float]) -> None:
@@ -64,10 +67,10 @@ def write_metrics(metric_report_path: Path, header: str, results: dict[str, floa
         results: Dictionary of metric names (keys) and metric values (values) to be written.
     """
     with open(metric_report_path, "a") as f:
-        f.write(f"\n{header}\n------------------------------------------------------------------------------------\n")
+        f.write(f"\n{header}\n{SEPARATOR}\n")
         for metric_name, metric_value in results.items():
             f.write(f"Metric: {metric_name:40}Metric: {metric_value}\n")
-        f.write("------------------------------------------------------------------------------------\n")
+        f.write(f"{SEPARATOR}\n")
 
 
 def report_metrics(cfg: DictConfig, header: str, results: dict[str, float]) -> None:
