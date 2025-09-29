@@ -10,8 +10,8 @@ import torch
 from torch.nn import functional
 
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
-from midst_toolkit.core.data_loaders import load_multi_table
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
+from midst_toolkit.models.clavaddpm.data_loaders import load_multi_table
 from midst_toolkit.models.clavaddpm.model import Classifier
 from midst_toolkit.models.clavaddpm.train import clava_training
 
@@ -33,6 +33,7 @@ DIFFUSION_CONFIG = {
     "gaussian_loss_type": "mse",
     "weight_decay": 1e-05,
     "scheduler": "cosine",
+    "data_split_ratios": [0.99, 0.005, 0.005],
 }
 
 CLASSIFIER_CONFIG = {
@@ -41,12 +42,13 @@ CLASSIFIER_CONFIG = {
     "dim_t": 128,
     "batch_size": 24,
     "iterations": 1000,
+    "data_split_ratios": [0.99, 0.005, 0.005],
 }
 
 
 @pytest.mark.integration_test()
 def test_load_single_table():
-    tables, relation_order, dataset_meta = load_multi_table("tests/integration/assets/single_table/")
+    tables, relation_order, dataset_meta = load_multi_table(Path("tests/integration/assets/single_table/"))
 
     assert list(tables.keys()) == ["trans"]
 
@@ -121,7 +123,7 @@ def test_load_single_table():
 
 @pytest.mark.integration_test()
 def test_load_multi_table():
-    tables, relation_order, dataset_meta = load_multi_table("tests/integration/assets/multi_table/")
+    tables, relation_order, dataset_meta = load_multi_table(Path("tests/integration/assets/multi_table/"))
 
     assert list(tables.keys()) == ["account", "trans"]
 
@@ -251,7 +253,7 @@ def test_train_single_table(tmp_path: Path):
     set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
     # Act
-    tables, relation_order, _ = load_multi_table("tests/integration/assets/single_table/")
+    tables, relation_order, _ = load_multi_table(Path("tests/integration/assets/single_table/"))
     tables, models = clava_training(
         tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device="cpu"
     )
@@ -268,7 +270,7 @@ def test_train_single_table(tmp_path: Path):
         table_info[key]["empirical_class_dist"].float(),
         ddim=False,
     )
-    X_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
+    x_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
 
     with open("tests/integration/assets/single_table/assertion_data/syntetic_data.json", "r") as f:
         expected_results = json.load(f)
@@ -291,7 +293,7 @@ def test_train_single_table(tmp_path: Path):
 
         # TODO: Figure out if there is a good way of testing the synthetic data results
         # on multiple platforms. https://app.clickup.com/t/868f43wp0
-        assert np.allclose(X_gen, expected_results["X_gen"])
+        assert np.allclose(x_gen, expected_results["X_gen"])
         assert np.allclose(y_gen, expected_results["y_gen"])
 
     else:
@@ -309,7 +311,7 @@ def test_train_multi_table(tmp_path: Path):
     set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
     # Act
-    tables, relation_order, _ = load_multi_table("tests/integration/assets/multi_table/")
+    tables, relation_order, _ = load_multi_table(Path("tests/integration/assets/multi_table/"))
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
     models = clava_training(tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device="cpu")
 
@@ -325,7 +327,7 @@ def test_train_multi_table(tmp_path: Path):
         table_info[key]["empirical_class_dist"].float(),
         ddim=False,
     )
-    X_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
+    x_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
 
     with open("tests/integration/assets/multi_table/assertion_data/syntetic_data.json", "r") as f:
         expected_results = json.load(f)
@@ -350,7 +352,7 @@ def test_train_multi_table(tmp_path: Path):
 
         # TODO: Figure out if there is a good way of testing the synthetic data results
         # on multiple platforms. https://app.clickup.com/t/868f43wp0
-        assert np.allclose(X_gen, expected_results["X_gen"])
+        assert np.allclose(x_gen, expected_results["X_gen"])
         assert np.allclose(y_gen, expected_results["y_gen"])
 
     else:
@@ -395,7 +397,7 @@ def test_clustering_reload(tmp_path: Path):
     set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
     # Act
-    tables, relation_order, dataset_meta = load_multi_table("tests/integration/assets/multi_table/")
+    tables, relation_order, dataset_meta = load_multi_table(Path("tests/integration/assets/multi_table/"))
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
 
     # Assert

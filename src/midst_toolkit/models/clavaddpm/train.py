@@ -11,20 +11,16 @@ import pandas as pd
 import torch
 from torch import Tensor, optim
 
-from midst_toolkit.common.logger import log
-from midst_toolkit.core import logger
-from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
-from midst_toolkit.models.clavaddpm.model import (
-    Classifier,
+from midst_toolkit.common.logger import KeyValueLogger, log
+from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
+from midst_toolkit.models.clavaddpm.dataset import (
     Dataset,
     Transformations,
-    get_model,
-    get_model_params,
     get_T_dict,
-    get_table_info,
     make_dataset_from_df,
-    prepare_fast_dataloader,
 )
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
+from midst_toolkit.models.clavaddpm.model import Classifier, get_model, get_table_info
 from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, create_named_schedule_sampler
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
@@ -68,6 +64,8 @@ def clava_training(
                 scheduler = str["cosine" | "linear"],
                 lr = float,
                 weight_decay = float,
+                data_split_ratios = list[float], # Must have 3 values: [train, validation, test], and they must
+                    amount to 1 (with a tolerance of 0.01).
             }
         classifier_config: Dictionary of configurations for the classifier model. Not required for single table
             training. The following config keys are required for multi-table training:
@@ -157,6 +155,8 @@ def child_training(
                 scheduler = str["cosine" | "linear"],
                 lr = float,
                 weight_decay = float,
+                data_split_ratios = list[float], # Must have 3 values: [train, validation, test], and they must
+                    amount to 1 (with a tolerance of 0.01).
             }
         classifier_config: Dictionary of configurations for the classifier model. Not required for single table
             training. The following config keys are required for multi-table training:
@@ -182,7 +182,7 @@ def child_training(
     else:
         y_col = f"{parent_name}_{child_name}_cluster"
     child_info = get_table_info(child_df_with_cluster, child_domain_dict, y_col)
-    child_model_params = get_model_params(
+    child_model_params = _get_model_params(
         {
             "d_layers": diffusion_config["d_layers"],
             "dropout": diffusion_config["dropout"],
@@ -204,6 +204,7 @@ def child_training(
         diffusion_config["scheduler"],
         diffusion_config["lr"],
         diffusion_config["weight_decay"],
+        diffusion_config["data_split_ratios"],
         device=device,
     )
 
@@ -227,6 +228,7 @@ def child_training(
                 dim_t=classifier_config["dim_t"],
                 learning_rate=classifier_config["lr"],
                 device=device,
+                data_split_ratios=classifier_config["data_split_ratios"],
             )
             child_result["classifier"] = child_classifier
         else:
@@ -245,13 +247,14 @@ def train_model(
     transformations_dict: dict[str, Any],
     steps: int,
     batch_size: int,
-    model_type: str,
+    model_type: Literal["mlp", "resnet"],
     gaussian_loss_type: str,
     num_timesteps: int,
     scheduler: str,
     learning_rate: float,
     weight_decay: float,
-    device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    data_split_ratios: list[float],
+    device: str = "cuda",
 ) -> dict[str, Any]:
     """
     Training function for the diffusion model.
@@ -269,6 +272,8 @@ def train_model(
         scheduler: Scheduler to use for the diffusion model.
         learning_rate: Learning rate to use for the optimizer in the diffusion model.
         weight_decay: Weight decay to use for the optimizer in the diffusion model.
+        data_split_ratios: The ratios of the dataset to split into train, validation, and test.
+            It must have exactly 3 values and their sum must amount to 1 (with a tolerance of 0.01).
         device: Device to use for training. Default is `"cuda"`.
 
     Returns:
@@ -284,7 +289,7 @@ def train_model(
         data_frame,
         transformations,
         is_y_cond=model_params["is_y_cond"],
-        ratios=[0.99, 0.005, 0.005],
+        ratios=data_split_ratios,
         df_info=data_frame_info,
         std=0,
     )
@@ -297,7 +302,7 @@ def train_model(
 
     _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.y["train"]), return_counts=True)
 
-    num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
+    num_numerical_features = dataset.x_num["train"].shape[1] if dataset.x_num is not None else 0
     d_in = np.sum(category_sizes) + num_numerical_features
     model_params["d_in"] = d_in
 
@@ -358,11 +363,13 @@ def train_classifier(
     num_timesteps: int,
     scheduler: str,
     d_layers: list[int],
+    data_split_ratios: list[float],
     device: str = "cuda",
     cluster_col: str = "cluster",
     dim_t: int = 128,
     learning_rate: float = 0.0001,
     classifier_evaluation_interval: int = 5,
+    logger_interval: int = 10,
 ) -> Classifier:
     """
     Training function for the classifier model.
@@ -378,12 +385,16 @@ def train_classifier(
         num_timesteps: Number of timesteps to use for the diffusion model.
         scheduler: Scheduler to use for the diffusion model.
         d_layers: List of the hidden sizes of the classifier.
+        data_split_ratios: The ratios of the dataset to split into train, validation, and test.
+            It must have exactly 3 values and their sum must amount to 1 (with a tolerance of 0.01).
         device: Device to use for training. Default is `"cuda"`.
         cluster_col: Name of the cluster column. Default is `"cluster"`.
         dim_t: Dimension of the timestamp. Default is 128.
         learning_rate: Learning rate to use for the optimizer in the classifier. Default is 0.0001.
         classifier_evaluation_interval: The number of classifier training steps to wait
             until the next evaluation of the classifier. Default is 5.
+        logger_interval: The number of classifier training steps to wait until the next logging
+            of its metrics. Default is 10.
 
     Returns:
         The trained classifier model.
@@ -394,7 +405,7 @@ def train_classifier(
         data_frame,
         transformations,
         is_y_cond=model_params["is_y_cond"],
-        ratios=[0.99, 0.005, 0.005],
+        ratios=data_split_ratios,
         df_info=data_frame_info,
         std=0,
     )
@@ -411,11 +422,11 @@ def train_classifier(
     print(category_sizes)
 
     # TODO: understand what's going on here
-    if dataset.X_num is None:
-        log(WARNING, "dataset.X_num is None. num_numerical_features will be set to 0")
+    if dataset.x_num is None:
+        log(WARNING, "dataset.x_num is None. num_numerical_features will be set to 0")
         num_numerical_features = 0
     else:
-        num_numerical_features = dataset.X_num["train"].shape[1]
+        num_numerical_features = dataset.x_num["train"].shape[1]
 
     if model_params["is_y_cond"] == "concat":
         num_numerical_features -= 1
@@ -441,14 +452,12 @@ def train_classifier(
     empty_diffusion.to(device)
 
     schedule_sampler = create_named_schedule_sampler("uniform", empty_diffusion)
+    key_value_logger = KeyValueLogger()
 
     classifier.train()
     for step in range(classifier_steps):
-        logger.logkv("step", step)
-        logger.logkv(
-            "samples",
-            (step + 1) * batch_size,
-        )
+        key_value_logger.save_entry("step", float(step))
+        key_value_logger.save_entry("samples", float((step + 1) * batch_size))
         _numerical_forward_backward_log(
             classifier,
             classifier_optimizer,
@@ -458,6 +467,7 @@ def train_classifier(
             empty_diffusion,
             prefix="train",
             device=device,
+            key_value_logger=key_value_logger,
         )
 
         classifier_optimizer.step()
@@ -473,8 +483,13 @@ def train_classifier(
                     empty_diffusion,
                     prefix="val",
                     device=device,
+                    key_value_logger=key_value_logger,
                 )
                 classifier.train()
+
+        if step % logger_interval == 0:
+            # Dump the metrics every logger_interval number of steps
+            key_value_logger.dump()
 
     # test classifier
     classifier.eval()
@@ -567,6 +582,7 @@ def _numerical_forward_backward_log(
     prefix: str = "train",
     remove_first_col: bool = False,
     device: str = "cuda",
+    key_value_logger: KeyValueLogger | None = None,
 ) -> None:
     """
     Forward and backward pass for the numerical features of the ClavaDDPM model.
@@ -581,6 +597,7 @@ def _numerical_forward_backward_log(
         prefix: The prefix for the loss. Defaults to "train".
         remove_first_col: Whether to remove the first column of the batch. Defaults to False.
         device: The device to use. Defaults to "cuda".
+        key_value_logger: The key-value logger to log the losses. If None, the losses are not logged.
     """
     batch, labels = next(data_loader)
     labels = labels.long().to(device)
@@ -603,7 +620,7 @@ def _numerical_forward_backward_log(
         losses[f"{prefix}_acc@1"] = _compute_top_k(logits, sub_labels, k=1, reduction="none")
         if logits.shape[1] >= 5:
             losses[f"{prefix}_acc@5"] = _compute_top_k(logits, sub_labels, k=5, reduction="none")
-        _log_loss_dict(diffusion, sub_t, losses)
+        _log_loss_dict(diffusion, sub_t, losses, key_value_logger)
         del losses
         loss = loss.mean()
         if loss.requires_grad:
@@ -640,21 +657,30 @@ def _compute_top_k(
     raise ValueError(f"reduction should be one of ['mean', 'none']: {reduction}")
 
 
-def _log_loss_dict(diffusion: GaussianMultinomialDiffusion, ts: Tensor, losses: dict[str, Tensor]) -> None:
+def _log_loss_dict(
+    diffusion: GaussianMultinomialDiffusion,
+    timesteps: Tensor,
+    losses: dict[str, Tensor],
+    key_value_logger: KeyValueLogger | None = None,
+) -> None:
     """
     Output the log loss dictionary in the logger.
 
     Args:
         diffusion: The diffusion object.
-        ts: The timesteps.
+        timesteps: The timesteps tensor.
         losses: The losses.
+        key_value_logger: The key-value logger to log the losses. If None, the losses are not logged.
     """
+    if key_value_logger is None:
+        return
+
     for key, values in losses.items():
-        logger.logkv_mean(key, values.mean().item())
+        key_value_logger.save_entry_mean(key, values.mean().item())
         # Log the quantiles (four quartiles, in particular).
-        for sub_t, sub_loss in zip(ts.cpu().numpy(), values.detach().cpu().numpy()):
+        for sub_t, sub_loss in zip(timesteps.cpu().numpy(), values.detach().cpu().numpy()):
             quartile = int(4 * sub_t / diffusion.num_timesteps)
-            logger.logkv_mean(f"{key}_q{quartile}", sub_loss)
+            key_value_logger.save_entry_mean(f"{key}_q{quartile}", sub_loss)
 
 
 def _split_microbatches(
@@ -681,3 +707,36 @@ def _split_microbatches(
     else:
         for i in range(0, bs, microbatch):
             yield batch[i : i + microbatch], labels[i : i + microbatch], t[i : i + microbatch]
+
+
+# TODO make this into a class with default parameters
+def _get_model_params(rtdl_params: dict[str, Any] | None = None) -> dict[str, Any]:
+    """
+    Return the model parameters.
+
+    Args:
+        rtdl_params: The parameters for the RTDL model. If None, the default parameters below are used:
+            {
+                "d_layers": [512, 1024, 1024, 1024, 1024, 512],
+                "dropout": 0.0,
+            }
+
+    Returns:
+        The model parameters as a dictionary containing the following keys:
+            - num_classes: The number of classes. Defaults to 0.
+            - is_y_cond: Affects how y is generated. For more information, see the documentation
+                of the `make_dataset_from_df` function. Can be any of ["none", "concat", "embedding"].
+                Defaults to "none".
+            - rtdl_params: The parameters for the RTDL model.
+    """
+    if rtdl_params is None:
+        rtdl_params = {
+            "d_layers": [512, 1024, 1024, 1024, 1024, 512],
+            "dropout": 0.0,
+        }
+
+    return {
+        "num_classes": 0,
+        "is_y_cond": "none",
+        "rtdl_params": rtdl_params,
+    }
