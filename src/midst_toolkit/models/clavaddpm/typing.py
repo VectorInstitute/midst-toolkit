@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Self
 
 import numpy as np
 from torch import nn
@@ -99,3 +99,74 @@ class ReductionMethod(Enum):
     MEAN = "mean"
     SUM = "sum"
     NONE = "none"
+
+
+class Normalization(Enum):
+    """Possible types of normalization."""
+
+    STANDARD = "standard"
+    QUANTILE = "quantile"
+    MINMAX = "minmax"
+
+
+class NumNanPolicy(Enum):
+    """Possible types of num nan policy."""
+
+    DROP_ROWS = "drop-rows"
+    MEAN = "mean"
+
+
+class CatNanPolicy(Enum):
+    """Possible types of cat nan policy."""
+
+    MOST_FREQUENT = "most_frequent"
+
+
+class CatEncoding(Enum):
+    """Possible types of cat encoding."""
+
+    ONE_HOT = "one-hot"
+    COUNTER = "counter"
+    ORDINAL = "ordinal"
+
+
+class YPolicy(Enum):
+    """Possible types of y policy."""
+
+    DEFAULT = "default"
+
+
+class TaskType(Enum):
+    BINCLASS = "binclass"
+    MULTICLASS = "multiclass"
+    REGRESSION = "regression"
+
+    def __str__(self) -> str:
+        """
+        Return the string representation of the task type, which is the value of the enum.
+
+        Returns:
+            The string representation of the task type.
+        """
+        return self.value
+
+
+class PredictionType(Enum):
+    LOGITS = "logits"
+    PROBS = "probs"
+
+
+@dataclass(frozen=True)
+class Transformations:
+    seed: int = 0
+    normalization: Normalization | None = None
+    num_nan_policy: NumNanPolicy | None = None
+    cat_nan_policy: CatNanPolicy | None = None
+    cat_min_frequency: float | None = None
+    cat_encoding: CatEncoding | None = CatEncoding.ORDINAL
+    y_policy: YPolicy | None = YPolicy.DEFAULT
+
+    @classmethod
+    def default(cls) -> Self:
+        """Return the default transformations."""
+        return cls(seed=0, normalization=Normalization.QUANTILE, y_policy=YPolicy.DEFAULT)
