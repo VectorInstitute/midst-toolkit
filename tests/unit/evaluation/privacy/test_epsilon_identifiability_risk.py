@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 
 from midst_toolkit.data_processing.midst_data_processing import load_midst_data_with_test
-from midst_toolkit.evaluation.privacy.distance_preprocess import preprocess
+from midst_toolkit.evaluation.privacy.distance_preprocess import preprocess_for_distance_computation
 from midst_toolkit.evaluation.privacy.epsilon_identifiability_risk import (
     EpsilonIdentifiabilityNorm,
     EpsilonIdentifiabilityRisk,
@@ -98,7 +98,7 @@ def test_epsilon_identifiability_risk_small_data_gower() -> None:
     assert pytest.approx(results["privacy_loss"], abs=1e-5) == target - target_holdout
 
     # Using Categorical columns too after preprocess
-    real_data, synthetic_data = preprocess(META_INFO, REAL_DATA, SYNTHETIC_DATA)
+    real_data, synthetic_data = preprocess_for_distance_computation(META_INFO, REAL_DATA, SYNTHETIC_DATA)
 
     eir_metric = EpsilonIdentifiabilityRisk(
         categorical_columns=[3, 4, 5],
@@ -137,7 +137,9 @@ def test_epsilon_identifiability_risk() -> None:
         REAL_DATA_TRAIN_PATH, SYNTHETIC_DATA_PATH, META_INFO_PATH, REAL_DATA_TEST_PATH
     )
 
-    synthetic_data, real_data, holdout_data = preprocess(meta_info, synthetic_data, real_data, holdout_data)
+    synthetic_data, real_data, holdout_data = preprocess_for_distance_computation(
+        meta_info, synthetic_data, real_data, holdout_data
+    )
 
     # After one-hot, we'll treat all the categoricals like numerical columns and leave off the target column
     eir_metric = EpsilonIdentifiabilityRisk(

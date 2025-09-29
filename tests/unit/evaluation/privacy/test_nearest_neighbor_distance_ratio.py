@@ -3,7 +3,7 @@ import pytest
 
 from midst_toolkit.data_processing.midst_data_processing import load_midst_data_with_test
 from midst_toolkit.evaluation.privacy.distance_closest_record import NormType
-from midst_toolkit.evaluation.privacy.distance_preprocess import preprocess
+from midst_toolkit.evaluation.privacy.distance_preprocess import preprocess_for_distance_computation
 from midst_toolkit.evaluation.privacy.nearest_neighbor_distance_ratio import (
     NearestNeighborDistanceRatio,
 )
@@ -102,7 +102,9 @@ def test_nndr_score_small_data_with_categoricals_ordinal() -> None:
 
 
 def test_nndr_score_small_data_with_categoricals_one_hot() -> None:
-    synthetic_data, real_data, holdout_data = preprocess(META_INFO, SYNTHETIC_DATA, REAL_DATA, HOLDOUT_DATA)
+    synthetic_data, real_data, holdout_data = preprocess_for_distance_computation(
+        META_INFO, SYNTHETIC_DATA, REAL_DATA, HOLDOUT_DATA
+    )
 
     nndr_metric = NearestNeighborDistanceRatio()
     results = nndr_metric.compute(real_data, synthetic_data)
@@ -123,7 +125,9 @@ def test_nndr_score() -> None:
         REAL_DATA_TRAIN_PATH, SYNTHETIC_DATA_PATH, META_INFO_PATH, REAL_DATA_TEST_PATH
     )
 
-    synthetic_data, real_data, holdout_data = preprocess(meta_info, synthetic_data, real_data, holdout_data)
+    synthetic_data, real_data, holdout_data = preprocess_for_distance_computation(
+        meta_info, synthetic_data, real_data, holdout_data
+    )
     nndr_metric = NearestNeighborDistanceRatio()
     results = nndr_metric.compute(real_data, synthetic_data, holdout_data)
     assert pytest.approx(results["mean_nndr"], abs=1e-8) == 0.9782823717907417

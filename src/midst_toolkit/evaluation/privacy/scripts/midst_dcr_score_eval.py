@@ -7,7 +7,7 @@ import pandas as pd
 from midst_toolkit.common.logger import log
 from midst_toolkit.data_processing.midst_data_processing import load_midst_data_with_test
 from midst_toolkit.evaluation.privacy.distance_closest_record import DistanceToClosestRecordScore
-from midst_toolkit.evaluation.privacy.distance_preprocess import preprocess
+from midst_toolkit.evaluation.privacy.distance_preprocess import preprocess_for_distance_computation
 
 
 # Killing a benign pandas warning
@@ -106,7 +106,7 @@ if __name__ == "__main__":
         real_data_train_path, synthetic_data_path, meta_info_path, real_data_test_path
     )
 
-    synthetic_data, real_data_train, real_data_test = preprocess(
+    synthetic_data, real_data_train, real_data_test = preprocess_for_distance_computation(
         meta_info, synthetic_data, real_data_train, real_data_test
     )
     metric = DistanceToClosestRecordScore()

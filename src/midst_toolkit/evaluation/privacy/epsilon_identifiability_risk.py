@@ -33,7 +33,7 @@ class EpsilonIdentifiabilityRisk(SynthEvalMetric):
         synthetic data and the holdout set represents real data that was NOT.
 
         NOTE: Columns are not uniformly weighted. They are weighted by their inverse column entropy to provide
-        greater attention to rare data points. This is formally defined in
+        greater attention to rare data points. This is formally defined in:
 
         Yoon, J., Drumright, L.N., Schaar, M.: Anonymization through data synthesis using generative adversarial
         networks (ADS-GAN). IEEE J. Biomed. Health Informatics 24(8), 2378–2388 (2020)
@@ -42,7 +42,7 @@ class EpsilonIdentifiabilityRisk(SynthEvalMetric):
         NOTE: The dataframes provided need to be pre-processed into numerical values for each column in some way. That
         is, for example, the categorical variables may be one-hot encoded and the numerical values normalized in
         some way. This can be done via the ``preprocess`` function in ``distance_preprocess.py`` beforehand or it can
-        be done within compute if ``do_preprocess`` is True using the SynthEval pipeline.
+        be done within ``compute`` if ``do_preprocess`` is True using the SynthEval pipeline.
 
 
 
@@ -78,7 +78,7 @@ class EpsilonIdentifiabilityRisk(SynthEvalMetric):
         holdout set represents real data that was NOT.
 
         NOTE: Columns are not uniformly weighted. They are weighted by their inverse column entropy to provide
-        greater attention to rare data points. This is formally defined in
+        greater attention to rare data points. This is formally defined in:
 
         Yoon, J., Drumright, L.N., Schaar, M.: Anonymization through data synthesis using generative adversarial
         networks (ADS-GAN). IEEE J. Biomed. Health Informatics 24(8), 2378–2388 (2020)
@@ -87,7 +87,7 @@ class EpsilonIdentifiabilityRisk(SynthEvalMetric):
         NOTE: The dataframes provided need to be pre-processed into numerical values for each column in some way. That
         is, for example, the categorical variables may be one-hot encoded and the numerical values normalized in
         some way. This can be done via the ``preprocess`` function in ``distance_preprocess.py`` beforehand or it can
-        be done within compute if ``do_preprocess`` is True using the SynthEval pipeline.
+        be done within ``compute`` if ``do_preprocess`` is True using the SynthEval pipeline.
 
         Args:
             real_data: Real data to which the synthetic data may be compared. In many cases this will be data used
@@ -114,7 +114,7 @@ class EpsilonIdentifiabilityRisk(SynthEvalMetric):
             filtered_real_data = real_data[self.numerical_columns]
             filtered_synthetic_data = synthetic_data[self.numerical_columns]
             filtered_holdout_data = holdout_data[self.numerical_columns] if holdout_data is not None else None
-        else:
+        elif self.norm == EpsilonIdentifiabilityNorm.GOWER:
             # NOTE: The SynthEval class ignores column specifications by default. However, for other classes
             # (correlation_matrix_difference for example), specifying less than all of the columns restricts the score
             # computation to just those columns. To make this consistent we do that here, before passing to the
@@ -122,6 +122,8 @@ class EpsilonIdentifiabilityRisk(SynthEvalMetric):
             filtered_real_data = real_data[self.all_columns]
             filtered_synthetic_data = synthetic_data[self.all_columns]
             filtered_holdout_data = holdout_data[self.all_columns] if holdout_data is not None else None
+        else:
+            raise ValueError(f"Unrecognized EpsilonIdentifiabilityNorm Option: {self.norm}")
 
         self.syntheval_metric = EpsilonIdentifiability(
             real_data=filtered_real_data,

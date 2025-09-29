@@ -6,12 +6,10 @@ import torch
 from tqdm import tqdm
 
 from midst_toolkit.common.logger import log
+from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.evaluation.metrics_base import MetricBase
-from midst_toolkit.evaluation.privacy.distance_preprocess import preprocess
+from midst_toolkit.evaluation.privacy.distance_preprocess import preprocess_for_distance_computation
 from midst_toolkit.evaluation.privacy.distance_utils import NormType, minimum_distances
-
-
-DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 
 class DistanceToClosestRecordScore(MetricBase):
@@ -43,13 +41,15 @@ class DistanceToClosestRecordScore(MetricBase):
         Args:
             norm: Determines what norm the distances are computed in. Defaults to NormType.L1.
             batch_size: Batch size used to compute the DCR iteratively. Just needed to manage memory. Defaults to 1000.
-            device: What device the tensors should be sent to in order to perform the calculations. Defaults to DEVICE.
+            device: What device the tensors should be sent to in order to perform the calculations. Defaults to
+                "cuda" if CUDA is available, "cpu" otherwise.
             meta_info: This is only required/used if ``do_preprocess`` is True. JSON with meta information about the
                 columns and their corresponding types that should be considered. At minimum, it should have the keys
                 'num_col_idx', 'cat_col_idx', 'target_col_idx', and 'task_type'. If None, then no preprocessing is
                 expected to be done. Defaults to None.
             do_preprocess: Whether or not to preprocess the dataframes before performing the DCR computations.
-                Preprocessing is performed with the ``preprocess`` function Defaults to False.
+                Preprocessing is performed with the ``preprocess`` function. Note, ``meta_info`` must be provided in
+                order to perform the appropriate preprocessing steps. Defaults to False.
         """
         self.norm = norm
         self.batch_size = batch_size
@@ -75,7 +75,7 @@ class DistanceToClosestRecordScore(MetricBase):
         NOTE: The dataframes provided need to be pre-processed into numerical values for each column in some way. That
         is, for example, the categorical variables should be one-hot encoded and the numerical values normalized in
         some way. This can be done via the ``preprocess`` function in ``distance_preprocess.py`` beforehand or it can
-        be done within compute if ``do_preprocess`` is True and ``meta_info`` has been provided.
+        be done within ``compute`` if ``do_preprocess`` is True and ``meta_info`` has been provided.
 
         Args:
             real_data: Real data that was used to train the model that generated the ``synthetic_data``.
@@ -89,7 +89,7 @@ class DistanceToClosestRecordScore(MetricBase):
         assert holdout_data is not None, "For DCR score calculations, a holdout dataset is required"
 
         if self.do_preprocess:
-            synthetic_data, real_data, holdout_data = preprocess(
+            synthetic_data, real_data, holdout_data = preprocess_for_distance_computation(
                 self.meta_info, synthetic_data, real_data, holdout_data
             )
 
@@ -144,13 +144,15 @@ class MedianDistanceToClosestRecordScore(MetricBase):
         Args:
             norm: Determines what norm the distances are computed in. Defaults to NormType.L1.
             batch_size: Batch size used to compute the DCR iteratively. Just needed to manage memory. Defaults to 1000.
-            device: What device the tensors should be sent to in order to perform the calculations. Defaults to DEVICE.
+            device: What device the tensors should be sent to in order to perform the calculations. Defaults to
+                "cuda" if CUDA is available, "cpu" otherwise.
             meta_info: This is only required/used if ``do_preprocess`` is True. JSON with meta information about the
                 columns and their corresponding types that should be considered. At minimum, it should have the keys
                 'num_col_idx', 'cat_col_idx', 'target_col_idx', and 'task_type'. If None, then no preprocessing is
                 expected to be done. Defaults to None.
             do_preprocess: Whether or not to preprocess the dataframes before performing the DCR computations.
-                Preprocessing is performed with the ``preprocess`` function Defaults to False.
+                Preprocessing is performed with the ``preprocess``. Note, ``meta_info`` must be provided in order
+                to perform the appropriate preprocessing steps. function Defaults to False.
         """
         self.norm = norm
         self.batch_size = batch_size
@@ -171,7 +173,7 @@ class MedianDistanceToClosestRecordScore(MetricBase):
 
         NOTE: The dataframes provided need to be pre-processed into numerical values for each column in some way. That
         is, for example, the categorical variables should be one-hot encoded and the numerical values normalized in
-        some way. This can be done via the ``preprocess`` function beforehand or it can be done within compute if
+        some way. This can be done via the ``preprocess`` function beforehand or it can be done within ``compute`` if
         ``do_preprocess`` is True and ``meta_info`` has been provided.
 
         Args:
@@ -185,7 +187,7 @@ class MedianDistanceToClosestRecordScore(MetricBase):
             Example: { "median_dcr_score": 0.79 }
         """
         if self.do_preprocess:
-            synthetic_data, real_data = preprocess(self.meta_info, synthetic_data, real_data)
+            synthetic_data, real_data = preprocess_for_distance_computation(self.meta_info, synthetic_data, real_data)
 
         real_data_tensor = torch.tensor(real_data.to_numpy()).to(self.device)
         synthetic_data_tensor = torch.tensor(synthetic_data.to_numpy()).to(self.device)
