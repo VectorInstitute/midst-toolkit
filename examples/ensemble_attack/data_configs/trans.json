@@ -1,7 +1,7 @@
 {
     "general": {
         "data_dir": "examples/ensemble_attack/data/shadow_models_data",
-        "exp_name": "test_1",
+        "exp_name": "ensemble_attack",
         "workspace_dir": "examples/ensemble_attack/data/shadow_models_data/workspace",
         "sample_prefix": "",
         "test_data_dir": "examples/ensemble_attack/data/shadow_models_data/test"
