@@ -21,7 +21,7 @@ from midst_toolkit.evaluation.privacy import (
     MedianDistanceToClosestRecordScore,
     NearestNeighborDistanceRatio,
 )
-from midst_toolkit.evaluation.privacy.distance_preprocess import preprocess
+from midst_toolkit.evaluation.privacy.distance_preprocess import preprocess_for_distance_computation
 from midst_toolkit.evaluation.privacy.distance_utils import NormType
 from midst_toolkit.evaluation.privacy.epsilon_identifiability_risk import EpsilonIdentifiabilityNorm
 from midst_toolkit.evaluation.quality import (
@@ -353,7 +353,7 @@ def run_privacy_evaluations(
     if any([cfg.dcr.run, cfg.median_dcr.run, cfg.nndr.run]):
         log(INFO, "Preprocessing Data for Distance Evaluation")
         # Categorical values are one-hot encoded, numerical values are scaled by their range, but not into [0,1]
-        distance_real_data, distance_synthetic_data, distance_holdout_data = preprocess(
+        distance_real_data, distance_synthetic_data, distance_holdout_data = preprocess_for_distance_computation(
             meta_info=meta_info,
             synthetic_data=synthetic_data,
             real_data_train=real_data_train,
