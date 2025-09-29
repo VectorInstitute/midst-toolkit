@@ -69,6 +69,8 @@ def run_metaclassifier_training(config: DictConfig) -> None:
         Path(config.data_paths.processed_attack_data_path) / "master_challenge_test_labels.npy",
     )
 
+    # Synthetic data borrowed from the attack implementation repository.
+    # TODO: Change this file path to the path where the synthetic data is stored.
     df_synthetic = load_dataframe(
         Path(config.data_paths.processed_attack_data_path),
         "synth.csv",
@@ -139,7 +141,7 @@ def main(config: DictConfig) -> None:
     """
     if config.pipeline.run_data_processing:
         run_data_processing(config)
-    elif config.pipeline.run_metaclassifier_training:
+    if config.pipeline.run_metaclassifier_training:
         run_metaclassifier_training(config)
 
 

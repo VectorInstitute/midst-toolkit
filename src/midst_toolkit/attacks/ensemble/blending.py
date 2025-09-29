@@ -9,7 +9,7 @@ from sklearn.linear_model import LogisticRegression
 
 from midst_toolkit.attacks.ensemble.distance_features import calculate_domias_score, calculate_gower_features
 from midst_toolkit.attacks.ensemble.train_utils import get_tpr_at_fpr
-from midst_toolkit.attacks.ensemble.xgboost import XgBoostHyperparameterTuner
+from midst_toolkit.attacks.ensemble.xgboost_tuner import XgBoostHyperparameterTuner
 
 
 class MetaClassifierType(Enum):
