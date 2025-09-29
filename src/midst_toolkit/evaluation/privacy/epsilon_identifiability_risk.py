@@ -22,17 +22,17 @@ class EpsilonIdentifiabilityRisk(SynthEvalMetric):
         norm: EpsilonIdentifiabilityNorm = EpsilonIdentifiabilityNorm.GOWER,
     ):
         """
-        Class to compute the Epsilon Identifiability Risk. This computes the ratio of real samples that have a
-        synthetic data point closer than any other real data point in the set of samples. As such, a value closer to 0
-        is better.
+        Class to compute the Epsilon Identifiability Risk. This computes the ratio of real data points that have a
+        synthetic data point closer than any other real data point in the set of data points. As such, a value closer
+        to 0 is better.
 
         If a holdout set is provided to the compute function, the same ratio is computed for holdout data points
-        compared with synthetic ones. The difference between the ratio for the real samples compared with the
-        holdout samples is then calculated. Ideally, these should be roughly the same (i.e. difference near zero) or
-        negative. In this scenario, it is typical that the real data was USED TO TRAIN a model that generated the
+        compared with synthetic ones. The difference between the ratio for the real data points compared with the
+        holdout data points is then calculated. Ideally, these should be roughly the same (i.e. difference near zero)
+        or negative. In this scenario, it is typical that the real data was USED TO TRAIN a model that generated the
         synthetic data and the holdout set represents real data that was NOT.
 
-        NOTE: Dimensions are not uniformly weighted. They are weighted by their inverse column entropy to provide
+        NOTE: Columns are not uniformly weighted. They are weighted by their inverse column entropy to provide
         greater attention to rare data points. This is formally defined in
 
         Yoon, J., Drumright, L.N., Schaar, M.: Anonymization through data synthesis using generative adversarial
@@ -67,8 +67,8 @@ class EpsilonIdentifiabilityRisk(SynthEvalMetric):
         holdout_data: pd.DataFrame | None = None,
     ) -> dict[str, float]:
         """
-        Computes the Epsilon Identifiability Risk. This is the ratio of samples from ``real_data`` that have a point
-        from ``synthetic_data` that is closer than any other real data point in ``real_data``. As such, a value
+        Computes the Epsilon Identifiability Risk. This is the ratio of data points from ``real_data`` that have a
+        point from ``synthetic_data` that is closer than any other real data point in ``real_data``. As such, a value
         closer to 0 is better.
 
         If ``holdout_data`` is provided, the same ratio is computed for points in ``holdout_data`` compared with those
@@ -77,7 +77,7 @@ class EpsilonIdentifiabilityRisk(SynthEvalMetric):
         scenario, it is typical that the real data was USED TO TRAIN a model that generated the synthetic data and the
         holdout set represents real data that was NOT.
 
-        NOTE: Dimensions are not uniformly weighted. They are weighted by their inverse column entropy to provide
+        NOTE: Columns are not uniformly weighted. They are weighted by their inverse column entropy to provide
         greater attention to rare data points. This is formally defined in
 
         Yoon, J., Drumright, L.N., Schaar, M.: Anonymization through data synthesis using generative adversarial

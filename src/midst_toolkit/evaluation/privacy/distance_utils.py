@@ -11,7 +11,7 @@ class NormType(Enum):
 def compute_l1_distances(target_data: torch.Tensor, reference_data: torch.Tensor) -> torch.Tensor:
     """
     This computes the l1 distances between every point in ``target_data`` to every point in ``reference_data``.
-    The final distances are arranged with shape (n_target_points, n_ref_points), where rows correspond the distance
+    The final distances are arranged with shape (n_target_points, n_ref_points), where rows correspond to the distance
     of a single point in ``target_data`` to all points in ``reference_data``.
 
     Args:
@@ -33,7 +33,7 @@ def compute_l1_distances(target_data: torch.Tensor, reference_data: torch.Tensor
 def compute_l2_distances(target_data: torch.Tensor, reference_data: torch.Tensor) -> torch.Tensor:
     """
     This computes the l2 distances between every point in ``target_data`` to every point in ``reference_data``.
-    The final distances are arranged with shape (n_target_points, n_ref_points), where rows correspond the distance
+    The final distances are arranged with shape (n_target_points, n_ref_points), where rows correspond to the distance
     of a single point in ``target_data`` to all points in ``reference_data``.
 
     Args:
