@@ -5,11 +5,9 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.evaluation.quality.synthcity.dataloader import DataLoader
 from midst_toolkit.evaluation.quality.synthcity.one_class import OneClassLayer
-
-
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class MetricEvaluator(metaclass=ABCMeta):

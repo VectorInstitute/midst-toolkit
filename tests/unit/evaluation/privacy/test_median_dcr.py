@@ -9,7 +9,7 @@ from midst_toolkit.evaluation.privacy.distance_closest_record import (
     MedianDistanceToClosestRecordScore,
     minimum_distances,
 )
-from midst_toolkit.evaluation.privacy.distance_preprocess import preprocess
+from midst_toolkit.evaluation.privacy.distance_preprocess import preprocess_for_distance_computation
 from midst_toolkit.evaluation.privacy.distance_utils import NormType
 
 
@@ -49,7 +49,7 @@ def test_minimum_distance_l2_no_skip_diagonal() -> None:
 def test_median_dcr_score() -> None:
     real_data, synthetic_data, meta_info = load_midst_data(REAL_DATA_TRAIN_PATH, SYNTHETIC_DATA_PATH, META_INFO_PATH)
 
-    synthetic_data, real_data = preprocess(meta_info, synthetic_data, real_data)
+    synthetic_data, real_data = preprocess_for_distance_computation(meta_info, synthetic_data, real_data)
     dcr_metric = MedianDistanceToClosestRecordScore()
     dcr_score = dcr_metric.compute(real_data, synthetic_data)
     assert pytest.approx(dcr_score["median_dcr_score"], abs=1e-8) == 6.540543187576836

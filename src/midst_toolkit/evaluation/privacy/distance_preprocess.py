@@ -8,13 +8,13 @@ from midst_toolkit.evaluation.utils import extract_columns_based_on_meta_info
 
 
 @overload
-def preprocess(
+def preprocess_for_distance_computation(
     meta_info: dict[str, Any], synthetic_data: pd.DataFrame, real_data_train: pd.DataFrame
 ) -> tuple[pd.DataFrame, pd.DataFrame]: ...
 
 
 @overload
-def preprocess(
+def preprocess_for_distance_computation(
     meta_info: dict[str, Any],
     synthetic_data: pd.DataFrame,
     real_data_train: pd.DataFrame,
@@ -22,7 +22,7 @@ def preprocess(
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: ...
 
 
-def preprocess(
+def preprocess_for_distance_computation(
     meta_info: dict[str, Any],
     synthetic_data: pd.DataFrame,
     real_data_train: pd.DataFrame,

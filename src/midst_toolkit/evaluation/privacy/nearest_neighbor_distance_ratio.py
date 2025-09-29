@@ -5,12 +5,10 @@ import pandas as pd
 import torch
 from tqdm import tqdm
 
+from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.evaluation.metrics_base import MetricBase
-from midst_toolkit.evaluation.privacy.distance_preprocess import preprocess
+from midst_toolkit.evaluation.privacy.distance_preprocess import preprocess_for_distance_computation
 from midst_toolkit.evaluation.privacy.distance_utils import NormType, compute_top_k_distances
-
-
-DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 
 class NearestNeighborDistanceRatio(MetricBase):
@@ -44,19 +42,21 @@ class NearestNeighborDistanceRatio(MetricBase):
         NOTE: The dataframes provided need to be pre-processed into numerical values for each column in some way. That
         is, for example, the categorical variables may be one-hot encoded and the numerical values normalized in
         some way. This can be done via the ``preprocess`` function in ``distance_preprocess.py`` beforehand or it can
-        be done within compute if ``do_preprocess`` is True and ``meta_info`` has been provided.
+        be done within ``compute`` if ``do_preprocess`` is True and ``meta_info`` has been provided.
 
         Args:
             norm: Determines what norm the distances are computed in. Defaults to NormType.L2.
             batch_size: Batch size used to compute the NNDR iteratively. Just needed to manage memory. Defaults to
                 1000.
-            device: What device the tensors should be sent to in order to perform the calculations. Defaults to DEVICE.
+            device: What device the tensors should be sent to in order to perform the calculations. Defaults to
+                "cuda" if CUDA is available, "cpu" otherwise.
             meta_info: This is only required/used if ``do_preprocess`` is True. JSON with meta information about the
                 columns and their corresponding types that should be considered. At minimum, it should have the keys
                 'num_col_idx' and 'cat_col_idx'. If 'target_col_idx' is specified then 'task_type' must also exist.
                 If None, then no preprocessing is expected to be done. Defaults to None.
             do_preprocess: Whether or not to preprocess the dataframes before performing the NNDR calculations.
-                Preprocessing is performed with the ``preprocess`` function of ``distance_preprocess.py``. Defaults to
+                Preprocessing is performed with the ``preprocess`` function of ``distance_preprocess.py``. Note,
+                ``meta_info`` must be provided in order  to perform the appropriate preprocessing steps. Defaults to
                 False.
             epsilon: Regularization term that ensures that we do not divide by 0. Defaults to 1e-8
         """
@@ -87,7 +87,7 @@ class NearestNeighborDistanceRatio(MetricBase):
         NOTE: The dataframes provided need to be pre-processed into numerical values for each column in some way. That
         is, for example, the categorical variables may be one-hot encoded and the numerical values normalized in
         some way. This can be done via the ``preprocess`` function in ``distance_preprocess.py`` beforehand or it can
-        be done within compute if ``do_preprocess`` is True and ``meta_info`` has been provided.
+        be done within ``compute`` if ``do_preprocess`` is True and ``meta_info`` has been provided.
 
         Args:
             real_data: Real data to which the synthetic data may be compared. In many cases this will be data used
@@ -106,9 +106,11 @@ class NearestNeighborDistanceRatio(MetricBase):
         """
         if self.do_preprocess:
             if holdout_data is None:
-                synthetic_data, real_data = preprocess(self.meta_info, synthetic_data, real_data)
+                synthetic_data, real_data = preprocess_for_distance_computation(
+                    self.meta_info, synthetic_data, real_data
+                )
             else:
-                synthetic_data, real_data, holdout_data = preprocess(
+                synthetic_data, real_data, holdout_data = preprocess_for_distance_computation(
                     self.meta_info, synthetic_data, real_data, holdout_data
                 )
 
