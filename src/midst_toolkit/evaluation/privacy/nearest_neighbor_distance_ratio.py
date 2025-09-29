@@ -82,7 +82,7 @@ class NearestNeighborDistanceRatio(MetricBase):
         If a holdout dataset, composed of real data points that were NOT used to train the generating model, is
         provided the same computation comparing the synthetic data to the holdout set is performed. The difference
         between the two ratios (train and holdout comparisons) is a score comparing the "privacy loss." The more
-        positive, the more th synthetic data may reveal about the original training set.
+        positive, the more the synthetic data may reveal about the original training set.
 
         NOTE: The dataframes provided need to be pre-processed into numerical values for each column in some way. That
         is, for example, the categorical variables may be one-hot encoded and the numerical values normalized in
