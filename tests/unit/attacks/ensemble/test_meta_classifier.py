@@ -6,11 +6,7 @@ import pytest
 from hydra import compose, initialize
 from omegaconf import DictConfig
 
-# The class to be tested
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
-
-
-# --- Fixtures: Reusable setup code for tests ---
 
 
 @pytest.fixture(scope="module")
@@ -86,19 +82,17 @@ class TestBlendingPlusPlus:
         with pytest.raises(ValueError):
             BlendingPlusPlus(data_configs=mock_data_configs, meta_classifier_type=MetaClassifierType("svm"))
 
-    ## Test _prepare_meta_features ##
-
     @patch("midst_toolkit.attacks.ensemble.blending.calculate_gower_features")
     @patch("midst_toolkit.attacks.ensemble.blending.calculate_domias_score")
     @patch("pandas.read_csv")
     def test_prepare_meta_features(self, mock_read_csv, mock_domias, mock_gower, mock_data_configs, sample_dataframes):
         """Tests that _prepare_meta_features correctly calls dependencies and concatenates their outputs."""
-        # 1. Setup mock return values for the patched functions
+        # Setup mock return values for the patched functions
         mock_gower.return_value = pd.DataFrame({"gower_1": [0.1] * 4, "gower_2": [0.2] * 4})
         mock_domias.return_value = pd.DataFrame({"domias": [0.9, 0.8, 0.7, 0.6]})
         mock_read_csv.return_value = pd.DataFrame({"rmia": [1, 0, 1, 0]})
 
-        # 2. Instantiate and call the method
+        # Instantiate and call the method
         bpp = BlendingPlusPlus(data_configs=mock_data_configs)
         meta_features = bpp._prepare_meta_features(
             df_input=sample_dataframes["df_train"],
@@ -108,7 +102,6 @@ class TestBlendingPlusPlus:
             numerical_cols=mock_data_configs.metadata.numerical,
         )
 
-        # 3. Assertions
         # Assert that our external functions were called once
         mock_gower.assert_called_once()
         mock_domias.assert_called_once()
@@ -122,14 +115,10 @@ class TestBlendingPlusPlus:
             meta_features["numerical_col1"], sample_dataframes["df_train"]["numerical_col1"], check_names=False
         )
 
-    ## Test fit ##
-    # ------------
-
     @patch("midst_toolkit.attacks.ensemble.blending.BlendingPlusPlus._prepare_meta_features")
     @patch("midst_toolkit.attacks.ensemble.blending.LogisticRegression")
     def test_fit_logistic_regression(self, mock_lr, mock_prepare_features, mock_data_configs, sample_dataframes):
         """Tests the fit method for the Logistic Regression path."""
-        # 1. Setup
         mock_prepare_features.return_value = pd.DataFrame({"feature": np.random.rand(4)})
         mock_lr_instance = MagicMock()
         mock_lr.return_value = mock_lr_instance
@@ -137,7 +126,7 @@ class TestBlendingPlusPlus:
         # Configure the mock instance's 'fit' method to return the instance itself
         mock_lr_instance.fit.return_value = mock_lr_instance
 
-        # 2. Instantiate and fit
+        # Instantiate and fit
         bpp = BlendingPlusPlus(data_configs=mock_data_configs, meta_classifier_type=MetaClassifierType("lr"))
         bpp.fit(
             df_train=sample_dataframes["df_train"],
@@ -146,7 +135,6 @@ class TestBlendingPlusPlus:
             df_reference=sample_dataframes["df_ref"],
         )
 
-        # 3. Assertions
         mock_prepare_features.assert_called_once()
         mock_lr.assert_called_once_with(max_iter=1000)
         mock_lr_instance.fit.assert_called_once()
@@ -158,14 +146,12 @@ class TestBlendingPlusPlus:
     @patch("midst_toolkit.attacks.ensemble.blending.XgBoostHyperparameterTuner")
     def test_fit_xgboost(self, mock_tuner_class, mock_prepare_features, mock_data_configs, sample_dataframes):
         """Tests the fit method for the XGBoost path."""
-        # 1. Setup
         mock_prepare_features.return_value = pd.DataFrame({"feature": np.random.rand(4)})
         mock_tuner_instance = MagicMock()
         mock_fitted_xgb = MagicMock()  # This represents the final, trained model
         mock_tuner_instance.tune_hyperparameters.return_value = mock_fitted_xgb
         mock_tuner_class.return_value = mock_tuner_instance
 
-        # 2. Instantiate and fit
         bpp = BlendingPlusPlus(data_configs=mock_data_configs, meta_classifier_type=MetaClassifierType("xgb"))
         bpp.fit(
             df_train=sample_dataframes["df_train"],
@@ -174,14 +160,10 @@ class TestBlendingPlusPlus:
             df_reference=sample_dataframes["df_ref"],
         )
 
-        # 3. Assertions
         mock_prepare_features.assert_called_once()
         mock_tuner_class.assert_called_once()  # Check if tuner was initialized
         mock_tuner_instance.tune_hyperparameters.assert_called_once_with(num_optuna_trials=100, num_kfolds=5)
         assert bpp.trained_model is mock_fitted_xgb
-
-    ## Test predict ##
-    # ----------------
 
     def test_predict_raises_error_if_not_fit(self, mock_data_configs, sample_dataframes):
         """Tests that calling .predict() before .fit() raises a RuntimeError."""
@@ -198,14 +180,12 @@ class TestBlendingPlusPlus:
     @patch("midst_toolkit.attacks.ensemble.blending.get_tpr_at_fpr")
     def test_predict_flow(self, mock_get_tpr, mock_prepare_features, mock_data_configs, sample_dataframes):
         """Tests the full predict flow: feature prep, prediction, and scoring."""
-        # 1. Setup
         mock_prepare_features.return_value = pd.DataFrame({"feature": np.random.rand(4)})
         mock_classifier = MagicMock()
-        # Mock predict_proba to return probabilities for class 0 and class 1
+
         mock_classifier.predict_proba.return_value = np.array([[0.9, 0.1], [0.2, 0.8], [0.6, 0.4], [0.05, 0.95]])
         mock_get_tpr.return_value = 0.99  # Mock score
 
-        # 2. Instantiate, manually set the fitted classifier, and predict
         bpp = BlendingPlusPlus(data_configs=mock_data_configs)
         bpp.trained_model = mock_classifier
 
@@ -216,7 +196,6 @@ class TestBlendingPlusPlus:
             y_test=sample_dataframes["y_test"],
         )
 
-        # 3. Assertions
         mock_prepare_features.assert_called_once()
         mock_classifier.predict_proba.assert_called_once()
 
@@ -228,9 +207,8 @@ class TestBlendingPlusPlus:
         mock_get_tpr.assert_called_once()
         call_args = mock_get_tpr.call_args
 
-        # Access the keyword arguments directly
         np.testing.assert_array_equal(call_args.kwargs["true_membership"], sample_dataframes["y_test"])
         np.testing.assert_array_almost_equal(call_args.kwargs["predictions"], expected_probabilities)
-        np.testing.assert_equal(call_args.kwargs["max_fpr"], 0.1)  # You can also assert on other keyword arguments
+        np.testing.assert_equal(call_args.kwargs["max_fpr"], 0.1)
 
         assert score == 0.99

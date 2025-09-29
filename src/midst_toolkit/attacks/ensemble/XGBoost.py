@@ -18,8 +18,8 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 class XgBoostHyperparameterTuner:
     def __init__(
         self,
-        x: pd.DataFrame,
-        y: np.ndarray,
+        input_features: pd.DataFrame,
+        label: np.ndarray,
         use_gpu: bool = False,
         random_seed: int | None = None,
     ):
@@ -29,13 +29,13 @@ class XgBoostHyperparameterTuner:
 
 
         Args:
-            x: Input features as a DataFrame.
-            y: Target variable as a numpy array.
+            input_features: Input features as a DataFrame.
+            label: Label for input features as a numpy array.
             use_gpu: Whether to use GPU acceleration. Defaults to False.
             random_seed: Random seed for reproducibility. Defaults to None.
         """
-        self.x = x
-        self.y = y
+        self.input_features = input_features
+        self.label = label
         self.use_gpu = use_gpu
         self.random_seed = random_seed
 
@@ -49,7 +49,7 @@ class XgBoostHyperparameterTuner:
         """
         return ColumnTransformer(
             [
-                ("continuous", StandardScaler(), self.x.columns),  # All features are numerical
+                ("continuous", StandardScaler(), self.input_features.columns),  # All features are numerical
             ],
             verbose_feature_names_out=False,
             remainder="passthrough",
@@ -105,8 +105,8 @@ class XgBoostHyperparameterTuner:
 
         cv_scores = cross_val_score(
             pipeline,
-            self.x,
-            self.y,
+            self.input_features,
+            self.label,
             cv=num_kfolds,
             scoring=tpr_scorer,
         )
@@ -139,6 +139,6 @@ class XgBoostHyperparameterTuner:
         study.optimize(objective, n_trials=num_optuna_trials)
 
         best_pipe = self._create_xgb_pipeline(study.best_trial)
-        best_pipe.fit(self.x, self.y)
+        best_pipe.fit(self.input_features, self.label)
 
         return best_pipe

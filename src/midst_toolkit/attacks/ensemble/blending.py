@@ -133,8 +133,8 @@ class BlendingPlusPlus:
 
         if self.meta_classifier_type == MetaClassifierType.XGB:
             tuner = XgBoostHyperparameterTuner(
-                x=meta_features,
-                y=y_train,
+                input_features=meta_features,
+                label=y_train,
                 use_gpu=use_gpu,
                 random_seed=self.random_seed,
             )
