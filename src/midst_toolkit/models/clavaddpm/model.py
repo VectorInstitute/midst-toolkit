@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 
 from midst_toolkit.common.logger import log
-from midst_toolkit.models.clavaddpm.typing import IsYCond, ModelParameters, ModuleType, RTDLParameters
+from midst_toolkit.models.clavaddpm.typing import DiffusionParameters, IsYCond, ModelParameters, ModuleType
 
 
 class Classifier(nn.Module):
@@ -567,7 +567,7 @@ class MLPDiffusion(nn.Module):
         d_in: int,
         num_classes: int,
         is_y_cond: IsYCond,
-        rtdl_parameters: RTDLParameters,
+        diffusion_parameters: DiffusionParameters,
         dim_t: int = 128,
     ):
         """
@@ -577,7 +577,7 @@ class MLPDiffusion(nn.Module):
             d_in: The input dimension size.
             num_classes: The number of classes.
             is_y_cond: The condition on the y column.
-            rtdl_parameters: The parameters for the MLP.
+            diffusion_parameters: The parameters for the MLP.
             dim_t: The dimension size of the timestamp.
         """
         super().__init__()
@@ -585,15 +585,15 @@ class MLPDiffusion(nn.Module):
         self.num_classes = num_classes
         self.is_y_cond = is_y_cond
 
-        self.rtdl_parameters = rtdl_parameters
-        self.rtdl_parameters.d_in = dim_t
-        self.rtdl_parameters.d_out = d_in
+        self.diffusion_parameters = diffusion_parameters
+        self.diffusion_parameters.d_in = dim_t
+        self.diffusion_parameters.d_out = d_in
 
         self.mlp = MLP.make_baseline(
-            d_in=self.rtdl_parameters.d_in,
-            d_layers=self.rtdl_parameters.d_layers,
-            dropout=self.rtdl_parameters.dropout,
-            d_out=self.rtdl_parameters.d_out,
+            d_in=self.diffusion_parameters.d_in,
+            d_layers=self.diffusion_parameters.d_layers,
+            dropout=self.diffusion_parameters.dropout,
+            d_out=self.diffusion_parameters.d_out,
         )
 
         self.label_emb: nn.Embedding | nn.Linear
@@ -630,7 +630,7 @@ class ResNetDiffusion(nn.Module):
         self,
         d_in: int,
         num_classes: int,
-        rtdl_parameters: RTDLParameters,
+        diffusion_parameters: DiffusionParameters,
         dim_t: int = 256,
         is_y_cond: IsYCond | None = None,
     ):
@@ -640,7 +640,7 @@ class ResNetDiffusion(nn.Module):
         Args:
             d_in: The input dimension size.
             num_classes: The number of classes.
-            rtdl_parameters: The parameters for the ResNet.
+            diffusion_parameters: The parameters for the ResNet.
             dim_t: The dimension size of the timestep.
             is_y_cond: The condition on the y column. Optional, default is None.
         """
@@ -649,19 +649,19 @@ class ResNetDiffusion(nn.Module):
         self.num_classes = num_classes
         self.is_y_cond = is_y_cond
 
-        self.rtdl_parameters = rtdl_parameters
-        self.rtdl_parameters.d_in = d_in
-        self.rtdl_parameters.d_out = d_in
-        self.rtdl_parameters.emb_d = dim_t
+        self.diffusion_parameters = diffusion_parameters
+        self.diffusion_parameters.d_in = d_in
+        self.diffusion_parameters.d_out = d_in
+        self.diffusion_parameters.emb_d = dim_t
 
         self.resnet = ResNet.make_baseline(
-            d_in=rtdl_parameters.d_in,
-            n_blocks=rtdl_parameters.n_blocks,
-            d_main=rtdl_parameters.d_main,
-            d_hidden=rtdl_parameters.d_hidden,
-            dropout_first=rtdl_parameters.dropout_first,
-            dropout_second=rtdl_parameters.dropout_second,
-            d_out=rtdl_parameters.d_out,
+            d_in=self.diffusion_parameters.d_in,
+            n_blocks=self.diffusion_parameters.n_blocks,
+            d_main=self.diffusion_parameters.d_main,
+            d_hidden=self.diffusion_parameters.d_hidden,
+            dropout_first=self.diffusion_parameters.dropout_first,
+            dropout_second=self.diffusion_parameters.dropout_second,
+            d_out=self.diffusion_parameters.d_out,
         )
 
         self.label_emb: nn.Embedding | nn.Linear
@@ -824,13 +824,13 @@ class ModelType(Enum):
                 d_in=model_parameters.d_in,
                 num_classes=model_parameters.num_classes,
                 is_y_cond=model_parameters.is_y_cond,
-                rtdl_parameters=model_parameters.rtdl_parameters,
+                diffusion_parameters=model_parameters.diffusion_parameters,
             )
         if self == ModelType.RESNET:
             return ResNetDiffusion(
                 d_in=model_parameters.d_in,
                 num_classes=model_parameters.num_classes,
-                rtdl_parameters=model_parameters.rtdl_parameters,
+                diffusion_parameters=model_parameters.diffusion_parameters,
             )
 
         raise ValueError(f"Unsupported model type: {self.value}")

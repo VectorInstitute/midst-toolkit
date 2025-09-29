@@ -20,14 +20,15 @@ from midst_toolkit.models.clavaddpm.model import Classifier, ModelType, get_tabl
 from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, ScheduleSamplerType
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 from midst_toolkit.models.clavaddpm.typing import (
-    CatEncoding,
+    CategoricalEncoding,
     Configs,
+    DataSplit,
+    DiffusionParameters,
     GaussianLossType,
     IsYCond,
     ModelParameters,
     ReductionMethod,
     RelationOrder,
-    RTDLParameters,
     Scheduler,
     Tables,
     Transformations,
@@ -191,7 +192,7 @@ def child_training(
         y_col = f"{parent_name}_{child_name}_cluster"
     child_info = get_table_info(child_df_with_cluster, child_domain_dict, y_col)
     child_model_params = ModelParameters(
-        rtdl_parameters=RTDLParameters(
+        diffusion_parameters=DiffusionParameters(
             d_layers=diffusion_config["d_layers"],
             dropout=diffusion_config["dropout"],
         ),
@@ -301,9 +302,9 @@ def train_model(
         std=0,
     )
 
-    category_sizes = np.array(dataset.get_category_sizes("train"))
+    category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
     # ruff: noqa: N806
-    if len(category_sizes) == 0 or transformations.cat_encoding == CatEncoding.ONE_HOT:
+    if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = np.array([0])
         # ruff: noqa: N806
 
@@ -317,7 +318,7 @@ def train_model(
     model = model_type.get_model(model_params)
     model.to(device)
 
-    train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size)
+    train_loader = prepare_fast_dataloader(dataset, split=DataSplit.TRAIN, batch_size=batch_size)
 
     diffusion = GaussianMultinomialDiffusion(
         num_classes=category_sizes,
@@ -355,7 +356,9 @@ def train_model(
         "K": category_sizes,
         "empirical_class_dist": empirical_class_dist,
         "is_regression": dataset.is_regression,
-        "inverse_transform": dataset.num_transform.inverse_transform if dataset.num_transform is not None else None,
+        "inverse_transform": dataset.numerical_transform.inverse_transform
+        if dataset.numerical_transform is not None
+        else None,
     }
 
 
@@ -416,13 +419,13 @@ def train_classifier(
         std=0,
     )
     print(dataset.n_features)
-    train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size, y_type="long")
-    val_loader = prepare_fast_dataloader(dataset, split="val", batch_size=batch_size, y_type="long")
-    test_loader = prepare_fast_dataloader(dataset, split="test", batch_size=batch_size, y_type="long")
+    train_loader = prepare_fast_dataloader(dataset, split=DataSplit.TRAIN, batch_size=batch_size, y_type="long")
+    val_loader = prepare_fast_dataloader(dataset, split=DataSplit.VALIDATION, batch_size=batch_size, y_type="long")
+    test_loader = prepare_fast_dataloader(dataset, split=DataSplit.TEST, batch_size=batch_size, y_type="long")
 
-    category_sizes = np.array(dataset.get_category_sizes("train"))
+    category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
     # ruff: noqa: N806
-    if len(category_sizes) == 0 or transformations.cat_encoding == CatEncoding.ONE_HOT:
+    if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = np.array([0])
         # ruff: noqa: N806
     print(category_sizes)

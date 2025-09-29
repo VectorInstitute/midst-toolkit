@@ -54,8 +54,8 @@ class IsYCond(Enum):
 
 
 @dataclass
-class RTDLParameters:
-    """Parameters for the RTDL model."""
+class DiffusionParameters:
+    """Parameters for the diffusion model."""
 
     d_layers: list[int]
     dropout: float
@@ -73,7 +73,7 @@ class RTDLParameters:
 class ModelParameters:
     """Parameters for the ClavaDDPM model."""
 
-    rtdl_parameters: RTDLParameters
+    diffusion_parameters: DiffusionParameters
     d_in: int = 0
     num_classes: int = 0
     is_y_cond: IsYCond = IsYCond.NONE
@@ -109,21 +109,21 @@ class Normalization(Enum):
     MINMAX = "minmax"
 
 
-class NumNanPolicy(Enum):
-    """Possible types of num nan policy."""
+class NumericalNANPolicy(Enum):
+    """Possible policies for dealng with NANs in numerical data."""
 
     DROP_ROWS = "drop-rows"
     MEAN = "mean"
 
 
-class CatNanPolicy(Enum):
-    """Possible types of cat nan policy."""
+class CategoricalNANPolicy(Enum):
+    """Possible policies for dealng with NANs in categorical data."""
 
     MOST_FREQUENT = "most_frequent"
 
 
-class CatEncoding(Enum):
-    """Possible types of cat encoding."""
+class CategoricalEncoding(Enum):
+    """Possible types of encoding for categorical data."""
 
     ONE_HOT = "one-hot"
     COUNTER = "counter"
@@ -131,7 +131,7 @@ class CatEncoding(Enum):
 
 
 class YPolicy(Enum):
-    """Possible types of y policy."""
+    """Possible types of policy for the y column."""
 
     DEFAULT = "default"
 
@@ -156,14 +156,20 @@ class PredictionType(Enum):
     PROBS = "probs"
 
 
+class DataSplit(Enum):
+    TRAIN = "train"
+    VALIDATION = "val"
+    TEST = "test"
+
+
 @dataclass(frozen=True)
 class Transformations:
     seed: int = 0
     normalization: Normalization | None = None
-    num_nan_policy: NumNanPolicy | None = None
-    cat_nan_policy: CatNanPolicy | None = None
-    cat_min_frequency: float | None = None
-    cat_encoding: CatEncoding | None = CatEncoding.ORDINAL
+    numerical_nan_policy: NumericalNANPolicy | None = None
+    categorical_nan_policy: CategoricalNANPolicy | None = None
+    category_minimum_frequency: float | None = None
+    categorical_encoding: CategoricalEncoding | None = CategoricalEncoding.ORDINAL
     y_policy: YPolicy | None = YPolicy.DEFAULT
 
     @classmethod

@@ -29,11 +29,12 @@ from sklearn.preprocessing import (
 
 from midst_toolkit.models.clavaddpm.typing import (
     ArrayDict,
-    CatEncoding,
-    CatNanPolicy,
+    CategoricalEncoding,
+    CategoricalNANPolicy,
+    DataSplit,
     IsYCond,
     Normalization,
-    NumNanPolicy,
+    NumericalNANPolicy,
     PredictionType,
     TaskType,
     Transformations,
@@ -54,8 +55,8 @@ class Dataset:
     y_info: dict[str, Any]
     task_type: TaskType
     n_classes: int | None
-    cat_transform: OneHotEncoder | None = None
-    num_transform: StandardScaler | None = None
+    categorical_transform: OneHotEncoder | None = None
+    numerical_transform: StandardScaler | None = None
 
     @classmethod
     def from_dir(cls, directory: Path) -> Self:
@@ -95,7 +96,7 @@ class Dataset:
         Returns:
             The loaded datasets with all the splits.
         """
-        splits = [k for k in ["train", "val", "test"] if directory.joinpath(f"y_{k}.npy").exists()]
+        splits = [k.value for k in list(DataSplit) if directory.joinpath(f"y_{k.value}.npy").exists()]
         # TODO: figure out if there is a way of getting rid of the cast
         return {x: cast(np.ndarray, np.load(directory / f"{dataset_name}_{x}.npy", allow_pickle=True)) for x in splits}
 
@@ -195,7 +196,7 @@ class Dataset:
             return self.n_classes
         return 1
 
-    def get_category_sizes(self, split: Literal["train", "val", "test"]) -> list[int]:
+    def get_category_sizes(self, split: DataSplit) -> list[int]:
         """
         Get the size of the categories in the specified split of the dataset.
 
@@ -205,7 +206,7 @@ class Dataset:
         Returns:
             The size of the categories in the specified split of the dataset.
         """
-        return [] if self.x_cat is None else get_category_sizes(self.x_cat[split])
+        return [] if self.x_cat is None else get_category_sizes(self.x_cat[split.value])
 
     def calculate_metrics(
         self,
@@ -584,7 +585,7 @@ def transform_dataset(
             raise RuntimeError(f"Hash collision for {cache_path}")
 
     if dataset.x_num is not None:
-        dataset = num_process_nans(dataset, transformations.num_nan_policy)
+        dataset = num_process_nans(dataset, transformations.numerical_nan_policy)
 
     num_transform = None
     cat_transform = None
@@ -599,17 +600,17 @@ def transform_dataset(
         )
 
     if dataset.x_cat is None:
-        assert transformations.cat_nan_policy is None
-        assert transformations.cat_min_frequency is None
+        assert transformations.categorical_nan_policy is None
+        assert transformations.category_minimum_frequency is None
         # assert transformations.cat_encoding is None
         x_cat = None
     else:
-        x_cat = cat_process_nans(dataset.x_cat, transformations.cat_nan_policy)
-        if transformations.cat_min_frequency is not None:
-            x_cat = cat_drop_rare(x_cat, transformations.cat_min_frequency)
+        x_cat = cat_process_nans(dataset.x_cat, transformations.categorical_nan_policy)
+        if transformations.category_minimum_frequency is not None:
+            x_cat = cat_drop_rare(x_cat, transformations.category_minimum_frequency)
         x_cat, is_num, cat_transform = cat_encode(
             x_cat,
-            transformations.cat_encoding,
+            transformations.categorical_encoding,
             dataset.y["train"],
             transformations.seed,
             return_encoder=True,
@@ -621,8 +622,8 @@ def transform_dataset(
     y, y_info = build_target(dataset.y, transformations.y_policy, dataset.task_type)
 
     dataset = replace(dataset, x_num=x_num, x_cat=x_cat, y=y, y_info=y_info)
-    dataset.num_transform = num_transform
-    dataset.cat_transform = cat_transform
+    dataset.numerical_transform = num_transform
+    dataset.categorical_transform = cat_transform
 
     if cache_path is not None:
         dump_pickle((transformations, dataset), cache_path)
@@ -699,7 +700,7 @@ def normalize(
 
 # TODO: is there any relationship between this function and the cat_process_nans function?
 # Can they be made a little more similar to each other (in terms of signature)?
-def num_process_nans(dataset: Dataset, policy: NumNanPolicy | None) -> Dataset:
+def num_process_nans(dataset: Dataset, policy: NumericalNANPolicy | None) -> Dataset:
     """
     Process the NaN values in the dataset.
 
@@ -717,7 +718,7 @@ def num_process_nans(dataset: Dataset, policy: NumNanPolicy | None) -> Dataset:
         return dataset
 
     assert policy is not None
-    if policy == NumNanPolicy.DROP_ROWS:
+    if policy == NumericalNANPolicy.DROP_ROWS:
         valid_masks = {k: ~v.any(1) for k, v in nan_masks.items()}
         assert valid_masks["test"].all(), "Cannot drop test rows, since this will affect the final metrics."
         new_data = {}
@@ -726,7 +727,7 @@ def num_process_nans(dataset: Dataset, policy: NumNanPolicy | None) -> Dataset:
             if data_dict is not None:
                 new_data[data_name] = {k: v[valid_masks[k]] for k, v in data_dict.items()}
         dataset = replace(dataset, **new_data)  # type: ignore[arg-type]
-    elif policy == NumNanPolicy.MEAN:
+    elif policy == NumericalNANPolicy.MEAN:
         new_values = np.nanmean(dataset.x_num["train"], axis=0)  # type: ignore[index]
         x_num = deepcopy(dataset.x_num)
         for k, v in x_num.items():  # type: ignore[union-attr]
@@ -738,7 +739,7 @@ def num_process_nans(dataset: Dataset, policy: NumNanPolicy | None) -> Dataset:
     return dataset
 
 
-def cat_process_nans(x: ArrayDict, policy: CatNanPolicy | None) -> ArrayDict:
+def cat_process_nans(x: ArrayDict, policy: CategoricalNANPolicy | None) -> ArrayDict:
     """
     Process the NaN values in the categorical data.
 
@@ -754,7 +755,7 @@ def cat_process_nans(x: ArrayDict, policy: CatNanPolicy | None) -> ArrayDict:
     if any(mask.any() for mask in nan_masks.values()):
         if policy is None:
             x_new = x
-        elif policy == CatNanPolicy.MOST_FREQUENT:
+        elif policy == CategoricalNANPolicy.MOST_FREQUENT:
             imputer = SimpleImputer(missing_values=CAT_MISSING_VALUE, strategy=policy)
             imputer.fit(x["train"])
             x_new = {k: cast(np.ndarray, imputer.transform(v)) for k, v in x.items()}
@@ -792,7 +793,7 @@ def cat_drop_rare(x: ArrayDict, min_frequency: float) -> ArrayDict:
 
 def cat_encode(
     x: ArrayDict,
-    encoding: CatEncoding | None,
+    encoding: CategoricalEncoding | None,
     y_train: np.ndarray | None,
     seed: int | None,
     return_encoder: bool = False,
@@ -813,12 +814,12 @@ def cat_encode(
             - A boolean value indicating if the data was converted to numerical.
             - The encoder, if return_encoder is True. None otherwise.
     """
-    if encoding != CatEncoding.COUNTER:
+    if encoding != CategoricalEncoding.COUNTER:
         y_train = None
 
     # Step 1. Map strings to 0-based ranges
 
-    if encoding is None or encoding == CatEncoding.ORDINAL:
+    if encoding is None or encoding == CategoricalEncoding.ORDINAL:
         unknown_value = np.iinfo("int64").max - 3
         oe = OrdinalEncoder(
             handle_unknown="use_encoded_value",
@@ -840,7 +841,7 @@ def cat_encode(
 
     # Step 2. Encode.
 
-    if encoding == CatEncoding.ONE_HOT:
+    if encoding == CategoricalEncoding.ONE_HOT:
         ohe = OneHotEncoder(
             handle_unknown="ignore",
             sparse=False,
@@ -851,7 +852,7 @@ def cat_encode(
         # encoder.steps.append(('ohe', ohe))
         encoder.fit(x["train"])
         x = {k: encoder.transform(v) for k, v in x.items()}
-    elif encoding == CatEncoding.COUNTER:
+    elif encoding == CategoricalEncoding.COUNTER:
         assert y_train is not None
         assert seed is not None
         loe = LeaveOneOutEncoder(sigma=0.1, random_state=seed, return_df=False)
