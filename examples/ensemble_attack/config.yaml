@@ -50,7 +50,7 @@ data_processing_config:
 # Metadata for real data
 data_configs:
   metadata:
-      "continuous": ["trans_date", "amount", "balance", "account"]
+      "numerical": ["trans_date", "amount", "balance", "account"]
       "categorical": ["trans_type", "operation", "k_symbol", "bank"]
       "variable_to_predict": "trans_type"
 

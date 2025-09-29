@@ -14,7 +14,7 @@ def calculate_gower_features(
     Computes Gower distance-based features for a target dataframe against a synthetic one.
 
     Args:
-        df_input: The dataframe to generate features for (e.g., meta classifier train set).
+        df_input: The dataframe to generate features for (e.g., meta classifier train or test set).
         df_synthetic: The synthetic dataframe to compare against.
         categorical_column_names: A list of categorical column names.
 
@@ -26,7 +26,7 @@ def calculate_gower_features(
             - dcr_k: Mean distance to the k-nearest neighbors (for k in {5, 10, 20, 30, 40, 50}).
             - num_of_neighbor: Number of synthetic neighbors within a median-based radius.
     """
-    categorical_features = [col in categorical_column_names for col in df_input.columns]
+    categorical_features = [column in categorical_column_names for column in df_input.columns]
 
     gower_matrix = gower.gower_matrix(data_x=df_input, data_y=df_synthetic, cat_features=categorical_features)
 
@@ -38,11 +38,13 @@ def calculate_gower_features(
 
     # Min distance and Nearest Neighbor Distance Ratio (NNDR)
     features["min_gower_distance"] = sorted_by_distance[:, 0]
+
+    # NNDR: ratio of the distance to the closest neighbor over the distance to the second closest.
     features["nndr"] = np.divide(
         sorted_by_distance[:, 0],
         sorted_by_distance[:, 1],
-        out=np.zeros_like(sorted_by_distance[:, 0]),
-        where=sorted_by_distance[:, 1] != 0,
+        out=np.zeros_like(sorted_by_distance[:, 0]),  # initialize output array with zeros
+        where=sorted_by_distance[:, 1] != 0,  # only divide where second min distance is not zero
     )
 
     # Mean distance to k-nearest neighbors
@@ -60,17 +62,33 @@ def calculate_domias_score(
     df_input: pd.DataFrame, df_synthetic: pd.DataFrame, df_reference: pd.DataFrame
 ) -> pd.DataFrame:
     """
-    Compute DOMIAS density-ratio-based scores for test data.
+    Computes the DOMIAS (Density-ratio-based Out-of-distribution Model-Inconsistency Assessment Score).
+
+    The score estimates the likelihood that an input sample is an 'overfit' instance
+    from the synthetic data, which is rare in the real data distribution. It does so by:
+    1. Estimating Densities using Kernel Density Estimation (KDE).
+        KDE creates a smooth, non-parametric estimate of the PDF (Probability Density Function)
+        for both the real (reference) and synthetic data distributions.
+    2. Evaluating Input Points under Both Densities.
+        Calculate the estimated probability density for each input sample (x) under:
+        - p_ref(x): Real data distribution
+        - p_syn(x): Synthetic data distribution
+    3. Calculating the Density Ratio for each input sample:
+        density_ratio(x) = p_syn(x) / p_ref(x)
+        A high ratio implies the point is dense in the synthetic set but sparse in the real set
+        (i.e., local overfitting occurred).
+
+    Reference: https://arxiv.org/abs/2302.12580
 
     Args:
-        df_input: Test data to evaluate (without labels).
+        df_input: The dataframe to calculate DOMIAS scores for (e.g., meta classifier train or test set).
         df_synthetic: Synthetic data.
         df_reference: Reference (real) population data.
 
     Returns:
         Normalized DOMIAS scores for each test sample, indexed like df_input.
     """
-    # Ensure float type and correct orientation for KDE
+    # Transpose dataframes (.T) to the required (n_features, n_samples) format for scipy's gaussian_kde.
     reference_data_transposed, synthetic_data_transposed, input_data_transposed = (
         df.astype(float).values.T for df in (df_reference, df_synthetic, df_input)
     )

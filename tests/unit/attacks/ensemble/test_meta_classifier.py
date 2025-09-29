@@ -22,7 +22,7 @@ def cfg() -> DictConfig:
 @pytest.fixture
 def mock_data_configs():
     """Provides a mock DictConfig object for tests."""
-    return DictConfig({"metadata": {"categorical": ["cat_col1"], "continuous": ["cont_col1", "cont_col2"]}})
+    return DictConfig({"metadata": {"categorical": ["cat_col1"], "numerical": ["numerical_col1", "numerical_col2"]}})
 
 
 @pytest.fixture
@@ -31,24 +31,24 @@ def sample_dataframes():
     df = pd.DataFrame(
         {
             "cat_col1": ["A", "B", "A", "C"],
-            "cont_col1": [1.0, 2.0, 3.0, 4.0],
-            "cont_col2": [0.1, 0.2, 0.3, 0.4],
+            "numerical_col1": [1.0, 2.0, 3.0, 4.0],
+            "numerical_col2": [0.1, 0.2, 0.3, 0.4],
         }
     )
 
     df_synth = pd.DataFrame(
         {
             "cat_col1": ["A", "B", "C", "C"],
-            "cont_col1": [1.5, 2.5, 3.5, 4.5],
-            "cont_col2": [0.15, 0.25, 0.35, 0.45],
+            "numerical_col1": [1.5, 2.5, 3.5, 4.5],
+            "numerical_col2": [0.15, 0.25, 0.35, 0.45],
         }
     )
 
     df_ref = pd.DataFrame(
         {
             "cat_col1": ["A", "B", "C", "A", "B", "C"],
-            "cont_col1": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
-            "cont_col2": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            "numerical_col1": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            "numerical_col2": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
         }
     )
 
@@ -67,22 +67,19 @@ def sample_dataframes():
 class TestBlendingPlusPlus:
     """Groups all tests for the BlendingPlusPlus class."""
 
-    ## Test __init__ ##
-    # ------------------
-
     def test_init_success(self, mock_data_configs):
         """Tests successful initialization with valid meta-classifier types."""
         # Test with XGBoost
         bpp_xgb = BlendingPlusPlus(data_configs=mock_data_configs, meta_classifier_type=MetaClassifierType("xgb"))
         assert bpp_xgb.meta_classifier_type == MetaClassifierType.XGB
         assert bpp_xgb.data_configs == mock_data_configs
-        assert bpp_xgb.meta_classifier_ is None
+        assert bpp_xgb.trained_model is None
 
         # Test with Logistic Regression
         bpp_lr = BlendingPlusPlus(data_configs=mock_data_configs, meta_classifier_type=MetaClassifierType("lr"))
         assert bpp_lr.meta_classifier_type == MetaClassifierType.LR
         assert bpp_xgb.data_configs == mock_data_configs
-        assert bpp_xgb.meta_classifier_ is None
+        assert bpp_xgb.trained_model is None
 
     def test_init_invalid_type_raises_error(self, mock_data_configs):
         """Tests that initialization with an invalid type raises a ValueError."""
@@ -90,9 +87,7 @@ class TestBlendingPlusPlus:
             BlendingPlusPlus(data_configs=mock_data_configs, meta_classifier_type=MetaClassifierType("svm"))
 
     ## Test _prepare_meta_features ##
-    # -------------------------------
 
-    # We patch all external dependencies to isolate the method's logic
     @patch("midst_toolkit.attacks.ensemble.blending.calculate_gower_features")
     @patch("midst_toolkit.attacks.ensemble.blending.calculate_domias_score")
     @patch("pandas.read_csv")
@@ -107,10 +102,10 @@ class TestBlendingPlusPlus:
         bpp = BlendingPlusPlus(data_configs=mock_data_configs)
         meta_features = bpp._prepare_meta_features(
             df_input=sample_dataframes["df_train"],
-            df_synth=sample_dataframes["df_synth"],
-            df_ref=sample_dataframes["df_ref"],
-            cat_cols=mock_data_configs.metadata.categorical,
-            cont_cols=mock_data_configs.metadata.continuous,
+            df_synthetic=sample_dataframes["df_synth"],
+            df_reference=sample_dataframes["df_ref"],
+            categorical_cols=mock_data_configs.metadata.categorical,
+            numerical_cols=mock_data_configs.metadata.numerical,
         )
 
         # 3. Assertions
@@ -120,11 +115,11 @@ class TestBlendingPlusPlus:
         mock_read_csv.assert_called_once()
 
         # Assert the final DataFrame has the correct shape and columns
-        expected_columns = ["cont_col1", "cont_col2", "gower_1", "gower_2", "domias", "rmia"]
+        expected_columns = ["numerical_col1", "numerical_col2", "gower_1", "gower_2", "domias", "rmia"]
         assert meta_features.shape == (4, 6)
         assert all(col in meta_features.columns for col in expected_columns)
         pd.testing.assert_series_equal(
-            meta_features["cont_col1"], sample_dataframes["df_train"]["cont_col1"], check_names=False
+            meta_features["numerical_col1"], sample_dataframes["df_train"]["numerical_col1"], check_names=False
         )
 
     ## Test fit ##
@@ -147,8 +142,8 @@ class TestBlendingPlusPlus:
         bpp.fit(
             df_train=sample_dataframes["df_train"],
             y_train=sample_dataframes["y_train"],
-            df_synth=sample_dataframes["df_synth"],
-            df_ref=sample_dataframes["df_ref"],
+            df_synthetic=sample_dataframes["df_synth"],
+            df_reference=sample_dataframes["df_ref"],
         )
 
         # 3. Assertions
@@ -157,10 +152,10 @@ class TestBlendingPlusPlus:
         mock_lr_instance.fit.assert_called_once()
 
         # Check that the fitted model is stored correctly
-        assert bpp.meta_classifier_ is mock_lr_instance
+        assert bpp.trained_model is mock_lr_instance
 
     @patch("midst_toolkit.attacks.ensemble.blending.BlendingPlusPlus._prepare_meta_features")
-    @patch("midst_toolkit.attacks.ensemble.blending.XGBoostHyperparameterTuner")
+    @patch("midst_toolkit.attacks.ensemble.blending.XgBoostHyperparameterTuner")
     def test_fit_xgboost(self, mock_tuner_class, mock_prepare_features, mock_data_configs, sample_dataframes):
         """Tests the fit method for the XGBoost path."""
         # 1. Setup
@@ -175,15 +170,15 @@ class TestBlendingPlusPlus:
         bpp.fit(
             df_train=sample_dataframes["df_train"],
             y_train=sample_dataframes["y_train"],
-            df_synth=sample_dataframes["df_synth"],
-            df_ref=sample_dataframes["df_ref"],
+            df_synthetic=sample_dataframes["df_synth"],
+            df_reference=sample_dataframes["df_ref"],
         )
 
         # 3. Assertions
         mock_prepare_features.assert_called_once()
         mock_tuner_class.assert_called_once()  # Check if tuner was initialized
         mock_tuner_instance.tune_hyperparameters.assert_called_once_with(num_optuna_trials=100, num_kfolds=5)
-        assert bpp.meta_classifier_ is mock_fitted_xgb
+        assert bpp.trained_model is mock_fitted_xgb
 
     ## Test predict ##
     # ----------------
@@ -194,8 +189,8 @@ class TestBlendingPlusPlus:
         with pytest.raises(AssertionError):
             bpp.predict(
                 df_test=sample_dataframes["df_test"],
-                df_synth=sample_dataframes["df_synth"],
-                df_ref=sample_dataframes["df_ref"],
+                df_synthetic=sample_dataframes["df_synth"],
+                df_reference=sample_dataframes["df_ref"],
                 y_test=sample_dataframes["y_test"],
             )
 
@@ -212,12 +207,12 @@ class TestBlendingPlusPlus:
 
         # 2. Instantiate, manually set the fitted classifier, and predict
         bpp = BlendingPlusPlus(data_configs=mock_data_configs)
-        bpp.meta_classifier_ = mock_classifier  # Manually "fit" the model
+        bpp.trained_model = mock_classifier
 
         probabilities, score = bpp.predict(
             df_test=sample_dataframes["df_test"],
-            df_synth=sample_dataframes["df_synth"],
-            df_ref=sample_dataframes["df_ref"],
+            df_synthetic=sample_dataframes["df_synth"],
+            df_reference=sample_dataframes["df_ref"],
             y_test=sample_dataframes["y_test"],
         )
 

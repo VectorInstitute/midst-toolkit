@@ -15,27 +15,29 @@ from midst_toolkit.attacks.ensemble.train_utils import get_tpr_at_fpr
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
-class XGBoostHyperparameterTuner:
-    """Class for tuning XGBoost hyperparameters using Optuna."""
-
+class XgBoostHyperparameterTuner:
     def __init__(
         self,
         x: pd.DataFrame,
         y: np.ndarray,
         use_gpu: bool = False,
+        random_seed: int | None = None,
     ):
         """
-        Initializes the tuner with data and column information.
+        Class for tuning XGBoost hyperparameters using Optuna. Optuna performs hyperparameter optimization
+        by maximizing the mean True Positive Rate (TPR) at a fixed False Positive Rate (FPR) using cross-validation.
 
 
         Args:
             x: Input features as a DataFrame.
             y: Target variable as a numpy array.
             use_gpu: Whether to use GPU acceleration. Defaults to False.
+            random_seed: Random seed for reproducibility. Defaults to None.
         """
         self.x = x
         self.y = y
         self.use_gpu = use_gpu
+        self.random_seed = random_seed
 
     def _create_preprocessing_pipeline(self) -> ColumnTransformer:
         """
@@ -47,7 +49,7 @@ class XGBoostHyperparameterTuner:
         """
         return ColumnTransformer(
             [
-                ("continuous", StandardScaler(), self.x.columns),  # All features are continuous
+                ("continuous", StandardScaler(), self.x.columns),  # All features are numerical
             ],
             verbose_feature_names_out=False,
             remainder="passthrough",
@@ -80,7 +82,7 @@ class XGBoostHyperparameterTuner:
                         tree_method="auto",
                         # if not self.use_gpu else "gpu_hist",
                         objective="binary:logistic",
-                        seed=np.random.randint(1000),
+                        seed=self.random_seed,
                         verbosity=1,
                     ),
                 ),
@@ -132,7 +134,7 @@ class XGBoostHyperparameterTuner:
 
         study = optuna.create_study(
             direction="maximize",
-            sampler=optuna.samplers.TPESampler(n_startup_trials=10, seed=np.random.randint(1000)),
+            sampler=optuna.samplers.TPESampler(n_startup_trials=10, seed=self.random_seed),
         )
         study.optimize(objective, n_trials=num_optuna_trials)
 
