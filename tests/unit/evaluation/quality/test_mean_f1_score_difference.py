@@ -99,7 +99,7 @@ def test_mean_f1_score_diff_with_holdout_difference_f1() -> None:
 
     score = metric.compute(real_data, synthetic_data, holdout_data)
     # Due to numerical fluctuations on github runners, we have slightly different values.
-    if is_apple_silicon:
+    if is_apple_silicon():
         assert pytest.approx(0.7667172638761903, abs=1e-8) == score["random_forest_real_train_f1"]
     else:
         assert pytest.approx(0.7683679496293229, abs=1e-8) == score["random_forest_real_train_f1"]
