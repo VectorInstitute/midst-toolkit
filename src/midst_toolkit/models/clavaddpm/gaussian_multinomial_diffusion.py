@@ -7,6 +7,7 @@ https://github.com/ehoogeboom/multinomial_diffusion
 
 import math
 from collections.abc import Callable
+from enum import Enum
 from typing import Any, cast
 
 import numpy as np
@@ -87,6 +88,20 @@ def betas_for_alpha_bar(num_diffusion_timesteps: int, alpha_bar: Callable, max_b
     return np.array(betas)
 
 
+class GaussianParametrization(Enum):
+    """Possible types of Gaussian parametrization."""
+
+    EPS = "eps"
+    X0 = "x0"
+
+
+class Parametrization(Enum):
+    """Possible types of parametrization."""
+
+    X0 = "x0"
+    DIRECT = "direct"
+
+
 class GaussianMultinomialDiffusion(torch.nn.Module):
     def __init__(
         # ruff: noqa: PLR0915
@@ -96,9 +111,8 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         denoise_fn: torch.nn.Module,
         num_timesteps: int = 1000,
         gaussian_loss_type: GaussianLossType = GaussianLossType.MSE,
-        gaussian_parametrization: str = "eps",
-        multinomial_loss_type: str = "vb_stochastic",
-        parametrization: str = "x0",
+        gaussian_parametrization: GaussianParametrization = GaussianParametrization.EPS,
+        parametrization: Parametrization = Parametrization.X0,
         scheduler: Scheduler = Scheduler.COSINE,
         device: torch.device | None = None,
     ):
@@ -107,14 +121,6 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             device = torch.device("cpu")
 
         super(GaussianMultinomialDiffusion, self).__init__()
-        assert multinomial_loss_type in ("vb_stochastic", "vb_all")
-        assert parametrization in ("x0", "direct")
-
-        if multinomial_loss_type == "vb_all":
-            print(
-                "Computing the loss using the bound on _all_ timesteps."
-                " This is expensive both in terms of memory and computation."
-            )
 
         self.num_numerical_features = num_numerical_features
         self.num_classes = num_classes  # it as a vector [K1, K2, ..., Km]
@@ -131,7 +137,6 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         self._denoise_fn = denoise_fn
         self.gaussian_loss_type = gaussian_loss_type
         self.gaussian_parametrization = gaussian_parametrization
-        self.multinomial_loss_type = multinomial_loss_type
         self.num_timesteps = num_timesteps
         self.parametrization = parametrization
         self.scheduler = scheduler
@@ -269,18 +274,17 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             ],
             dim=0,
         )
-        # model_variance = self.posterior_variance.to(x.device)
         model_log_variance = torch.log(model_variance)
 
         model_variance = extract(model_variance, t, x.shape)
         model_log_variance = extract(model_log_variance, t, x.shape)
 
-        if self.gaussian_parametrization == "eps":
+        if self.gaussian_parametrization == GaussianParametrization.EPS:
             pred_xstart = self._predict_xstart_from_eps(x_t=x, t=t, eps=model_output)
-        elif self.gaussian_parametrization == "x0":
+        elif self.gaussian_parametrization == GaussianParametrization.X0:
             pred_xstart = model_output
         else:
-            raise NotImplementedError
+            raise ValueError(f"Unsupported Gaussian parametrization: {self.gaussian_parametrization}")
 
         model_mean, _, _ = self.gaussian_q_posterior_mean_variance(x_start=pred_xstart, x_t=x, t=t)
 
@@ -496,8 +500,6 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         )
 
     def predict_start(self, model_out: Tensor, log_x_t: Tensor, t: Tensor, out_dict: dict[str, Tensor]) -> Tensor:
-        # model_out = self._denoise_fn(x_t, t.to(x_t.device), **out_dict)
-
         assert model_out.size(0) == log_x_t.size(0)
         assert self.num_classes is not None
         assert model_out.size(1) == self.num_classes.sum(), f"{model_out.size()}"
@@ -508,15 +510,6 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         return log_pred
 
     def q_posterior(self, log_x_start: Tensor, log_x_t: Tensor, t: Tensor) -> Tensor:
-        # q(xt-1 | xt, x0) = q(xt | xt-1, x0) * q(xt-1 | x0) / q(xt | x0)
-        # where q(xt | xt-1, x0) = q(xt | xt-1).
-
-        # EV_log_qxt_x0 = self.q_pred(log_x_start, t)
-
-        # print('sum exp', EV_log_qxt_x0.exp().sum(1).mean())
-        # assert False
-
-        # log_qxt_x0 = (log_x_t.exp() * EV_log_qxt_x0).sum(dim=1)
         t_minus_1 = t - 1
         # Remove negative values, will not be used anyway for final decoder
         t_minus_1 = torch.where(t_minus_1 < 0, torch.zeros_like(t_minus_1), t_minus_1)
@@ -535,51 +528,19 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         return unnormed_logprobs - sliced_logsumexp(unnormed_logprobs, self.offsets)
 
     def p_pred(self, model_out: Tensor, log_x: Tensor, t: Tensor, out_dict: dict[str, Tensor]) -> Tensor:
-        if self.parametrization == "x0":
+        if self.parametrization == Parametrization.X0:
             log_x_recon = self.predict_start(model_out, log_x, t=t, out_dict=out_dict)
             log_model_pred = self.q_posterior(log_x_start=log_x_recon, log_x_t=log_x, t=t)
-        elif self.parametrization == "direct":
+        elif self.parametrization == Parametrization.DIRECT:
             log_model_pred = self.predict_start(model_out, log_x, t=t, out_dict=out_dict)
         else:
-            raise ValueError
+            raise ValueError(f"Unsupported parametrization: {self.parametrization}")
         return log_model_pred
 
     @torch.no_grad()
     def p_sample(self, model_out: Tensor, log_x: Tensor, t: Tensor, out_dict: dict[str, Tensor]) -> Tensor:
         model_log_prob = self.p_pred(model_out, log_x=log_x, t=t, out_dict=out_dict)
         return self.log_sample_categorical(model_log_prob)
-
-    # Dead code
-    # @torch.no_grad()
-    # def p_sample_loop(self, shape, out_dict):
-    #     b = shape[0]
-    #     # start with random normal image.
-    #     img = torch.randn(shape, device=device)
-
-    #     for i in reversed(range(1, self.num_timesteps)):
-    #         img = self.p_sample(img, torch.full((b,), i, device=self.device, dtype=torch.long), out_dict)
-    #     return img
-
-    # @torch.no_grad()
-    # def _sample(self, image_size, out_dict, batch_size=16):
-    #     return self.p_sample_loop((batch_size, 3, image_size, image_size), out_dict)
-
-    # Dead code
-    # @torch.no_grad()
-    # def interpolate(self, x1: Tensor, x2: Tensor, t: Tensor | None = None, lam: float = 0.5) -> Tensor:
-    #     b, *_, device = *x1.shape, x1.device
-    #     t = default(t, self.num_timesteps - 1)
-
-    #     assert x1.shape == x2.shape
-
-    #     t_batched = torch.stack([torch.tensor(t, device=device)] * b)
-    #     xt1, xt2 = map(lambda x: self.q_sample(x, t=t_batched), (x1, x2))
-
-    #     img = (1 - lam) * xt1 + lam * xt2
-    #     for i in reversed(range(0, t)):
-    #         img = self.p_sample(img, torch.full((b,), i, device=device, dtype=torch.long))
-
-    #     return img
 
     def log_sample_categorical(self, logits: Tensor) -> Tensor:
         full_sample = []
@@ -596,27 +557,6 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         log_EV_qxt_x0 = self.q_pred(log_x_start, t)
         # ruff: noqa: N806
         return self.log_sample_categorical(log_EV_qxt_x0)
-
-    # Dead code
-    # def nll(self, log_x_start, out_dict):
-    #     b = log_x_start.size(0)
-    #     device = log_x_start.device
-    #     loss = 0
-    #     for t in range(0, self.num_timesteps):
-    #         t_array = (torch.ones(b, device=device) * t).long()
-
-    #         kl = self.compute_Lt(
-    #             log_x_start=log_x_start,
-    #             log_x_t=self.q_sample(log_x_start=log_x_start, t=t_array),
-    #             t=t_array,
-    #             out_dict=out_dict,
-    #         )
-
-    #         loss += kl
-
-    #     loss += self.kl_prior(log_x_start)
-
-    #     return loss
 
     def kl_prior(self, log_x_start: Tensor) -> Tensor:
         b = log_x_start.size(0)
@@ -687,37 +627,13 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         pt: Tensor,
         out_dict: dict[str, Tensor],
     ) -> Tensor:
-        if self.multinomial_loss_type == "vb_stochastic":
-            kl = self.compute_Lt(model_out, log_x_start, log_x_t, t, out_dict)
-            kl_prior = self.kl_prior(log_x_start)
-            # Upweigh loss term of the kl
-            return kl / pt + kl_prior
-
-        if self.multinomial_loss_type == "vb_all":
-            # Expensive, dont do it ;).
-            # DEPRECATED
-            # return -self.nll(log_x_start)
-            raise ValueError("multinomial_loss_type == 'vb_all' is deprecated.")
-        raise ValueError
-
-    # Dead code
-    # def log_prob(self, x, out_dict):
-    #     b, device = x.size(0), x.device
-    #     if self.training:
-    #         return self._multinomial_loss(x, out_dict)
-
-    #     log_x_start = index_to_log_onehot(x, self.num_classes)
-
-    #     t, pt = self.sample_time(b, device, "importance")
-
-    #     kl = self.compute_Lt(log_x_start, self.q_sample(log_x_start=log_x_start, t=t), t, out_dict)
-
-    #     kl_prior = self.kl_prior(log_x_start)
-
-    #     # Upweigh loss term of the kl
-    #     loss = kl / pt + kl_prior
-
-    #     return -loss
+        # Here we are calculating the VB_STOCHASTIC loss. In the original implementation, there
+        # was a choice between VB_STOCHASTIC and VB_ALL. VB_ALL is deprecated for being too
+        # expensive to calculate.
+        kl = self.compute_Lt(model_out, log_x_start, log_x_t, t, out_dict)
+        kl_prior = self.kl_prior(log_x_start)
+        # Upweigh loss term of the kl
+        return kl / pt + kl_prior
 
     def mixed_loss(self, x: Tensor, out_dict: dict[str, Tensor]) -> tuple[Tensor, Tensor]:
         b = x.shape[0]

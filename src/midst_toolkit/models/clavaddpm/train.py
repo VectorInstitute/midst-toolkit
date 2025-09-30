@@ -308,9 +308,9 @@ def train_model(
         category_sizes = np.array([0])
         # ruff: noqa: N806
 
-    _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.y["train"]), return_counts=True)
+    _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.y[DataSplit.TRAIN.value]), return_counts=True)
 
-    num_numerical_features = dataset.x_num["train"].shape[1] if dataset.x_num is not None else 0
+    num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1] if dataset.x_num is not None else 0
     d_in = np.sum(category_sizes) + num_numerical_features
     model_params.d_in = d_in
 
@@ -435,7 +435,7 @@ def train_classifier(
         log(WARNING, "dataset.x_num is None. num_numerical_features will be set to 0")
         num_numerical_features = 0
     else:
-        num_numerical_features = dataset.x_num["train"].shape[1]
+        num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1]
 
     if model_params.is_y_cond == IsYCond.CONCAT:
         num_numerical_features -= 1
@@ -474,7 +474,7 @@ def train_classifier(
             dataset,
             schedule_sampler,
             diffusion_model,
-            prefix="train",
+            prefix=DataSplit.TRAIN.value,
             device=device,
             key_value_logger=key_value_logger,
         )
@@ -490,7 +490,7 @@ def train_classifier(
                     dataset,
                     schedule_sampler,
                     diffusion_model,
-                    prefix="val",
+                    prefix=DataSplit.VALIDATION.value,
                     device=device,
                     key_value_logger=key_value_logger,
                 )
@@ -588,7 +588,7 @@ def _numerical_forward_backward_log(
     dataset: Dataset,
     schedule_sampler: ScheduleSampler,
     diffusion: GaussianMultinomialDiffusion,
-    prefix: str = "train",
+    prefix: str = DataSplit.TRAIN.value,
     remove_first_col: bool = False,
     device: str = "cuda",
     key_value_logger: KeyValueLogger | None = None,
@@ -603,7 +603,7 @@ def _numerical_forward_backward_log(
         dataset: The dataset.
         schedule_sampler: The schedule sampler.
         diffusion: The diffusion object.
-        prefix: The prefix for the loss. Defaults to "train".
+        prefix: The prefix for the loss. Defaults to DataSplit.TRAIN.value.
         remove_first_col: Whether to remove the first column of the batch. Defaults to False.
         device: The device to use. Defaults to "cuda".
         key_value_logger: The key-value logger to log the losses. If None, the losses are not logged.
