@@ -79,20 +79,6 @@ class ModelParameters:
     is_y_cond: IsYCond = IsYCond.NONE
 
 
-class GaussianLossType(Enum):
-    """Possible types of Gaussian loss."""
-
-    MSE = "mse"
-    KL = "kl"
-
-
-class Scheduler(Enum):
-    """Possible types of scheduler."""
-
-    COSINE = "cosine"
-    LINEAR = "linear"
-
-
 class ReductionMethod(Enum):
     """Possible methods of reduction."""
 

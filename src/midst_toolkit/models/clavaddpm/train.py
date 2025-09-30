@@ -15,7 +15,11 @@ from torch import Tensor, optim
 from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
 from midst_toolkit.models.clavaddpm.dataset import Dataset, make_dataset_from_df
-from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
+    GaussianLossType,
+    GaussianMultinomialDiffusion,
+    SchedulerType,
+)
 from midst_toolkit.models.clavaddpm.model import Classifier, ModelType, get_table_info
 from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, ScheduleSamplerType
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
@@ -24,12 +28,10 @@ from midst_toolkit.models.clavaddpm.typing import (
     Configs,
     DataSplit,
     DiffusionParameters,
-    GaussianLossType,
     IsYCond,
     ModelParameters,
     ReductionMethod,
     RelationOrder,
-    Scheduler,
     Tables,
     Transformations,
     YType,
@@ -211,7 +213,7 @@ def child_training(
         ModelType(diffusion_config["model_type"]),
         GaussianLossType(diffusion_config["gaussian_loss_type"]),
         diffusion_config["num_timesteps"],
-        Scheduler(diffusion_config["scheduler"]),
+        SchedulerType(diffusion_config["scheduler"]),
         diffusion_config["lr"],
         diffusion_config["weight_decay"],
         diffusion_config["data_split_ratios"],
@@ -232,7 +234,7 @@ def child_training(
                 classifier_config["batch_size"],
                 GaussianLossType(diffusion_config["gaussian_loss_type"]),
                 diffusion_config["num_timesteps"],
-                Scheduler(diffusion_config["scheduler"]),
+                SchedulerType(diffusion_config["scheduler"]),
                 cluster_col=y_col,
                 d_layers=classifier_config["d_layers"],
                 dim_t=classifier_config["dim_t"],
@@ -260,7 +262,7 @@ def train_model(
     model_type: ModelType,
     gaussian_loss_type: GaussianLossType,
     num_timesteps: int,
-    scheduler: Scheduler,
+    scheduler_type: SchedulerType,
     learning_rate: float,
     weight_decay: float,
     data_split_ratios: list[float],
@@ -279,7 +281,7 @@ def train_model(
         model_type: Type of the model to use.
         gaussian_loss_type: Type of the gaussian loss to use.
         num_timesteps: Number of timesteps to use for the diffusion model.
-        scheduler: Scheduler to use for the diffusion model.
+        scheduler_type: Type of scheduler to use for the diffusion model.
         learning_rate: Learning rate to use for the optimizer in the diffusion model.
         weight_decay: Weight decay to use for the optimizer in the diffusion model.
         data_split_ratios: The ratios of the dataset to split into train, validation, and test.
@@ -327,7 +329,7 @@ def train_model(
         denoise_fn=model,
         gaussian_loss_type=gaussian_loss_type,
         num_timesteps=num_timesteps,
-        scheduler=scheduler,
+        scheduler_type=scheduler_type,
         device=torch.device(device),
     )
     diffusion.to(device)
@@ -372,7 +374,7 @@ def train_classifier(
     batch_size: int,
     gaussian_loss_type: GaussianLossType,
     num_timesteps: int,
-    scheduler: Scheduler,
+    scheduler_type: SchedulerType,
     d_layers: list[int],
     data_split_ratios: list[float],
     device: str = "cuda",
@@ -394,7 +396,7 @@ def train_classifier(
         batch_size: Batch size to use for training.
         gaussian_loss_type: Type of the gaussian loss to use.
         num_timesteps: Number of timesteps to use for the diffusion model.
-        scheduler: Scheduler to use for the diffusion model.
+        scheduler_type: Type of scheduler to use for the diffusion model.
         d_layers: List of the hidden sizes of the classifier.
         data_split_ratios: The ratios of the dataset to split into train, validation, and test.
             It must have exactly 3 values and their sum must amount to 1 (with a tolerance of 0.01).
@@ -459,7 +461,7 @@ def train_classifier(
         denoise_fn=None,  # type: ignore[arg-type]
         gaussian_loss_type=gaussian_loss_type,
         num_timesteps=num_timesteps,
-        scheduler=scheduler,
+        scheduler_type=scheduler_type,
         device=torch.device(device),
     )
     diffusion_model.to(device)

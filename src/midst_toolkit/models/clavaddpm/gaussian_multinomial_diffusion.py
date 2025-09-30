@@ -31,7 +31,6 @@ from midst_toolkit.models.clavaddpm.diffusion_utils import (
     sliced_logsumexp,
     sum_except_batch,
 )
-from midst_toolkit.models.clavaddpm.typing import GaussianLossType, Scheduler
 
 
 # Based in part on:
@@ -39,7 +38,35 @@ from midst_toolkit.models.clavaddpm.typing import GaussianLossType, Scheduler
 eps = 1e-8
 
 
-def get_named_beta_schedule(scheduler: Scheduler, num_diffusion_timesteps: int) -> np.ndarray:
+class GaussianLossType(Enum):
+    """Possible types of Gaussian loss."""
+
+    MSE = "mse"
+    KL = "kl"
+
+
+class SchedulerType(Enum):
+    """Possible types of scheduler."""
+
+    COSINE = "cosine"
+    LINEAR = "linear"
+
+
+class GaussianParametrization(Enum):
+    """Possible types of Gaussian parametrization."""
+
+    EPS = "eps"
+    X0 = "x0"
+
+
+class Parametrization(Enum):
+    """Possible types of parametrization."""
+
+    X0 = "x0"
+    DIRECT = "direct"
+
+
+def get_named_beta_schedule(scheduler_type: SchedulerType, num_diffusion_timesteps: int) -> np.ndarray:
     """
     Get a pre-defined beta schedule for the given name.
     The beta schedule library consists of beta schedules which remain similar
@@ -48,25 +75,25 @@ def get_named_beta_schedule(scheduler: Scheduler, num_diffusion_timesteps: int) 
     they are committed to maintain backwards compatibility.
 
     Args:
-        scheduler: The scheduler to use.
+        scheduler_type: The scheduler type to use.
         num_diffusion_timesteps: The number of diffusion timesteps.
 
     Returns:
         The beta schedule.
     """
-    if scheduler == Scheduler.LINEAR:
+    if scheduler_type == SchedulerType.LINEAR:
         # Linear schedule from Ho et al, extended to work for any number of
         # diffusion steps.
         scale = 1000 / num_diffusion_timesteps
         beta_start = scale * 0.0001
         beta_end = scale * 0.02
         return np.linspace(beta_start, beta_end, num_diffusion_timesteps, dtype=np.float64)
-    if scheduler == Scheduler.COSINE:
+    if scheduler_type == SchedulerType.COSINE:
         return betas_for_alpha_bar(
             num_diffusion_timesteps,
             lambda t: math.cos((t + 0.008) / 1.008 * math.pi / 2) ** 2,
         )
-    raise NotImplementedError(f"Unsupported scheduler: {scheduler.value}")
+    raise ValueError(f"Unsupported scheduler: {scheduler_type.value}")
 
 
 def betas_for_alpha_bar(num_diffusion_timesteps: int, alpha_bar: Callable, max_beta: float = 0.999) -> np.ndarray:
@@ -88,20 +115,6 @@ def betas_for_alpha_bar(num_diffusion_timesteps: int, alpha_bar: Callable, max_b
     return np.array(betas)
 
 
-class GaussianParametrization(Enum):
-    """Possible types of Gaussian parametrization."""
-
-    EPS = "eps"
-    X0 = "x0"
-
-
-class Parametrization(Enum):
-    """Possible types of parametrization."""
-
-    X0 = "x0"
-    DIRECT = "direct"
-
-
 class GaussianMultinomialDiffusion(torch.nn.Module):
     def __init__(
         # ruff: noqa: PLR0915
@@ -113,7 +126,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         gaussian_loss_type: GaussianLossType = GaussianLossType.MSE,
         gaussian_parametrization: GaussianParametrization = GaussianParametrization.EPS,
         parametrization: Parametrization = Parametrization.X0,
-        scheduler: Scheduler = Scheduler.COSINE,
+        scheduler_type: SchedulerType = SchedulerType.COSINE,
         device: torch.device | None = None,
     ):
         # ruff: noqa: D107
@@ -139,7 +152,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         self.gaussian_parametrization = gaussian_parametrization
         self.num_timesteps = num_timesteps
         self.parametrization = parametrization
-        self.scheduler = scheduler
+        self.scheduler_type = scheduler_type
         self.device = device
         self.alphas: Tensor
         self.alphas_cumprod: Tensor
@@ -156,7 +169,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         self.Lt_history: Tensor
         self.Lt_count: Tensor
 
-        a = 1.0 - get_named_beta_schedule(scheduler, num_timesteps)
+        a = 1.0 - get_named_beta_schedule(scheduler_type, num_timesteps)
         alphas = torch.tensor(a.astype("float64"))
         betas = 1.0 - alphas
 
