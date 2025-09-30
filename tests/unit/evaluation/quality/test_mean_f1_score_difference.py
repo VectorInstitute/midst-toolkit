@@ -6,6 +6,7 @@ import pytest
 
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.evaluation.quality.mean_f1_score_difference import MeanF1ScoreDifference
+from tests.utils.architecture import is_apple_silicon
 
 
 def get_data() -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -43,7 +44,13 @@ def test_mean_f1_score_diff_with_preprocess() -> None:
     )
 
     score = metric.compute(real_data, synthetic_data)
-    assert pytest.approx(0.7668, abs=1e-8) == score["random_forest_real_train_f1"]
+    # Due to numerical fluctuations on github runners, we have slightly different values.
+    if is_apple_silicon():
+        assert pytest.approx(0.7668, abs=1e-8) == score["random_forest_real_train_f1"]
+        assert pytest.approx(-0.06789999999999999, abs=1e-8) == score["mean_f1_difference"]
+    else:
+        assert pytest.approx(0.7684, abs=1e-8) == score["random_forest_real_train_f1"]
+        assert pytest.approx(-0.06829999999999997, abs=1e-8) == score["mean_f1_difference"]
     assert pytest.approx(0.5008, abs=1e-8) == score["random_forest_synthetic_train_f1"]
     assert pytest.approx(0.5, abs=1e-8) == score["adaboost_real_train_f1"]
     assert pytest.approx(0.49879999999999997, abs=1e-8) == score["adaboost_synthetic_train_f1"]
@@ -51,7 +58,6 @@ def test_mean_f1_score_diff_with_preprocess() -> None:
     assert pytest.approx(0.49960000000000004, abs=1e-8) == score["svm_synthetic_train_f1"]
     assert pytest.approx(0.49720000000000003, abs=1e-8) == score["logreg_real_train_f1"]
     assert pytest.approx(0.49960000000000004, abs=1e-8) == score["logreg_synthetic_train_f1"]
-    assert pytest.approx(-0.06789999999999999, abs=1e-8) == score["mean_f1_difference"]
     unset_all_random_seeds()
 
 
@@ -68,7 +74,11 @@ def test_mean_f1_score_diff_with_no_categorical() -> None:
     )
 
     score = metric.compute(real_data, synthetic_data)
-    assert pytest.approx(-0.0792, abs=1e-8) == score["mean_f1_difference"]
+    # Due to numerical fluctuations on github runners, we have slightly different values.
+    if is_apple_silicon():
+        assert pytest.approx(-0.0792, abs=1e-8) == score["mean_f1_difference"]
+    else:
+        assert pytest.approx(-0.0795, abs=1e-8) == score["mean_f1_difference"]
     unset_all_random_seeds()
 
 
@@ -87,7 +97,13 @@ def test_mean_f1_score_diff_with_holdout_difference_f1() -> None:
     )
 
     score = metric.compute(real_data, synthetic_data, holdout_data)
-    assert pytest.approx(0.7667172638761903, abs=1e-8) == score["random_forest_real_train_f1"]
+    # Due to numerical fluctuations on github runners, we have slightly different values.
+    if is_apple_silicon():
+        assert pytest.approx(0.7667172638761903, abs=1e-8) == score["random_forest_real_train_f1"]
+        assert pytest.approx(-0.17912194553312424, abs=1e-8) == score["mean_f1_difference"]
+    else:
+        assert pytest.approx(0.7683679496293229, abs=1e-8) == score["random_forest_real_train_f1"]
+        assert pytest.approx(-0.1795346169714074, abs=1e-8) == score["mean_f1_difference"]
     assert pytest.approx(0.40831722022666145, abs=1e-8) == score["random_forest_synthetic_train_f1"]
     assert pytest.approx(0.3632940727026944, abs=1e-8) == score["adaboost_real_train_f1"]
     assert pytest.approx(0.33490261584802905, abs=1e-8) == score["adaboost_synthetic_train_f1"]
@@ -95,7 +111,6 @@ def test_mean_f1_score_diff_with_holdout_difference_f1() -> None:
     assert pytest.approx(0.33315531820204713, abs=1e-8) == score["svm_synthetic_train_f1"]
     assert pytest.approx(0.4966708698534732, abs=1e-8) == score["logreg_real_train_f1"]
     assert pytest.approx(0.33315531820204713, abs=1e-8) == score["logreg_synthetic_train_f1"]
-    assert pytest.approx(-0.17912194553312424, abs=1e-8) == score["mean_f1_difference"]
 
     # Spot check the holdout values.
     assert pytest.approx(-0.20674835173603345, abs=1e-8) == score["mean_f1_difference_holdout"]

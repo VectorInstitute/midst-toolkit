@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from logging import INFO
+from logging import INFO, WARNING
 from typing import overload
 
 import pandas as pd
@@ -53,6 +53,9 @@ class SynthEvalMetric(MetricBase, ABC):
         self.categorical_columns = categorical_columns
         self.numerical_columns = numerical_columns
         self.do_preprocess = do_preprocess
+
+        if len(self.categorical_columns) == 0 and len(self.numerical_columns) == 0:
+            log(WARNING, "Both lists of column names are empty. This will result in unexpected metric behavior.")
 
         if do_preprocess:
             log(INFO, "Default preprocessing will be performed during computation.")
