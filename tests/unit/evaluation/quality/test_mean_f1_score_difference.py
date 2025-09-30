@@ -58,7 +58,6 @@ def test_mean_f1_score_diff_with_preprocess() -> None:
     assert pytest.approx(0.49960000000000004, abs=1e-8) == score["svm_synthetic_train_f1"]
     assert pytest.approx(0.49720000000000003, abs=1e-8) == score["logreg_real_train_f1"]
     assert pytest.approx(0.49960000000000004, abs=1e-8) == score["logreg_synthetic_train_f1"]
-
     unset_all_random_seeds()
 
 
