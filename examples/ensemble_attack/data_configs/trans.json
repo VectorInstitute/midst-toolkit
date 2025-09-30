@@ -24,7 +24,8 @@
         "lr": 0.02,
         "gaussian_loss_type": "mse",
         "weight_decay": 1e-05,
-        "scheduler": "cosine"
+        "scheduler": "cosine",
+        "data_split_ratios": [0.5, 0.25, 0.25]
     },
     "classifier": {
         "d_layers": [

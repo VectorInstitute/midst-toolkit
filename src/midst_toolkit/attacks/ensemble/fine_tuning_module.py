@@ -14,16 +14,18 @@ from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
     GaussianMultinomialDiffusion,
 )
+from midst_toolkit.models.clavaddpm.dataset import (
+    Transformations,
+    get_T_dict,
+    make_dataset_from_df,
+)
+from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
 from midst_toolkit.models.clavaddpm.model import (
     Classifier,
-    Transformations,
     get_model,
-    get_model_params,
-    get_T_dict,
     get_table_info,
-    make_dataset_from_df,
-    prepare_fast_dataloader,
 )
+from midst_toolkit.models.clavaddpm.train import get_model_params
 from midst_toolkit.models.clavaddpm.sampler import (
     create_named_schedule_sampler,
 )
@@ -85,7 +87,7 @@ def fine_tune_model(
     if len(category_sizes) == 0 or transformations_dict["cat_encoding"] == "one-hot":
         category_sizes = np.array([0])
 
-    num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
+    num_numerical_features = dataset.x_num["train"].shape[1] if dataset.x_num is not None else 0
     d_in = np.sum(category_sizes) + num_numerical_features
     model_params["d_in"] = d_in
 
@@ -174,11 +176,11 @@ def fine_tune_classifier(
         category_sizes = np.array([0])
         # ruff: noqa: N806
 
-    if dataset.X_num is None:
-        log(WARNING, "dataset.X_num is None. num_numerical_features will be set to 0")
+    if dataset.x_num is None:
+        log(WARNING, "dataset.x_num is None. num_numerical_features will be set to 0")
         num_numerical_features = 0
     else:
-        num_numerical_features = dataset.X_num["train"].shape[1]
+        num_numerical_features = dataset.x_num["train"].shape[1]
 
     if model_params["is_y_cond"] == "concat":
         num_numerical_features -= 1

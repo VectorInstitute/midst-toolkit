@@ -61,7 +61,7 @@ def train_tabddpm_and_synthesize(
     train_set: pd.DataFrame,
     configs: dict[str, Any],
     save_dir: Path,
-    n_synth: int = 20000,
+    synthesize: bool = True,
 ) -> dict[str, Any]:
     """
     Train a TabDDPM model on the provided training set. Then, synthesizes data using the trained model.
@@ -106,14 +106,12 @@ def train_tabddpm_and_synthesize(
     )
     material["models"] = models
 
-    if n_synth > 0:
-        # Determine the sample scale:
-        # By default, we want the length of the final synthetic data to be len(provided_synth_data) = 20,000
-        # But with a smaller scale, we can generate less synthetic data for testing purposes.
-        # by default sample_scale should be 20000 / len(tables["trans"]["df"])
+    if synthesize:
+        # By default, we want the length of the final synthetic data to be ``len(provided_synth_data) = 20,000``
+        # But with a smaller scale, we can generate less synthetic data for debugging purposes.
+        # Attack's default sample_scale is ``20000 / len(tables["trans"]["df"])`` to generate 20,000 samples regardless
+        # of the sampling scale.
         # Sample scale is later multiplied by the size of training data to determine the size of synthetic data.
-        sample_scale = n_synth / len(tables["trans"]["df"])
-        # Generate synthetic data from scratch
         cleaned_tables, synthesizing_time_spent, matching_time_spent = clava_synthesizing(
             tables,
             relation_order,
@@ -121,7 +119,7 @@ def train_tabddpm_and_synthesize(
             all_group_lengths_prob_dicts,
             models,
             configs,
-            sample_scale=sample_scale,
+            sample_scale=configs["sampling"]["classifier_scale"],
         )
 
         material["synth_data"] = cleaned_tables["trans"]
@@ -136,7 +134,7 @@ def fine_tune_tabddpm_and_synthesize(
     save_dir: Path,
     fine_tuning_diffusion_iterations: int = 100,
     fine_tuning_classifier_iterations: int = 10,
-    n_synth: int = 20000,
+    synthesize: bool = True,
 ) -> dict[str, Any]:
     """
     Given a the trained models and a new training set, fine-tune the TabDDPM model.
@@ -187,14 +185,12 @@ def fine_tune_tabddpm_and_synthesize(
     )
     material["new_models"] = new_models
 
-    if n_synth > 0:
-        # Determine the sample scale:
-        # By default, we want the length of the final synthetic data to be len(provided_synth_data) = 20,000
-        # But with a smaller scale, we can generate less synthetic data for testing purposes.
-        # by default sample_scale should be 20000 / len(tables["trans"]["df"])
+    if synthesize:
+        # By default, we want the length of the final synthetic data to be ``len(provided_synth_data) = 20,000``
+        # But with a smaller scale, we can generate less synthetic data for debugging purposes.
+        # Attack's default sample_scale is ``20000 / len(tables["trans"]["df"])`` to generate 20,000 samples regardless
+        # of the sampling scale.
         # Sample scale is later multiplied by the size of training data to determine the size of synthetic data.
-        sample_scale = n_synth / len(new_tables["trans"]["df"])
-        # Generate synthetic data from scratch
         cleaned_tables, synthesizing_time_spent, matching_time_spent = clava_synthesizing(
             new_tables,
             relation_order,
@@ -202,7 +198,7 @@ def fine_tune_tabddpm_and_synthesize(
             all_group_lengths_prob_dicts,
             new_models,
             configs,
-            sample_scale=sample_scale,
+            sample_scale=configs["sampling"]["classifier_scale"],
         )
 
         material["synth_data"] = cleaned_tables["trans"]

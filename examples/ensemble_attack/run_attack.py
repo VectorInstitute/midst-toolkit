@@ -37,13 +37,7 @@ def main(cfg: DictConfig) -> None:
             save_dir=Path(cfg.data_paths.population_path),
         )
         # The following function saves the required dataframe splits in the specified processed_attack_data_path path.
-        (
-            df_real_train,
-            df_real_val,
-            df_real_test,
-            df_master_challenge_train,
-            df_master_challenge_test,
-        ) = process_split_data(
+        process_split_data(
             all_population_data=population_data,
             processed_attack_data_path=Path(cfg.data_paths.processed_attack_data_path),
             # TODO: column_to_stratify value is not documented in the original codebase.
@@ -66,14 +60,15 @@ def main(cfg: DictConfig) -> None:
         df_population_with_challenge = load_dataframe(
             Path(cfg.data_paths.population_path), "population_all_with_challenge.csv"
         )
-        # ``population_data`` in ensemble attack is often used for shadow pre-training, and
-        # ``master_challenge_df`` is used for fine-tuning.
+        # ``population_data`` in ensemble attack is used for shadow pre-training, and
+        # ``master_challenge_df`` is used for fine-tuning for half of the shadow models.
+        # For the other half of the shadow models, only ``master_challenge_df`` is used for training.
         run_shadow_model_training(
             population_data=df_population_with_challenge,
             master_challenge_data=df_master_challenge_train,
             shadow_models_data_path=Path(cfg.shadow_training.shadow_models_data_path),
             training_json_config_paths=cfg.shadow_training.training_json_config_paths,
-            shadow_training_config=cfg.shadow_training,
+            fine_tuning_config=cfg.shadow_training.fine_tuning_config,
             n_models=2,  # 4 based on the original code, must be even
             n_reps=12,  # 12 based on the original code
             random_seed=cfg.random_seed,

@@ -150,23 +150,22 @@ def process_split_data(
     processed_attack_data_path: Path,
     column_to_stratify: str,
     num_total_samples: int = 40000,
-    challenge_data_size: int = 10000,
     random_seed: int = 42,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) ->None:
     """
-    Splits the data into train, validation, and test sets according to the attack design.
+    Splits the population data into training, validation, and test sets based on the attack design.
+    Saves the processed datasets, including ``master_challenge_train`` and ``master_challenge_test``,
+    along with their corresponding labels, to the specified path under ``processed_attack_data_path``.
+
+    The size of the master challenge datasets (train and test) is half of the total population data size each,
+    as determined by the attack design.
 
     Args:
-        all_population_data: The total population data that the attacker has access to as a DataFrame.
-        processed_attack_data_path: Path where the processed attack data will be saved.
-        column_to_stratify: Column name to use for stratified splitting.
-        num_total_samples: Number os samples that are randomly selected from the population. Defaults to 40000.
-        random_seed: Random seed used for reproducibility. Defaults to 42.
-
-    Returns:
-        A tuple containing the train, validation, and test dataframes for real data,
-        as well as the validation and test dataframes for the challenge dataset.
-
+        all_population_data: A DataFrame containing the entire population data accessible to the attacker.
+        processed_attack_data_path: Directory path where the processed datasets will be saved.
+        column_to_stratify: The column name used for stratified splitting to ensure balanced distributions.
+        num_total_samples: The number of samples randomly selected from the population. Defaults to 40,000.
+        random_seed: Seed for random number generation to ensure reproducibility. Defaults to 42.
     """
     # Original Ensemble attack samples 40k data points to construct
     # 1) the main population (real data) used for training the synthetic data generator model,
@@ -218,5 +217,3 @@ def process_split_data(
         y_test,
     )
     log(INFO, f"Data splits saved to {processed_attack_data_path}")
-
-    return df_real_train, df_real_val, df_real_test, df_val, df_test

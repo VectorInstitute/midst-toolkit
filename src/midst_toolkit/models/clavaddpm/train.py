@@ -182,7 +182,7 @@ def child_training(
     else:
         y_col = f"{parent_name}_{child_name}_cluster"
     child_info = get_table_info(child_df_with_cluster, child_domain_dict, y_col)
-    child_model_params = _get_model_params(
+    child_model_params = get_model_params(
         {
             "d_layers": diffusion_config["d_layers"],
             "dropout": diffusion_config["dropout"],
@@ -710,7 +710,7 @@ def _split_microbatches(
 
 
 # TODO make this into a class with default parameters
-def _get_model_params(rtdl_params: dict[str, Any] | None = None) -> dict[str, Any]:
+def get_model_params(rtdl_params: dict[str, Any] | None = None) -> dict[str, Any]:
     """
     Return the model parameters.
 

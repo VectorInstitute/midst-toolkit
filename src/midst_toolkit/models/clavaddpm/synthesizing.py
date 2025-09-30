@@ -169,7 +169,7 @@ def sample_from_diffusion(
     T_dict,
     sample_batch_size=8192,
 ):
-    num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
+    num_numerical_features = dataset.x_num["train"].shape[1] if dataset.x_num is not None else 0
 
     K = np.array(dataset.get_category_sizes("train"))
     if len(K) == 0 or T_dict["cat_encoding"] == "one-hot":
@@ -301,7 +301,7 @@ def conditional_sampling_by_group_size(
     arr = np.concatenate(all_rows, axis=0)
     cluster_arr = np.concatenate(all_clusters, axis=0)
 
-    num_numerical_features = dataset.X_num["train"].shape[1] if dataset.X_num is not None else 0
+    num_numerical_features = dataset.x_num["train"].shape[1] if dataset.x_num is not None else 0
 
     X_gen, y_gen = arr, cluster_arr
     num_numerical_features_sample = num_numerical_features + int(dataset.is_regression and not is_y_cond)

@@ -35,7 +35,8 @@ data_processing_config:
   single_table_train_data_file_name: "train_with_id.csv"
   multi_table_train_data_file_name: "trans.csv"
   challenge_data_file_name: "challenge_with_id.csv"
-  population_sample_size: 30
+  population_sample_size: 30 #Population size the total data that your attack has access to.
+  #The size of the master challenge dataset is half of the population size based on the attack design.
 
 # Training and data settings for shadow models
 shadow_training:
@@ -47,12 +48,10 @@ shadow_training:
   # Model training artifacts are saved under shadow_models_data_path/workspace_name/exp_name
   # Also, training configs for each shadow model are created under shadow_models_data_path.
   shadow_models_data_path: ${base_data_dir}/shadow_models_data
-  fine_tune_diffusion_iterations: 2
-  fine_tune_classifier_iterations: 2
-  num_synth_samples: 3 # Original code:20000
-  model_type: "tabddpm"
-  pre_train_data_size: 10 #10 for test run. Original code: 60000
-
+  fine_tuning_config:
+    fine_tune_diffusion_iterations: 2
+    fine_tune_classifier_iterations: 2
+    pre_train_data_size: 10 #10 for test run. Original code: 60000
 
 
 # General settings

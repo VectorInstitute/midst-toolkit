@@ -22,7 +22,7 @@ def train_fine_tuning_shadows(
     master_challenge_data: pd.DataFrame,
     shadow_models_data_path: Path,
     training_json_config_paths: DictConfig,
-    shadow_training_config: DictConfig,
+    fine_tuning_config: DictConfig,
     init_model_id: int,
     init_data_seed: int,
     pre_training_data_size: int = 60000,
@@ -95,7 +95,8 @@ def train_fine_tuning_shadows(
 
     # Train the initial model if it is not already trained and saved.
     if not Path(save_dir / f"rmia_initial_model_{init_model_id}.pkl").exists():
-        initial_model = train_tabddpm_and_synthesize(train, configs, save_dir, n_synth=0)
+        initial_model = train_tabddpm_and_synthesize(
+            train, configs, save_dir, synthesize=False)
 
         # Save the initial model
         # Pickle dump the results
@@ -132,9 +133,10 @@ def train_fine_tuning_shadows(
             new_train_set=selected_challenges,
             configs=configs,
             save_dir=save_dir,
-            fine_tuning_diffusion_iterations=shadow_training_config.fine_tune_diffusion_iterations,
-            fine_tuning_classifier_iterations=shadow_training_config.fine_tune_classifier_iterations,
-            n_synth=shadow_training_config.num_synth_samples,
+            fine_tuning_diffusion_iterations=fine_tuning_config.fine_tune_diffusion_iterations,
+            fine_tuning_classifier_iterations=fine_tuning_config.fine_tune_classifier_iterations,
+            # Number of synthetic samples is defined according to tabddpm_training_config's classifier_scale value.
+            synthesize=True,
         )
 
         attack_data["fine_tuned_results"].append(train_result)
@@ -150,7 +152,7 @@ def train_shadow_on_half_challenge_data(
     master_challenge_data: Path,
     shadow_models_data_path: Path,
     training_json_config_paths: DictConfig,
-    shadow_training_config: DictConfig,
+    fine_tuning_config: DictConfig,
     random_seed: int = 42,
 ) -> None:
     """
@@ -219,7 +221,8 @@ def train_shadow_on_half_challenge_data(
             selected_challenges,
             configs,
             save_dir,
-            n_synth=shadow_training_config.num_synth_samples,
+            # Number of synthetic samples is defined according to tabddpm_training_config's classifier_scale value.
+            synthesize=True,
         )
 
         attack_data["trained_results"].append(train_result)
@@ -234,7 +237,7 @@ def run_shadow_model_training(
     master_challenge_data: pd.DataFrame,
     shadow_models_data_path: Path,
     training_json_config_paths: DictConfig,
-    shadow_training_config: DictConfig,
+    fine_tuning_config: DictConfig,
     n_models: int = 4,
     n_reps: int = 12,
     random_seed: int = 42,
@@ -249,7 +252,7 @@ def run_shadow_model_training(
             will be saved. Model artifacts and synthetic data will be saved under this directory as well. This path
             will be created if it does not exist, and all the relevant configs will be copied here automatically.
         training_json_config_paths: Configuration dictionary containing paths to the data JSON config files.
-        shadow_training_config: Configuration dictionary containing shadow model training specific information.
+        fine_tuning_config: Configuration dictionary containing shadow model fine-tuning specific information.
         n_models: Number of shadow models to train, must be even, defaults to 4.
         n_reps: Number of repetitions for each challenge point in the fine-tuning or training sets, defaults to 12.
         random_seed: Random seed used for reproducibility, defaults to 42.
@@ -266,10 +269,10 @@ def run_shadow_model_training(
         master_challenge_data=master_challenge_data,
         shadow_models_data_path=shadow_models_data_path,
         training_json_config_paths=training_json_config_paths,
-        shadow_training_config=shadow_training_config,
+        fine_tuning_config=fine_tuning_config,
         init_model_id=1,  # To distinguish these shadow models from the next ones
         init_data_seed=random_seed,
-        pre_training_data_size=shadow_training_config.pre_train_data_size,
+        pre_training_data_size=fine_tuning_config.pre_train_data_size,
         random_seed=random_seed,
     )
     log(INFO, "First set of shadow model training completed ")
@@ -282,10 +285,10 @@ def run_shadow_model_training(
         master_challenge_data=master_challenge_data,
         shadow_models_data_path=shadow_models_data_path,
         training_json_config_paths=training_json_config_paths,
-        shadow_training_config=shadow_training_config,
+        fine_tuning_config=fine_tuning_config,
         init_model_id=2,  # To distinguish these shadow models from the previous ones
         init_data_seed=random_seed + 1,
-        pre_training_data_size=shadow_training_config.pre_train_data_size,
+        pre_training_data_size=fine_tuning_config.pre_train_data_size,
         random_seed=random_seed,
     )
     log(INFO, "Second set of shadow model training completed.")
@@ -297,7 +300,7 @@ def run_shadow_model_training(
         master_challenge_data=master_challenge_data,
         shadow_models_data_path=shadow_models_data_path,
         training_json_config_paths=training_json_config_paths,
-        shadow_training_config=shadow_training_config,
+        fine_tuning_config=fine_tuning_config,
         random_seed=random_seed,
     )
     log(INFO, "Third set of shadow model training completed")

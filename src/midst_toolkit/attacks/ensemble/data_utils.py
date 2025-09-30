@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from midst_toolkit.common.logger import log
-from midst_toolkit.core.data_loaders import get_info_from_domain, pipeline_process_data
+from midst_toolkit.models.clavaddpm.data_loaders import get_info_from_domain, pipeline_process_data
 
 
 def save_dataframe(df: pd.DataFrame, file_path: Path, file_name: str) -> None:
@@ -56,7 +56,7 @@ def load_dataframe(file_path: Path, file_name: str) -> pd.DataFrame:
 
 
 # TODO: Merge with original. The following function is the slightly modified version of
-# ``midst_toolkit.core.data_loaders.load_multi_table`` by the CITADEL & UQAM team.
+# ``midst_toolkit.models.clavaddpm.data_loaders`` by the CITADEL & UQAM team.
 def load_multi_table(data_dir, train_df=None, verbose=True):
     dataset_meta = json.load(open(os.path.join(data_dir, "dataset_meta.json"), "r"))
 
