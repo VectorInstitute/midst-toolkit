@@ -49,7 +49,7 @@ settings should be prescribed in your VS Code settings JSON:
 ```json
 {
     "autoDocstring.customTemplatePath": "",
-    "autoDocstring.docstringFormat": "google",
+    "autoDocstring.docstringFormat": "google-notypes",
     "autoDocstring.generateDocstringOnEnter": true,
     "autoDocstring.guessTypes": true,
     "autoDocstring.includeExtendedSummary": false,
