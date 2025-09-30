@@ -18,7 +18,7 @@ import torch.nn.functional as F
 from torch import Tensor
 
 from midst_toolkit.models.clavaddpm.diffusion_utils import (
-    FoundNANsError,
+    FoundNaNsError,
     discretized_gaussian_log_likelihood,
     extract,
     index_to_log_onehot,
@@ -1085,7 +1085,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             all_samples.append(sample)
             all_y.append(out_dict["y"].cpu())
             if sample.shape[0] != b:
-                raise FoundNANsError
+                raise FoundNaNsError
             num_generated += sample.shape[0]
 
         x_gen = torch.cat(all_samples, dim=0)[:num_samples]

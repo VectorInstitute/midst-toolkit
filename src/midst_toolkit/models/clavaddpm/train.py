@@ -12,30 +12,33 @@ import pandas as pd
 import torch
 from torch import Tensor, optim
 
+from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
-from midst_toolkit.models.clavaddpm.dataset import Dataset, make_dataset_from_df
+from midst_toolkit.models.clavaddpm.dataset import Dataset, Transformations, make_dataset_from_df
+from midst_toolkit.models.clavaddpm.enumerations import (
+    CategoricalEncoding,
+    Configs,
+    IsTargetCondioned,
+    ReductionMethod,
+    RelationOrder,
+    Tables,
+    TargetType,
+)
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
     GaussianLossType,
     GaussianMultinomialDiffusion,
     SchedulerType,
 )
-from midst_toolkit.models.clavaddpm.model import Classifier, ModelType, get_table_info
+from midst_toolkit.models.clavaddpm.model import (
+    Classifier,
+    DiffusionParameters,
+    ModelParameters,
+    ModelType,
+    get_table_info,
+)
 from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, ScheduleSamplerType
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
-from midst_toolkit.models.clavaddpm.typing import (
-    CategoricalEncoding,
-    Configs,
-    DataSplit,
-    DiffusionParameters,
-    IsYCond,
-    ModelParameters,
-    ReductionMethod,
-    RelationOrder,
-    Tables,
-    Transformations,
-    YType,
-)
 
 
 def clava_training(
@@ -299,7 +302,7 @@ def train_model(
     dataset, label_encoders, column_orders = make_dataset_from_df(
         data_frame,
         transformations,
-        is_y_cond=model_params.is_y_cond,
+        is_target_conditioned=model_params.is_target_conditioned,
         ratios=data_split_ratios,
         df_info=data_frame_info,
         std=0,
@@ -345,7 +348,7 @@ def train_model(
     )
     trainer.train()
 
-    if model_params.is_y_cond == IsYCond.CONCAT:
+    if model_params.is_target_conditioned == IsTargetCondioned.CONCAT:
         column_orders = column_orders[1:] + [column_orders[0]]
     else:
         column_orders = column_orders + [data_frame_info["y_col"]]
@@ -416,15 +419,21 @@ def train_classifier(
     dataset, label_encoders, column_orders = make_dataset_from_df(
         data_frame,
         transformations,
-        is_y_cond=model_params.is_y_cond,
+        is_target_conditioned=model_params.is_target_conditioned,
         ratios=data_split_ratios,
         df_info=data_frame_info,
         std=0,
     )
     print(dataset.n_features)
-    train_loader = prepare_fast_dataloader(dataset, split=DataSplit.TRAIN, batch_size=batch_size, y_type=YType.LONG)
-    val_loader = prepare_fast_dataloader(dataset, split=DataSplit.VALIDATION, batch_size=batch_size, y_type=YType.LONG)
-    test_loader = prepare_fast_dataloader(dataset, split=DataSplit.TEST, batch_size=batch_size, y_type=YType.LONG)
+    train_loader = prepare_fast_dataloader(
+        dataset, split=DataSplit.TRAIN, batch_size=batch_size, target_type=TargetType.LONG
+    )
+    val_loader = prepare_fast_dataloader(
+        dataset, split=DataSplit.VALIDATION, batch_size=batch_size, target_type=TargetType.LONG
+    )
+    test_loader = prepare_fast_dataloader(
+        dataset, split=DataSplit.TEST, batch_size=batch_size, target_type=TargetType.LONG
+    )
 
     category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
     # ruff: noqa: N806
@@ -440,7 +449,7 @@ def train_classifier(
     else:
         num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1]
 
-    if model_params.is_y_cond == IsYCond.CONCAT:
+    if model_params.is_target_conditioned == IsTargetCondioned.CONCAT:
         num_numerical_features -= 1
 
     classifier = Classifier(
@@ -511,7 +520,11 @@ def train_classifier(
     for _ in range(3000):
         test_x, test_y = next(test_loader)
         test_y = test_y.long().to(device)
-        test_x = test_x[:, 1:].to(device) if model_params.is_y_cond == IsYCond.CONCAT else test_x.to(device)
+        test_x = (
+            test_x[:, 1:].to(device)
+            if model_params.is_target_conditioned == IsTargetCondioned.CONCAT
+            else test_x.to(device)
+        )
         with torch.no_grad():
             pred = classifier(test_x, timesteps=torch.zeros(test_x.shape[0]).to(device))
             correct += (pred.argmax(dim=1) == test_y).sum().item()

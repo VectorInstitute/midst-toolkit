@@ -9,9 +9,10 @@ import numpy as np
 import pandas as pd
 import torch
 
+from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.dataset import Dataset
-from midst_toolkit.models.clavaddpm.typing import DataSplit, YType
+from midst_toolkit.models.clavaddpm.enumerations import TargetType
 
 
 def load_multi_table(
@@ -534,7 +535,7 @@ def prepare_fast_dataloader(
     dataset: Dataset,
     split: DataSplit,
     batch_size: int,
-    y_type: YType = YType.FLOAT,
+    target_type: TargetType = TargetType.FLOAT,
 ) -> Generator[tuple[torch.Tensor, ...]]:
     """
     Prepare a fast dataloader for the dataset.
@@ -543,7 +544,7 @@ def prepare_fast_dataloader(
         dataset: The dataset to prepare the dataloader for.
         split: The split to prepare the dataloader for.
         batch_size: The batch size to use for the dataloader.
-        y_type: The type of the target values. Default is YType.FLOAT.
+        target_type: The type of the target values. Default is TargetType.FLOAT.
 
     Returns:
         A generator of batches of data from the dataset.
@@ -558,12 +559,12 @@ def prepare_fast_dataloader(
         assert dataset.x_num is not None
         x = torch.from_numpy(dataset.x_num[split.value]).float()
 
-    if y_type == YType.FLOAT:
+    if target_type == TargetType.FLOAT:
         y = torch.from_numpy(dataset.y[split.value]).float()
-    elif y_type == YType.LONG:
+    elif target_type == TargetType.LONG:
         y = torch.from_numpy(dataset.y[split.value]).long()
     else:
-        raise ValueError(f"Unsupported y type: {y_type}")
+        raise ValueError(f"Unsupported target type: {target_type}")
 
     dataloader = FastTensorDataLoader((x, y), batch_size=batch_size, shuffle=(split == DataSplit.TRAIN))
     while True:

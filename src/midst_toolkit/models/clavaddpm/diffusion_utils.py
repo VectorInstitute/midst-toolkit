@@ -194,9 +194,9 @@ def log_onehot_to_index(log_x: Tensor) -> Tensor:
     return log_x.argmax(1)
 
 
-class FoundNANsError(BaseException):
+class FoundNaNsError(BaseException):
     """Found NANs during sampling."""
 
     def __init__(self, message: str = "Found NANs during sampling.") -> None:
         # ruff: noqa: D107
-        super(FoundNANsError, self).__init__(message)
+        super(FoundNaNsError, self).__init__(message)

@@ -14,7 +14,7 @@ from sklearn.mixture import BayesianGaussianMixture, GaussianMixture
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler, OneHotEncoder, QuantileTransformer
 
 from midst_toolkit.common.logger import log
-from midst_toolkit.models.clavaddpm.typing import (
+from midst_toolkit.models.clavaddpm.enumerations import (
     ClusteringMethod,
     Configs,
     GroupLengthsProbDicts,
