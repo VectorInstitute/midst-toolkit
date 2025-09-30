@@ -176,6 +176,8 @@ def get_categorical_columns(dataframe: pd.DataFrame, threshold: int) -> list[str
     it is deemed a categorical column. For example, a hurricane might be rated from 1 to 5 in an integer based column.
     With a threshold of 10, this column would be added to the set of categorical columns.
 
+    NOTE: A failure case is DateTimes, which will not be detected as categorical, but are not exactly numerical either.
+
     Args:
         dataframe: Dataframe from which to extract column names corresponding to categorical variables.
         threshold: Threshold below which a column with numerical values (integer or float for example) is deemed to
@@ -190,10 +192,8 @@ def get_categorical_columns(dataframe: pd.DataFrame, threshold: int) -> list[str
 
     for column_name in dataframe.columns:
         # If dtype is an object (as str columns are), assume categorical
-        if (
-            dataframe[column_name].dtype == "object"
-            or is_column_type_numerical(dataframe, column_name)
-            and dataframe[column_name].nunique() <= threshold
+        if dataframe[column_name].dtype == "object" or (
+            is_column_type_numerical(dataframe, column_name) and dataframe[column_name].nunique() <= threshold
         ):
             categorical_variables.append(column_name)
 
