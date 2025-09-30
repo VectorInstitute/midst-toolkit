@@ -1,6 +1,9 @@
+from logging import WARNING
+
 import numpy as np
 import pandas as pd
 
+from midst_toolkit.common.logger import log
 from midst_toolkit.evaluation.metrics_base import SynthEvalMetric
 
 
@@ -8,7 +11,7 @@ def hellinger_distance(discrete_distribution_1: np.ndarray, discrete_distributio
     """
     Compute the empirical Hellinger distance between two discrete probability distributions. Hellinger distance for
     discrete probability distributions $p$ and $q$ is expressed as
-    $$\\frac{1}{2} \\cdot \\Vert \\sqrt{p} - \\sqrt{q} \\Vert_2$$.
+    $$\\frac{1}{\\sqrt{2}} \\cdot \\Vert \\sqrt{p} - \\sqrt{q} \\Vert_2$$.
 
     Args:
         discrete_distribution_1: First discrete distribution for distance computation
@@ -70,6 +73,13 @@ class MeanHellingerDistance(SynthEvalMetric):
         super().__init__(categorical_columns, numerical_columns, do_preprocess)
 
         self.include_numerical_columns = include_numerical_columns
+
+        if len(self.categorical_columns) == 0 and not self.include_numerical_columns:
+            log(
+                WARNING,
+                "No categorical columns provided and include_numerical_columns is False. This will result in a NaN "
+                "for the Hellinger distance.",
+            )
 
     def compute(self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> dict[str, float]:
         """
