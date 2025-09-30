@@ -101,8 +101,10 @@ def test_mean_f1_score_diff_with_holdout_difference_f1() -> None:
     # Due to numerical fluctuations on github runners, we have slightly different values.
     if is_apple_silicon():
         assert pytest.approx(0.7667172638761903, abs=1e-8) == score["random_forest_real_train_f1"]
+        assert pytest.approx(-0.17912194553312424, abs=1e-8) == score["mean_f1_difference"]
     else:
         assert pytest.approx(0.7683679496293229, abs=1e-8) == score["random_forest_real_train_f1"]
+        assert pytest.approx(-0.1795346169714074, abs=1e-8) == score["mean_f1_difference"]
     assert pytest.approx(0.40831722022666145, abs=1e-8) == score["random_forest_synthetic_train_f1"]
     assert pytest.approx(0.3632940727026944, abs=1e-8) == score["adaboost_real_train_f1"]
     assert pytest.approx(0.33490261584802905, abs=1e-8) == score["adaboost_synthetic_train_f1"]
@@ -110,7 +112,6 @@ def test_mean_f1_score_diff_with_holdout_difference_f1() -> None:
     assert pytest.approx(0.33315531820204713, abs=1e-8) == score["svm_synthetic_train_f1"]
     assert pytest.approx(0.4966708698534732, abs=1e-8) == score["logreg_real_train_f1"]
     assert pytest.approx(0.33315531820204713, abs=1e-8) == score["logreg_synthetic_train_f1"]
-    assert pytest.approx(-0.17912194553312424, abs=1e-8) == score["mean_f1_difference"]
 
     # Spot check the holdout values.
     assert pytest.approx(-0.20674835173603345, abs=1e-8) == score["mean_f1_difference_holdout"]
