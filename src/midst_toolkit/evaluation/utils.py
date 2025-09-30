@@ -1,5 +1,5 @@
 import os
-from logging import WARNING
+from logging import INFO, WARNING
 from pathlib import Path
 from typing import Any
 
@@ -99,6 +99,8 @@ def one_hot_encode_categoricals_and_merge_with_numerical(
     resulting, one-hot encoded, numpy arrays are then concatenated together numerical then one-hots for both the
     synthetic and real data.
 
+    NOTE: If the categorical arrays are empty, this function simply returns the numerical data.
+
     Args:
         real_categorical_data: Categorical data from the real dataset.
         synthetic_categorical_data: Categorical data from the synthetically generated dataset.
@@ -109,6 +111,10 @@ def one_hot_encode_categoricals_and_merge_with_numerical(
         Two pandas dataframes representing the numerical and categorical data concatenated together. First dataframe
         is the real data, second is the synthetic data.
     """
+    if real_categorical_data.shape[1] == 0:
+        log(INFO, "No categorical features are present. Returning just numerical data")
+        return pd.DataFrame(real_numerical_data).astype(float), pd.DataFrame(synthetic_numerical_data).astype(float)
+
     encoder = OneHotEncoder()
     one_hot_real_data = encoder.fit_transform(real_categorical_data).toarray()
     one_hot_synthetic_data = encoder.transform(synthetic_categorical_data).toarray()

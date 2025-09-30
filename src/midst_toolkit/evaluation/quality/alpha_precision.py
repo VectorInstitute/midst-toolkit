@@ -24,6 +24,8 @@ class AlphaPrecision(MetricBase):
         with "naive" in their name. Naive scores are based on a set "by-hand" transformations rather than a classifier
         embedding.
 
+        NOTE: Synthcity requires that the real and synthetic dataframes have the SAME number of datapoints.
+
         Args:
             naive_only: Determines whether to report only the "naive" metrics for each of alpha-precision,
             beta-recall, and authenticity scores. Defaults to True.
