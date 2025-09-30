@@ -113,8 +113,8 @@ class MeanF1ScoreDifference(SynthEvalMetric):
 
         NOTE: Categorical variables need to be encoded before training the classifier. This can be accomplished by
         preprocessing before calling ``compute`` or by setting ``do_preprocess`` to True. Note that if
-        ``do_preprocess`` is True, the default Syntheval pipeline is used, which does NOT one-hot encode the
-        categoricals.
+        ``do_preprocess`` is True, the default Syntheval pipeline is used, which performs ``OrdinalEncoding`` for
+        categorical columns and ``MinMaxScaling`` for numerical columns.
 
         Args:
             categorical_columns: Column names corresponding to the categorical variables of any provided dataframe.
@@ -158,8 +158,8 @@ class MeanF1ScoreDifference(SynthEvalMetric):
 
         NOTE: Categorical variables need to be encoded before training the classifier. This can be accomplished by
         preprocessing before calling ``compute`` or by setting ``do_preprocess`` to True. Note that if
-        ``do_preprocess`` is True, the default Syntheval pipeline is used, which does NOT one-hot encode the
-        categoricals.
+        ``do_preprocess`` is True, the default Syntheval pipeline is used, which performs ``OrdinalEncoding`` for
+        categorical columns and ``MinMaxScaling`` for numerical columns.
 
         Args:
             real_data: Real data to which the synthetic data may be compared. In many cases this will be data used
