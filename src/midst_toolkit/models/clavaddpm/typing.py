@@ -136,6 +136,13 @@ class YPolicy(Enum):
     DEFAULT = "default"
 
 
+class YType(Enum):
+    """Possible types of y."""
+
+    FLOAT = "float"
+    LONG = "long"
+
+
 class TaskType(Enum):
     BINCLASS = "binclass"
     MULTICLASS = "multiclass"

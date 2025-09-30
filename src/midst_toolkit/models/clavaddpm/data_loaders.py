@@ -11,7 +11,7 @@ import torch
 
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.dataset import Dataset
-from midst_toolkit.models.clavaddpm.typing import DataSplit
+from midst_toolkit.models.clavaddpm.typing import DataSplit, YType
 
 
 def load_multi_table(
@@ -534,7 +534,7 @@ def prepare_fast_dataloader(
     dataset: Dataset,
     split: DataSplit,
     batch_size: int,
-    y_type: str = "float",
+    y_type: YType = YType.FLOAT,
 ) -> Generator[tuple[torch.Tensor, ...]]:
     """
     Prepare a fast dataloader for the dataset.
@@ -543,26 +543,28 @@ def prepare_fast_dataloader(
         dataset: The dataset to prepare the dataloader for.
         split: The split to prepare the dataloader for.
         batch_size: The batch size to use for the dataloader.
-        y_type: The type of the target values. Can be "float" or "long". Default is "float".
+        y_type: The type of the target values. Default is YType.FLOAT.
 
     Returns:
         A generator of batches of data from the dataset.
     """
     if dataset.x_cat is not None:
         if dataset.x_num is not None:
-            x = torch.from_numpy(
-                np.concatenate([dataset.x_num[split.value], dataset.x_cat[split.value]], axis=1)
-            ).float()
+            concatenated_features = np.concatenate([dataset.x_num[split.value], dataset.x_cat[split.value]], axis=1)
+            x = torch.from_numpy(concatenated_features).float()
         else:
             x = torch.from_numpy(dataset.x_cat[split.value]).float()
     else:
         assert dataset.x_num is not None
         x = torch.from_numpy(dataset.x_num[split.value]).float()
-    y = (
-        torch.from_numpy(dataset.y[split.value]).float()
-        if y_type == "float"
-        else torch.from_numpy(dataset.y[split.value]).long()
-    )
+
+    if y_type == YType.FLOAT:
+        y = torch.from_numpy(dataset.y[split.value]).float()
+    elif y_type == YType.LONG:
+        y = torch.from_numpy(dataset.y[split.value]).long()
+    else:
+        raise ValueError(f"Unsupported y type: {y_type}")
+
     dataloader = FastTensorDataLoader((x, y), batch_size=batch_size, shuffle=(split == DataSplit.TRAIN))
     while True:
         yield from dataloader

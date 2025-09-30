@@ -32,6 +32,7 @@ from midst_toolkit.models.clavaddpm.typing import (
     Scheduler,
     Tables,
     Transformations,
+    YType,
 )
 
 
@@ -419,9 +420,9 @@ def train_classifier(
         std=0,
     )
     print(dataset.n_features)
-    train_loader = prepare_fast_dataloader(dataset, split=DataSplit.TRAIN, batch_size=batch_size, y_type="long")
-    val_loader = prepare_fast_dataloader(dataset, split=DataSplit.VALIDATION, batch_size=batch_size, y_type="long")
-    test_loader = prepare_fast_dataloader(dataset, split=DataSplit.TEST, batch_size=batch_size, y_type="long")
+    train_loader = prepare_fast_dataloader(dataset, split=DataSplit.TRAIN, batch_size=batch_size, y_type=YType.LONG)
+    val_loader = prepare_fast_dataloader(dataset, split=DataSplit.VALIDATION, batch_size=batch_size, y_type=YType.LONG)
+    test_loader = prepare_fast_dataloader(dataset, split=DataSplit.TEST, batch_size=batch_size, y_type=YType.LONG)
 
     category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
     # ruff: noqa: N806
