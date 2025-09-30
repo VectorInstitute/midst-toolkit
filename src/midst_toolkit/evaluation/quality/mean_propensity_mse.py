@@ -28,8 +28,8 @@ class MeanPropensityMeanSquaredError(SynthEvalQualityMetric):
 
         NOTE: Categorical variables need to be encoded before training the classifier. This can be accomplished by
         preprocessing before calling ``compute`` or by setting ``do_preprocess`` to True. Note that if
-        ``do_preprocess`` is True, the default Syntheval pipeline is used, which does NOT one-hot encode the
-        categoricals.
+        ``do_preprocess`` is True, the default Syntheval pipeline is used, which performs ``OrdinalEncoding`` for
+        categorical columns and ``MinMaxScaling`` for numerical columns.
 
         - A smaller pMSE is better. In cases where the two datasets are balanced in size, 0.25 is worst case.
         - Higher Macro F1 is better.
@@ -61,8 +61,8 @@ class MeanPropensityMeanSquaredError(SynthEvalQualityMetric):
 
         NOTE: Categorical variables need to be encoded before training the classifier. This can be accomplished by
         preprocessing before calling ``compute`` or by setting ``do_preprocess`` to True. Note that if
-        ``do_preprocess`` is True, the default Syntheval pipeline is used, which does NOT one-hot encode the
-        categoricals.
+        ``do_preprocess`` is True, the default Syntheval pipeline is used, which performs ``OrdinalEncoding`` for
+        categorical columns and ``MinMaxScaling`` for numerical columns.
 
         Args:
             real_data: Real data to which the synthetic data may be compared. In many cases this will be data used
