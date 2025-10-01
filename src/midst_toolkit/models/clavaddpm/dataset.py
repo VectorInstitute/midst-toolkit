@@ -605,14 +605,14 @@ def transform_dataset(
             raise RuntimeError(f"Hash collision for {cache_path}")
 
     if dataset.x_num is not None:
-        dataset = num_process_nans(dataset, transformations.numerical_nan_policy)
+        dataset = process_nans_in_numerical_features(dataset, transformations.numerical_nan_policy)
 
-    num_transform = None
-    cat_transform = None
+    numerical_transform = None
+    categorical_transform = None
     x_num = dataset.x_num
 
     if x_num is not None and transformations.normalization is not None:
-        x_num, num_transform = normalize(  # type: ignore[assignment]
+        x_num, numerical_transform = normalize(  # type: ignore[assignment]
             x_num,
             transformations.normalization,
             transformations.seed,
@@ -625,10 +625,10 @@ def transform_dataset(
         # assert transformations.cat_encoding is None
         x_cat = None
     else:
-        x_cat = cat_process_nans(dataset.x_cat, transformations.categorical_nan_policy)
+        x_cat = process_nans_in_categorical_features(dataset.x_cat, transformations.categorical_nan_policy)
         if transformations.category_minimum_frequency is not None:
-            x_cat = cat_drop_rare(x_cat, transformations.category_minimum_frequency)
-        x_cat, is_num, cat_transform = cat_encode(
+            x_cat = drop_rare_categories(x_cat, transformations.category_minimum_frequency)
+        x_cat, is_num, categorical_transform = encode_categorical_features(
             x_cat,
             transformations.categorical_encoding,
             dataset.y[DataSplit.TRAIN.value],
@@ -642,8 +642,8 @@ def transform_dataset(
     y, y_info = build_target(dataset.y, transformations.target_policy, dataset.task_type)
 
     dataset = replace(dataset, x_num=x_num, x_cat=x_cat, y=y, y_info=y_info)
-    dataset.numerical_transform = num_transform
-    dataset.categorical_transform = cat_transform
+    dataset.numerical_transform = numerical_transform
+    dataset.categorical_transform = categorical_transform
 
     if cache_path is not None:
         dump_pickle((transformations, dataset), cache_path)
@@ -720,9 +720,9 @@ def normalize(
 
 # TODO: is there any relationship between this function and the cat_process_nans function?
 # Can they be made a little more similar to each other (in terms of signature)?
-def num_process_nans(dataset: Dataset, policy: NumericalNaNPolicy | None) -> Dataset:
+def process_nans_in_numerical_features(dataset: Dataset, policy: NumericalNaNPolicy | None) -> Dataset:
     """
-    Process the NaN values in the dataset.
+    Process the NaN values in the numerical features of thedataset.
 
     Args:
         dataset: The dataset to process.
@@ -762,9 +762,9 @@ def num_process_nans(dataset: Dataset, policy: NumericalNaNPolicy | None) -> Dat
     return dataset
 
 
-def cat_process_nans(x: ArrayDict, policy: CategoricalNaNPolicy | None) -> ArrayDict:
+def process_nans_in_categorical_features(x: ArrayDict, policy: CategoricalNaNPolicy | None) -> ArrayDict:
     """
-    Process the NaN values in the categorical data.
+    Process the NaN values in the categorical features of the dataset.
 
     Args:
         x: The data to process.
@@ -790,7 +790,7 @@ def cat_process_nans(x: ArrayDict, policy: CategoricalNaNPolicy | None) -> Array
     return x_new
 
 
-def cat_drop_rare(x: ArrayDict, min_frequency: float) -> ArrayDict:
+def drop_rare_categories(x: ArrayDict, min_frequency: float) -> ArrayDict:
     """
     Drop the rare categories in the categorical data.
 
@@ -814,7 +814,7 @@ def cat_drop_rare(x: ArrayDict, min_frequency: float) -> ArrayDict:
     return {k: np.array(v).T for k, v in x_new.items()}
 
 
-def cat_encode(
+def encode_categorical_features(
     x: ArrayDict,
     encoding: CategoricalEncoding | None,
     y_train: np.ndarray | None,
@@ -822,7 +822,7 @@ def cat_encode(
     return_encoder: bool = False,
 ) -> tuple[ArrayDict, bool, Any | None]:
     """
-    Encode the categorical data.
+    Encode the categorical features of the dataset.
 
     Args:
         x: The data to encode.

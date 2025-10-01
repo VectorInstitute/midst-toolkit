@@ -298,7 +298,6 @@ def train_model(
             - dataset: The dataset.
             - column_orders: The column orders.
     """
-    # ruff: noqa: N806
     dataset, label_encoders, column_orders = make_dataset_from_df(
         data_frame,
         transformations,
@@ -309,10 +308,8 @@ def train_model(
     )
 
     category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
-    # ruff: noqa: N806
     if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = np.array([0])
-        # ruff: noqa: N806
 
     _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.y[DataSplit.TRAIN.value]), return_counts=True)
 
@@ -436,10 +433,8 @@ def train_classifier(
     )
 
     category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
-    # ruff: noqa: N806
     if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = np.array([0])
-        # ruff: noqa: N806
     print(category_sizes)
 
     # TODO: understand what's going on here
