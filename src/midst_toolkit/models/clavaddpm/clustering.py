@@ -200,93 +200,28 @@ def _pair_clustering_keep_id(
     all_child_cols = list(child_df.columns)
     all_parent_cols = list(parent_df.columns)
 
-    # Splitting the data columns into categorical and numerical based on the domain dictionary.
-    # Columns that are not in the domain dictionary are ignored (except for the primary and foreign keys).
-    child_num_cols, child_cat_cols = _get_categorical_and_numerical_columns(all_child_cols, child_domain_dict)
-    parent_num_cols, parent_cat_cols = _get_categorical_and_numerical_columns(all_parent_cols, parent_domain_dict)
-
     parent_primary_key_index = all_parent_cols.index(parent_primary_key)
     foreign_key_index = all_child_cols.index(parent_primary_key)
 
     # sort child data by foreign key
     child_data = child_df.to_numpy()
     sorted_child_data = child_data[np.argsort(child_data[:, foreign_key_index])]
-    child_group_data_dict = _get_group_data_dict(sorted_child_data, [foreign_key_index])
 
     # sort parent data by primary key
     parent_data = parent_df.to_numpy()
     sorted_parent_data = parent_data[np.argsort(parent_data[:, parent_primary_key_index])]
 
-    group_lengths = []
-    unique_group_ids = sorted_parent_data[:, parent_primary_key_index]
-    for group_id in unique_group_ids:
-        group_id = (group_id,)
-        if group_id not in child_group_data_dict:
-            group_lengths.append(0)
-        else:
-            group_lengths.append(len(child_group_data_dict[group_id]))
-
-    group_lengths_np = np.array(group_lengths, dtype=int)
-
-    sorted_parent_data_repeated = np.repeat(sorted_parent_data, group_lengths_np, axis=0)
-    assert (sorted_parent_data_repeated[:, parent_primary_key_index] == sorted_child_data[:, foreign_key_index]).all()
-
-    sorted_child_num_data = sorted_child_data[:, child_num_cols]
-    sorted_child_cat_data = sorted_child_data[:, child_cat_cols]
-    sorted_parent_num_data = sorted_parent_data_repeated[:, parent_num_cols]
-    sorted_parent_cat_data = sorted_parent_data_repeated[:, parent_cat_cols]
-
-    joint_num_matrix = np.concatenate([sorted_child_num_data, sorted_parent_num_data], axis=1)
-    joint_cat_matrix = np.concatenate([sorted_child_cat_data, sorted_parent_cat_data], axis=1)
-
-    if joint_cat_matrix.shape[1] > 0:
-        joint_cat_matrix_p_index = sorted_child_cat_data.shape[1]
-        joint_num_matrix_p_index = sorted_child_num_data.shape[1]
-
-        cat_converted = []
-        label_encoders = []
-        for i in range(joint_cat_matrix.shape[1]):
-            # A threshold of 1000 unique values is used to prevent the one-hot encoding of large categorical columns
-            if len(np.unique(joint_cat_matrix[:, i])) > 1000:
-                log(WARNING, f"Categorical column {i} has more than 1000 unique values, skipping...")
-                continue
-            label_encoder = LabelEncoder()
-            cat_converted.append(label_encoder.fit_transform(joint_cat_matrix[:, i]).astype(float))
-            label_encoders.append(label_encoder)
-
-        cat_converted_transposed = np.vstack(cat_converted).T
-
-        # Initialize an empty array to store the encoded values
-        cat_one_hot = np.empty((cat_converted_transposed.shape[0], 0))
-
-        # Loop through each column in the data and encode it
-        for col in range(cat_converted_transposed.shape[1]):
-            encoder = OneHotEncoder(sparse_output=False)
-            column = cat_converted_transposed[:, col].reshape(-1, 1)
-            encoded_column = encoder.fit_transform(column)
-            cat_one_hot = np.concatenate((cat_one_hot, encoded_column), axis=1)
-
-        cat_one_hot[:, joint_cat_matrix_p_index:] = parent_scale * cat_one_hot[:, joint_cat_matrix_p_index:]
-
-    # Perform quantile normalization using QuantileTransformer
-    num_quantile = _quantile_normalize_sklearn(joint_num_matrix)
-    num_min_max = _min_max_normalize_sklearn(joint_num_matrix)
-
-    # TODO: change the commented lines below into options/if-conditions.
-    # key_quantile =
-    #   quantile_normalize_sklearn(sorted_parent_data_repeated[:, parent_primary_key_index].reshape(-1, 1))
-    key_min_max = _min_max_normalize_sklearn(sorted_parent_data_repeated[:, parent_primary_key_index].reshape(-1, 1))
-
-    # key_scaled = key_scaler * key_quantile
-    key_scaled = key_scale * key_min_max
-
-    num_quantile[:, joint_num_matrix_p_index:] = parent_scale * num_quantile[:, joint_num_matrix_p_index:]
-    num_min_max[:, joint_num_matrix_p_index:] = parent_scale * num_min_max[:, joint_num_matrix_p_index:]
-
-    if joint_cat_matrix.shape[1] > 0:
-        cluster_data = np.concatenate((num_min_max, cat_one_hot, key_scaled), axis=1)
-    else:
-        cluster_data = np.concatenate((num_min_max, key_scaled), axis=1)
+    cluster_data = _prepare_cluster_data(
+        sorted_child_data,
+        sorted_parent_data,
+        child_domain_dict,
+        parent_domain_dict,
+        all_child_cols,
+        all_parent_cols,
+        parent_primary_key,
+        parent_scale,
+        key_scale,
+    )
 
     child_group_data = _get_group_data(sorted_child_data, [foreign_key_index])
     child_group_lengths = np.array([len(group) for group in child_group_data], dtype=int)
@@ -402,6 +337,139 @@ def _pair_clustering_keep_id(
     child_domain_dict[relation_cluster_name] = new_col_entry.copy()
 
     return parent_df_with_cluster, child_df_with_cluster, group_lengths_prob_dicts
+
+
+def _repeat_parent_data(
+    sorted_child_data: np.ndarray,
+    sorted_parent_data: np.ndarray,
+    parent_primary_key_index: int,
+    foreign_key_index: int,
+) -> np.ndarray:
+    child_group_data_dict = _get_group_data_dict(sorted_child_data, [foreign_key_index])
+
+    group_lengths = []
+    unique_group_ids = sorted_parent_data[:, parent_primary_key_index]
+    for group_id in unique_group_ids:
+        group_id = (group_id,)
+        if group_id not in child_group_data_dict:
+            group_lengths.append(0)
+        else:
+            group_lengths.append(len(child_group_data_dict[group_id]))
+    group_lengths_np = np.array(group_lengths, dtype=int)
+    sorted_parent_data_repeated = np.repeat(sorted_parent_data, group_lengths_np, axis=0)
+    assert (sorted_parent_data_repeated[:, parent_primary_key_index] == sorted_child_data[:, foreign_key_index]).all()
+
+    return sorted_parent_data_repeated
+
+
+def _get_min_max_for_numerical_columns(
+    child_numerical_data: np.ndarray,
+    parent_numerical_data: np.ndarray,
+    parent_scale: float,
+) -> np.ndarray:
+    joint_numerical_matrix = np.concatenate([child_numerical_data, parent_numerical_data], axis=1)
+    joint_num_matrix_p_index = child_numerical_data.shape[1]
+
+    # Perform quantile normalization using QuantileTransformer
+    num_quantile = _quantile_normalize_sklearn(joint_numerical_matrix)
+    num_min_max = _min_max_normalize_sklearn(joint_numerical_matrix)
+
+    num_quantile[:, joint_num_matrix_p_index:] = parent_scale * num_quantile[:, joint_num_matrix_p_index:]
+    num_min_max[:, joint_num_matrix_p_index:] = parent_scale * num_min_max[:, joint_num_matrix_p_index:]
+
+    return num_min_max
+
+
+def _one_hot_encode_categorical_columns(
+    child_categorical_data: np.ndarray,
+    parent_categorical_data: np.ndarray,
+    parent_scale: float,
+) -> np.ndarray | None:
+    joint_categorical_matrix = np.concatenate([child_categorical_data, parent_categorical_data], axis=1)
+    if joint_categorical_matrix.shape[1] == 0:
+        return None
+
+    joint_cat_matrix_p_index = child_categorical_data.shape[1]
+
+    cat_converted = []
+    label_encoders = []
+    for i in range(joint_categorical_matrix.shape[1]):
+        # A threshold of 1000 unique values is used to prevent the one-hot encoding of large categorical columns
+        if len(np.unique(joint_categorical_matrix[:, i])) > 1000:
+            log(WARNING, f"Categorical column '{i}' has more than 1000 unique values, skipping...")
+            continue
+
+        label_encoder = LabelEncoder()
+        cat_converted.append(label_encoder.fit_transform(joint_categorical_matrix[:, i]).astype(float))
+        label_encoders.append(label_encoder)
+
+    cat_converted_transposed = np.vstack(cat_converted).T
+
+    # Initialize an empty array to store the encoded values
+    cat_one_hot = np.empty((cat_converted_transposed.shape[0], 0))
+
+    # Loop through each column in the data and encode it
+    for col in range(cat_converted_transposed.shape[1]):
+        encoder = OneHotEncoder(sparse_output=False)
+        column = cat_converted_transposed[:, col].reshape(-1, 1)
+        encoded_column = encoder.fit_transform(column)
+        cat_one_hot = np.concatenate((cat_one_hot, encoded_column), axis=1)
+
+    cat_one_hot[:, joint_cat_matrix_p_index:] = parent_scale * cat_one_hot[:, joint_cat_matrix_p_index:]
+
+    return cat_one_hot
+
+
+def _prepare_cluster_data(
+    child_data: np.ndarray,
+    parent_data: np.ndarray,
+    child_domain_dict: dict[str, Any],
+    parent_domain_dict: dict[str, Any],
+    all_child_cols: list[str],
+    all_parent_cols: list[str],
+    parent_primary_key: str,
+    parent_scale: float,
+    key_scale: float,
+) -> np.ndarray:
+    parent_primary_key_index = all_parent_cols.index(parent_primary_key)
+    foreign_key_index = all_child_cols.index(parent_primary_key)
+
+    parent_data_repeated = _repeat_parent_data(
+        child_data,
+        parent_data,
+        parent_primary_key_index,
+        foreign_key_index,
+    )
+
+    # Splitting the data columns into categorical and numerical based on the domain dictionary.
+    # Columns that are not in the domain dictionary are ignored (except for the primary and foreign keys).
+    child_num_cols, child_cat_cols = _get_categorical_and_numerical_columns(all_child_cols, child_domain_dict)
+    parent_num_cols, parent_cat_cols = _get_categorical_and_numerical_columns(all_parent_cols, parent_domain_dict)
+
+    child_numerical_data = child_data[:, child_num_cols]
+    child_categorical_data = child_data[:, child_cat_cols]
+    parent_numerical_data = parent_data_repeated[:, parent_num_cols]
+    parent_categorical_data = parent_data_repeated[:, parent_cat_cols]
+
+    numerical_min_max = _get_min_max_for_numerical_columns(
+        child_numerical_data,
+        parent_numerical_data,
+        parent_scale,
+    )
+
+    categorical_one_hot = _one_hot_encode_categorical_columns(
+        child_categorical_data,
+        parent_categorical_data,
+        parent_scale,
+    )
+
+    key_min_max = _min_max_normalize_sklearn(parent_data_repeated[:, parent_primary_key_index].reshape(-1, 1))
+    key_scaled = key_scale * key_min_max
+
+    if categorical_one_hot is None:
+        return np.concatenate((numerical_min_max, key_scaled), axis=1)
+
+    return np.concatenate((numerical_min_max, categorical_one_hot, key_scaled), axis=1)
 
 
 def _get_categorical_and_numerical_columns(
