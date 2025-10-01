@@ -41,6 +41,8 @@ from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, ScheduleSamp
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 
 
+# TODO: Make diffusion_config and classifier_config into config classes and use the
+# enums instead of string values.
 def clava_training(
     tables: Tables,
     relation_order: RelationOrder,
