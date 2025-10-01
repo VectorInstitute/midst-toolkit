@@ -189,6 +189,13 @@ def _pair_clustering_keep_id(
             - parent_df_with_cluster: DataFrame of the parent table with the cluster column.
             - child_df_with_cluster: DataFrame of the child table with the cluster column.
             - group_lengths_prob_dicts: Dictionary of group lengths and probabilities.
+
+        NOTE: It will also mutate the "domain" dictionaries under the child and parent tables
+        to add the following entry:
+            "{parent_name}_{child_name}_cluster": {
+                "type": "discrete",
+                "size": num_clusters,
+            }
     """
     child_df = tables[child_name]["df"]
     parent_df = tables[parent_name]["df"]
@@ -223,42 +230,10 @@ def _pair_clustering_keep_id(
         key_scale,
     )
 
+    cluster_labels = _get_cluster_labels(cluster_data, clustering_method, num_clusters)
+
     child_group_data = _get_group_data(sorted_child_data, [foreign_key_index])
     child_group_lengths = np.array([len(group) for group in child_group_data], dtype=int)
-    num_clusters = min(num_clusters, len(cluster_data))
-
-    if clustering_method == ClusteringMethod.KMEANS:
-        kmeans = KMeans(n_clusters=num_clusters, n_init="auto", init="k-means++")
-        kmeans.fit(cluster_data)
-        cluster_labels = kmeans.labels_
-    elif clustering_method == ClusteringMethod.KMEANS_AND_GMM:
-        gmm = GaussianMixture(
-            n_components=num_clusters,
-            verbose=1,
-            covariance_type="diag",
-            init_params="k-means++",
-            tol=0.0001,
-        )
-        gmm.fit(cluster_data)
-        cluster_labels = gmm.predict(cluster_data)
-    elif clustering_method == ClusteringMethod.VARIATIONAL:
-        bgmm = BayesianGaussianMixture(
-            n_components=num_clusters,
-            verbose=1,
-            covariance_type="diag",
-            init_params="k-means++",
-            tol=0.0001,
-        )
-        bgmm.fit(cluster_data)
-        cluster_labels = bgmm.predict_proba(cluster_data)
-    elif clustering_method == ClusteringMethod.GMM:
-        gmm = GaussianMixture(
-            n_components=num_clusters,
-            verbose=1,
-            covariance_type="diag",
-        )
-        gmm.fit(cluster_data)
-        cluster_labels = gmm.predict(cluster_data)
 
     if clustering_method == ClusteringMethod.VARIATIONAL:
         group_cluster_labels, agree_rates = _aggregate_and_sample(cluster_labels, child_group_lengths)
@@ -271,24 +246,9 @@ def _pair_clustering_keep_id(
     average_agree_rate = np.mean(agree_rates)
     log(INFO, f"Average agree rate: {average_agree_rate}")
 
-    group_assignment = np.repeat(group_cluster_labels, child_group_lengths, axis=0).reshape((-1, 1))
-
     # obtain the child data with clustering
+    group_assignment = np.repeat(group_cluster_labels, child_group_lengths, axis=0).reshape((-1, 1))
     sorted_child_data_with_cluster = np.concatenate([sorted_child_data, group_assignment], axis=1)
-
-    group_labels_list = group_cluster_labels
-    group_lengths_list = child_group_lengths.tolist()
-
-    group_lengths_dict: dict[int, dict[int, int]] = {}
-    for i in range(len(group_labels_list)):
-        group_label = group_labels_list[i]
-        if group_label not in group_lengths_dict:
-            group_lengths_dict[group_label] = defaultdict(int)
-        group_lengths_dict[group_label][group_lengths_list[i]] += 1
-
-    group_lengths_prob_dicts: dict[int, dict[int, float]] = {}
-    for group_label, freq_dict in group_lengths_dict.items():
-        group_lengths_prob_dicts[group_label] = _freq_to_prob(freq_dict)
 
     # recover the preprocessed data back to dataframe
     relation_cluster_name = f"{parent_name}_{child_name}_cluster"
@@ -305,28 +265,20 @@ def _pair_clustering_keep_id(
         how="left",
     )
 
-    parent_id_to_cluster: dict[Any, Any] = {}
-    for i in range(len(sorted_child_data)):
-        parent_id = sorted_child_data[i, foreign_key_index]
-        if parent_id in parent_id_to_cluster:
-            assert parent_id_to_cluster[parent_id] == sorted_child_data_with_cluster[i, -1]
-        else:
-            parent_id_to_cluster[parent_id] = sorted_child_data_with_cluster[i, -1]
-
-    max_cluster_label = max(parent_id_to_cluster.values())
-
-    parent_data_clusters = []
-    for i in range(len(parent_data)):
-        if parent_data[i, parent_primary_key_index] in parent_id_to_cluster:
-            parent_data_clusters.append(parent_id_to_cluster[parent_data[i, parent_primary_key_index]])
-        else:
-            parent_data_clusters.append(max_cluster_label + 1)
-
+    parent_data_clusters = _get_parent_data_clusters(
+        sorted_child_data,
+        sorted_child_data_with_cluster,
+        parent_data,
+        parent_primary_key_index,
+        foreign_key_index,
+    )
     parent_data_clusters_np = np.array(parent_data_clusters).reshape(-1, 1)
     parent_data_with_cluster = np.concatenate([parent_data, parent_data_clusters_np], axis=1)
     parent_df_with_cluster = pd.DataFrame(
         parent_data_with_cluster, columns=all_parent_columns + [relation_cluster_name]
     )
+
+    group_lengths_probabilities = _get_group_lengths_probabilities(group_cluster_labels, child_group_lengths)
 
     new_col_entry = {
         "type": "discrete",
@@ -338,7 +290,7 @@ def _pair_clustering_keep_id(
     parent_domain_dict[relation_cluster_name] = new_col_entry.copy()
     child_domain_dict[relation_cluster_name] = new_col_entry.copy()
 
-    return parent_df_with_cluster, child_df_with_cluster, group_lengths_prob_dicts
+    return parent_df_with_cluster, child_df_with_cluster, group_lengths_probabilities
 
 
 def _repeat_parent_data(
@@ -475,6 +427,97 @@ def _prepare_cluster_data(
         return np.concatenate((numerical_min_max, key_scaled), axis=1)
 
     return np.concatenate((numerical_min_max, categorical_one_hot, key_scaled), axis=1)
+
+
+def _get_cluster_labels(
+    cluster_data: np.ndarray,
+    clustering_method: ClusteringMethod,
+    num_clusters: int,
+) -> np.ndarray:
+    num_clusters = min(num_clusters, len(cluster_data))
+
+    if clustering_method == ClusteringMethod.KMEANS:
+        kmeans = KMeans(n_clusters=num_clusters, n_init="auto", init="k-means++")
+        kmeans.fit(cluster_data)
+        cluster_labels = kmeans.labels_
+    elif clustering_method == ClusteringMethod.KMEANS_AND_GMM:
+        gmm = GaussianMixture(
+            n_components=num_clusters,
+            verbose=1,
+            covariance_type="diag",
+            init_params="k-means++",
+            tol=0.0001,
+        )
+        gmm.fit(cluster_data)
+        cluster_labels = gmm.predict(cluster_data)
+    elif clustering_method == ClusteringMethod.VARIATIONAL:
+        bgmm = BayesianGaussianMixture(
+            n_components=num_clusters,
+            verbose=1,
+            covariance_type="diag",
+            init_params="k-means++",
+            tol=0.0001,
+        )
+        bgmm.fit(cluster_data)
+        cluster_labels = bgmm.predict_proba(cluster_data)
+    elif clustering_method == ClusteringMethod.GMM:
+        gmm = GaussianMixture(
+            n_components=num_clusters,
+            verbose=1,
+            covariance_type="diag",
+        )
+        gmm.fit(cluster_data)
+        cluster_labels = gmm.predict(cluster_data)
+
+    return cluster_labels
+
+
+def _get_group_lengths_probabilities(
+    group_cluster_labels: list[int],
+    child_group_lengths: np.ndarray,
+) -> dict[int, dict[int, float]]:
+    group_labels_list = group_cluster_labels
+    group_lengths_list = child_group_lengths.tolist()
+
+    group_lengths_dict: dict[int, dict[int, int]] = {}
+    for i in range(len(group_labels_list)):
+        group_label = group_labels_list[i]
+        if group_label not in group_lengths_dict:
+            group_lengths_dict[group_label] = defaultdict(int)
+        group_lengths_dict[group_label][group_lengths_list[i]] += 1
+
+    group_lengths_probabilities: dict[int, dict[int, float]] = {}
+    for group_label, frequencies_dict in group_lengths_dict.items():
+        group_lengths_probabilities[group_label] = _freq_to_prob(frequencies_dict)
+
+    return group_lengths_probabilities
+
+
+def _get_parent_data_clusters(
+    sorted_child_data: np.ndarray,
+    sorted_child_data_with_cluster: np.ndarray,
+    parent_data: np.ndarray,
+    parent_primary_key_index: int,
+    foreign_key_index: int,
+) -> list[Any]:
+    parent_id_to_cluster: dict[Any, Any] = {}
+    for i in range(len(sorted_child_data)):
+        parent_id = sorted_child_data[i, foreign_key_index]
+        if parent_id in parent_id_to_cluster:
+            assert parent_id_to_cluster[parent_id] == sorted_child_data_with_cluster[i, -1]
+        else:
+            parent_id_to_cluster[parent_id] = sorted_child_data_with_cluster[i, -1]
+
+    max_cluster_label = max(parent_id_to_cluster.values())
+
+    parent_data_clusters = []
+    for i in range(len(parent_data)):
+        if parent_data[i, parent_primary_key_index] in parent_id_to_cluster:
+            parent_data_clusters.append(parent_id_to_cluster[parent_data[i, parent_primary_key_index]])
+        else:
+            parent_data_clusters.append(max_cluster_label + 1)
+
+    return parent_data_clusters
 
 
 def _get_categorical_and_numerical_columns(
