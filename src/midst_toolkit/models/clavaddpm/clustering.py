@@ -265,23 +265,24 @@ def _pair_clustering_keep_id(
     )
 
     parent_data_clusters = _get_parent_data_clusters(
-        sorted_child_data,
         sorted_child_data_with_cluster,
         parent_data,
         parent_primary_key_index,
         foreign_key_index,
     )
-    parent_data_clusters_np = np.array(parent_data_clusters).reshape(-1, 1)
-    parent_data_with_cluster = np.concatenate([parent_data, parent_data_clusters_np], axis=1)
+    parent_data_with_cluster = np.concatenate([parent_data, parent_data_clusters], axis=1)
     parent_df_with_cluster = pd.DataFrame(
         parent_data_with_cluster, columns=all_parent_columns + [relation_cluster_name]
     )
 
-    group_lengths_probabilities = _get_group_lengths_probabilities(group_cluster_labels, child_group_lengths)
+    group_lengths_probabilities = _get_group_lengths_probabilities(
+        group_cluster_labels,
+        child_group_lengths.tolist(),
+    )
 
     new_col_entry = {
         "type": "discrete",
-        "size": len(set(parent_data_clusters_np.flatten())),
+        "size": len(set(parent_data_clusters.flatten())),
     }
 
     log(INFO, f"Number of cluster centers: {new_col_entry['size']}")
@@ -292,27 +293,40 @@ def _pair_clustering_keep_id(
     return parent_df_with_cluster, child_df_with_cluster, group_lengths_probabilities
 
 
-def _repeat_parent_data(
-    sorted_child_data: np.ndarray,
-    sorted_parent_data: np.ndarray,
+def _denormalize_parent_data(
+    child_data: np.ndarray,
+    parent_data: np.ndarray,
     parent_primary_key_index: int,
     foreign_key_index: int,
 ) -> np.ndarray:
-    child_group_data_dict = _get_group_data_dict(sorted_child_data, [foreign_key_index])
+    """
+    Denormalize the parent data in relation to the child group data,
+    i.e. duplicate the parent data for each element of the child group data.
+
+    Args:
+        child_data: Numpy array of the child data.
+        parent_data: Numpy array of the parent data.
+        parent_primary_key_index: Index of the parent primary key.
+        foreign_key_index: Index of the foreign key to the child data.
+
+    Returns:
+        Numpy array of the parent data denormalized for each group of the child group data.
+    """
+    child_group_data_dict = _get_group_data_dict(child_data, [foreign_key_index])
 
     group_lengths = []
-    unique_group_ids = sorted_parent_data[:, parent_primary_key_index]
+    unique_group_ids = parent_data[:, parent_primary_key_index]
     for group_id in unique_group_ids:
-        group_id = (group_id,)
-        if group_id not in child_group_data_dict:
+        group_id_tuple = (group_id,)
+        if group_id_tuple not in child_group_data_dict:
             group_lengths.append(0)
         else:
-            group_lengths.append(len(child_group_data_dict[group_id]))
+            group_lengths.append(len(child_group_data_dict[group_id_tuple]))
     group_lengths_np = np.array(group_lengths, dtype=int)
-    sorted_parent_data_repeated = np.repeat(sorted_parent_data, group_lengths_np, axis=0)
-    assert (sorted_parent_data_repeated[:, parent_primary_key_index] == sorted_child_data[:, foreign_key_index]).all()
+    denormalized_parent_data = np.repeat(parent_data, group_lengths_np, axis=0)
+    assert (denormalized_parent_data[:, parent_primary_key_index] == child_data[:, foreign_key_index]).all()
 
-    return sorted_parent_data_repeated
+    return denormalized_parent_data
 
 
 def _get_min_max_for_numerical_columns(
@@ -320,6 +334,17 @@ def _get_min_max_for_numerical_columns(
     parent_numerical_data: np.ndarray,
     parent_scale: float,
 ) -> np.ndarray:
+    """
+    Get the min-max values for the numerical columns in both the child and parent data.
+
+    Args:
+        child_numerical_data: Numpy array of the child numerical data.
+        parent_numerical_data: Numpy array of the parent numerical data.
+        parent_scale: Scaling factor applied to the parent data.
+
+    Returns:
+        Numpy array of the min-max values for the numerical columns.
+    """
     joint_matrix = np.concatenate([child_numerical_data, parent_numerical_data], axis=1)
     matrix_p_index = child_numerical_data.shape[1]
 
@@ -338,6 +363,17 @@ def _one_hot_encode_categorical_columns(
     parent_categorical_data: np.ndarray,
     parent_scale: float,
 ) -> np.ndarray | None:
+    """
+    One-hot encode the categorical columns in both the child and parent data.
+
+    Args:
+        child_categorical_data: Numpy array of the child categorical data.
+        parent_categorical_data: Numpy array of the parent categorical data.
+        parent_scale: Scaling factor applied to the parent data.
+
+    Returns:
+        Numpy array of the one-hot encoded categorical columns.
+    """
     joint_matrix = np.concatenate([child_categorical_data, parent_categorical_data], axis=1)
     if joint_matrix.shape[1] == 0:
         return None
@@ -381,10 +417,33 @@ def _prepare_cluster_data(
     parent_scale: float,
     key_scale: float,
 ) -> np.ndarray:
+    """
+    Prepare the data for the clustering algorithm, which comprises of denormalizing the parent data,
+    splitting the data into categorical and numerical columns, and normalizing the data.
+
+    Args:
+        child_data: Numpy array of the child data.
+        parent_data: Numpy array of the parent data.
+        child_domain_dict: Dictionary of the domain of the child table. The domain dictionary
+            holds metadata about the columns of each one of the tables.
+        parent_domain_dict: Dictionary of the domain of the parent table. The domain dictionary
+            holds metadata about the columns of each one of the tables.
+        all_child_columns: List of all child columns.
+        all_parent_columns: List of all parent columns.
+        parent_primary_key: Name of the parent primary key.
+        parent_scale: Scaling factor applied to the parent table, provided by the config.
+            It will be applied to the features to weight their importance during clustering.
+        key_scale: Scaling factor applied to the foreign key values that link
+            the child table to the parent table. This will weight how much influence
+            the parent-child relationship has in the clustering algorithm.
+
+    Returns:
+        Numpy array of the data prepared for the clustering algorithm.
+    """
     parent_primary_key_index = all_parent_columns.index(parent_primary_key)
     foreign_key_index = all_child_columns.index(parent_primary_key)
 
-    parent_data_repeated = _repeat_parent_data(
+    denormalized_parent_data = _denormalize_parent_data(
         child_data,
         parent_data,
         parent_primary_key_index,
@@ -404,8 +463,8 @@ def _prepare_cluster_data(
 
     child_numerical_data = child_data[:, child_numerical_columns]
     child_categorical_data = child_data[:, child_categorical_columns]
-    parent_numerical_data = parent_data_repeated[:, parent_numerical_columns]
-    parent_categorical_data = parent_data_repeated[:, parent_categorical_columns]
+    parent_numerical_data = denormalized_parent_data[:, parent_numerical_columns]
+    parent_categorical_data = denormalized_parent_data[:, parent_categorical_columns]
 
     numerical_min_max = _get_min_max_for_numerical_columns(
         child_numerical_data,
@@ -419,7 +478,7 @@ def _prepare_cluster_data(
         parent_scale,
     )
 
-    key_min_max = _min_max_normalize_sklearn(parent_data_repeated[:, parent_primary_key_index].reshape(-1, 1))
+    key_min_max = _min_max_normalize_sklearn(denormalized_parent_data[:, parent_primary_key_index].reshape(-1, 1))
     key_scaled = key_scale * key_min_max
 
     if categorical_one_hot is None:
@@ -433,6 +492,20 @@ def _get_cluster_labels(
     clustering_method: ClusteringMethod,
     num_clusters: int,
 ) -> np.ndarray:
+    """
+    Get the cluster labels from the clustering algorithm chosen by the given clustering method.
+    The cluster labels are obtained by fitting the clustering algorithm to the data prepared
+    for the clustering algorithm.
+
+    Args:
+        cluster_data: Numpy array of the data prepared for the clustering algorithm.
+        clustering_method: The clustering method to use.
+        num_clusters: Number of clusters. If the number of clusters is greater than the
+            number of data points, the number of clusters will be set to the number of data points.
+
+    Returns:
+        Numpy array of the cluster labels for the data.
+    """
     num_clusters = min(num_clusters, len(cluster_data))
 
     if clustering_method == ClusteringMethod.KMEANS:
@@ -473,17 +546,26 @@ def _get_cluster_labels(
 
 def _get_group_lengths_probabilities(
     group_cluster_labels: list[int],
-    child_group_lengths: np.ndarray,
+    child_group_lengths: list[int],
 ) -> dict[int, dict[int, float]]:
-    group_labels_list = group_cluster_labels
-    group_lengths_list = child_group_lengths.tolist()
+    """
+    Calculate the group lengths probabilities from the frequency in which the child group lengths
+    appear for each of the group cluster labels.
 
+    Args:
+        group_cluster_labels: List of the group cluster labels.
+        child_group_lengths: List of the child group lengths.
+
+    Returns:
+        Dictionary of the group lengths probabilities.
+        The keys are the group cluster labels and the values are the probabilities of the group lengths.
+    """
     group_lengths_dict: dict[int, dict[int, int]] = {}
-    for i in range(len(group_labels_list)):
-        group_label = group_labels_list[i]
+    for i in range(len(group_cluster_labels)):
+        group_label = group_cluster_labels[i]
         if group_label not in group_lengths_dict:
             group_lengths_dict[group_label] = defaultdict(int)
-        group_lengths_dict[group_label][group_lengths_list[i]] += 1
+        group_lengths_dict[group_label][child_group_lengths[i]] += 1
 
     group_lengths_probabilities: dict[int, dict[int, float]] = {}
     for group_label, frequencies_dict in group_lengths_dict.items():
@@ -493,19 +575,30 @@ def _get_group_lengths_probabilities(
 
 
 def _get_parent_data_clusters(
-    sorted_child_data: np.ndarray,
-    sorted_child_data_with_cluster: np.ndarray,
+    child_data_with_cluster: np.ndarray,
     parent_data: np.ndarray,
     parent_primary_key_index: int,
     foreign_key_index: int,
-) -> list[Any]:
+) -> np.ndarray:
+    """
+    Get the parent data clusters from the child data with cluster and the parent data.
+
+    Args:
+        child_data_with_cluster: Numpy array of the child data with cluster information.
+        parent_data: Numpy array of the parent data.
+        parent_primary_key_index: Index of the parent primary key.
+        foreign_key_index: Index of the foreign key to the child data.
+
+    Returns:
+        Numpy array of the parent data clusters.
+    """
     parent_id_to_cluster: dict[Any, Any] = {}
-    for i in range(len(sorted_child_data)):
-        parent_id = sorted_child_data[i, foreign_key_index]
+    for i in range(len(child_data_with_cluster)):
+        parent_id = child_data_with_cluster[i, foreign_key_index]
         if parent_id in parent_id_to_cluster:
-            assert parent_id_to_cluster[parent_id] == sorted_child_data_with_cluster[i, -1]
+            assert parent_id_to_cluster[parent_id] == child_data_with_cluster[i, -1]
         else:
-            parent_id_to_cluster[parent_id] = sorted_child_data_with_cluster[i, -1]
+            parent_id_to_cluster[parent_id] = child_data_with_cluster[i, -1]
 
     max_cluster_label = max(parent_id_to_cluster.values())
 
@@ -516,7 +609,7 @@ def _get_parent_data_clusters(
         else:
             parent_data_clusters.append(max_cluster_label + 1)
 
-    return parent_data_clusters
+    return np.array(parent_data_clusters).reshape(-1, 1)
 
 
 def _get_categorical_and_numerical_columns(
