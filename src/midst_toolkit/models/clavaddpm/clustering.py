@@ -197,11 +197,11 @@ def _pair_clustering_keep_id(
     parent_domain_dict = tables[parent_name]["domain"]
     child_primary_key = f"{child_name}_id"
     parent_primary_key = f"{parent_name}_id"
-    all_child_cols = list(child_df.columns)
-    all_parent_cols = list(parent_df.columns)
+    all_child_columns = list(child_df.columns)
+    all_parent_columns = list(parent_df.columns)
 
-    parent_primary_key_index = all_parent_cols.index(parent_primary_key)
-    foreign_key_index = all_child_cols.index(parent_primary_key)
+    parent_primary_key_index = all_parent_columns.index(parent_primary_key)
+    foreign_key_index = all_child_columns.index(parent_primary_key)
 
     # sort child data by foreign key
     child_data = child_df.to_numpy()
@@ -216,8 +216,8 @@ def _pair_clustering_keep_id(
         sorted_parent_data,
         child_domain_dict,
         parent_domain_dict,
-        all_child_cols,
-        all_parent_cols,
+        all_child_columns,
+        all_parent_columns,
         parent_primary_key,
         parent_scale,
         key_scale,
@@ -294,7 +294,7 @@ def _pair_clustering_keep_id(
     relation_cluster_name = f"{parent_name}_{child_name}_cluster"
     child_df_with_cluster = pd.DataFrame(
         sorted_child_data_with_cluster,
-        columns=all_child_cols + [relation_cluster_name],
+        columns=all_child_columns + [relation_cluster_name],
     )
 
     # recover child df order
@@ -324,7 +324,9 @@ def _pair_clustering_keep_id(
 
     parent_data_clusters_np = np.array(parent_data_clusters).reshape(-1, 1)
     parent_data_with_cluster = np.concatenate([parent_data, parent_data_clusters_np], axis=1)
-    parent_df_with_cluster = pd.DataFrame(parent_data_with_cluster, columns=all_parent_cols + [relation_cluster_name])
+    parent_df_with_cluster = pd.DataFrame(
+        parent_data_with_cluster, columns=all_parent_columns + [relation_cluster_name]
+    )
 
     new_col_entry = {
         "type": "discrete",
@@ -367,17 +369,17 @@ def _get_min_max_for_numerical_columns(
     parent_numerical_data: np.ndarray,
     parent_scale: float,
 ) -> np.ndarray:
-    joint_numerical_matrix = np.concatenate([child_numerical_data, parent_numerical_data], axis=1)
-    joint_num_matrix_p_index = child_numerical_data.shape[1]
+    joint_matrix = np.concatenate([child_numerical_data, parent_numerical_data], axis=1)
+    matrix_p_index = child_numerical_data.shape[1]
 
     # Perform quantile normalization using QuantileTransformer
-    num_quantile = _quantile_normalize_sklearn(joint_numerical_matrix)
-    num_min_max = _min_max_normalize_sklearn(joint_numerical_matrix)
+    numerical_quantile = _quantile_normalize_sklearn(joint_matrix)
+    numerical_min_max = _min_max_normalize_sklearn(joint_matrix)
 
-    num_quantile[:, joint_num_matrix_p_index:] = parent_scale * num_quantile[:, joint_num_matrix_p_index:]
-    num_min_max[:, joint_num_matrix_p_index:] = parent_scale * num_min_max[:, joint_num_matrix_p_index:]
+    numerical_quantile[:, matrix_p_index:] = parent_scale * numerical_quantile[:, matrix_p_index:]
+    numerical_min_max[:, matrix_p_index:] = parent_scale * numerical_min_max[:, matrix_p_index:]
 
-    return num_min_max
+    return numerical_min_max
 
 
 def _one_hot_encode_categorical_columns(
@@ -385,39 +387,36 @@ def _one_hot_encode_categorical_columns(
     parent_categorical_data: np.ndarray,
     parent_scale: float,
 ) -> np.ndarray | None:
-    joint_categorical_matrix = np.concatenate([child_categorical_data, parent_categorical_data], axis=1)
-    if joint_categorical_matrix.shape[1] == 0:
+    joint_matrix = np.concatenate([child_categorical_data, parent_categorical_data], axis=1)
+    if joint_matrix.shape[1] == 0:
         return None
 
-    joint_cat_matrix_p_index = child_categorical_data.shape[1]
+    matrix_p_index = child_categorical_data.shape[1]
 
-    cat_converted = []
-    label_encoders = []
-    for i in range(joint_categorical_matrix.shape[1]):
+    categories_converted = []
+    for i in range(joint_matrix.shape[1]):
         # A threshold of 1000 unique values is used to prevent the one-hot encoding of large categorical columns
-        if len(np.unique(joint_categorical_matrix[:, i])) > 1000:
+        if len(np.unique(joint_matrix[:, i])) > 1000:
             log(WARNING, f"Categorical column '{i}' has more than 1000 unique values, skipping...")
             continue
 
-        label_encoder = LabelEncoder()
-        cat_converted.append(label_encoder.fit_transform(joint_categorical_matrix[:, i]).astype(float))
-        label_encoders.append(label_encoder)
+        categories_converted.append(LabelEncoder().fit_transform(joint_matrix[:, i]).astype(float))
 
-    cat_converted_transposed = np.vstack(cat_converted).T
+    transposed_categories = np.vstack(categories_converted).T
 
     # Initialize an empty array to store the encoded values
-    cat_one_hot = np.empty((cat_converted_transposed.shape[0], 0))
+    categorical_one_hot = np.empty((transposed_categories.shape[0], 0))
 
     # Loop through each column in the data and encode it
-    for col in range(cat_converted_transposed.shape[1]):
+    for column in range(transposed_categories.shape[1]):
         encoder = OneHotEncoder(sparse_output=False)
-        column = cat_converted_transposed[:, col].reshape(-1, 1)
-        encoded_column = encoder.fit_transform(column)
-        cat_one_hot = np.concatenate((cat_one_hot, encoded_column), axis=1)
+        reshaped_column = transposed_categories[:, column].reshape(-1, 1)
+        encoded_column = encoder.fit_transform(reshaped_column)
+        categorical_one_hot = np.concatenate((categorical_one_hot, encoded_column), axis=1)
 
-    cat_one_hot[:, joint_cat_matrix_p_index:] = parent_scale * cat_one_hot[:, joint_cat_matrix_p_index:]
+    categorical_one_hot[:, matrix_p_index:] = parent_scale * categorical_one_hot[:, matrix_p_index:]
 
-    return cat_one_hot
+    return categorical_one_hot
 
 
 def _prepare_cluster_data(
@@ -425,14 +424,14 @@ def _prepare_cluster_data(
     parent_data: np.ndarray,
     child_domain_dict: dict[str, Any],
     parent_domain_dict: dict[str, Any],
-    all_child_cols: list[str],
-    all_parent_cols: list[str],
+    all_child_columns: list[str],
+    all_parent_columns: list[str],
     parent_primary_key: str,
     parent_scale: float,
     key_scale: float,
 ) -> np.ndarray:
-    parent_primary_key_index = all_parent_cols.index(parent_primary_key)
-    foreign_key_index = all_child_cols.index(parent_primary_key)
+    parent_primary_key_index = all_parent_columns.index(parent_primary_key)
+    foreign_key_index = all_child_columns.index(parent_primary_key)
 
     parent_data_repeated = _repeat_parent_data(
         child_data,
@@ -443,13 +442,19 @@ def _prepare_cluster_data(
 
     # Splitting the data columns into categorical and numerical based on the domain dictionary.
     # Columns that are not in the domain dictionary are ignored (except for the primary and foreign keys).
-    child_num_cols, child_cat_cols = _get_categorical_and_numerical_columns(all_child_cols, child_domain_dict)
-    parent_num_cols, parent_cat_cols = _get_categorical_and_numerical_columns(all_parent_cols, parent_domain_dict)
+    child_numerical_columns, child_categorical_columns = _get_categorical_and_numerical_columns(
+        all_child_columns,
+        child_domain_dict,
+    )
+    parent_numerical_columns, parent_categorical_columns = _get_categorical_and_numerical_columns(
+        all_parent_columns,
+        parent_domain_dict,
+    )
 
-    child_numerical_data = child_data[:, child_num_cols]
-    child_categorical_data = child_data[:, child_cat_cols]
-    parent_numerical_data = parent_data_repeated[:, parent_num_cols]
-    parent_categorical_data = parent_data_repeated[:, parent_cat_cols]
+    child_numerical_data = child_data[:, child_numerical_columns]
+    child_categorical_data = child_data[:, child_categorical_columns]
+    parent_numerical_data = parent_data_repeated[:, parent_numerical_columns]
+    parent_categorical_data = parent_data_repeated[:, parent_categorical_columns]
 
     numerical_min_max = _get_min_max_for_numerical_columns(
         child_numerical_data,
