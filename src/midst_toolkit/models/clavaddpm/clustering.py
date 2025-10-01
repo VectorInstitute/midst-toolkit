@@ -158,7 +158,6 @@ def _run_clustering(
 
 
 def _pair_clustering_keep_id(
-    # ruff: noqa: PLR0912, PLR0915
     tables: Tables,
     child_name: str,
     parent_name: str,
