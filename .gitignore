@@ -38,3 +38,6 @@ examples/ensemble_attack/attack_results/
 
 # hydra output
 outputs/
+
+# mkdocs site
+site/

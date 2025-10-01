@@ -21,21 +21,21 @@ class StatisticalEvaluator(MetricEvaluator):
         return "stats"
 
     @abstractmethod
-    def _evaluate(self, X_gt: DataLoader, X_syn: DataLoader) -> dict: ...
+    def _evaluate(self, x_gt: DataLoader, x_syn: DataLoader) -> dict: ...
 
-    def evaluate(self, X_gt: DataLoader, X_syn: DataLoader) -> dict:
+    def evaluate(self, x_gt: DataLoader, x_syn: DataLoader) -> dict:
         """
         Performs evaluation using the ground truth and synthetic datasets as dataloaders by calling the internal
         ``_evaluate`` function of inheriting classes.
 
         Args:
-            X_gt: Dataloader with ground truth (real) data.
-            X_syn: Dataloader with synthetically generated data.
+            x_gt: Dataloader with ground truth (real) data.
+            x_syn: Dataloader with synthetically generated data.
 
         Returns:
             A dictionary of results from the evaluation
         """
-        return self._evaluate(X_gt, X_syn)
+        return self._evaluate(x_gt, x_syn)
 
     def evaluate_default(
         self,
@@ -257,7 +257,7 @@ class AlphaPrecision(StatisticalEvaluator):
         results[f"delta_coverage_beta{emb}"] = delta_coverage_beta
         results[f"authenticity{emb}"] = authenticity
 
-        X_df, X_syn_df = self._normalize_covariates(x, x_syn)
+        x_df, x_syn_df = self._normalize_covariates(x, x_syn)
         (
             _,
             _,
@@ -265,7 +265,7 @@ class AlphaPrecision(StatisticalEvaluator):
             delta_precision_alpha_naive,
             delta_coverage_beta_naive,
             authenticity_naive,
-        ) = self.metrics(X_df.to_numpy(), X_syn_df.to_numpy(), emb_center=None)
+        ) = self.metrics(x_df.to_numpy(), x_syn_df.to_numpy(), emb_center=None)
 
         results["delta_precision_alpha_naive"] = delta_precision_alpha_naive
         results["delta_coverage_beta_naive"] = delta_coverage_beta_naive

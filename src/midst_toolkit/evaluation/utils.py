@@ -1,5 +1,5 @@
 import os
-from logging import WARNING
+from logging import INFO, WARNING
 from pathlib import Path
 from typing import Any
 
@@ -53,8 +53,8 @@ def extract_columns_based_on_meta_info(
     Args:
         data: Dataframe to be filtered using the meta information
         meta_info: JSON with meta information about the columns and their corresponding types that should be
-            considered. At minimum, it should have the keys 'num_col_idx', 'cat_col_idx', 'target_col_idx', and
-            'task_type'
+            considered. At minimum, it should have the keys 'num_col_idx', 'cat_col_idx'. If it also has a
+            'target_col_idx' it must also specify a 'task_type'.
 
     Returns:
         Filtered dataframes. The first dataframe is the filtered set of columns associated with numerical data. The
@@ -64,6 +64,7 @@ def extract_columns_based_on_meta_info(
     # Training the diffusion generators.
 
     # Enumerate columns and replace column name with index
+    data = data.copy()
     data.columns = list(range(len(data.columns)))
 
     # Get numerical and categorical column indices from meta info
@@ -71,13 +72,14 @@ def extract_columns_based_on_meta_info(
     numerical_column_idx = meta_info["num_col_idx"]
     categorical_column_idx = meta_info["cat_col_idx"]
 
-    # Target columns are also part of the generation, just need to add it to the right "category"
-    target_col_idx = meta_info["target_col_idx"]
-    task_type = TaskType(meta_info["task_type"])
-    if task_type == TaskType.REGRESSION:
-        numerical_column_idx = numerical_column_idx + target_col_idx
-    else:
-        categorical_column_idx = categorical_column_idx + target_col_idx
+    if "target_col_idx" in meta_info:
+        # Target columns are also part of the generation, just need to add it to the right "category"
+        target_col_idx = meta_info["target_col_idx"]
+        task_type = TaskType(meta_info["task_type"])
+        if task_type == TaskType.REGRESSION:
+            numerical_column_idx = numerical_column_idx + target_col_idx
+        else:
+            categorical_column_idx = categorical_column_idx + target_col_idx
 
     numerical_data = data[numerical_column_idx]
     categorical_data = data[categorical_column_idx]
@@ -97,6 +99,8 @@ def one_hot_encode_categoricals_and_merge_with_numerical(
     resulting, one-hot encoded, numpy arrays are then concatenated together numerical then one-hots for both the
     synthetic and real data.
 
+    NOTE: If the categorical arrays are empty, this function simply returns the numerical data.
+
     Args:
         real_categorical_data: Categorical data from the real dataset.
         synthetic_categorical_data: Categorical data from the synthetically generated dataset.
@@ -107,6 +111,10 @@ def one_hot_encode_categoricals_and_merge_with_numerical(
         Two pandas dataframes representing the numerical and categorical data concatenated together. First dataframe
         is the real data, second is the synthetic data.
     """
+    if real_categorical_data.shape[1] == 0:
+        log(INFO, "No categorical features are present. Returning just numerical data")
+        return pd.DataFrame(real_numerical_data).astype(float), pd.DataFrame(synthetic_numerical_data).astype(float)
+
     encoder = OneHotEncoder()
     one_hot_real_data = encoder.fit_transform(real_categorical_data).toarray()
     one_hot_synthetic_data = encoder.transform(synthetic_categorical_data).toarray()

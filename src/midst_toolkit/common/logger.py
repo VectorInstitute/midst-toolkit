@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from collections import defaultdict
 from io import StringIO
 from logging import LogRecord
 from pathlib import Path
@@ -174,3 +175,101 @@ def redirect_output(output_buffer: StringIO) -> None:
     sys.stdout = output_buffer
     sys.stderr = output_buffer
     console_handler.stream = sys.stdout
+
+
+class KeyValueLogger:
+    """Logger for key-value pairs of numerical metrics."""
+
+    def __init__(self, log_level: int = logging.DEBUG):
+        """
+        Initialize the key-value logger.
+
+        Args:
+            log_level: The log level to use when dumping the key-value pairs. Should match
+                one of the logging levels in the logging python module. Defaults to logging.DEBUG.
+        """
+        self.key_to_value: defaultdict[str, float] = defaultdict(float)
+        self.key_to_count: defaultdict[str, int] = defaultdict(int)
+        self.log_level = log_level
+
+    def save_entry(self, key: str, value: float) -> None:
+        """
+        Save an entry to the key-value logger.
+
+        Args:
+            key: The key to save.
+            value: The value to save.
+        """
+        self.key_to_value[key] = value
+
+    def save_entry_mean(self, key: str, value: float) -> None:
+        """
+        Save an entry to the key-value logger with mean calculation.
+
+        Args:
+            key: The key to save.
+            value: The value to add to the mean calculation.
+        """
+        old_value = self.key_to_value[key]
+        count = self.key_to_count[key]
+        self.key_to_value[key] = old_value * count / (count + 1) + value / (count + 1)
+        self.key_to_count[key] = count + 1
+
+    def dump(self) -> None:
+        """
+        Dump the key-value pairs at the log level specified in the constructor.
+
+        Will clear the key-value pairs after dumping.
+        """
+        # Create strings for printing
+        key_to_string = {}
+        for key, value in sorted(self.key_to_value.items()):
+            value_string = "%-8.3g" % value
+            key_to_string[self._truncate(key)] = self._truncate(value_string)
+
+        if len(key_to_string) == 0:
+            log(self.log_level, "WARNING: tried to write empty key-value dict")
+            return
+
+        # Find maximum number of characters for the keys and values
+        key_max_width = max(map(len, key_to_string.keys()))
+        value_max_width = max(map(len, key_to_string.values()))
+
+        # Write out the data
+        dashes = "-" * (key_max_width + value_max_width + 7)
+        log(self.log_level, dashes)
+        sorted_key_to_string = sorted(key_to_string.items(), key=lambda kv: kv[0].lower())
+        for k, v in sorted_key_to_string:
+            line = f"| {k}{self._add_spacing(k, key_max_width)} | {v}{self._add_spacing(v, value_max_width)} |"
+            log(self.log_level, line)
+        log(self.log_level, dashes)
+
+        # Clear the key-value pairs
+        self.key_to_value.clear()
+        self.key_to_count.clear()
+
+    def _truncate(self, s: str) -> str:
+        """
+        Truncate a string to a maximum length of 30 characters.
+
+        Args:
+            s: The string to truncate.
+
+        Returns:
+            The string truncated to 30 characters.
+        """
+        max_length = 30
+        return s[: max_length - 3] + "..." if len(s) > max_length else s
+
+    def _add_spacing(self, element: str, max_width: int) -> str:
+        """
+        Add spacing to an element to make it the same length as the maximum width.
+
+        Args:
+            element: The element to add spacing to.
+            max_width: The maximum width to add spacing to.
+
+        Returns:
+            The element with spacing added to make it the same length as the maximum width.
+        """
+        return " " * (max_width - len(element))

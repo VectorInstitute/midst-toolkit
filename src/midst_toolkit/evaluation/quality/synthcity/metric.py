@@ -5,11 +5,9 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.evaluation.quality.synthcity.dataloader import DataLoader
 from midst_toolkit.evaluation.quality.synthcity.one_class import OneClassLayer
-
-
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class MetricEvaluator(metaclass=ABCMeta):
@@ -107,9 +105,9 @@ class MetricEvaluator(metaclass=ABCMeta):
 
         return model.to(DEVICE)
 
-    def _oneclass_predict(self, model: OneClassLayer, X: np.ndarray) -> np.ndarray:
+    def _oneclass_predict(self, model: OneClassLayer, x: np.ndarray) -> np.ndarray:
         with torch.no_grad():
-            return model(torch.from_numpy(X).float().to(DEVICE)).cpu().detach().numpy()
+            return model(torch.from_numpy(x).float().to(DEVICE)).cpu().detach().numpy()
 
     def use_cache(self, path: Path) -> bool:
         """Whether to save information to the provided path."""
