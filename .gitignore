@@ -34,3 +34,6 @@ examples/**/data/
 
 # hydra output
 outputs/
+
+# mkdocs site
+site/
