@@ -22,14 +22,14 @@ pipeline:
 # Dataset specific information used for processing in this example
 data_processing_config:
   collect_attack_data_types:
-          [
-            "tabddpm_black_box",
-            "tabsyn_black_box",
-            "tabddpm_white_box",
-            "tabsyn_white_box",
-            "clavaddpm_black_box",
-            "clavaddpm_white_box",
-          ]
+        [
+          "tabddpm_black_box",
+          "tabsyn_black_box",
+          "tabddpm_white_box",
+          "tabsyn_white_box",
+          "clavaddpm_black_box",
+          "clavaddpm_white_box",
+        ]
   # The column name in the data to be used for stratified splitting.
   column_to_stratify: "trans_type"  # Attention: This value is not documented in the original codebase.
   folder_ranges:
@@ -53,42 +53,6 @@ data_configs:
       "numerical": ["trans_date", "amount", "balance", "account"]
       "categorical": ["trans_type", "operation", "k_symbol", "bank"]
       "variable_to_predict": "trans_type"
-
-  col_type:
-      "float": ["amount", "balance"]
-      "int": [
-          "trans_date",
-          "account",
-          "trans_type",
-          "operation",
-          "k_symbol",
-          "bank",
-      ]
-
-  bounds:
-      "trans_type":
-        "categories": ["0", "1", "2"]
-      "operation":
-        "categories": ["0", "1", "2", "3", "4", "5"]
-      "k_symbol":
-        "categories": ["0", "1", "2", "3", "4", "5", "6", "7", "8"]
-      "bank":
-        "categories": [
-            "0",
-            "1",
-            "2",
-            "3",
-            "4",
-            "5",
-            "6",
-            "7",
-            "8",
-            "9",
-            "10",
-            "11",
-            "12",
-            "13",
-          ]
 
 
 # Training settings (placeholder)
