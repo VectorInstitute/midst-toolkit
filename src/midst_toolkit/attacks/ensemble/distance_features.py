@@ -109,7 +109,7 @@ def calculate_domias_score(
         where=reference_data_probability > 0,
     )
 
-    # Scale to [0, 1]
+    # Scale to [0, 1] (Reshape to 2D for MinMaxScaler, and then flatten back to 1D)
     pred_proba_domias = MinMaxScaler().fit_transform(density_ratio.reshape(-1, 1)).ravel()
 
     return pd.DataFrame(pred_proba_domias, columns=["domias"], index=df_input.index)
