@@ -722,7 +722,7 @@ def normalize(
 # Can they be made a little more similar to each other (in terms of signature)?
 def process_nans_in_numerical_features(dataset: Dataset, policy: NumericalNaNPolicy | None) -> Dataset:
     """
-    Process the NaN values in the numerical features of thedataset.
+    Process the NaN values in the numerical features of the dataset.
 
     Args:
         dataset: The dataset to process.
