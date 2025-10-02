@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-from midst_toolkit.common.enumerations import DataSplit
+from midst_toolkit.common.enumerations import DataSplit, DomainDataType, InfoDataType, TaskType
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.dataset import Dataset
 from midst_toolkit.models.clavaddpm.enumerations import TargetType
@@ -96,13 +96,13 @@ def get_info_from_domain(data: pd.DataFrame, tables_domain: dict[str, Any]) -> d
     info["cat_col_idx"] = []
     columns = data.columns.tolist()
     for i in range(len(columns)):
-        if tables_domain[columns[i]]["type"] == "discrete":
+        if tables_domain[columns[i]]["type"] == DomainDataType.DISCRETE.value:
             info["cat_col_idx"].append(i)
         else:
             info["num_col_idx"].append(i)
 
     info["target_col_idx"] = []
-    info["task_type"] = "None"
+    info["task_type"] = None
     info["column_names"] = columns
 
     return info
@@ -195,24 +195,24 @@ def process_pipeline_data(
 
     for column in numerical_column_indices:
         columns_info[column] = {}
-        columns_info["type"] = "numerical"
+        columns_info["type"] = InfoDataType.NUMERICAL.value
         columns_info["max"] = float(train_data[column].max())
         columns_info["min"] = float(train_data[column].min())
 
     for column in categorical_column_indices:
         columns_info[column] = {}
-        columns_info["type"] = "categorical"
+        columns_info["type"] = InfoDataType.CATEGORICAL.value
         columns_info["categorizes"] = list(set(train_data[column]))
 
     for column in target_columns_indices:
-        if info["task_type"] == "regression":
+        if info["task_type"] == TaskType.REGRESSION.value:
             columns_info[column] = {}
-            columns_info["type"] = "numerical"
+            columns_info["type"] = InfoDataType.NUMERICAL.value
             columns_info["max"] = float(train_data[column].max())
             columns_info["min"] = float(train_data[column].min())
         else:
             columns_info[column] = {}
-            columns_info["type"] = "categorical"
+            columns_info["type"] = InfoDataType.CATEGORICAL.value
             columns_info["categorizes"] = list(set(train_data[column]))
 
     info["column_info"] = columns_info
@@ -300,24 +300,24 @@ def process_pipeline_data(
     target_columns_indices = info["target_col_idx"]
 
     for i in numerical_column_indices:
-        metadata["columns"][i] = {}
-        metadata["columns"][i]["sdtype"] = "numerical"
-        metadata["columns"][i]["computer_representation"] = "Float"
+        metadata["columns"][i] = {
+            "sdtype": InfoDataType.NUMERICAL.value,
+            "computer_representation": "Float",
+        }
 
     for i in categorical_column_indices:
-        metadata["columns"][i] = {}
-        metadata["columns"][i]["sdtype"] = "categorical"
+        metadata["columns"][i] = {"sdtype": InfoDataType.CATEGORICAL.value}
 
-    if task_type == "regression":
+    if task_type == TaskType.REGRESSION.value:
         for i in target_columns_indices:
-            metadata["columns"][i] = {}
-            metadata["columns"][i]["sdtype"] = "numerical"
-            metadata["columns"][i]["computer_representation"] = "Float"
+            metadata["columns"][i] = {
+                "sdtype": InfoDataType.NUMERICAL.value,
+                "computer_representation": "Float",
+            }
 
     else:
         for i in target_columns_indices:
-            metadata["columns"][i] = {}
-            metadata["columns"][i]["sdtype"] = "categorical"
+            metadata["columns"][i] = {"sdtype": InfoDataType.CATEGORICAL.value}
 
     info["metadata"] = metadata
 

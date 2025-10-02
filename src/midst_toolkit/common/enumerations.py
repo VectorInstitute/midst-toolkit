@@ -25,3 +25,17 @@ class DataSplit(Enum):
     TRAIN = "train"
     VALIDATION = "val"
     TEST = "test"
+
+
+class DomainDataType(Enum):
+    """Possible types of domain data."""
+
+    CONTINUOUS = "continuous"
+    DISCRETE = "discrete"
+
+
+class InfoDataType(Enum):
+    """Possible types of column information data."""
+
+    NUMERICAL = "numerical"
+    CATEGORICAL = "categorical"

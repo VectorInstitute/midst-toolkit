@@ -13,6 +13,7 @@ import torch.nn.functional as F
 # ruff: noqa: N812
 from torch import Tensor, nn
 
+from midst_toolkit.common.enumerations import DomainDataType, TaskType
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.enumerations import IsTargetCondioned, ModuleType
 
@@ -137,7 +138,7 @@ def get_table_info(df: pd.DataFrame, tables_domain: dict[str, Any], y_col: str) 
     num_cols = []
     for col in df.columns:
         if col in tables_domain and col != y_col:
-            if tables_domain[col]["type"] == "discrete":
+            if tables_domain[col]["type"] == DomainDataType.DISCRETE.value:
                 cat_cols.append(col)
             else:
                 num_cols.append(col)
@@ -147,7 +148,7 @@ def get_table_info(df: pd.DataFrame, tables_domain: dict[str, Any], y_col: str) 
     df_info["num_cols"] = num_cols
     df_info["y_col"] = y_col
     df_info["n_classes"] = 0
-    df_info["task_type"] = "multiclass"
+    df_info["task_type"] = TaskType.MULTICLASS.value
 
     return df_info
 

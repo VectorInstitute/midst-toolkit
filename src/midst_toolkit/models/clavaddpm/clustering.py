@@ -13,6 +13,7 @@ from sklearn.cluster import KMeans
 from sklearn.mixture import BayesianGaussianMixture, GaussianMixture
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler, OneHotEncoder, QuantileTransformer
 
+from midst_toolkit.common.enumerations import DomainDataType
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.enumerations import (
     ClusteringMethod,
@@ -281,7 +282,7 @@ def _pair_clustering(
     )
 
     new_col_entry = {
-        "type": "discrete",
+        "type": DomainDataType.DISCRETE.value,
         "size": len(set(parent_data_clusters.flatten())),
     }
 
@@ -631,7 +632,7 @@ def _get_categorical_and_numerical_columns(
 
     for col_index, col in enumerate(all_columns):
         if col in tables_domain:
-            if tables_domain[col]["type"] == "discrete":
+            if tables_domain[col]["type"] == DomainDataType.DISCRETE.value:
                 categorical_columns.append(col_index)
             else:
                 numerical_columns.append(col_index)
