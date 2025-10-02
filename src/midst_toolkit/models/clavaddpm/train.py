@@ -304,8 +304,8 @@ def train_model(
         data_frame,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
-        ratios=data_split_ratios,
-        df_info=data_frame_info,
+        data_split_ratios=data_split_ratios,
+        info=data_frame_info,
         std=0,
     )
 
@@ -419,8 +419,8 @@ def train_classifier(
         data_frame,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
-        ratios=data_split_ratios,
-        df_info=data_frame_info,
+        data_split_ratios=data_split_ratios,
+        info=data_frame_info,
         std=0,
     )
     print(dataset.n_features)
