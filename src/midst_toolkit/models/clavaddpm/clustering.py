@@ -141,7 +141,7 @@ def _run_clustering(
                 parent_df_with_cluster,
                 child_df_with_cluster,
                 group_lengths_prob_dicts,
-            ) = _pair_clustering_keep_id(
+            ) = _pair_clustering(
                 tables,
                 child,
                 parent,
@@ -157,7 +157,7 @@ def _run_clustering(
     return tables, all_group_lengths_prob_dicts
 
 
-def _pair_clustering_keep_id(
+def _pair_clustering(
     tables: Tables,
     child_name: str,
     parent_name: str,
