@@ -615,14 +615,14 @@ def _get_parent_data_clusters(
 
 def _get_categorical_and_numerical_columns(
     all_columns: list[str],
-    tables_domain: dict[str, Any],
+    table_domain: dict[str, Any],
 ) -> tuple[list[int], list[int]]:
     """
     Return the list of numerical and categorical column indices from the domain dictionary.
 
     Args:
         all_columns: List of all columns.
-        tables_domain: Dictionary of the tables' domain.
+        table_domain: Dictionary of the table's domain containing metadata about the data columns.
 
     Returns:
         Tuple with two lists of indices, one for the numerical columns and one for the categorical columns.
@@ -631,8 +631,8 @@ def _get_categorical_and_numerical_columns(
     categorical_columns = []
 
     for col_index, col in enumerate(all_columns):
-        if col in tables_domain:
-            if tables_domain[col]["type"] == DomainDataType.DISCRETE.value:
+        if col in table_domain:
+            if table_domain[col]["type"] == DomainDataType.DISCRETE.value:
                 categorical_columns.append(col_index)
             else:
                 numerical_columns.append(col_index)
