@@ -75,13 +75,13 @@ def load_multi_table(
     return tables, relation_order, dataset_meta
 
 
-def get_info_from_domain(data: pd.DataFrame, tables_domain: dict[str, Any]) -> dict[str, Any]:
+def get_info_from_domain(data: pd.DataFrame, table_domain: dict[str, Any]) -> dict[str, Any]:
     """
     Get the information dictionary from the table domain dictionary.
 
     Args:
         data: The dataframe containing the data.
-        tables_domain: The tables' domain dictionary containing metadata about the data columns.
+        table_domain: The table's domain dictionary containing metadata about the data columns.
 
     Returns:
         The information dictionary containing the following keys:
@@ -96,7 +96,7 @@ def get_info_from_domain(data: pd.DataFrame, tables_domain: dict[str, Any]) -> d
     info["cat_col_idx"] = []
     columns = data.columns.tolist()
     for i in range(len(columns)):
-        if tables_domain[columns[i]]["type"] == DomainDataType.DISCRETE.value:
+        if table_domain[columns[i]]["type"] == DomainDataType.DISCRETE.value:
             info["cat_col_idx"].append(i)
         else:
             info["num_col_idx"].append(i)
