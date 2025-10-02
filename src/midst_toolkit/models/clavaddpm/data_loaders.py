@@ -1,6 +1,7 @@
 import json
 import os
 from collections.abc import Generator
+from dataclasses import dataclass
 from logging import INFO
 from pathlib import Path
 from typing import Any, Self
@@ -27,7 +28,7 @@ def load_multi_table(
         data_dir: The directory to load the dataset from.
         verbose: Whether to print verbose output. Optional, default is True.
         training_data_ratio: The ratio of the data to be used for training. Should be between 0 and 1.
-            If it's == 1, it will only return the training set. Optional, default is 1.
+            If it's equal to 1, it will only return the training set. Optional, default is 1.
 
     Returns:
         A tuple with 3 values:
@@ -108,8 +109,23 @@ def get_info_from_domain(data: pd.DataFrame, tables_domain: dict[str, Any]) -> d
     return info
 
 
+@dataclass
+class DataFeatures:
+    data: pd.DataFrame
+    numerical_features: np.ndarray | None = None
+    categorical_features: np.ndarray | None = None
+    target_features: np.ndarray | None = None
+
+
+@dataclass
+class DataSplits:
+    train_data: DataFeatures
+    test_data: DataFeatures | None = None
+    seed: int | None = None
+
+
 def process_pipeline_data(
-    # ruff: noqa: PLR0915, PLR0912
+    # ruff: noqa: PLR0912, PLR0915
     table_name: str,
     data: pd.DataFrame,
     info: dict[str, Any],
@@ -130,7 +146,7 @@ def process_pipeline_data(
         data: The dataframe containing the data.
         info: The information dictionary, retrieved from the get_info_from_domain function.
         training_data_ratio: The ratio of the data to be used for training. Should be between 0 and 1.
-            If it's == 1, it will only return the training set. Optional, default is 0.9.
+            If it's equal to 1, it will only return the training set. Optional, default is 0.9.
         save: Whether to save the data. Optional, default is False.
         verbose: Whether to print verbose output. Optional, default is True.
 
@@ -153,8 +169,6 @@ def process_pipeline_data(
     if training_data_ratio == 1:
         log(INFO, "Training data ratio is 1, so the data will not be split into training and test sets.")
 
-    num_samples = data.shape[0]
-
     column_names = info["column_names"] if info["column_names"] else data.columns.tolist()
 
     numerical_column_indices = info["num_col_idx"]
@@ -172,122 +186,61 @@ def process_pipeline_data(
     categorical_columns = [column_names[i] for i in categorical_column_indices]
     target_columns = [column_names[i] for i in target_columns_indices]
 
-    # Train/ Test Split:
-    # num_train_samples% for Training, (1 - num_test_samples)% for Testing
-    # Validation set will be selected from Training set
-    num_train_samples = int(num_samples * training_data_ratio)
-    num_test_samples = num_samples - num_train_samples
+    data_splits = train_test_split(data, categorical_columns, training_data_ratio)
 
-    test_data: pd.DataFrame | None = None
+    data_splits.train_data.data.columns = list(range(len(data_splits.train_data.data.columns)))
 
-    if training_data_ratio < 1:
-        train_data, test_data, _ = train_test_split(data, categorical_columns, num_train_samples, num_test_samples)
-    else:
-        train_data = data.copy()
+    if data_splits.test_data is not None:
+        data_splits.test_data.data.columns = list(range(len(data_splits.test_data.data.columns)))
 
-    train_data.columns = list(range(len(train_data.columns)))
+    info["column_info"] = _get_columns_info(
+        data_splits.train_data.data,
+        numerical_column_indices,
+        categorical_column_indices,
+        target_columns_indices,
+        TaskType(info["task_type"]) if info["task_type"] else None,
+    )
 
-    if training_data_ratio < 1:
-        assert test_data is not None
-        test_data.columns = list(range(len(test_data.columns)))
-
-    columns_info: dict[Any, Any] = {}
-
-    for column in numerical_column_indices:
-        columns_info[column] = {}
-        columns_info["type"] = InfoDataType.NUMERICAL.value
-        columns_info["max"] = float(train_data[column].max())
-        columns_info["min"] = float(train_data[column].min())
-
-    for column in categorical_column_indices:
-        columns_info[column] = {}
-        columns_info["type"] = InfoDataType.CATEGORICAL.value
-        columns_info["categorizes"] = list(set(train_data[column]))
-
-    for column in target_columns_indices:
-        if info["task_type"] == TaskType.REGRESSION.value:
-            columns_info[column] = {}
-            columns_info["type"] = InfoDataType.NUMERICAL.value
-            columns_info["max"] = float(train_data[column].max())
-            columns_info["min"] = float(train_data[column].min())
-        else:
-            columns_info[column] = {}
-            columns_info["type"] = InfoDataType.CATEGORICAL.value
-            columns_info["categorizes"] = list(set(train_data[column]))
-
-    info["column_info"] = columns_info
-
-    train_data.rename(columns=index_to_name_mapping, inplace=True)
-    if training_data_ratio < 1:
-        assert test_data is not None
-        test_data.rename(columns=index_to_name_mapping, inplace=True)
+    data_splits.train_data.data.rename(columns=index_to_name_mapping, inplace=True)
+    if data_splits.test_data is not None:
+        data_splits.test_data.data.rename(columns=index_to_name_mapping, inplace=True)
 
     for col in numerical_columns:
-        train_data.loc[train_data[col] == "?", col] = np.nan
+        data_splits.train_data.data.loc[data_splits.train_data.data[col] == "?", col] = np.nan
     for col in categorical_columns:
-        train_data.loc[train_data[col] == "?", col] = "nan"
+        data_splits.train_data.data.loc[data_splits.train_data.data[col] == "?", col] = "nan"
 
-    if training_data_ratio < 1:
-        assert test_data is not None
+    if data_splits.test_data is not None:
         for col in numerical_columns:
-            test_data.loc[test_data[col] == "?", col] = np.nan
+            data_splits.test_data.data.loc[data_splits.test_data.data[col] == "?", col] = np.nan
         for col in categorical_columns:
-            test_data.loc[test_data[col] == "?", col] = "nan"
+            data_splits.test_data.data.loc[data_splits.test_data.data[col] == "?", col] = "nan"
 
-    x_num_train = train_data[numerical_columns].to_numpy().astype(np.float32)
-    x_cat_train = train_data[categorical_columns].to_numpy()
-    y_train = train_data[target_columns].to_numpy()
+    data_splits.train_data.numerical_features = (
+        data_splits.train_data.data[numerical_columns].to_numpy().astype(np.float32)
+    )
+    data_splits.train_data.categorical_features = data_splits.train_data.data[categorical_columns].to_numpy()
+    data_splits.train_data.target_features = data_splits.train_data.data[target_columns].to_numpy()
 
-    x_num_test: np.ndarray | None = None
-    x_cat_test: np.ndarray | None = None
-    y_test: np.ndarray | None = None
+    if data_splits.test_data is not None:
+        data_splits.test_data.numerical_features = (
+            data_splits.test_data.data[numerical_columns].to_numpy().astype(np.float32)
+        )
+        data_splits.test_data.categorical_features = data_splits.test_data.data[categorical_columns].to_numpy()
+        data_splits.test_data.target_features = data_splits.test_data.data[target_columns].to_numpy()
 
-    if training_data_ratio < 1:
-        assert test_data is not None
-        x_num_test = test_data[numerical_columns].to_numpy().astype(np.float32)
-        x_cat_test = test_data[categorical_columns].to_numpy()
-        y_test = test_data[target_columns].to_numpy()
+    data_splits.train_data.data[numerical_columns] = data_splits.train_data.data[numerical_columns].astype(np.float32)
 
-    if save:
-        save_dir = f"data/{table_name}"
-        np.save(f"{save_dir}/x_num_train.npy", x_num_train)
-        np.save(f"{save_dir}/x_cat_train.npy", x_cat_train)
-        np.save(f"{save_dir}/y_train.npy", y_train)
-
-        if training_data_ratio < 1:
-            assert x_num_test is not None and x_cat_test is not None and y_test is not None
-            np.save(f"{save_dir}/x_num_test.npy", x_num_test)
-            np.save(f"{save_dir}/x_cat_test.npy", x_cat_test)
-            np.save(f"{save_dir}/y_test.npy", y_test)
-
-    train_data[numerical_columns] = train_data[numerical_columns].astype(np.float32)
-
-    if training_data_ratio < 1:
-        assert test_data is not None
-        test_data[numerical_columns] = test_data[numerical_columns].astype(np.float32)
-
-    if save:
-        train_data.to_csv(f"{save_dir}/train.csv", index=False)
-
-        if training_data_ratio < 1:
-            assert test_data is not None
-            test_data.to_csv(f"{save_dir}/test.csv", index=False)
-
-        if not os.path.exists(f"synthetic/{table_name}"):
-            os.makedirs(f"synthetic/{table_name}")
-
-        train_data.to_csv(f"synthetic/{table_name}/real.csv", index=False)
-
-        if training_data_ratio < 1:
-            assert test_data is not None
-            test_data.to_csv(f"synthetic/{table_name}/test.csv", index=False)
+    if data_splits.test_data is not None:
+        data_splits.test_data.data[numerical_columns] = data_splits.test_data.data[numerical_columns].astype(
+            np.float32
+        )
 
     info["column_names"] = column_names
-    info["train_num"] = train_data.shape[0]
+    info["train_num"] = data_splits.train_data.data.shape[0]
 
-    if training_data_ratio < 1:
-        assert test_data is not None
-        info["test_num"] = test_data.shape[0]
+    if data_splits.test_data is not None:
+        info["test_num"] = data_splits.test_data.data.shape[0]
 
     info["idx_mapping"] = index_mapping
     info["inverse_idx_mapping"] = inverse_index_mapping
@@ -322,37 +275,34 @@ def process_pipeline_data(
     info["metadata"] = metadata
 
     if save:
-        with open(f"{save_dir}/info.json", "w") as file:
-            json.dump(info, file, indent=4)
+        _save_data_and_info(table_name, data_splits, info)
 
     if verbose:
-        if training_data_ratio < 1:
-            assert test_data is not None
-            str_shape = f"Train dataframe shape: {train_data.shape}, Test dataframe shape: {test_data.shape}, Total dataframe shape: {data.shape}"
+        if data_splits.test_data is not None:
+            str_shape = f"Train dataframe shape: {data_splits.train_data.data.shape}, Test dataframe shape: {data_splits.test_data.data.shape}, Total dataframe shape: {data.shape}"
         else:
             str_shape = f"Table name: {table_name}, Total dataframe shape: {data.shape}"
 
-        str_shape += f", Numerical data shape: {x_num_train.shape}"
-        str_shape += f", Categorical data shape: {x_cat_train.shape}"
+        str_shape += f", Numerical data shape: {data_splits.train_data.numerical_features.shape}"
+        str_shape += f", Categorical data shape: {data_splits.train_data.categorical_features.shape}"
         log(INFO, str_shape)
 
     output_data: dict[str, dict[str, Any]] = {
         "df": {
-            DataSplit.TRAIN.value: train_data,
+            DataSplit.TRAIN.value: data_splits.train_data.data,
         },
         "numpy": {
-            "x_num_train": x_num_train,
-            "x_cat_train": x_cat_train,
-            "y_train": y_train,
+            "x_num_train": data_splits.train_data.numerical_features,
+            "x_cat_train": data_splits.train_data.categorical_features,
+            "y_train": data_splits.train_data.target_features,
         },
     }
 
-    if training_data_ratio < 1:
-        assert test_data is not None and x_num_test is not None and x_cat_test is not None and y_test is not None
-        output_data["df"][DataSplit.TEST.value] = test_data
-        output_data["numpy"]["x_num_test"] = x_num_test
-        output_data["numpy"]["x_cat_test"] = x_cat_test
-        output_data["numpy"]["y_test"] = y_test
+    if data_splits.test_data is not None:
+        output_data["df"][DataSplit.TEST.value] = data_splits.test_data.data
+        output_data["numpy"]["x_num_test"] = data_splits.test_data.numerical_features
+        output_data["numpy"]["x_cat_test"] = data_splits.test_data.categorical_features
+        output_data["numpy"]["y_test"] = data_splits.test_data.target_features
 
     return output_data, info
 
@@ -424,13 +374,85 @@ def get_column_name_mapping(
     return index_mapping, inverse_index_mapping, index_to_name_mapping
 
 
+def _get_columns_info(
+    train_data: pd.DataFrame,
+    numerical_column_indices: list[int],
+    categorical_column_indices: list[int],
+    target_columns_indices: list[int],
+    task_type: TaskType | None,
+) -> dict[str, Any]:
+    columns_info: dict[Any, Any] = {}
+
+    for column in numerical_column_indices:
+        columns_info[column] = {}
+        columns_info["type"] = InfoDataType.NUMERICAL.value
+        columns_info["max"] = float(train_data[column].max())
+        columns_info["min"] = float(train_data[column].min())
+
+    for column in categorical_column_indices:
+        columns_info[column] = {}
+        columns_info["type"] = InfoDataType.CATEGORICAL.value
+        columns_info["categorizes"] = list(set(train_data[column]))
+
+    for column in target_columns_indices:
+        if task_type == TaskType.REGRESSION:
+            columns_info[column] = {}
+            columns_info["type"] = InfoDataType.NUMERICAL.value
+            columns_info["max"] = float(train_data[column].max())
+            columns_info["min"] = float(train_data[column].min())
+        else:
+            columns_info[column] = {}
+            columns_info["type"] = InfoDataType.CATEGORICAL.value
+            columns_info["categorizes"] = list(set(train_data[column]))
+
+    return columns_info
+
+
+def _save_data_and_info(
+    table_name: str,
+    data_splits: DataSplits,
+    info: dict[str, Any],
+) -> None:
+    save_dir = f"data/{table_name}"
+
+    data_splits.train_data.data.to_csv(f"{save_dir}/train.csv", index=False)
+
+    if data_splits.test_data is not None:
+        data_splits.test_data.data.to_csv(f"{save_dir}/test.csv", index=False)
+
+    if not os.path.exists(f"synthetic/{table_name}"):
+        os.makedirs(f"synthetic/{table_name}")
+
+    data_splits.train_data.data.to_csv(f"synthetic/{table_name}/real.csv", index=False)
+
+    if data_splits.test_data is not None:
+        data_splits.test_data.data.to_csv(f"synthetic/{table_name}/test.csv", index=False)
+
+    assert data_splits.train_data.numerical_features is not None
+    assert data_splits.train_data.categorical_features is not None
+    assert data_splits.train_data.target_features is not None
+    np.save(f"{save_dir}/x_num_train.npy", data_splits.train_data.numerical_features)
+    np.save(f"{save_dir}/x_cat_train.npy", data_splits.train_data.categorical_features)
+    np.save(f"{save_dir}/y_train.npy", data_splits.train_data.target_features)
+
+    if data_splits.test_data is not None:
+        assert data_splits.test_data.numerical_features is not None
+        assert data_splits.test_data.categorical_features is not None
+        assert data_splits.test_data.target_features is not None
+        np.save(f"{save_dir}/x_num_test.npy", data_splits.test_data.numerical_features)
+        np.save(f"{save_dir}/x_cat_test.npy", data_splits.test_data.categorical_features)
+        np.save(f"{save_dir}/y_test.npy", data_splits.test_data.target_features)
+
+    with open(f"{save_dir}/info.json", "w") as file:
+        json.dump(info, file, indent=4)
+
+
 # TODO: refactor this function so it doesn't run the risk of running indefinitely.
 def train_test_split(
     data: pd.DataFrame,
     categorical_columns: list[str],
-    num_train_samples: int = 0,
-    num_test_samples: int = 0,
-) -> tuple[pd.DataFrame, pd.DataFrame, int]:
+    training_data_ratio: float = 0.9,
+) -> DataSplits:
     """
     Split the data into training and test sets.
 
@@ -440,8 +462,8 @@ def train_test_split(
     Args:
         data: The dataframe containing the data.
         categorical_columns: The names of the categorical columns.
-        num_train_samples: The number of rows in the training set. Optional, default is 0.
-        num_test_samples: The number of rows in the test set. Optional, default is 0.
+        training_data_ratio: The ratio of the data to be used for training. Should be between 0 and 1.
+            If it's equal to 1, it will only return the training set. Optional, default is 0.9.
 
     Returns:
         A tuple with 3 values:
@@ -449,32 +471,44 @@ def train_test_split(
             - The test dataframe.
             - The seed used by the random number generator to generate the split.
     """
-    total_num = data.shape[0]
-    idx = np.arange(total_num)
+    if training_data_ratio == 1:
+        return DataSplits(train_data=DataFeatures(data=data.copy()), test_data=None, seed=None)
 
-    seed = 1234
+    # Train/ Test Split:# Train/ Test Split:
+    # num_train_samples% for Training, (1 - num_test_samples)% for Testing
+    # Validation set will be selected from Training set
+    num_samples = data.shape[0]
+    num_train_samples = int(num_samples * training_data_ratio)
+    num_test_samples = num_samples - num_train_samples
 
+    indices = np.arange(num_samples)
+    current_seed = 1234
     while True:
-        np.random.seed(seed)
-        np.random.shuffle(idx)
+        np.random.seed(current_seed)
+        np.random.shuffle(indices)
 
-        train_idx = idx[:num_train_samples]
-        test_idx = idx[-num_test_samples:]
+        train_indices = indices[:num_train_samples]
+        test_indices = indices[-num_test_samples:]
 
-        train_df = data.loc[train_idx]
-        test_df = data.loc[test_idx]
+        train_data = data.loc[train_indices]
+        test_data = data.loc[test_indices]
 
-        flag = 0
+        stop = True
         for i in categorical_columns:
-            if len(set(train_df[i])) != len(set(data[i])):
-                flag = 1
+            if len(set(train_data[i])) != len(set(data[i])):
+                stop = False
                 break
 
-        if flag == 0:
+        if stop:
             break
-        seed += 1
 
-    return train_df, test_df, seed
+        current_seed += 1
+
+    return DataSplits(
+        train_data=DataFeatures(data=train_data),
+        test_data=DataFeatures(data=test_data),
+        seed=current_seed,
+    )
 
 
 class FastTensorDataLoader:
