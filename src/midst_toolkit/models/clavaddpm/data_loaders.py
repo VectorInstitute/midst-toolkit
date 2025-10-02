@@ -3,14 +3,16 @@ import os
 from collections.abc import Generator
 from logging import INFO
 from pathlib import Path
-from typing import Any, Literal, Self
+from typing import Any, Self
 
 import numpy as np
 import pandas as pd
 import torch
 
+from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.dataset import Dataset
+from midst_toolkit.models.clavaddpm.enumerations import TargetType
 
 
 def load_multi_table(
@@ -132,8 +134,8 @@ def pipeline_process_data(
         A tuple with 2 values:
             - The data dictionary containing the following keys:
                 - "df": The dataframe containing the data.
-                    - "train": The dataframe containing the training set.
-                    - "test": The dataframe containing the test set. It will be absent if ratio == 1.
+                    - DataSplit.TRAIN: The dataframe containing the training set.
+                    - DataSplit.TEST: The dataframe containing the test set. It will be absent if ratio == 1.
                 - "numpy": A dictionary with the numeric data, containing the keys:
                     - "x_num_train": The numeric data for the training set.
                     - "x_cat_train": The categorical data for the training set.
@@ -326,7 +328,9 @@ def pipeline_process_data(
         log(INFO, str_shape)
 
     data: dict[str, dict[str, Any]] = {
-        "df": {"train": train_df},
+        "df": {
+            DataSplit.TRAIN.value: train_df,
+        },
         "numpy": {
             "x_num_train": x_num_train,
             "x_cat_train": x_cat_train,
@@ -336,7 +340,7 @@ def pipeline_process_data(
 
     if ratio < 1:
         assert test_df is not None and x_num_test is not None and x_cat_test is not None and y_test is not None
-        data["df"]["test"] = test_df
+        data["df"][DataSplit.TEST.value] = test_df
         data["numpy"]["x_num_test"] = x_num_test
         data["numpy"]["x_cat_test"] = x_cat_test
         data["numpy"]["y_test"] = y_test
@@ -529,9 +533,9 @@ class FastTensorDataLoader:
 
 def prepare_fast_dataloader(
     dataset: Dataset,
-    split: Literal["train", "val", "test"],
+    split: DataSplit,
     batch_size: int,
-    y_type: str = "float",
+    target_type: TargetType = TargetType.FLOAT,
 ) -> Generator[tuple[torch.Tensor, ...]]:
     """
     Prepare a fast dataloader for the dataset.
@@ -540,20 +544,28 @@ def prepare_fast_dataloader(
         dataset: The dataset to prepare the dataloader for.
         split: The split to prepare the dataloader for.
         batch_size: The batch size to use for the dataloader.
-        y_type: The type of the target values. Can be "float" or "long". Default is "float".
+        target_type: The type of the target values. Default is TargetType.FLOAT.
 
     Returns:
         A generator of batches of data from the dataset.
     """
     if dataset.x_cat is not None:
         if dataset.x_num is not None:
-            x = torch.from_numpy(np.concatenate([dataset.x_num[split], dataset.x_cat[split]], axis=1)).float()
+            concatenated_features = np.concatenate([dataset.x_num[split.value], dataset.x_cat[split.value]], axis=1)
+            x = torch.from_numpy(concatenated_features).float()
         else:
-            x = torch.from_numpy(dataset.x_cat[split]).float()
+            x = torch.from_numpy(dataset.x_cat[split.value]).float()
     else:
         assert dataset.x_num is not None
-        x = torch.from_numpy(dataset.x_num[split]).float()
-    y = torch.from_numpy(dataset.y[split]).float() if y_type == "float" else torch.from_numpy(dataset.y[split]).long()
-    dataloader = FastTensorDataLoader((x, y), batch_size=batch_size, shuffle=(split == "train"))
+        x = torch.from_numpy(dataset.x_num[split.value]).float()
+
+    if target_type == TargetType.FLOAT:
+        y = torch.from_numpy(dataset.y[split.value]).float()
+    elif target_type == TargetType.LONG:
+        y = torch.from_numpy(dataset.y[split.value]).long()
+    else:
+        raise ValueError(f"Unsupported target type: {target_type}")
+
+    dataloader = FastTensorDataLoader((x, y), batch_size=batch_size, shuffle=(split == DataSplit.TRAIN))
     while True:
         yield from dataloader

@@ -6,9 +6,8 @@ import pickle
 from collections import Counter
 from copy import deepcopy
 from dataclasses import astuple, dataclass, replace
-from enum import Enum
 from pathlib import Path
-from typing import Any, Literal, Self, cast
+from typing import Any, Self, cast
 
 import numpy as np
 import pandas as pd
@@ -28,7 +27,16 @@ from sklearn.preprocessing import (
     StandardScaler,
 )
 
-from midst_toolkit.models.clavaddpm.typing import ArrayDict
+from midst_toolkit.common.enumerations import DataSplit, PredictionType, TaskType
+from midst_toolkit.models.clavaddpm.enumerations import (
+    ArrayDict,
+    CategoricalEncoding,
+    CategoricalNaNPolicy,
+    IsTargetCondioned,
+    Normalization,
+    NumericalNaNPolicy,
+    TargetPolicy,
+)
 
 
 # TODO: Dunders are special case in python, rename these values to something else.
@@ -36,62 +44,20 @@ CAT_MISSING_VALUE = "__nan__"
 CAT_RARE_VALUE = "__rare__"
 
 
-Normalization = Literal["standard", "quantile", "minmax"]
-NumNanPolicy = Literal["drop-rows", "mean"]
-CatNanPolicy = Literal["most_frequent"]
-CatEncoding = Literal["one-hot", "counter"]
-YPolicy = Literal["default"]
-
-
-class TaskType(Enum):
-    BINCLASS = "binclass"
-    MULTICLASS = "multiclass"
-    REGRESSION = "regression"
-
-    def __str__(self) -> str:
-        """
-        Return the string representation of the task type, which is the value of the enum.
-
-        Returns:
-            The string representation of the task type.
-        """
-        return self.value
-
-
-class PredictionType(Enum):
-    LOGITS = "logits"
-    PROBS = "probs"
-
-
 @dataclass(frozen=True)
 class Transformations:
     seed: int = 0
     normalization: Normalization | None = None
-    num_nan_policy: NumNanPolicy | None = None
-    cat_nan_policy: CatNanPolicy | None = None
-    cat_min_frequency: float | None = None
-    cat_encoding: CatEncoding | None = None
-    y_policy: YPolicy | None = "default"
+    numerical_nan_policy: NumericalNaNPolicy | None = None
+    categorical_nan_policy: CategoricalNaNPolicy | None = None
+    category_minimum_frequency: float | None = None
+    categorical_encoding: CategoricalEncoding | None = CategoricalEncoding.ORDINAL
+    target_policy: TargetPolicy | None = TargetPolicy.DEFAULT
 
-
-# TODO move this into the Transformations' class init
-def get_T_dict() -> dict[str, Any]:
-    """
-    Return a dictionary used to initialize the transformation object.
-
-    Returns:
-        The transformation object default parameters.
-    """
-    # ruff: noqa: N802
-    return {
-        "seed": 0,
-        "normalization": "quantile",
-        "num_nan_policy": None,
-        "cat_nan_policy": None,
-        "cat_min_frequency": None,
-        "cat_encoding": None,
-        "y_policy": "default",
-    }
+    @classmethod
+    def default(cls) -> Self:
+        """Return the default transformations."""
+        return cls(seed=0, normalization=Normalization.QUANTILE, target_policy=TargetPolicy.DEFAULT)
 
 
 @dataclass(frozen=False)
@@ -102,8 +68,8 @@ class Dataset:
     y_info: dict[str, Any]
     task_type: TaskType
     n_classes: int | None
-    cat_transform: OneHotEncoder | None = None
-    num_transform: StandardScaler | None = None
+    categorical_transform: OneHotEncoder | None = None
+    numerical_transform: StandardScaler | None = None
 
     @classmethod
     def from_dir(cls, directory: Path) -> Self:
@@ -143,7 +109,7 @@ class Dataset:
         Returns:
             The loaded datasets with all the splits.
         """
-        splits = [k for k in ["train", "val", "test"] if directory.joinpath(f"y_{k}.npy").exists()]
+        splits = [k.value for k in list(DataSplit) if directory.joinpath(f"y_{k.value}.npy").exists()]
         # TODO: figure out if there is a way of getting rid of the cast
         return {x: cast(np.ndarray, np.load(directory / f"{dataset_name}_{x}.npy", allow_pickle=True)) for x in splits}
 
@@ -187,7 +153,7 @@ class Dataset:
         Returns:
             The number of numerical features in the dataset.
         """
-        return 0 if self.x_num is None else self.x_num["train"].shape[1]
+        return 0 if self.x_num is None else self.x_num[DataSplit.TRAIN.value].shape[1]
 
     @property
     def n_cat_features(self) -> int:
@@ -199,7 +165,7 @@ class Dataset:
         Returns:
             The number of categorical features in the dataset.
         """
-        return 0 if self.x_cat is None else self.x_cat["train"].shape[1]
+        return 0 if self.x_cat is None else self.x_cat[DataSplit.TRAIN.value].shape[1]
 
     @property
     def n_features(self) -> int:
@@ -211,8 +177,7 @@ class Dataset:
         """
         return self.n_num_features + self.n_cat_features
 
-    # TODO: make partition into an Enum
-    def size(self, split: Literal["train", "val", "test"] | None) -> int:
+    def size(self, split: DataSplit | None) -> int:
         """
         Get the size of a dataset split. If no split is provided, the size of
         the entire dataset is returned.
@@ -224,7 +189,7 @@ class Dataset:
         Returns:
             The size of the dataset.
         """
-        return sum(map(len, self.y.values())) if split is None else len(self.y[split])
+        return sum(map(len, self.y.values())) if split is None else len(self.y[split.value])
 
     @property
     def output_dimension(self) -> int:
@@ -243,7 +208,7 @@ class Dataset:
             return self.n_classes
         return 1
 
-    def get_category_sizes(self, split: Literal["train", "val", "test"]) -> list[int]:
+    def get_category_sizes(self, split: DataSplit) -> list[int]:
         """
         Get the size of the categories in the specified split of the dataset.
 
@@ -253,13 +218,12 @@ class Dataset:
         Returns:
             The size of the categories in the specified split of the dataset.
         """
-        return [] if self.x_cat is None else get_category_sizes(self.x_cat[split])
+        return [] if self.x_cat is None else get_category_sizes(self.x_cat[split.value])
 
-    # TODO: prediction_type should be of type PredictionType
     def calculate_metrics(
         self,
         predictions: dict[str, np.ndarray],
-        prediction_type: str | PredictionType | None,
+        prediction_type: PredictionType | None,
     ) -> dict[str, Any]:
         """
         Calculate the metrics of the predictions.
@@ -305,14 +269,14 @@ def get_category_sizes(x: torch.Tensor | np.ndarray) -> list[int]:
 def calculate_metrics(
     y_true: np.ndarray,
     y_pred: np.ndarray,
-    task_type: str | TaskType,
-    prediction_type: str | PredictionType | None,
+    task_type: TaskType,
+    prediction_type: PredictionType | None,
     y_info: dict[str, Any],
 ) -> dict[str, Any]:
     """
     Calculate the metrics of the predictions.
 
-    Usage: calculate_metrics(y_true, y_pred, 'binclass', 'logits', {})
+    Usage: calculate_metrics(y_true, y_pred, TaskType.BINCLASS, PredictionType.LOGITS, {})
 
     Args:
         y_true: The true labels as a numpy array.
@@ -357,10 +321,6 @@ def calculate_metrics(
                     "roc_auc": The ROC AUC score.
                 }
     """
-    task_type = TaskType(task_type)
-    if prediction_type is not None:
-        prediction_type = PredictionType(prediction_type)
-
     if task_type == TaskType.REGRESSION:
         assert prediction_type is None
         assert "std" in y_info
@@ -405,14 +365,16 @@ def _get_predicted_labels_and_probs(
 
     Args:
         y_pred: The predicted labels as a numpy array.
-        task_type: The type of the task.
-        prediction_type: The type of the predictions.
+        task_type: The type of the task. Can be TaskType.BINCLASS or TaskType.MULTICLASS.
+            Other task types are not supported.
+        prediction_type: The type of the predictions. If None, will return the predictions as labels
+            and probabilities as None.
 
     Returns:
         A tuple with the labels and probabilities. The probabilities are None
             if the prediction_type is None.
     """
-    assert task_type in (TaskType.BINCLASS, TaskType.MULTICLASS)
+    assert task_type in (TaskType.BINCLASS, TaskType.MULTICLASS), f"Unsupported task type: {task_type.value}"
 
     if prediction_type is None:
         return y_pred, None
@@ -422,7 +384,7 @@ def _get_predicted_labels_and_probs(
     elif prediction_type == PredictionType.PROBS:
         probs = y_pred
     else:
-        raise ValueError(f"Unknown prediction_type: {prediction_type}")
+        raise ValueError(f"Unsupported prediction_type: {prediction_type.value}")
 
     assert probs is not None
     labels = np.round(probs) if task_type == TaskType.BINCLASS else probs.argmax(axis=1)
@@ -433,7 +395,7 @@ def make_dataset_from_df(
     # ruff: noqa: PLR0915, PLR0912
     df: pd.DataFrame,
     transformations: Transformations,
-    is_y_cond: Literal["concat", "embedding", "none"],
+    is_target_conditioned: IsTargetCondioned,
     df_info: dict[str, Any],
     ratios: list[float] | None = None,
     std: float = 0,
@@ -451,22 +413,22 @@ def make_dataset_from_df(
     Args:
         df: The pandas DataFrame to generate the dataset from.
         transformations: The transformations to apply to the dataset.
-        is_y_cond: The condition on the y column.
-            concat: y is concatenated to X, the model learns a joint distribution of (y, X)
-            embedding: y is not concatenated to X. During computations, y is embedded
+        is_target_conditioned: The condition on the y column.
+            IsTargetCondioned.CONCAT: y is concatenated to X, the model learns a joint distribution of (y, X)
+            IsTargetCondioned.EMBEDDING: y is not concatenated to X. During computations, y is embedded
                 and added to the latent vector of X
-            none: y column is completely ignored
+            IsTargetCondioned.NONE: y column is completely ignored
 
-            How does is_y_cond affect the generation of y?
-            is_y_cond:
-                concat: the model synthesizes (y, X) directly, so y is just the first column
-                embedding: y is first sampled using empirical distribution of y. The model only
+            How does is_target_conditioned affect the generation of y?
+            is_target_conditioned:
+                IsTargetCondioned.CONCAT: the model synthesizes (y, X) directly, so y is just the first column
+                IsTargetCondioned.EMBEDDING: y is first sampled using empirical distribution of y. The model only
                     synthesizes X. When returning the generated data, we return the generated X
                     and the sampled y. (y is sampled from empirical distribution, instead of being
                     generated by the model)
                     Note that in this way, y is still not independent of X, because the model has been
                     adding the embedding of y to the latent vector of X during computations.
-                none:
+                IsTargetCondioned.NONE:
                     y is synthesized using y's empirical distribution. X is generated by the model.
                     In this case, y is completely independent of X.
 
@@ -493,59 +455,61 @@ def make_dataset_from_df(
     column_to_index = {col: i for i, col in enumerate(index_to_column)}
 
     if df_info["n_classes"] > 0:
-        x_cat: dict[str, np.ndarray] | None = {} if df_info["cat_cols"] is not None or is_y_cond == "concat" else None
+        x_cat: dict[str, np.ndarray] | None = (
+            {} if df_info["cat_cols"] is not None or is_target_conditioned == IsTargetCondioned.CONCAT else None
+        )
         x_num: dict[str, np.ndarray] | None = {} if df_info["num_cols"] is not None else None
         y = {}
 
         cat_cols_with_y: list[str] = []
         if df_info["cat_cols"] is not None:
             cat_cols_with_y += df_info["cat_cols"]
-        if is_y_cond == "concat":
+        if is_target_conditioned == IsTargetCondioned.CONCAT:
             cat_cols_with_y = [df_info["y_col"]] + cat_cols_with_y
 
         if len(cat_cols_with_y) > 0:
-            x_cat["train"] = train_df[cat_cols_with_y].to_numpy(dtype=np.str_)  # type: ignore[index]
-            x_cat["val"] = val_df[cat_cols_with_y].to_numpy(dtype=np.str_)  # type: ignore[index]
-            x_cat["test"] = test_df[cat_cols_with_y].to_numpy(dtype=np.str_)  # type: ignore[index]
+            x_cat[DataSplit.TRAIN.value] = train_df[cat_cols_with_y].to_numpy(dtype=np.str_)  # type: ignore[index]
+            x_cat[DataSplit.VALIDATION.value] = val_df[cat_cols_with_y].to_numpy(dtype=np.str_)  # type: ignore[index]
+            x_cat[DataSplit.TEST.value] = test_df[cat_cols_with_y].to_numpy(dtype=np.str_)  # type: ignore[index]
 
-        y["train"] = train_df[df_info["y_col"]].values.astype(np.float32)
-        y["val"] = val_df[df_info["y_col"]].values.astype(np.float32)
-        y["test"] = test_df[df_info["y_col"]].values.astype(np.float32)
+        y[DataSplit.TRAIN.value] = train_df[df_info["y_col"]].values.astype(np.float32)
+        y[DataSplit.VALIDATION.value] = val_df[df_info["y_col"]].values.astype(np.float32)
+        y[DataSplit.TEST.value] = test_df[df_info["y_col"]].values.astype(np.float32)
 
         if df_info["num_cols"] is not None:
-            x_num["train"] = train_df[df_info["num_cols"]].values.astype(np.float32)  # type: ignore[index]
-            x_num["val"] = val_df[df_info["num_cols"]].values.astype(np.float32)  # type: ignore[index]
-            x_num["test"] = test_df[df_info["num_cols"]].values.astype(np.float32)  # type: ignore[index]
+            x_num[DataSplit.TRAIN.value] = train_df[df_info["num_cols"]].values.astype(np.float32)  # type: ignore[index]
+            x_num[DataSplit.VALIDATION.value] = val_df[df_info["num_cols"]].values.astype(np.float32)  # type: ignore[index]
+            x_num[DataSplit.TEST.value] = test_df[df_info["num_cols"]].values.astype(np.float32)  # type: ignore[index]
 
         cat_column_orders = [column_to_index[col] for col in cat_cols_with_y]
         num_column_orders = [column_to_index[col] for col in df_info["num_cols"]]
 
     else:
         x_cat = {} if df_info["cat_cols"] is not None else None
-        x_num = {} if df_info["num_cols"] is not None or is_y_cond == "concat" else None
+        x_num = {} if df_info["num_cols"] is not None or is_target_conditioned == IsTargetCondioned.CONCAT else None
         y = {}
 
         num_cols_with_y: list[str] = []
         if df_info["num_cols"] is not None:
             num_cols_with_y += df_info["num_cols"]
-        if is_y_cond == "concat":
+        if is_target_conditioned == IsTargetCondioned.CONCAT:
             num_cols_with_y = [df_info["y_col"]] + num_cols_with_y
 
         if len(num_cols_with_y) > 0:
             assert x_num is not None
-            x_num["train"] = train_df[num_cols_with_y].values.astype(np.float32)
-            x_num["val"] = val_df[num_cols_with_y].values.astype(np.float32)
-            x_num["test"] = test_df[num_cols_with_y].values.astype(np.float32)
+            x_num[DataSplit.TRAIN.value] = train_df[num_cols_with_y].values.astype(np.float32)
+            x_num[DataSplit.VALIDATION.value] = val_df[num_cols_with_y].values.astype(np.float32)
+            x_num[DataSplit.TEST.value] = test_df[num_cols_with_y].values.astype(np.float32)
 
-        y["train"] = train_df[df_info["y_col"]].values.astype(np.float32)
-        y["val"] = val_df[df_info["y_col"]].values.astype(np.float32)
-        y["test"] = test_df[df_info["y_col"]].values.astype(np.float32)
+        y[DataSplit.TRAIN.value] = train_df[df_info["y_col"]].values.astype(np.float32)
+        y[DataSplit.VALIDATION.value] = val_df[df_info["y_col"]].values.astype(np.float32)
+        y[DataSplit.TEST.value] = test_df[df_info["y_col"]].values.astype(np.float32)
 
         if df_info["cat_cols"] is not None:
             assert x_cat is not None
-            x_cat["train"] = train_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
-            x_cat["val"] = val_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
-            x_cat["test"] = test_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+            x_cat[DataSplit.TRAIN.value] = train_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+            x_cat[DataSplit.VALIDATION.value] = val_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+            x_cat[DataSplit.TEST.value] = test_df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
 
         cat_column_orders = [column_to_index[col] for col in df_info["cat_cols"]]
         num_column_orders = [column_to_index[col] for col in num_cols_with_y]
@@ -555,7 +519,9 @@ def make_dataset_from_df(
 
     label_encoders = {}
     if x_cat is not None and len(df_info["cat_cols"]) > 0:
-        x_cat_all = np.vstack((x_cat["train"], x_cat["val"], x_cat["test"]))
+        x_cat_all = np.vstack(
+            (x_cat[DataSplit.TRAIN.value], x_cat[DataSplit.VALIDATION.value], x_cat[DataSplit.TEST.value])
+        )
         x_cat_converted = []
         for col_index in range(x_cat_all.shape[1]):
             label_encoder = LabelEncoder()
@@ -567,18 +533,24 @@ def make_dataset_from_df(
 
         x_cat_converted = np.vstack(x_cat_converted).T  # type: ignore[assignment]
 
-        train_num = x_cat["train"].shape[0]
-        val_num = x_cat["val"].shape[0]
+        train_num = x_cat[DataSplit.TRAIN.value].shape[0]
+        val_num = x_cat[DataSplit.VALIDATION.value].shape[0]
 
-        x_cat["train"] = x_cat_converted[:train_num, :]  # type: ignore[call-overload]
-        x_cat["val"] = x_cat_converted[train_num : train_num + val_num, :]  # type: ignore[call-overload]
-        x_cat["test"] = x_cat_converted[train_num + val_num :, :]  # type: ignore[call-overload]
+        x_cat[DataSplit.TRAIN.value] = x_cat_converted[:train_num, :]  # type: ignore[call-overload]
+        x_cat[DataSplit.VALIDATION.value] = x_cat_converted[train_num : train_num + val_num, :]  # type: ignore[call-overload]
+        x_cat[DataSplit.TEST.value] = x_cat_converted[train_num + val_num :, :]  # type: ignore[call-overload]
 
         if x_num and len(x_num) > 0:
             assert x_num is not None
-            x_num["train"] = np.concatenate((x_num["train"], x_cat["train"]), axis=1)
-            x_num["val"] = np.concatenate((x_num["val"], x_cat["val"]), axis=1)
-            x_num["test"] = np.concatenate((x_num["test"], x_cat["test"]), axis=1)
+            x_num[DataSplit.TRAIN.value] = np.concatenate(
+                (x_num[DataSplit.TRAIN.value], x_cat[DataSplit.TRAIN.value]), axis=1
+            )
+            x_num[DataSplit.VALIDATION.value] = np.concatenate(
+                (x_num[DataSplit.VALIDATION.value], x_cat[DataSplit.VALIDATION.value]), axis=1
+            )
+            x_num[DataSplit.TEST.value] = np.concatenate(
+                (x_num[DataSplit.TEST.value], x_cat[DataSplit.TEST.value]), axis=1
+            )
         else:
             x_num = x_cat
             x_cat = None
@@ -633,14 +605,14 @@ def transform_dataset(
             raise RuntimeError(f"Hash collision for {cache_path}")
 
     if dataset.x_num is not None:
-        dataset = num_process_nans(dataset, transformations.num_nan_policy)
+        dataset = process_nans_in_numerical_features(dataset, transformations.numerical_nan_policy)
 
-    num_transform = None
-    cat_transform = None
+    numerical_transform = None
+    categorical_transform = None
     x_num = dataset.x_num
 
     if x_num is not None and transformations.normalization is not None:
-        x_num, num_transform = normalize(  # type: ignore[assignment]
+        x_num, numerical_transform = normalize(  # type: ignore[assignment]
             x_num,
             transformations.normalization,
             transformations.seed,
@@ -648,18 +620,18 @@ def transform_dataset(
         )
 
     if dataset.x_cat is None:
-        assert transformations.cat_nan_policy is None
-        assert transformations.cat_min_frequency is None
+        assert transformations.categorical_nan_policy is None
+        assert transformations.category_minimum_frequency is None
         # assert transformations.cat_encoding is None
         x_cat = None
     else:
-        x_cat = cat_process_nans(dataset.x_cat, transformations.cat_nan_policy)
-        if transformations.cat_min_frequency is not None:
-            x_cat = cat_drop_rare(x_cat, transformations.cat_min_frequency)
-        x_cat, is_num, cat_transform = cat_encode(
+        x_cat = process_nans_in_categorical_features(dataset.x_cat, transformations.categorical_nan_policy)
+        if transformations.category_minimum_frequency is not None:
+            x_cat = drop_rare_categories(x_cat, transformations.category_minimum_frequency)
+        x_cat, is_num, categorical_transform = encode_categorical_features(
             x_cat,
-            transformations.cat_encoding,
-            dataset.y["train"],
+            transformations.categorical_encoding,
+            dataset.y[DataSplit.TRAIN.value],
             transformations.seed,
             return_encoder=True,
         )
@@ -667,11 +639,11 @@ def transform_dataset(
             x_num = x_cat if x_num is None else {x: np.hstack([x_num[x], x_cat[x]]) for x in x_num}
             x_cat = None
 
-    y, y_info = build_target(dataset.y, transformations.y_policy, dataset.task_type)
+    y, y_info = build_target(dataset.y, transformations.target_policy, dataset.task_type)
 
     dataset = replace(dataset, x_num=x_num, x_cat=x_cat, y=y, y_info=y_info)
-    dataset.num_transform = num_transform
-    dataset.cat_transform = cat_transform
+    dataset.numerical_transform = numerical_transform
+    dataset.categorical_transform = categorical_transform
 
     if cache_path is not None:
         dump_pickle((transformations, dataset), cache_path)
@@ -718,7 +690,7 @@ def normalize(
 
     Args:
         x: The data to normalize.
-        normalization: The normalization to use. Can be "standard", "minmax", or "quantile".
+        normalization: The normalization to use.
         seed: The seed to use for the random state. Optional, default is None.
         return_normalizer: Whether to return the normalizer. Optional, default is False.
 
@@ -726,20 +698,20 @@ def normalize(
         The normalized data. If return_normalizer is True, will return a tuple with the
             normalized data and the normalizer.
     """
-    x_train = x["train"]
-    if normalization == "standard":
+    x_train = x[DataSplit.TRAIN.value]
+    if normalization == Normalization.STANDARD:
         normalizer = StandardScaler()
-    elif normalization == "minmax":
+    elif normalization == Normalization.MINMAX:
         normalizer = MinMaxScaler()
-    elif normalization == "quantile":
+    elif normalization == Normalization.QUANTILE:
         normalizer = QuantileTransformer(
             output_distribution="normal",
-            n_quantiles=max(min(x["train"].shape[0] // 30, 1000), 10),
+            n_quantiles=max(min(x[DataSplit.TRAIN.value].shape[0] // 30, 1000), 10),
             subsample=int(1e9),
             random_state=seed,
         )
     else:
-        raise ValueError(f"Unknown normalization: {normalization}")
+        raise ValueError(f"Unsupported normalization: {normalization.value}")
     normalizer.fit(x_train)
     if return_normalizer:
         return {k: normalizer.transform(v) for k, v in x.items()}, normalizer
@@ -748,14 +720,13 @@ def normalize(
 
 # TODO: is there any relationship between this function and the cat_process_nans function?
 # Can they be made a little more similar to each other (in terms of signature)?
-def num_process_nans(dataset: Dataset, policy: NumNanPolicy | None) -> Dataset:
+def process_nans_in_numerical_features(dataset: Dataset, policy: NumericalNaNPolicy | None) -> Dataset:
     """
-    Process the NaN values in the dataset.
+    Process the NaN values in the numerical features of the dataset.
 
     Args:
         dataset: The dataset to process.
-        policy: The policy to use to process the NaN values. Can be "drop-rows" or "mean".
-            Optional, default is None.
+        policy: The policy to use to process the NaN values.
 
     Returns:
         The processed dataset.
@@ -767,35 +738,37 @@ def num_process_nans(dataset: Dataset, policy: NumNanPolicy | None) -> Dataset:
         return dataset
 
     assert policy is not None
-    if policy == "drop-rows":
+    if policy == NumericalNaNPolicy.DROP_ROWS:
         valid_masks = {k: ~v.any(1) for k, v in nan_masks.items()}
-        assert valid_masks["test"].all(), "Cannot drop test rows, since this will affect the final metrics."
+        assert valid_masks[DataSplit.TEST.value].all(), (
+            "Cannot drop test rows, since this will affect the final metrics."
+        )
         new_data = {}
         for data_name in ["x_num", "x_cat", "y"]:
+            # TODO: find a way to do this without getattr
             data_dict = getattr(dataset, data_name)
             if data_dict is not None:
                 new_data[data_name] = {k: v[valid_masks[k]] for k, v in data_dict.items()}
         dataset = replace(dataset, **new_data)  # type: ignore[arg-type]
-    elif policy == "mean":
-        new_values = np.nanmean(dataset.x_num["train"], axis=0)  # type: ignore[index]
+    elif policy == NumericalNaNPolicy.MEAN:
+        new_values = np.nanmean(dataset.x_num[DataSplit.TRAIN.value], axis=0)  # type: ignore[index]
         x_num = deepcopy(dataset.x_num)
         for k, v in x_num.items():  # type: ignore[union-attr]
             num_nan_indices = np.where(nan_masks[k])
             v[num_nan_indices] = np.take(new_values, num_nan_indices[1])
         dataset = replace(dataset, x_num=x_num)
     else:
-        raise ValueError(f"Unknown policy: {policy}")
+        raise ValueError(f"Unsupported policy: {policy.value}")
     return dataset
 
 
-def cat_process_nans(x: ArrayDict, policy: CatNanPolicy | None) -> ArrayDict:
+def process_nans_in_categorical_features(x: ArrayDict, policy: CategoricalNaNPolicy | None) -> ArrayDict:
     """
-    Process the NaN values in the categorical data.
+    Process the NaN values in the categorical features of the dataset.
 
     Args:
         x: The data to process.
-        policy: The policy to use to process the NaN values. Can be "most_frequent".
-            Optional, default is None.
+        policy: The policy to use to process the NaN values. If none, will no-op.
 
     Returns:
         The processed data.
@@ -805,19 +778,19 @@ def cat_process_nans(x: ArrayDict, policy: CatNanPolicy | None) -> ArrayDict:
     if any(mask.any() for mask in nan_masks.values()):
         if policy is None:
             x_new = x
-        elif policy == "most_frequent":
+        elif policy == CategoricalNaNPolicy.MOST_FREQUENT:
             imputer = SimpleImputer(missing_values=CAT_MISSING_VALUE, strategy=policy)
-            imputer.fit(x["train"])
+            imputer.fit(x[DataSplit.TRAIN.value])
             x_new = {k: cast(np.ndarray, imputer.transform(v)) for k, v in x.items()}
         else:
-            raise ValueError(f"Unknown cat_nan_policy: {policy}")
+            raise ValueError(f"Unsupported cat_nan_policy: {policy.value}")
     else:
         assert policy is None
         x_new = x
     return x_new
 
 
-def cat_drop_rare(x: ArrayDict, min_frequency: float) -> ArrayDict:
+def drop_rare_categories(x: ArrayDict, min_frequency: float) -> ArrayDict:
     """
     Drop the rare categories in the categorical data.
 
@@ -829,10 +802,10 @@ def cat_drop_rare(x: ArrayDict, min_frequency: float) -> ArrayDict:
         The processed data.
     """
     assert 0.0 < min_frequency < 1.0, "min_frequency has to be between 0 and 1"
-    min_count = round(len(x["train"]) * min_frequency)
+    min_count = round(len(x[DataSplit.TRAIN.value]) * min_frequency)
     x_new: dict[str, list[Any]] = {key: [] for key in x}
-    for column_idx in range(x["train"].shape[1]):
-        counter = Counter(x["train"][:, column_idx].tolist())
+    for column_idx in range(x[DataSplit.TRAIN.value].shape[1]):
+        counter = Counter(x[DataSplit.TRAIN.value][:, column_idx].tolist())
         popular_categories = {k for k, v in counter.items() if v >= min_count}
         for part, _ in x_new.items():
             x_new[part].append(
@@ -841,20 +814,19 @@ def cat_drop_rare(x: ArrayDict, min_frequency: float) -> ArrayDict:
     return {k: np.array(v).T for k, v in x_new.items()}
 
 
-def cat_encode(
+def encode_categorical_features(
     x: ArrayDict,
-    encoding: CatEncoding | None,  # TODO: add "ordinal" as one of the options, maybe?
+    encoding: CategoricalEncoding | None,
     y_train: np.ndarray | None,
     seed: int | None,
     return_encoder: bool = False,
 ) -> tuple[ArrayDict, bool, Any | None]:
     """
-    Encode the categorical data.
+    Encode the categorical features of the dataset.
 
     Args:
         x: The data to encode.
-        encoding: The encoding to use. Can be "one-hot" or "counter". Default is None.
-            If None, will use the "ordinal" encoding.
+        encoding: The encoding to use. If None, will use CatEncoding.ORDINAL.
         y_train: The target values. Optional, default is None. Will only be used for the "counter" encoding.
         seed: The seed to use for the random state. Optional, default is None.
         return_encoder: Whether to return the encoder. Optional, default is False.
@@ -865,24 +837,24 @@ def cat_encode(
             - A boolean value indicating if the data was converted to numerical.
             - The encoder, if return_encoder is True. None otherwise.
     """
-    if encoding != "counter":
+    if encoding != CategoricalEncoding.COUNTER:
         y_train = None
 
     # Step 1. Map strings to 0-based ranges
 
-    if encoding is None:
+    if encoding is None or encoding == CategoricalEncoding.ORDINAL:
         unknown_value = np.iinfo("int64").max - 3
         oe = OrdinalEncoder(
             handle_unknown="use_encoded_value",
             unknown_value=unknown_value,
             dtype="int64",
-        ).fit(x["train"])
+        ).fit(x[DataSplit.TRAIN.value])
         encoder = make_pipeline(oe)
-        encoder.fit(x["train"])
+        encoder.fit(x[DataSplit.TRAIN.value])
         x = {k: encoder.transform(v) for k, v in x.items()}
-        max_values = x["train"].max(axis=0)
+        max_values = x[DataSplit.TRAIN.value].max(axis=0)
         for part in x:
-            if part == "train":
+            if part == DataSplit.TRAIN.value:
                 continue
             for column_idx in range(x[part].shape[1]):
                 x[part][x[part][:, column_idx] == unknown_value, column_idx] = max_values[column_idx] + 1
@@ -892,7 +864,7 @@ def cat_encode(
 
     # Step 2. Encode.
 
-    if encoding == "one-hot":
+    if encoding == CategoricalEncoding.ONE_HOT:
         ohe = OneHotEncoder(
             handle_unknown="ignore",
             sparse=False,
@@ -901,33 +873,32 @@ def cat_encode(
         encoder = make_pipeline(ohe)
 
         # encoder.steps.append(('ohe', ohe))
-        encoder.fit(x["train"])
+        encoder.fit(x[DataSplit.TRAIN.value])
         x = {k: encoder.transform(v) for k, v in x.items()}
-    elif encoding == "counter":
+    elif encoding == CategoricalEncoding.COUNTER:
         assert y_train is not None
         assert seed is not None
         loe = LeaveOneOutEncoder(sigma=0.1, random_state=seed, return_df=False)
         encoder.steps.append(("loe", loe))
-        encoder.fit(x["train"], y_train)
+        encoder.fit(x[DataSplit.TRAIN.value], y_train)
         x = {k: encoder.transform(v).astype("float32") for k, v in x.items()}
-        if not isinstance(x["train"], pd.DataFrame):
+        if not isinstance(x[DataSplit.TRAIN.value], pd.DataFrame):
             x = {k: v.values for k, v in x.items()}  # type: ignore[attr-defined]
     else:
-        raise ValueError(f"Unknown encoding: {encoding}")
+        raise ValueError(f"Unsupported encoding: {encoding.value}")
 
     if return_encoder:
         return x, True, encoder
     return x, True, None
 
 
-def build_target(y: ArrayDict, policy: YPolicy | None, task_type: TaskType) -> tuple[ArrayDict, dict[str, Any]]:
+def build_target(y: ArrayDict, policy: TargetPolicy | None, task_type: TaskType) -> tuple[ArrayDict, dict[str, Any]]:
     """
     Build the target and return the target values metadata.
 
     Args:
         y: The target values.
-        policy: The policy to use to build the target. Can be "default". Optional, default is None.
-            If none, it will no-op.
+        policy: The policy to use to build the target. Can be YPolicy.DEFAULT. If none, it will no-op.
         task_type: The type of the task.
 
     Returns:
@@ -936,12 +907,14 @@ def build_target(y: ArrayDict, policy: YPolicy | None, task_type: TaskType) -> t
     info: dict[str, Any] = {"policy": policy}
     if policy is None:
         pass
-    elif policy == "default":
+    elif policy == TargetPolicy.DEFAULT:
         if task_type == TaskType.REGRESSION:
-            mean, std = float(y["train"].mean()), float(y["train"].std())
+            mean = float(y[DataSplit.TRAIN.value].mean())
+            std = float(y[DataSplit.TRAIN.value].std())
             y = {k: (v - mean) / std for k, v in y.items()}
             info["mean"] = mean
             info["std"] = std
     else:
-        raise ValueError(f"Unknown policy: {policy}")
+        raise ValueError(f"Unsupported policy: {policy.value}")
+
     return y, info
