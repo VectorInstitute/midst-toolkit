@@ -630,9 +630,9 @@ def _get_categorical_and_numerical_columns(
     numerical_columns = []
     categorical_columns = []
 
-    for col_index, col in enumerate(all_columns):
-        if col in table_domain:
-            if table_domain[col]["type"] == DomainDataType.DISCRETE.value:
+    for col_index, column in enumerate(all_columns):
+        if column in table_domain:
+            if table_domain[column]["type"] == DomainDataType.DISCRETE.value:
                 categorical_columns.append(col_index)
             else:
                 numerical_columns.append(col_index)
