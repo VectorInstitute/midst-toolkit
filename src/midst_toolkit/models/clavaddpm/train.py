@@ -2,30 +2,47 @@
 
 import pickle
 from collections.abc import Generator
+from dataclasses import asdict
 from logging import INFO, WARNING
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import torch
 from torch import Tensor, optim
 
+from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
-from midst_toolkit.models.clavaddpm.dataset import (
-    Dataset,
-    Transformations,
-    get_T_dict,
-    make_dataset_from_df,
+from midst_toolkit.models.clavaddpm.dataset import Dataset, Transformations, make_dataset_from_df
+from midst_toolkit.models.clavaddpm.enumerations import (
+    CategoricalEncoding,
+    Configs,
+    IsTargetCondioned,
+    ReductionMethod,
+    RelationOrder,
+    Tables,
+    TargetType,
 )
-from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
-from midst_toolkit.models.clavaddpm.model import Classifier, get_model, get_table_info
-from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, create_named_schedule_sampler
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
+    GaussianLossType,
+    GaussianMultinomialDiffusion,
+    SchedulerType,
+)
+from midst_toolkit.models.clavaddpm.model import (
+    Classifier,
+    DiffusionParameters,
+    ModelParameters,
+    ModelType,
+    get_table_info,
+)
+from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, ScheduleSamplerType
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
-from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
 
 
+# TODO: Make diffusion_config and classifier_config into config classes and use the
+# enums instead of string values.
 def clava_training(
     tables: Tables,
     relation_order: RelationOrder,
@@ -59,7 +76,7 @@ def clava_training(
                 iterations = int,
                 batch_size = int,
                 model_type = str["mlp" | "resnet"],
-                gaussian_loss_type = str["mse" | "cross_entropy"],
+                gaussian_loss_type = str["mse" | "kl"],
                 num_timesteps = int,
                 scheduler = str["cosine" | "linear"],
                 lr = float,
@@ -150,7 +167,7 @@ def child_training(
                 iterations = int,
                 batch_size = int,
                 model_type = str["mlp" | "resnet"],
-                gaussian_loss_type = str["mse" | "cross_entropy"],
+                gaussian_loss_type = str["mse" | "kl"],
                 num_timesteps = int,
                 scheduler = str["cosine" | "linear"],
                 lr = float,
@@ -182,26 +199,26 @@ def child_training(
     else:
         y_col = f"{parent_name}_{child_name}_cluster"
     child_info = get_table_info(child_df_with_cluster, child_domain_dict, y_col)
-    child_model_params = _get_model_params(
-        {
-            "d_layers": diffusion_config["d_layers"],
-            "dropout": diffusion_config["dropout"],
-        }
+    child_model_params = ModelParameters(
+        diffusion_parameters=DiffusionParameters(
+            d_layers=diffusion_config["d_layers"],
+            dropout=diffusion_config["dropout"],
+        ),
     )
-    child_T_dict = get_T_dict()
+    child_transformations = Transformations.default()
     # ruff: noqa: N806
 
     child_result = train_model(
         child_df_with_cluster,
         child_info,
         child_model_params,
-        child_T_dict,
+        child_transformations,
         diffusion_config["iterations"],
         diffusion_config["batch_size"],
-        diffusion_config["model_type"],
-        diffusion_config["gaussian_loss_type"],
+        ModelType(diffusion_config["model_type"]),
+        GaussianLossType(diffusion_config["gaussian_loss_type"]),
         diffusion_config["num_timesteps"],
-        diffusion_config["scheduler"],
+        SchedulerType(diffusion_config["scheduler"]),
         diffusion_config["lr"],
         diffusion_config["weight_decay"],
         diffusion_config["data_split_ratios"],
@@ -217,12 +234,12 @@ def child_training(
                 child_df_with_cluster,
                 child_info,
                 child_model_params,
-                child_T_dict,
+                child_transformations,
                 classifier_config["iterations"],
                 classifier_config["batch_size"],
-                diffusion_config["gaussian_loss_type"],
+                GaussianLossType(diffusion_config["gaussian_loss_type"]),
                 diffusion_config["num_timesteps"],
-                diffusion_config["scheduler"],
+                SchedulerType(diffusion_config["scheduler"]),
                 cluster_col=y_col,
                 d_layers=classifier_config["d_layers"],
                 dim_t=classifier_config["dim_t"],
@@ -235,22 +252,22 @@ def child_training(
             log(WARNING, "Skipping classifier training since classifier_config['iterations'] <= 0")
 
     child_result["df_info"] = child_info
-    child_result["model_params"] = child_model_params
-    child_result["T_dict"] = child_T_dict
+    child_result["model_params"] = asdict(child_model_params)
+    child_result["T_dict"] = asdict(child_transformations)
     return child_result
 
 
 def train_model(
     data_frame: pd.DataFrame,
     data_frame_info: dict[str, Any],
-    model_params: dict[str, Any],
-    transformations_dict: dict[str, Any],
+    model_params: ModelParameters,
+    transformations: Transformations,
     steps: int,
     batch_size: int,
-    model_type: Literal["mlp", "resnet"],
-    gaussian_loss_type: str,
+    model_type: ModelType,
+    gaussian_loss_type: GaussianLossType,
     num_timesteps: int,
-    scheduler: str,
+    scheduler_type: SchedulerType,
     learning_rate: float,
     weight_decay: float,
     data_split_ratios: list[float],
@@ -262,14 +279,14 @@ def train_model(
     Args:
         data_frame: DataFrame to train the model on.
         data_frame_info: Dictionary of the table information.
-        model_params: Dictionary of the model parameters.
-        transformations_dict: Dictionary of the transformations.
+        model_params: The model parameters.
+        transformations: The transformations to apply to the dataset.
         steps: Number of steps to train the model.
         batch_size: Batch size to use for training.
         model_type: Type of the model to use.
         gaussian_loss_type: Type of the gaussian loss to use.
         num_timesteps: Number of timesteps to use for the diffusion model.
-        scheduler: Scheduler to use for the diffusion model.
+        scheduler_type: Type of scheduler to use for the diffusion model.
         learning_rate: Learning rate to use for the optimizer in the diffusion model.
         weight_decay: Weight decay to use for the optimizer in the diffusion model.
         data_split_ratios: The ratios of the dataset to split into train, validation, and test.
@@ -283,34 +300,30 @@ def train_model(
             - dataset: The dataset.
             - column_orders: The column orders.
     """
-    transformations = Transformations(**transformations_dict)
-    # ruff: noqa: N806
     dataset, label_encoders, column_orders = make_dataset_from_df(
         data_frame,
         transformations,
-        is_y_cond=model_params["is_y_cond"],
+        is_target_conditioned=model_params.is_target_conditioned,
         ratios=data_split_ratios,
         df_info=data_frame_info,
         std=0,
     )
 
-    category_sizes = np.array(dataset.get_category_sizes("train"))
-    # ruff: noqa: N806
-    if len(category_sizes) == 0 or transformations_dict["cat_encoding"] == "one-hot":
+    category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
+    if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = np.array([0])
-        # ruff: noqa: N806
 
-    _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.y["train"]), return_counts=True)
+    _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.y[DataSplit.TRAIN.value]), return_counts=True)
 
-    num_numerical_features = dataset.x_num["train"].shape[1] if dataset.x_num is not None else 0
+    num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1] if dataset.x_num is not None else 0
     d_in = np.sum(category_sizes) + num_numerical_features
-    model_params["d_in"] = d_in
+    model_params.d_in = d_in
 
     print("Model params: {}".format(model_params))
-    model = get_model(model_type, model_params)
+    model = model_type.get_model(model_params)
     model.to(device)
 
-    train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size)
+    train_loader = prepare_fast_dataloader(dataset, split=DataSplit.TRAIN, batch_size=batch_size)
 
     diffusion = GaussianMultinomialDiffusion(
         num_classes=category_sizes,
@@ -318,7 +331,7 @@ def train_model(
         denoise_fn=model,
         gaussian_loss_type=gaussian_loss_type,
         num_timesteps=num_timesteps,
-        scheduler=scheduler,
+        scheduler_type=scheduler_type,
         device=torch.device(device),
     )
     diffusion.to(device)
@@ -334,7 +347,7 @@ def train_model(
     )
     trainer.train()
 
-    if model_params["is_y_cond"] == "concat":
+    if model_params.is_target_conditioned == IsTargetCondioned.CONCAT:
         column_orders = column_orders[1:] + [column_orders[0]]
     else:
         column_orders = column_orders + [data_frame_info["y_col"]]
@@ -348,20 +361,22 @@ def train_model(
         "K": category_sizes,
         "empirical_class_dist": empirical_class_dist,
         "is_regression": dataset.is_regression,
-        "inverse_transform": dataset.num_transform.inverse_transform if dataset.num_transform is not None else None,
+        "inverse_transform": dataset.numerical_transform.inverse_transform
+        if dataset.numerical_transform is not None
+        else None,
     }
 
 
 def train_classifier(
     data_frame: pd.DataFrame,
     data_frame_info: dict[str, Any],
-    model_params: dict[str, Any],
-    transformations_dict: dict[str, Any],
+    model_params: ModelParameters,
+    transformations: Transformations,
     classifier_steps: int,
     batch_size: int,
-    gaussian_loss_type: str,
+    gaussian_loss_type: GaussianLossType,
     num_timesteps: int,
-    scheduler: str,
+    scheduler_type: SchedulerType,
     d_layers: list[int],
     data_split_ratios: list[float],
     device: str = "cuda",
@@ -377,13 +392,13 @@ def train_classifier(
     Args:
         data_frame: DataFrame to train the model on.
         data_frame_info: Dictionary of the table information.
-        model_params: Dictionary of the model parameters.
-        transformations_dict: Dictionary of the transformations.
+        model_params: The model parameters.
+        transformations: The transformations to apply to the dataset.
         classifier_steps: Number of steps to train the classifier.
         batch_size: Batch size to use for training.
         gaussian_loss_type: Type of the gaussian loss to use.
         num_timesteps: Number of timesteps to use for the diffusion model.
-        scheduler: Scheduler to use for the diffusion model.
+        scheduler_type: Type of scheduler to use for the diffusion model.
         d_layers: List of the hidden sizes of the classifier.
         data_split_ratios: The ratios of the dataset to split into train, validation, and test.
             It must have exactly 3 values and their sum must amount to 1 (with a tolerance of 0.01).
@@ -399,26 +414,29 @@ def train_classifier(
     Returns:
         The trained classifier model.
     """
-    transformations = Transformations(**transformations_dict)
     # ruff: noqa: N806
     dataset, label_encoders, column_orders = make_dataset_from_df(
         data_frame,
         transformations,
-        is_y_cond=model_params["is_y_cond"],
+        is_target_conditioned=model_params.is_target_conditioned,
         ratios=data_split_ratios,
         df_info=data_frame_info,
         std=0,
     )
     print(dataset.n_features)
-    train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size, y_type="long")
-    val_loader = prepare_fast_dataloader(dataset, split="val", batch_size=batch_size, y_type="long")
-    test_loader = prepare_fast_dataloader(dataset, split="test", batch_size=batch_size, y_type="long")
+    train_loader = prepare_fast_dataloader(
+        dataset, split=DataSplit.TRAIN, batch_size=batch_size, target_type=TargetType.LONG
+    )
+    val_loader = prepare_fast_dataloader(
+        dataset, split=DataSplit.VALIDATION, batch_size=batch_size, target_type=TargetType.LONG
+    )
+    test_loader = prepare_fast_dataloader(
+        dataset, split=DataSplit.TEST, batch_size=batch_size, target_type=TargetType.LONG
+    )
 
-    category_sizes = np.array(dataset.get_category_sizes("train"))
-    # ruff: noqa: N806
-    if len(category_sizes) == 0 or transformations_dict["cat_encoding"] == "one-hot":
+    category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
+    if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = np.array([0])
-        # ruff: noqa: N806
     print(category_sizes)
 
     # TODO: understand what's going on here
@@ -426,9 +444,9 @@ def train_classifier(
         log(WARNING, "dataset.x_num is None. num_numerical_features will be set to 0")
         num_numerical_features = 0
     else:
-        num_numerical_features = dataset.x_num["train"].shape[1]
+        num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1]
 
-    if model_params["is_y_cond"] == "concat":
+    if model_params.is_target_conditioned == IsTargetCondioned.CONCAT:
         num_numerical_features -= 1
 
     classifier = Classifier(
@@ -440,19 +458,19 @@ def train_classifier(
 
     classifier_optimizer = optim.AdamW(classifier.parameters(), lr=learning_rate)
 
-    empty_diffusion = GaussianMultinomialDiffusion(
+    schedule_sampler = ScheduleSamplerType.UNIFORM.create_named_schedule_sampler(num_timesteps)
+    key_value_logger = KeyValueLogger()
+
+    diffusion_model = GaussianMultinomialDiffusion(
         num_classes=category_sizes,
         num_numerical_features=num_numerical_features,
         denoise_fn=None,  # type: ignore[arg-type]
         gaussian_loss_type=gaussian_loss_type,
         num_timesteps=num_timesteps,
-        scheduler=scheduler,
+        scheduler_type=scheduler_type,
         device=torch.device(device),
     )
-    empty_diffusion.to(device)
-
-    schedule_sampler = create_named_schedule_sampler("uniform", empty_diffusion)
-    key_value_logger = KeyValueLogger()
+    diffusion_model.to(device)
 
     classifier.train()
     for step in range(classifier_steps):
@@ -464,8 +482,8 @@ def train_classifier(
             train_loader,
             dataset,
             schedule_sampler,
-            empty_diffusion,
-            prefix="train",
+            diffusion_model,
+            prefix=DataSplit.TRAIN.value,
             device=device,
             key_value_logger=key_value_logger,
         )
@@ -480,8 +498,8 @@ def train_classifier(
                     val_loader,
                     dataset,
                     schedule_sampler,
-                    empty_diffusion,
-                    prefix="val",
+                    diffusion_model,
+                    prefix=DataSplit.VALIDATION.value,
                     device=device,
                     key_value_logger=key_value_logger,
                 )
@@ -499,13 +517,17 @@ def train_classifier(
     for _ in range(3000):
         test_x, test_y = next(test_loader)
         test_y = test_y.long().to(device)
-        test_x = test_x[:, 1:].to(device) if model_params["is_y_cond"] == "concat" else test_x.to(device)
+        test_x = (
+            test_x[:, 1:].to(device)
+            if model_params.is_target_conditioned == IsTargetCondioned.CONCAT
+            else test_x.to(device)
+        )
         with torch.no_grad():
             pred = classifier(test_x, timesteps=torch.zeros(test_x.shape[0]).to(device))
             correct += (pred.argmax(dim=1) == test_y).sum().item()
 
     acc = correct / (3000 * batch_size)
-    print(acc)
+    log(INFO, f"Classifier accuracy: {acc}")
 
     return classifier
 
@@ -579,7 +601,7 @@ def _numerical_forward_backward_log(
     dataset: Dataset,
     schedule_sampler: ScheduleSampler,
     diffusion: GaussianMultinomialDiffusion,
-    prefix: str = "train",
+    prefix: str = DataSplit.TRAIN.value,
     remove_first_col: bool = False,
     device: str = "cuda",
     key_value_logger: KeyValueLogger | None = None,
@@ -594,7 +616,7 @@ def _numerical_forward_backward_log(
         dataset: The dataset.
         schedule_sampler: The schedule sampler.
         diffusion: The diffusion object.
-        prefix: The prefix for the loss. Defaults to "train".
+        prefix: The prefix for the loss. Defaults to DataSplit.TRAIN.value.
         remove_first_col: Whether to remove the first column of the batch. Defaults to False.
         device: The device to use. Defaults to "cuda".
         key_value_logger: The key-value logger to log the losses. If None, the losses are not logged.
@@ -617,9 +639,9 @@ def _numerical_forward_backward_log(
 
         losses = {}
         losses[f"{prefix}_loss"] = loss.detach()
-        losses[f"{prefix}_acc@1"] = _compute_top_k(logits, sub_labels, k=1, reduction="none")
+        losses[f"{prefix}_acc@1"] = _compute_top_k(logits, sub_labels, k=1, reduction=ReductionMethod.NONE)
         if logits.shape[1] >= 5:
-            losses[f"{prefix}_acc@5"] = _compute_top_k(logits, sub_labels, k=5, reduction="none")
+            losses[f"{prefix}_acc@5"] = _compute_top_k(logits, sub_labels, k=5, reduction=ReductionMethod.NONE)
         _log_loss_dict(diffusion, sub_t, losses, key_value_logger)
         del losses
         loss = loss.mean()
@@ -634,7 +656,7 @@ def _compute_top_k(
     logits: Tensor,
     labels: Tensor,
     k: int,
-    reduction: Literal["mean", "none"] = "mean",
+    reduction: ReductionMethod = ReductionMethod.MEAN,
 ) -> Tensor:
     """
     Compute the top-k accuracy.
@@ -643,18 +665,18 @@ def _compute_top_k(
         logits: The logits of the classifier.
         labels: The labels of the data.
         k: The number of top-k.
-        reduction: The reduction method. Should be one of ["mean", "none"]. Defaults to "mean".
+        reduction: The reduction method. Defaults to ReductionMethod.MEAN.
 
     Returns:
         The top-k accuracy.
     """
     _, top_ks = torch.topk(logits, k, dim=-1)
-    if reduction == "mean":
+    if reduction == ReductionMethod.MEAN:
         return (top_ks == labels[:, None]).float().sum(dim=-1).mean()
-    if reduction == "none":
+    if reduction == ReductionMethod.NONE:
         return (top_ks == labels[:, None]).float().sum(dim=-1)
 
-    raise ValueError(f"reduction should be one of ['mean', 'none']: {reduction}")
+    raise ValueError(f"Unsupported reduction method: {reduction.value}.")
 
 
 def _log_loss_dict(
@@ -707,36 +729,3 @@ def _split_microbatches(
     else:
         for i in range(0, bs, microbatch):
             yield batch[i : i + microbatch], labels[i : i + microbatch], t[i : i + microbatch]
-
-
-# TODO make this into a class with default parameters
-def _get_model_params(rtdl_params: dict[str, Any] | None = None) -> dict[str, Any]:
-    """
-    Return the model parameters.
-
-    Args:
-        rtdl_params: The parameters for the RTDL model. If None, the default parameters below are used:
-            {
-                "d_layers": [512, 1024, 1024, 1024, 1024, 512],
-                "dropout": 0.0,
-            }
-
-    Returns:
-        The model parameters as a dictionary containing the following keys:
-            - num_classes: The number of classes. Defaults to 0.
-            - is_y_cond: Affects how y is generated. For more information, see the documentation
-                of the `make_dataset_from_df` function. Can be any of ["none", "concat", "embedding"].
-                Defaults to "none".
-            - rtdl_params: The parameters for the RTDL model.
-    """
-    if rtdl_params is None:
-        rtdl_params = {
-            "d_layers": [512, 1024, 1024, 1024, 1024, 512],
-            "dropout": 0.0,
-        }
-
-    return {
-        "num_classes": 0,
-        "is_y_cond": "none",
-        "rtdl_params": rtdl_params,
-    }
