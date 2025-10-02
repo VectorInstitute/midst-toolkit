@@ -2,6 +2,7 @@ import json
 import os
 from logging import INFO, WARNING
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -55,13 +56,33 @@ def load_dataframe(file_path: Path, file_name: str) -> pd.DataFrame:
     return df
 
 
-# TODO: Merge with original. The following function is the slightly modified version of
+# TODO: Merge with the existing function in ``data_loaders.py`` .
+# The following function is the slightly modified version of
 # ``midst_toolkit.models.clavaddpm.data_loaders`` by the CITADEL & UQAM team.
-def load_multi_table(data_dir, train_df=None, verbose=True):
-    dataset_meta = json.load(open(os.path.join(data_dir, "dataset_meta.json"), "r"))
+def load_multi_table(
+    data_dir: Path, train_df: pd.DataFrame | None = None, verbose: bool = True
+) -> tuple[dict[str, Any], list[tuple[str, str]], dict[str, Any]]:
+    """
+    Load the multi-table dataset from the data directory.
+    If a train_df is provided, it will be used as the training data.
+
+    Args:
+        data_dir: The directory to load the dataset from.
+        train_df: Optional DataFrame to be used as the training data.
+            If None, the function will look for a train.csv or ``f{table_name}.csv``
+            file in the ``data_dir``.
+        verbose: Whether to print verbose output. Optional, default is True.
+
+    Returns:
+        A tuple with 3 values:
+            - The tables dictionary.
+            - The relation order between the tables.
+            - The dataset metadata dictionary.
+    """
+    with open(data_dir / "dataset_meta.json", "r") as f:
+        dataset_meta = json.load(f)
 
     relation_order = dataset_meta["relation_order"]
-    relation_order_reversed = relation_order[::-1]
 
     tables = {}
 
@@ -71,9 +92,13 @@ def load_multi_table(data_dir, train_df=None, verbose=True):
                 train_df = pd.read_csv(os.path.join(data_dir, "train.csv"))
             else:
                 train_df = pd.read_csv(os.path.join(data_dir, f"{table}.csv"))
+
+        with open(data_dir / f"{table}_domain.json", "r") as f:
+            domain = json.load(f)
+
         tables[table] = {
             "df": train_df,
-            "domain": json.load(open(os.path.join(data_dir, f"{table}_domain.json"))),
+            "domain": domain,
             "children": meta["children"],
             "parents": meta["parents"],
         }
@@ -93,19 +118,3 @@ def load_multi_table(data_dir, train_df=None, verbose=True):
         tables[table]["info"] = info
 
     return tables, relation_order, dataset_meta
-
-
-# TODO: the following function is directly copied from the midst reference code since
-# I need it to run the attack code, but, it should be moved to somewhere else.
-def load_configs(config_path):
-    configs = json.load(open(config_path, "r"))
-
-    save_dir = os.path.join(configs["general"]["workspace_dir"], configs["general"]["exp_name"])
-    os.makedirs(save_dir, exist_ok=True)
-    os.makedirs(os.path.join(save_dir, "models"), exist_ok=True)
-    os.makedirs(os.path.join(save_dir, "before_matching"), exist_ok=True)
-
-    with open(os.path.join(save_dir, "args"), "w") as file:
-        json.dump(configs, file, indent=4)
-
-    return configs, Path(save_dir)

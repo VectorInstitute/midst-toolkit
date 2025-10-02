@@ -151,7 +151,7 @@ def process_split_data(
     column_to_stratify: str,
     num_total_samples: int = 40000,
     random_seed: int = 42,
-) ->None:
+) -> None:
     """
     Splits the population data into training, validation, and test sets based on the attack design.
     Saves the processed datasets, including ``master_challenge_train`` and ``master_challenge_test``,

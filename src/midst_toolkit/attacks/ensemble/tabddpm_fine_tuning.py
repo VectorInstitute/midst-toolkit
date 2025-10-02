@@ -3,7 +3,7 @@ https://github.com/CRCHUM-CITADEL/ensemble-mia.
 """
 
 from logging import WARNING
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -11,26 +11,26 @@ import torch
 from torch import optim
 
 from midst_toolkit.common.logger import log
-from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
-    GaussianMultinomialDiffusion,
-)
+from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
 from midst_toolkit.models.clavaddpm.dataset import (
     Transformations,
     get_T_dict,
     make_dataset_from_df,
 )
-from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
+    GaussianMultinomialDiffusion,
+)
 from midst_toolkit.models.clavaddpm.model import (
     Classifier,
     get_model,
     get_table_info,
 )
-from midst_toolkit.models.clavaddpm.train import get_model_params
 from midst_toolkit.models.clavaddpm.sampler import (
     create_named_schedule_sampler,
 )
 from midst_toolkit.models.clavaddpm.train import (
     _numerical_forward_backward_log,
+    get_model_params,
 )
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
@@ -39,12 +39,12 @@ from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
 def fine_tune_model(
     trained_diffusion: GaussianMultinomialDiffusion,
     data_frame: pd.DataFrame,
-    data_frame_info: pd.DataFrame,
+    data_frame_info: dict[str, Any],
     model_params: dict[str, Any],
     transformations_dict: dict[str, Any],
     steps: int,
     batch_size: int,
-    model_type: str,
+    model_type: Literal["mlp", "resnet"],
     lr: float,
     weight_decay: float,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
@@ -123,8 +123,8 @@ def fine_tune_model(
     }
 
 
-# This function will not be called since ensemble is for single-table data, but I am adding it here for completeness
-# in case we wanted to experiment with multi-table as well.
+# NOTE: This function will not be called in Ensemble attack since Ensemble only covers the single-table setting,
+# but this is added here for completeness in case we decide to experiment with multi-table as well.
 def fine_tune_classifier(
     pre_trained_classifier: Classifier,
     data_frame: pd.DataFrame,
@@ -136,8 +136,8 @@ def fine_tune_classifier(
     gaussian_loss_type: str,
     num_timesteps: int,
     scheduler: str,
-    device: str = "cuda" if torch.cuda.is_available() else "cpu",
     learning_rate: float = 0.0001,
+    device: str = "cuda" if torch.cuda.is_available() else "cpu",
 ) -> Classifier:
     """
     Fine-tuning function for the classifier model.
@@ -153,6 +153,7 @@ def fine_tune_classifier(
         gaussian_loss_type: Type of the gaussian loss to use.
         num_timesteps: Number of timesteps to use for the diffusion model.
         scheduler: Scheduler to use for the diffusion model.
+        learning_rate: Learning rate for the optimizer. Default is 0.0001.
         device: Device to use for training.
 
     Returns:
@@ -203,7 +204,7 @@ def fine_tune_classifier(
     schedule_sampler = create_named_schedule_sampler("uniform", empty_diffusion)
 
     classifier.train()
-    for step in range(classifier_steps):
+    for _step in range(classifier_steps):
         _numerical_forward_backward_log(
             classifier,
             classifier_optimizer,
@@ -230,7 +231,25 @@ def child_fine_tuning(
     fine_tuning_classifier_iterations: int,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
 ) -> dict[str, Any]:
-    """Fine-tune a child model based on the parent model."""
+    """
+    Fine-tune a child model based on the parent model.
+
+    Args:
+        pre_trained_model: The pre-trained model to be fine-tuned.
+        child_df_with_cluster: The DataFrame containing the child data with cluster information.
+        child_domain_dict: The domain dictionary for the child data.
+        parent_name: The name of the parent table. None if the child is the root table.
+        child_name: The name of the child table.
+        diffusion_config: The configuration for the diffusion model.
+        classifier_config: The configuration for the classifier model. None if no classifier is used.
+        fine_tuning_diffusion_iterations: The number of iterations for fine-tuning the diffusion model.
+        fine_tuning_classifier_iterations: The number of iterations for fine-tuning the classifier model.
+        device: The device to run the fine-tuning on. Defaults to 'cuda' if available.
+
+    Returns:
+        A dictionary containing the fine-tuned model and related information.
+
+    """
     if parent_name is None:
         y_col = "placeholder"
         child_df_with_cluster["placeholder"] = list(range(len(child_df_with_cluster)))
@@ -276,8 +295,8 @@ def child_fine_tuning(
                 classifier_config["gaussian_loss_type"],
                 classifier_config["num_timesteps"],
                 classifier_config["scheduler"],
+                learning_rate=classifier_config["lr"],
                 device=device,
-                lr=classifier_config["lr"],
             )
             child_result["classifier"] = child_classifier
         else:
@@ -290,15 +309,30 @@ def child_fine_tuning(
 
 
 def clava_fine_tuning(
-    trained_models: dict[str, Any],
+    trained_models: dict[tuple[str, str], dict[str, Any]],
     new_tables: Tables,
     relation_order: RelationOrder,
     diffusion_config: Configs,
     classifier_config: Configs,
     fine_tuning_diffusion_iterations: int,
     fine_tuning_classifier_iterations: int,
-) -> dict[tuple[str | None, str], Any]:
-    """Fine-tune the trained models on new tables data."""
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """
+    Fine-tune the trained models on new tables data.
+
+    Args:
+        trained_models: The previously trained model material.
+        new_tables: The new tables data to fine-tune the models on.
+        relation_order: The relation order of the tables.
+        diffusion_config: The configuration for the diffusion model.
+        classifier_config: The configuration for the classifier model.
+        fine_tuning_diffusion_iterations: The number of iterations for fine-tuning the diffusion model.
+        fine_tuning_classifier_iterations: The number of iterations for fine-tuning the classifier model.
+
+    Returns:
+        A dictionary containing the fine-tuned models for each (parent, child) table pair.
+
+    """
     new_models = {}
     for parent, child in relation_order:
         df_with_cluster = new_tables[child]["df"]

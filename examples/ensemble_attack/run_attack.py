@@ -40,7 +40,7 @@ def main(cfg: DictConfig) -> None:
         process_split_data(
             all_population_data=population_data,
             processed_attack_data_path=Path(cfg.data_paths.processed_attack_data_path),
-            # TODO: column_to_stratify value is not documented in the original codebase.
+            # NOTE: column_to_stratify value is not documented in the original attack codebase (https://github.com/CRCHUM-CITADEL/ensemble-mia).
             column_to_stratify=cfg.data_processing_config.column_to_stratify,
             num_total_samples=cfg.data_processing_config.population_sample_size,
             random_seed=cfg.random_seed,
