@@ -61,14 +61,9 @@ def load_multi_table(
         tables[table]["original_df"] = tables[table]["df"].copy()
         id_cols = [col for col in tables[table]["df"].columns if "_id" in col]
         df_no_id = tables[table]["df"].drop(columns=id_cols)
-        info = get_info_from_domain(df_no_id, tables[table]["domain"])
-        _, info = process_pipeline_data(
-            table_name=table,
-            data=df_no_id,
-            info=info,
-            training_data_ratio=training_data_ratio,
-            verbose=verbose,
-        )
+        table_domain = tables[table]["domain"]
+
+        _, info = process_pipeline_data(df_no_id, table_domain, training_data_ratio, verbose)
         tables[table]["info"] = info
 
     return tables, relation_order, dataset_meta
@@ -123,9 +118,8 @@ class DataSplits:
 
 
 def process_pipeline_data(
-    table_name: str,
     data: pd.DataFrame,
-    info: dict[str, Any],
+    table_domain: dict[str, Any],
     training_data_ratio: float = 0.9,
     verbose: bool = True,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
@@ -138,12 +132,10 @@ def process_pipeline_data(
     metadata.
 
     Args:
-        table_name: The name of the table. Used to name the files when saving the data.
         data: The dataframe containing the data.
-        info: The information dictionary, retrieved from the get_info_from_domain function.
+        table_domain: The table domain dictionary containing metadata about the data columns.
         training_data_ratio: The ratio of the data to be used for training. Should be between 0 and 1.
             If it's equal to 1, it will only return the training set. Optional, default is 0.9.
-        save: Whether to save the data. Optional, default is False.
         verbose: Whether to print verbose output. Optional, default is True.
 
     Returns:
@@ -159,9 +151,10 @@ def process_pipeline_data(
                     - "x_num_test": The numeric data for the test set. It will be absent if ratio == 1.
                     - "x_cat_test": The categorical data for the test set. It will be absent if ratio == 1.
                     - "y_test": The target data for the test set. It will be absent if ratio == 1.
-            - The information dictionary with updated values.
+            - The information dictionary as returned by the _split_data_and_populate_info function
+                with additional metadata.
     """
-    data_splits, info = _split_data_and_populate_info(data, info, training_data_ratio)
+    data_splits, info = _split_data_and_generate_info(data, table_domain, training_data_ratio)
 
     metadata: dict[str, Any] = {"columns": {}}
     task_type = info["task_type"]
@@ -349,9 +342,9 @@ def _get_columns_info(
     return columns_info
 
 
-def _split_data_and_populate_info(
+def _split_data_and_generate_info(
     data: pd.DataFrame,
-    info: dict[str, Any],
+    table_domain: dict[str, Any],
     training_data_ratio: float,
 ) -> tuple[DataSplits, dict[str, Any]]:
     """
@@ -360,7 +353,7 @@ def _split_data_and_populate_info(
 
     Args:
         data: The dataframe containing the data.
-        info: The info dictionary, retrieved from the get_info_from_domain function.
+        table_domain: The table domain dictionary containing metadata about the data columns.
         training_data_ratio: The ratio of the data to be used for training.
             Should be between 0 and 1. If it's equal to 1, it will only return the training set.
 
@@ -368,7 +361,7 @@ def _split_data_and_populate_info(
         A tuple with 2 values:
             - The data splits as an instance of the DataSplits class. Test data will be None if the
                 training_data_ratio is 1.
-            - The info dictionary with updated maetadata, namely:
+            - The info dictionary as retrieved from the get_info_from_domain function with updated metadata, namely:
                 - column_info: The columns info dictionary, as returned by the _get_columns_info function.
                 - idx_mapping: The mapping of the indices in the original dataframe to the column names
                     for all columns, as returned by the get_column_name_mapping function.
@@ -384,8 +377,9 @@ def _split_data_and_populate_info(
     if training_data_ratio == 1:
         log(INFO, "Training data ratio is 1, so the data will not be split into training and test sets.")
 
-    column_names = info["column_names"] if info["column_names"] else data.columns.tolist()
+    info = get_info_from_domain(data, table_domain)
 
+    column_names = info["column_names"] if info["column_names"] else data.columns.tolist()
     numerical_column_indices = info["num_col_idx"]
     categorical_column_indices = info["cat_col_idx"]
     target_columns_indices = info["target_col_idx"]
