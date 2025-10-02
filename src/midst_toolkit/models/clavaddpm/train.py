@@ -140,7 +140,7 @@ def clava_training(
 
 def child_training(
     child_df_with_cluster: pd.DataFrame,
-    child_domain_dict: dict[str, Any],
+    child_domain: dict[str, Any],
     parent_name: str | None,
     child_name: str,
     diffusion_config: Configs,
@@ -152,7 +152,7 @@ def child_training(
 
     Args:
         child_df_with_cluster: DataFrame with the cluster column.
-        child_domain_dict: Dictionary of the child table domain. It should contain size and type for each
+        child_domain: Dictionary of the child table domain. It should contain size and type for each
             column of the table. For example:
                 {
                     "frequency": {"size": 3, "type": "discrete"},
@@ -198,7 +198,7 @@ def child_training(
         child_df_with_cluster["placeholder"] = list(range(len(child_df_with_cluster)))
     else:
         y_col = f"{parent_name}_{child_name}_cluster"
-    child_info = get_table_info(child_df_with_cluster, child_domain_dict, y_col)
+    child_info = get_table_info(child_df_with_cluster, child_domain, y_col)
     child_model_params = ModelParameters(
         diffusion_parameters=DiffusionParameters(
             d_layers=diffusion_config["d_layers"],

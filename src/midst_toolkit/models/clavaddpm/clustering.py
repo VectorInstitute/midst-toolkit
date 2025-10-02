@@ -141,7 +141,7 @@ def _run_clustering(
                 parent_df_with_cluster,
                 child_df_with_cluster,
                 group_lengths_prob_dicts,
-            ) = _pair_clustering_keep_id(
+            ) = _pair_clustering(
                 tables,
                 child,
                 parent,
@@ -157,7 +157,7 @@ def _run_clustering(
     return tables, all_group_lengths_prob_dicts
 
 
-def _pair_clustering_keep_id(
+def _pair_clustering(
     tables: Tables,
     child_name: str,
     parent_name: str,
@@ -199,8 +199,8 @@ def _pair_clustering_keep_id(
     child_df = tables[child_name]["df"]
     parent_df = tables[parent_name]["df"]
     # The domain dictionary holds metadata about the columns of each one of the tables.
-    child_domain_dict = tables[child_name]["domain"]
-    parent_domain_dict = tables[parent_name]["domain"]
+    child_domain = tables[child_name]["domain"]
+    parent_domain = tables[parent_name]["domain"]
     child_primary_key = f"{child_name}_id"
     parent_primary_key = f"{parent_name}_id"
     all_child_columns = list(child_df.columns)
@@ -220,8 +220,8 @@ def _pair_clustering_keep_id(
     cluster_data = _prepare_cluster_data(
         sorted_child_data,
         sorted_parent_data,
-        child_domain_dict,
-        parent_domain_dict,
+        child_domain,
+        parent_domain,
         all_child_columns,
         all_parent_columns,
         parent_primary_key,
@@ -287,8 +287,8 @@ def _pair_clustering_keep_id(
 
     log(INFO, f"Number of cluster centers: {new_col_entry['size']}")
 
-    parent_domain_dict[relation_cluster_name] = new_col_entry.copy()
-    child_domain_dict[relation_cluster_name] = new_col_entry.copy()
+    parent_domain[relation_cluster_name] = new_col_entry.copy()
+    child_domain[relation_cluster_name] = new_col_entry.copy()
 
     return parent_df_with_cluster, child_df_with_cluster, group_lengths_probabilities
 
@@ -409,8 +409,8 @@ def _one_hot_encode_categorical_columns(
 def _prepare_cluster_data(
     child_data: np.ndarray,
     parent_data: np.ndarray,
-    child_domain_dict: dict[str, Any],
-    parent_domain_dict: dict[str, Any],
+    child_domain: dict[str, Any],
+    parent_domain: dict[str, Any],
     all_child_columns: list[str],
     all_parent_columns: list[str],
     parent_primary_key: str,
@@ -424,9 +424,9 @@ def _prepare_cluster_data(
     Args:
         child_data: Numpy array of the child data.
         parent_data: Numpy array of the parent data.
-        child_domain_dict: Dictionary of the domain of the child table. The domain dictionary
+        child_domain: Dictionary of the domain of the child table. The domain dictionary
             holds metadata about the columns of each one of the tables.
-        parent_domain_dict: Dictionary of the domain of the parent table. The domain dictionary
+        parent_domain: Dictionary of the domain of the parent table. The domain dictionary
             holds metadata about the columns of each one of the tables.
         all_child_columns: List of all child columns.
         all_parent_columns: List of all parent columns.
@@ -454,11 +454,11 @@ def _prepare_cluster_data(
     # Columns that are not in the domain dictionary are ignored (except for the primary and foreign keys).
     child_numerical_columns, child_categorical_columns = _get_categorical_and_numerical_columns(
         all_child_columns,
-        child_domain_dict,
+        child_domain,
     )
     parent_numerical_columns, parent_categorical_columns = _get_categorical_and_numerical_columns(
         all_parent_columns,
-        parent_domain_dict,
+        parent_domain,
     )
 
     child_numerical_data = child_data[:, child_numerical_columns]
@@ -569,7 +569,7 @@ def _get_group_lengths_probabilities(
 
     group_lengths_probabilities: dict[int, dict[int, float]] = {}
     for group_label, frequencies_dict in group_lengths_dict.items():
-        group_lengths_probabilities[group_label] = _freq_to_prob(frequencies_dict)
+        group_lengths_probabilities[group_label] = _frequency_to_probability(frequencies_dict)
 
     return group_lengths_probabilities
 
@@ -614,14 +614,14 @@ def _get_parent_data_clusters(
 
 def _get_categorical_and_numerical_columns(
     all_columns: list[str],
-    domain_dictionary: dict[str, Any],
+    tables_domain: dict[str, Any],
 ) -> tuple[list[int], list[int]]:
     """
     Return the list of numerical and categorical column indices from the domain dictionary.
 
     Args:
         all_columns: List of all columns.
-        domain_dictionary: Dictionary of the domain.
+        tables_domain: Dictionary of the tables' domain.
 
     Returns:
         Tuple with two lists of indices, one for the numerical columns and one for the categorical columns.
@@ -630,8 +630,8 @@ def _get_categorical_and_numerical_columns(
     categorical_columns = []
 
     for col_index, col in enumerate(all_columns):
-        if col in domain_dictionary:
-            if domain_dictionary[col]["type"] == "discrete":
+        if col in tables_domain:
+            if tables_domain[col]["type"] == "discrete":
                 categorical_columns.append(col_index)
             else:
                 numerical_columns.append(col_index)
@@ -833,17 +833,17 @@ def _get_group_cluster_labels_through_voting(
     return group_cluster_labels, agree_rates
 
 
-def _freq_to_prob(freq_dict: dict[int, int]) -> dict[int, float]:
+def _frequency_to_probability(frequencies: dict[int, int]) -> dict[int, float]:
     """
     Convert a frequency dictionary to a probability dictionary.
 
     Args:
-        freq_dict: Dictionary of frequencies.
+        frequencies: Dictionary of frequencies.
 
     Returns:
         Dictionary of probabilities.
     """
-    prob_dict: dict[Any, float] = {}
-    for key, freq in freq_dict.items():
-        prob_dict[key] = freq / sum(list(freq_dict.values()))
-    return prob_dict
+    probabilities: dict[Any, float] = {}
+    for key, freq in frequencies.items():
+        probabilities[key] = freq / sum(list(frequencies.values()))
+    return probabilities

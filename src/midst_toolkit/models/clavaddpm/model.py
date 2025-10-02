@@ -114,13 +114,13 @@ class Classifier(nn.Module):
         return self.model(x)
 
 
-def get_table_info(df: pd.DataFrame, domain_dict: dict[str, Any], y_col: str) -> dict[str, Any]:
+def get_table_info(df: pd.DataFrame, tables_domain: dict[str, Any], y_col: str) -> dict[str, Any]:
     """
     Get the dictionary of table information.
 
     Args:
         df: The dataframe containing the data.
-        domain_dict: The domain dictionary of metadata about the data columns.
+        tables_domain: The tables' domain dictionary of metadata about the data columns.
         y_col: The name of the target column.
 
     Returns:
@@ -136,8 +136,8 @@ def get_table_info(df: pd.DataFrame, domain_dict: dict[str, Any], y_col: str) ->
     cat_cols = []
     num_cols = []
     for col in df.columns:
-        if col in domain_dict and col != y_col:
-            if domain_dict[col]["type"] == "discrete":
+        if col in tables_domain and col != y_col:
+            if tables_domain[col]["type"] == "discrete":
                 cat_cols.append(col)
             else:
                 num_cols.append(col)
