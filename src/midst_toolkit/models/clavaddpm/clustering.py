@@ -18,6 +18,7 @@ from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.enumerations import (
     ClusteringMethod,
     Configs,
+    ForeignKeyScalingType,
     GroupLengthsProbDicts,
     RelationOrder,
     Tables,
@@ -305,8 +306,8 @@ def _denormalize_parent_data(
     i.e. duplicate the parent data for each element of the child group data.
 
     Args:
-        child_data: Numpy array of the child data.
-        parent_data: Numpy array of the parent data.
+        child_data: Numpy array of the child data. Should be sorted by the foreign key.
+        parent_data: Numpy array of the parent data. Should be sorted by the parent primary key.
         parent_primary_key_index: Index of the parent primary key.
         foreign_key_index: Index of the foreign key to the child data.
 
@@ -330,13 +331,14 @@ def _denormalize_parent_data(
     return denormalized_parent_data
 
 
-def _get_min_max_for_numerical_columns(
+def _get_min_max_and_quantile_for_numerical_columns(
     child_numerical_data: np.ndarray,
     parent_numerical_data: np.ndarray,
     parent_scale: float,
-) -> np.ndarray:
+) -> tuple[np.ndarray, np.ndarray]:
     """
-    Get the min-max values for the numerical columns in both the child and parent data.
+    Get the min-max and quantile values for the numerical columns in both the
+    child and parent data.
 
     Args:
         child_numerical_data: Numpy array of the child numerical data.
@@ -344,7 +346,8 @@ def _get_min_max_for_numerical_columns(
         parent_scale: Scaling factor applied to the parent data.
 
     Returns:
-        Numpy array of the min-max values for the numerical columns.
+        A tuple with two numpy arrays, one with the min-max values and one with the quantile
+        values for the numerical columns.
     """
     joint_matrix = np.concatenate([child_numerical_data, parent_numerical_data], axis=1)
     matrix_p_index = child_numerical_data.shape[1]
@@ -356,7 +359,7 @@ def _get_min_max_for_numerical_columns(
     numerical_quantile[:, matrix_p_index:] = parent_scale * numerical_quantile[:, matrix_p_index:]
     numerical_min_max[:, matrix_p_index:] = parent_scale * numerical_min_max[:, matrix_p_index:]
 
-    return numerical_min_max
+    return numerical_min_max, numerical_quantile
 
 
 def _one_hot_encode_categorical_columns(
@@ -417,6 +420,7 @@ def _prepare_cluster_data(
     parent_primary_key: str,
     parent_scale: float,
     key_scale: float,
+    key_scaling_type: ForeignKeyScalingType = ForeignKeyScalingType.MINMAX,
 ) -> np.ndarray:
     """
     Prepare the data for the clustering algorithm, which comprises of denormalizing the parent data,
@@ -437,10 +441,12 @@ def _prepare_cluster_data(
         key_scale: Scaling factor applied to the foreign key values that link
             the child table to the parent table. This will weight how much influence
             the parent-child relationship has in the clustering algorithm.
+        key_scaling_type: Type of scaling for the foreign key. Default is ForeignKeyScalingType.MINMAX.
 
     Returns:
         Numpy array of the data prepared for the clustering algorithm.
     """
+    # Recalculating the keys' indices here to save us from passing one extra parameter.
     parent_primary_key_index = all_parent_columns.index(parent_primary_key)
     foreign_key_index = all_child_columns.index(parent_primary_key)
 
@@ -467,11 +473,23 @@ def _prepare_cluster_data(
     parent_numerical_data = denormalized_parent_data[:, parent_numerical_columns]
     parent_categorical_data = denormalized_parent_data[:, parent_categorical_columns]
 
-    numerical_min_max = _get_min_max_for_numerical_columns(
+    numerical_min_max, numerical_quantile = _get_min_max_and_quantile_for_numerical_columns(
         child_numerical_data,
         parent_numerical_data,
         parent_scale,
     )
+
+    reshaped_parent_data = denormalized_parent_data[:, parent_primary_key_index].reshape(-1, 1)
+    if key_scaling_type == ForeignKeyScalingType.MINMAX:
+        key_normalized = _min_max_normalize_sklearn(reshaped_parent_data)
+        numerical_normalized = numerical_min_max
+    elif key_scaling_type == ForeignKeyScalingType.QUANTILE:
+        key_normalized = _quantile_normalize_sklearn(reshaped_parent_data)
+        numerical_normalized = numerical_quantile
+    else:
+        raise ValueError(f"Unsupported foreign key scaling type: {key_scaling_type}")
+
+    key_scaled = key_scale * key_normalized
 
     categorical_one_hot = _one_hot_encode_categorical_columns(
         child_categorical_data,
@@ -479,13 +497,10 @@ def _prepare_cluster_data(
         parent_scale,
     )
 
-    key_min_max = _min_max_normalize_sklearn(denormalized_parent_data[:, parent_primary_key_index].reshape(-1, 1))
-    key_scaled = key_scale * key_min_max
-
     if categorical_one_hot is None:
-        return np.concatenate((numerical_min_max, key_scaled), axis=1)
+        return np.concatenate((numerical_normalized, key_scaled), axis=1)
 
-    return np.concatenate((numerical_min_max, categorical_one_hot, key_scaled), axis=1)
+    return np.concatenate((numerical_normalized, categorical_one_hot, key_scaled), axis=1)
 
 
 def _get_cluster_labels(
@@ -583,9 +598,11 @@ def _get_parent_data_clusters(
 ) -> np.ndarray:
     """
     Get the parent data clusters from the child data with cluster and the parent data.
+    The child data needs to be sorted by the foreign key.
 
     Args:
         child_data_with_cluster: Numpy array of the child data with cluster information.
+            Should be sorted by the foreign key.
         parent_data: Numpy array of the parent data.
         parent_primary_key_index: Index of the parent primary key.
         foreign_key_index: Index of the foreign key to the child data.
@@ -618,7 +635,7 @@ def _get_categorical_and_numerical_columns(
     table_domain: dict[str, Any],
 ) -> tuple[list[int], list[int]]:
     """
-    Return the list of numerical and categorical column indices from the domain dictionary.
+    Return the list of numerical and categorical column indices from the table domain dictionary.
 
     Args:
         all_columns: List of all columns.
