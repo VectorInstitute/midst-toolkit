@@ -1,5 +1,4 @@
 import numpy as np
-import torch
 import optuna
 import pandas as pd
 import xgboost as xgb
@@ -42,7 +41,6 @@ class XgBoostHyperparameterTuner:
         self.use_gpu = use_gpu
         self.random_seed = random_seed
         self.device = DEVICE.type
-        import pdb; pdb.set_trace()
 
     def _create_preprocessing_pipeline(self) -> ColumnTransformer:
         """
@@ -84,7 +82,7 @@ class XgBoostHyperparameterTuner:
                         colsample_bytree=trial.suggest_float("colsample_bylevel", 0.5, 1),
                         reg_alpha=trial.suggest_categorical("reg_alpha", [0, 0.1, 0.5, 1, 5, 10]),
                         reg_lambda=trial.suggest_categorical("reg_lambda", [0, 0.1, 0.5, 1, 5, 10, 100]),
-                        device = "cuda" if self.use_gpu and DEVICE == "cuda" else "cpu",
+                        device="cuda" if self.use_gpu and self.device == "cuda" else "cpu",
                         objective="binary:logistic",
                         seed=self.random_seed,
                         verbosity=1,

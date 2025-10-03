@@ -87,7 +87,7 @@ def run_metaclassifier_training(config: DictConfig) -> None:
 
     # 1. Initialize the attacker
     blending_attacker = BlendingPlusPlus(
-        data_configs=config.data_configs, meta_classifier_type=meta_classifier_enum, random_seed=config.random_seed
+        config=config, meta_classifier_type=meta_classifier_enum, random_seed=config.random_seed
     )
     log(INFO, f"{meta_classifier_enum} created with random seed {config.random_seed}, starting training...")
 

@@ -1,5 +1,6 @@
 """Blending++ orchestrator, equivalent to blending_plus_plus.py in the submission repository. (https://github.com/CRCHUM-CITADEL/ensemble-mia)."""
 
+import json
 from enum import Enum
 
 import numpy as np
@@ -20,7 +21,7 @@ class MetaClassifierType(Enum):
 class BlendingPlusPlus:
     def __init__(
         self,
-        data_configs: DictConfig,
+        config: DictConfig,
         meta_classifier_type: MetaClassifierType = MetaClassifierType.XGB,
         random_seed: int | None = None,
     ) -> None:
@@ -34,13 +35,14 @@ class BlendingPlusPlus:
         4. Predicts membership probability on new data.
 
         Args:
-            data_configs: Data configuration dictionary.
+            config: Dictionary storing data configuration paths and parameters, used to load data properties.
             meta_classifier_type: Type of meta classifier model. Defaults to MetaClassifierType.XGB.
             random_seed: Random seed for reproducibility. Defaults to None.
 
         """
+        with open(config.data_processing_config.data_types_file_path, "r") as f:
+            self.column_types = json.load(f)
         self.meta_classifier_type = meta_classifier_type
-        self.data_configs = data_configs
         self.trained_model = None
         self.random_seed = random_seed
 
@@ -129,8 +131,8 @@ class BlendingPlusPlus:
             df_input=df_train,
             df_synthetic=df_synthetic,
             df_reference=df_reference,
-            categorical_cols=self.data_configs.metadata.categorical,
-            numerical_cols=self.data_configs.metadata.numerical,
+            categorical_cols=self.column_types["categorical"],
+            numerical_cols=self.column_types["numerical"],
         )
 
         if self.meta_classifier_type == MetaClassifierType.XGB:
@@ -190,8 +192,8 @@ class BlendingPlusPlus:
             df_input=df_test,
             df_synthetic=df_synthetic,
             df_reference=df_reference,
-            categorical_cols=self.data_configs.metadata.categorical,
-            numerical_cols=self.data_configs.metadata.numerical,
+            categorical_cols=self.column_types["categorical"],
+            numerical_cols=self.column_types["numerical"],
         )
 
         probabilities = self.trained_model.predict_proba(df_test_features)[:, 1]

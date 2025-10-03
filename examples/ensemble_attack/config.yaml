@@ -45,15 +45,8 @@ data_processing_config:
   trans_domain_file_path: ${base_example_dir}/data_configs/trans_domain.json
   dataset_meta_file_path: ${base_example_dir}/data_configs/dataset_meta.json
   trans_json_file_path: ${base_example_dir}/data_configs/trans.json
+  data_types_file_path: ${base_example_dir}/data_configs/data_types.json
   population_sample_size: 40000
-
-# Metadata for real data
-data_configs:
-  metadata:
-      "numerical": ["trans_date", "amount", "balance", "account"]
-      "categorical": ["trans_type", "operation", "k_symbol", "bank"]
-      "variable_to_predict": "trans_type"
-
 
 # Training settings (temporary, numbers subject to change)
 shadow_training:
