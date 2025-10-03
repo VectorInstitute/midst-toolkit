@@ -13,7 +13,7 @@ from examples.ensemble_attack.real_data_collection import collect_population_dat
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
-    run_shadow_model_training,
+    train_three_sets_of_shadow_models,
 )
 from midst_toolkit.common.logger import log
 
@@ -63,15 +63,21 @@ def main(cfg: DictConfig) -> None:
         # ``population_data`` in ensemble attack is used for shadow pre-training, and
         # ``master_challenge_df`` is used for fine-tuning for half of the shadow models.
         # For the other half of the shadow models, only ``master_challenge_df`` is used for training.
-        run_shadow_model_training(
+        first_set_result_path, second_set_result_path, third_set_result_path = train_three_sets_of_shadow_models(
             population_data=df_population_with_challenge,
             master_challenge_data=df_master_challenge_train,
             shadow_models_data_path=Path(cfg.shadow_training.shadow_models_data_path),
             training_json_config_paths=cfg.shadow_training.training_json_config_paths,
             fine_tuning_config=cfg.shadow_training.fine_tuning_config,
-            n_models=2,  # 4 based on the original code, must be even
-            n_reps=12,  # 12 based on the original code
+            # Number of shadow models to train in each set of shadow training (3 sets total) results in
+            # ``4 * n_models_per_set`` total shadow models.
+            n_models_per_set=4,  # 4 based on the original code, must be even
+            n_reps=12,  # Number of repetitions of challenge points in each shadow model training set. `12` based on the original code
             random_seed=cfg.random_seed,
+        )
+        log(
+            INFO,
+            f"Shadow model training finished and saved at 1) {first_set_result_path}, 2) {second_set_result_path}, 3) {third_set_result_path}",
         )
 
 

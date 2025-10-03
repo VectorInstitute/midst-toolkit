@@ -196,8 +196,7 @@ def train_shadow_on_half_challenge_data(
             lists[idx].append(uid)
 
     # Create the necessary folders and config files
-    # TODO: do not change the model name and folder names for now to be consistent for RMIA implementation.
-    shadow_folder = Path(shadow_models_data_path / "shadow_model_rmia_m8")
+    shadow_folder = Path(shadow_models_data_path / "shadow_model_rmia_third_set")
     shadow_folder.mkdir(exist_ok=True)
     shutil.copyfile(
         training_json_config_paths.trans_domain_file_path,
@@ -235,25 +234,47 @@ def train_shadow_on_half_challenge_data(
         attack_data["trained_results"].append(train_result)
 
     # Pickle dump the results
-    result_path = Path(save_dir, "rmia_shadows_m8.pkl")
+    result_path = Path(save_dir, "rmia_shadows_third_set.pkl")
     with open(result_path, "wb") as file:
         pickle.dump(attack_data, file)
 
     return result_path
 
 
-def run_shadow_model_training(
+def train_three_sets_of_shadow_models(
     population_data: pd.DataFrame,
     master_challenge_data: pd.DataFrame,
     shadow_models_data_path: Path,
     training_json_config_paths: DictConfig,
     fine_tuning_config: DictConfig,
-    n_models: int = 4,
+    n_models_per_set: int = 4,
     n_reps: int = 12,
     random_seed: int = 42,
-) -> None:
+) -> tuple[Path, Path, Path]:
     """
-    Runs the shadow model training pipeline of the ensemble attack.
+    Runs the shadow model training pipeline of the ensemble attack. This pipeline consists of three sets of
+    shadow model training.
+    In the first step, one-fourth of the shadow models are pre-trained on a random subset of the ``population_data``
+    and then fine-tuned on half of the challenge points. In the second step, another one-fourth of the shadow models
+    are pre-trained on a different random subset of the ``population_data`` and then fine-tuned on half of the
+    challenge points.
+    In the third step, the remaining half of the shadow models are trained from scratch on half of the challenge
+    points.
+    Each observation in the challenge points is included in the training set of exactly half of the shadow models
+    in each set.
+    Each observation in the challenge points is repeated ``n_reps`` times in the training set of each shadow model.
+
+    This attack by default trains 16 shadow models in total, 8 of which are fine-tuned from a pre-traine model and
+    8 of which are trained from scratch on the challenge points. Pre-training is done on a number of samples from the
+    population data as stated in the ``fine_tuning_config`` or `60K` samples by default.
+    We keep track of and save the challenge id's used to train each shadow model to be used by RMIA.
+
+    ``population_data`` is all the data that the attacker has access to, including the challenge points.
+    ``master_challenge_data`` is the master challenge data that will be used to train the meta classifier.
+    It includes challenge points that we have the labels for
+    (i.e., whether they were used to train the target model or not). Please refer to the attack example README
+    at ``examples/ensemble_attack/README.md`` for more details.
+
 
     Args:
         population_data: The total population data used for pre-training some of the shadow models.
@@ -263,17 +284,21 @@ def run_shadow_model_training(
             will be created if it does not exist, and all the relevant configs will be copied here automatically.
         training_json_config_paths: Configuration dictionary containing paths to the data JSON config files.
         fine_tuning_config: Configuration dictionary containing shadow model fine-tuning specific information.
-        n_models: Number of shadow models to train, must be even, defaults to 4.
+        n_models_per_set: Number of shadow models to train by each approach, must be even, defaults to 4.
         n_reps: Number of repetitions for each challenge point in the fine-tuning or training sets, defaults to 12.
         random_seed: Random seed used for reproducibility, defaults to 42.
+
+    Returns:
+        Paths where the shadow models and their artifacts including synthetic data are saved for each of
+            the three sets of shadows.
     """
     # Number of shadow models to train, must be even
-    assert n_models % 2 == 0, "n_models must be even."
+    assert n_models_per_set % 2 == 0, "n_models_per_set must be even."
     # Create the folder including their parent directories if they don't exist
     shadow_models_data_path.mkdir(parents=True, exist_ok=True)
 
     first_set_result_path = train_fine_tuning_shadows(
-        n_models=n_models,
+        n_models=n_models_per_set,
         n_reps=n_reps,
         population_data=population_data,
         master_challenge_data=master_challenge_data,
@@ -289,10 +314,10 @@ def run_shadow_model_training(
         INFO,
         f"First set of shadow model training completed and saved at {first_set_result_path}",
     )
-    # The following four models are trained in the same way, with a new initial training set
-    # in the hopes of increased performance (gain was minimal based on the submission comments).
+    # Attack codebase comment: "The following four models are trained in the same way, with a new initial training set
+    # in the hopes of increased performance (gain was minimal based on the submission comments).""
     second_set_result_path = train_fine_tuning_shadows(
-        n_models=n_models,
+        n_models=n_models_per_set,
         n_reps=n_reps,
         population_data=population_data,
         master_challenge_data=master_challenge_data,
@@ -308,10 +333,10 @@ def run_shadow_model_training(
         INFO,
         f"Second set of shadow model training completed and saved at {second_set_result_path}.",
     )
-    # The following eight models are trained as from scratch on the challenge points,
-    # still in the hopes of increased performance (again the gain was minimal).
+    # Attack codebase comment: "The following eight models are trained from scratch on the challenge points,
+    # still in the hopes of increased performance (again the gain was minimal).""
     third_set_result_path = train_shadow_on_half_challenge_data(
-        n_models=n_models * 2,
+        n_models=n_models_per_set * 2,
         n_reps=n_reps,
         master_challenge_data=master_challenge_data,
         shadow_models_data_path=shadow_models_data_path,
@@ -322,3 +347,4 @@ def run_shadow_model_training(
         INFO,
         f"Third set of shadow model training completed and saved at: {third_set_result_path}",
     )
+    return first_set_result_path, second_set_result_path, third_set_result_path

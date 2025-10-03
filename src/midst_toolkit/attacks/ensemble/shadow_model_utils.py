@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import torch
 
 from midst_toolkit.attacks.ensemble.data_utils import load_multi_table
 from midst_toolkit.attacks.ensemble.tabddpm_fine_tuning import clava_fine_tuning
@@ -107,6 +108,7 @@ def train_tabddpm_and_synthesize(
         save_dir,
         diffusion_config=configs["diffusion"],
         classifier_config=configs["classifier"],
+        device="cuda" if torch.cuda.is_available() else "cpu",
     )
     material["models"] = models
 
