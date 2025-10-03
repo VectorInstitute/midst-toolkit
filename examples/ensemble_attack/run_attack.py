@@ -70,6 +70,7 @@ def run_metaclassifier_training(config: DictConfig) -> None:
     )
 
     # Synthetic data borrowed from the attack implementation repository.
+    # From (https://github.com/CRCHUM-CITADEL/ensemble-mia/tree/main/input/tabddpm_black_box/meta_classifier)
     # TODO: Change this file path to the path where the synthetic data is stored.
     df_synthetic = load_dataframe(
         Path(config.data_paths.processed_attack_data_path),

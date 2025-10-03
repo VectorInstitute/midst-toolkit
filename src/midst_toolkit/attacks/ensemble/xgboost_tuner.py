@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 import optuna
 import pandas as pd
 import xgboost as xgb
@@ -10,8 +11,10 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from midst_toolkit.attacks.ensemble.train_utils import get_tpr_at_fpr
+from midst_toolkit.common.variables import DEVICE
 
 
+# Setting the logging level to WARNING, suppressing INFO and DEBUG messages from Optuna
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
@@ -19,7 +22,7 @@ class XgBoostHyperparameterTuner:
     def __init__(
         self,
         input_features: pd.DataFrame,
-        label: np.ndarray,
+        labels: np.ndarray,
         use_gpu: bool = False,
         random_seed: int | None = None,
     ):
@@ -30,14 +33,16 @@ class XgBoostHyperparameterTuner:
 
         Args:
             input_features: Input features as a DataFrame.
-            label: Label for input features as a numpy array.
+            labels: Labels for input features as a numpy array.
             use_gpu: Whether to use GPU acceleration. Defaults to False.
             random_seed: Random seed for reproducibility. Defaults to None.
         """
         self.input_features = input_features
-        self.label = label
+        self.labels = labels
         self.use_gpu = use_gpu
         self.random_seed = random_seed
+        self.device = DEVICE.type
+        import pdb; pdb.set_trace()
 
     def _create_preprocessing_pipeline(self) -> ColumnTransformer:
         """
@@ -79,7 +84,7 @@ class XgBoostHyperparameterTuner:
                         colsample_bytree=trial.suggest_float("colsample_bylevel", 0.5, 1),
                         reg_alpha=trial.suggest_categorical("reg_alpha", [0, 0.1, 0.5, 1, 5, 10]),
                         reg_lambda=trial.suggest_categorical("reg_lambda", [0, 0.1, 0.5, 1, 5, 10, 100]),
-                        tree_method="auto" if not self.use_gpu else "gpu_hist",
+                        device = "cuda" if self.use_gpu and DEVICE == "cuda" else "cpu",
                         objective="binary:logistic",
                         seed=self.random_seed,
                         verbosity=1,
@@ -90,14 +95,14 @@ class XgBoostHyperparameterTuner:
 
     def _evaluate_pipeline_cv(self, trial: Trial, num_kfolds: int) -> float:
         """
-        Performs cross-validation on the pipeline and returns the mean TPR at a fixed FPR.
+        Performs cross-validation on the pipeline and returns the mean TPR at FPR=0.1.
 
         Args:
             trial: An Optuna trial object.
             num_kfolds: Number of folds for cross-validation.
 
         Returns:
-            Mean TPR at the specified FPR across all folds.
+            Mean TPR at FPR=0.1 across all folds.
         """
         pipeline = self._create_xgb_pipeline(trial)
         tpr_scorer = make_scorer(get_tpr_at_fpr)
@@ -105,7 +110,7 @@ class XgBoostHyperparameterTuner:
         cv_scores = cross_val_score(
             pipeline,
             self.input_features,
-            self.label,
+            self.labels,
             cv=num_kfolds,
             scoring=tpr_scorer,
         )
@@ -138,6 +143,6 @@ class XgBoostHyperparameterTuner:
         study.optimize(objective, n_trials=num_optuna_trials)
 
         best_pipe = self._create_xgb_pipeline(study.best_trial)
-        best_pipe.fit(self.input_features, self.label)
+        best_pipe.fit(self.input_features, self.labels)
 
         return best_pipe

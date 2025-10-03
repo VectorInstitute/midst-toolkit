@@ -15,6 +15,7 @@ def calculate_gower_features(
 
     Args:
         df_input: The dataframe to generate features for (e.g., meta classifier train or test set).
+        #TODO: I think it's also worth stating what input is composed of. Is it a mix of things that we can clearly state?
         df_synthetic: The synthetic dataframe to compare against.
         categorical_column_names: A list of categorical column names.
 
@@ -82,8 +83,11 @@ def calculate_domias_score(
 
     Args:
         df_input: The dataframe to calculate DOMIAS scores for (e.g., meta classifier train or test set).
+        #TODO: be specific here in the composition of df_input. Is this the challenge dataset or something else.
         df_synthetic: Synthetic data.
+        #TODO: Elaborate.
         df_reference: Reference (real) population data.
+        #TODO: Ask Fatemeh
 
     Returns:
         Normalized DOMIAS scores for each test sample, indexed like df_input.
@@ -109,7 +113,7 @@ def calculate_domias_score(
         where=reference_data_probability > 0,
     )
 
-    # Scale to [0, 1] (Reshape to 2D for MinMaxScaler, and then flatten back to 1D)
+    # Scale to [0, 1] (Reshape to 2D for MinMaxScaler, and then flatten back to 1D with ravel())
     pred_proba_domias = MinMaxScaler().fit_transform(density_ratio.reshape(-1, 1)).ravel()
 
     return pd.DataFrame(pred_proba_domias, columns=["domias"], index=df_input.index)

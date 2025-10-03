@@ -1,4 +1,4 @@
-"""Blending++ orchestrator, equivalent to blending_plus_plus.py in the submission repo."""
+"""Blending++ orchestrator, equivalent to blending_plus_plus.py in the submission repository. (https://github.com/CRCHUM-CITADEL/ensemble-mia)."""
 
 from enum import Enum
 
@@ -81,7 +81,9 @@ class BlendingPlusPlus:
             df_input=df_input, df_synthetic=df_synthetic, df_reference=df_reference
         )
 
-        # 3. Get RMIA signals (placeholder)
+        # 3. Get RMIA signals (borrowed from the attack implementation repository,
+        # at https://github.com/CRCHUM-CITADEL/ensemble-mia/tree/main/input/tabddpm_black_box/meta_classifier)
+        # Will be removed after our own implementation is ready.
         rmia_signals = pd.read_csv(
             "examples/ensemble_attack/data/attack_data/og_rmia_train_meta_pred.csv"
         )  # Placeholder for RMIA features
@@ -134,7 +136,7 @@ class BlendingPlusPlus:
         if self.meta_classifier_type == MetaClassifierType.XGB:
             tuner = XgBoostHyperparameterTuner(
                 input_features=meta_features,
-                label=y_train,
+                labels=y_train,
                 use_gpu=use_gpu,
                 random_seed=self.random_seed,
             )
@@ -148,6 +150,9 @@ class BlendingPlusPlus:
         elif self.meta_classifier_type == MetaClassifierType.LR:
             lr_model = LogisticRegression(max_iter=1000)
             self.trained_model = lr_model.fit(meta_features, y_train)
+
+        else:
+            raise ValueError(f"Unsupported meta_classifier_type: {self.meta_classifier_type}")
 
     def predict(
         self,

@@ -55,17 +55,18 @@ data_configs:
       "variable_to_predict": "trans_type"
 
 
-# Training settings (placeholder)
+# Training settings (temporary, numbers subject to change)
 shadow_training:
   epochs: 10
   learning_rate: 0.001
   batch_size: 64
   model_type: "tabddpm"
 
-# Metaclassifier settings (placeholder)
+# Metaclassifier settings
 metaclassifier:
   model_type: "xgb"
   use_gpu: true
+  # Temporary. Might remove having an epoch parameter.
   epochs: 1
 
 # General settings
