@@ -100,3 +100,10 @@ class TargetType(Enum):
 
     FLOAT = "float"
     LONG = "long"
+
+
+class ForeignKeyScalingType(Enum):
+    """Possible types of scaling for the foreign key."""
+
+    MINMAX = "minmax"
+    QUANTILE = "quantile"
