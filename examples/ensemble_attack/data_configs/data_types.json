@@ -3,5 +3,3 @@
     "categorical": ["trans_type", "operation", "k_symbol", "bank"],
     "variable_to_predict": "trans_type"
 }
-
-      

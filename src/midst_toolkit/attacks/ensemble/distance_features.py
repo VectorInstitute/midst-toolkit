@@ -65,6 +65,12 @@ def calculate_domias_score(
     """
     Computes the DOMIAS (Density-ratio-based Out-of-distribution Model-Inconsistency Assessment Score).
 
+    DOMIAS is designed to infer membership by detecting local overfitting of a
+    generative model. It is particularly effective at attacking underrepresented
+    groups in synthetic data where overfitting is often localized.
+
+    The core mechanism involves calculating a density ratio score for an input
+    sample (x) that estimates its likelihood of being an 'overfit' instance.
     The score estimates the likelihood that an input sample is an 'overfit' instance
     from the synthetic data, which is rare in the real data distribution. It does so by:
     1. Estimating Densities using Kernel Density Estimation (KDE).
@@ -89,7 +95,7 @@ def calculate_domias_score(
             all the shadow models training data, holdout data, and the challenge dataset.
 
     Returns:
-        Normalized DOMIAS scores for each test sample, indexed like df_input.
+        Normalized DOMIAS scores for each input sample, indexed like df_input.
     """
     # Transpose dataframes (.T) to the required (n_features, n_samples) format for scipy's gaussian_kde.
     reference_data_transposed, synthetic_data_transposed, input_data_transposed = (
