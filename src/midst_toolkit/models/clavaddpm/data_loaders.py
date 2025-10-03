@@ -143,14 +143,18 @@ def process_pipeline_data(
             - The data dictionary containing the following keys:
                 - "df": The dataframe containing the data.
                     - DataSplit.TRAIN: The dataframe containing the training set.
-                    - DataSplit.TEST: The dataframe containing the test set. It will be absent if ratio == 1.
+                    - DataSplit.TEST: The dataframe containing the test set. It will be absent if
+                        training_data_ratio == 1.
                 - "numpy": A dictionary with the numeric data, containing the keys:
                     - "x_num_train": The numeric data for the training set.
                     - "x_cat_train": The categorical data for the training set.
                     - "y_train": The target data for the training set.
-                    - "x_num_test": The numeric data for the test set. It will be absent if ratio == 1.
-                    - "x_cat_test": The categorical data for the test set. It will be absent if ratio == 1.
-                    - "y_test": The target data for the test set. It will be absent if ratio == 1.
+                    - "x_num_test": The numeric data for the test set. It will be absent if
+                        training_data_ratio == 1.
+                    - "x_cat_test": The categorical data for the test set. It will be absent if
+                        training_data_ratio == 1.
+                    - "y_test": The target data for the test set. It will be absent if
+                        training_data_ratio == 1.
             - The information dictionary as returned by the _split_data_and_populate_info function
                 with additional metadata.
     """
@@ -373,10 +377,6 @@ def _split_data_and_generate_info(
                 - test_num: The number of samples in the test set. It will be absent if the training_data_ratio is 1.
                 - column_names: The names of the columns.
     """
-    assert 0 < training_data_ratio <= 1, "Training data ratio must be between 0 and 1."
-    if training_data_ratio == 1:
-        log(INFO, "Training data ratio is 1, so the data will not be split into training and test sets.")
-
     info = get_info_from_domain(data, table_domain)
 
     column_names = info["column_names"] if info["column_names"] else data.columns.tolist()
@@ -486,8 +486,12 @@ def train_test_split(
             - The test dataframe.
             - The seed used by the random number generator to generate the split.
     """
+    assert 0 < training_data_ratio <= 1, "Training data ratio must be between 0 and 1."
     if training_data_ratio == 1:
-        return DataSplits(train_data=DataFeatures(data=data.copy()), test_data=None, seed=None)
+        log(INFO, "Training data ratio is 1, so the data will not be split into training and test sets.")
+
+    if training_data_ratio == 1:
+        return DataSplits(train_data=DataFeatures(data=data.copy()))
 
     # Train/ Test Split:# Train/ Test Split:
     # num_train_samples% for Training, (1 - num_test_samples)% for Testing
