@@ -2,35 +2,35 @@
 https://github.com/CRCHUM-CITADEL/ensemble-mia.
 """
 
-from logging import WARNING
-from typing import Any, Literal
 from dataclasses import asdict
+from logging import WARNING
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import torch
 from torch import optim
 
+from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
 from midst_toolkit.models.clavaddpm.dataset import (
     Transformations,
     make_dataset_from_df,
 )
-from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
-    GaussianMultinomialDiffusion,
-)
-from midst_toolkit.common.enumerations import DataSplit
-
-from midst_toolkit.models.clavaddpm.train import (
-    _numerical_forward_backward_log,
-)
-from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 from midst_toolkit.models.clavaddpm.enumerations import (
+    CategoricalEncoding,
     Configs,
+    IsTargetCondioned,
     RelationOrder,
     Tables,
+    TargetType,
 )
-
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
+    GaussianLossType,
+    GaussianMultinomialDiffusion,
+    SchedulerType,
+)
 from midst_toolkit.models.clavaddpm.model import (
     Classifier,
     DiffusionParameters,
@@ -38,23 +38,11 @@ from midst_toolkit.models.clavaddpm.model import (
     ModelType,
     get_table_info,
 )
-from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
-    GaussianLossType,
-    GaussianMultinomialDiffusion,
-    SchedulerType,
+from midst_toolkit.models.clavaddpm.sampler import ScheduleSamplerType
+from midst_toolkit.models.clavaddpm.train import (
+    _numerical_forward_backward_log,
 )
-
-from midst_toolkit.models.clavaddpm.enumerations import (
-    CategoricalEncoding,
-    Configs,
-    IsTargetCondioned,
-    ReductionMethod,
-    RelationOrder,
-    Tables,
-    TargetType,
-)
-
-from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, ScheduleSamplerType
+from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 
 
 def fine_tune_model(
@@ -79,12 +67,14 @@ def fine_tune_model(
         data_frame: The new dataset to fine-tune the model on.
         data_frame_info: Information about the new dataset.
         model_params: Parameters for the model architecture.
-        transformations_dict: Dictionary containing transformation configurations.
+        transformations: Object containing transformation configurations.
         steps: Number of training steps for fine-tuning.
         batch_size: Batch size for fine-tuning.
         model_type: Type of model architecture to use. mlp or resnet currently supported.
         lr: Learning rate for the optimizer in the diffusion model.
         weight_decay: Weight decay for the diffusion optimizer.
+        data_split_ratios: The ratios of the dataset to split into train, validation, and test.
+            It must have exactly 3 values and their sum must amount to 1 (with a tolerance of 0.01).
         device: Device to run the training on, either 'cuda' or 'cpu'. Defaults to 'cuda' if available.
 
     Returns:
@@ -104,26 +94,17 @@ def fine_tune_model(
     )
 
     category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
-    if (
-        len(category_sizes) == 0
-        or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT
-    ):
+    if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = np.array([0])
 
-    num_numerical_features = (
-        dataset.x_num[DataSplit.TRAIN.value].shape[1]
-        if dataset.x_num is not None
-        else 0
-    )
+    num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1] if dataset.x_num is not None else 0
     d_in = np.sum(category_sizes) + num_numerical_features
     model_params.d_in = d_in
 
     model = model_type.get_model(model_params)
     model.to(device)
 
-    train_loader = prepare_fast_dataloader(
-        dataset, split=DataSplit.TRAIN, batch_size=batch_size
-    )
+    train_loader = prepare_fast_dataloader(dataset, split=DataSplit.TRAIN, batch_size=batch_size)
 
     diffusion = trained_diffusion
     diffusion.to(device)
@@ -153,14 +134,12 @@ def fine_tune_model(
         "K": category_sizes,
         "is_regression": dataset.is_regression,
         "inverse_transform": (
-            dataset.numerical_transform.inverse_transform
-            if dataset.numerical_transform is not None
-            else None
+            dataset.numerical_transform.inverse_transform if dataset.numerical_transform is not None else None
         ),
     }
 
 
-# NOTE: This function will not be called in Ensemble attack since Ensemble only covers the single-table setting,
+# NOTE: This function will not be called in the Ensemble attack since Ensemble only covers the single-table setting,
 # but this is added here for completeness in case we decide to experiment with multi-table as well.
 def fine_tune_classifier(
     pre_trained_classifier: Classifier,
@@ -172,8 +151,8 @@ def fine_tune_classifier(
     batch_size: int,
     gaussian_loss_type: GaussianLossType,
     num_timesteps: int,
-    data_split_ratios: list[float],
     scheduler_type: SchedulerType,
+    data_split_ratios: list[float],
     learning_rate: float = 0.0001,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
 ) -> Classifier:
@@ -185,21 +164,20 @@ def fine_tune_classifier(
         data_frame: DataFrame to train the model on.
         data_frame_info: Dictionary of the table information.
         model_params: Dictionary of the model parameters.
-        transformations_dict: Dictionary of the transformations.
+        transformations: Transformation object containing all the transformations.
         classifier_steps: Number of steps to fine-tune the classifier.
         batch_size: Batch size to use for training.
         gaussian_loss_type: Type of the gaussian loss to use.
         num_timesteps: Number of timesteps to use for the diffusion model.
+        scheduler_type: Type of scheduler to use for the diffusion model.
         data_split_ratios: The ratios of the dataset to split into train, validation, and test.
             It must have exactly 3 values and their sum must amount to 1 (with a tolerance of 0.01).
-        scheduler_type: Type of scheduler to use for the diffusion model.
         learning_rate: Learning rate for the optimizer. Default is 0.0001.
         device: Device to use for training.
 
     Returns:
         The fine-tuned classifier model.
     """
-    # ruff: noqa: N806
     dataset, label_encoders, column_orders = make_dataset_from_df(
         data_frame,
         transformations,
@@ -215,10 +193,7 @@ def fine_tune_classifier(
         target_type=TargetType.LONG,
     )
     category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
-    if (
-        len(category_sizes) == 0
-        or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT
-    ):
+    if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = np.array([0])
     print(category_sizes)
 
@@ -241,15 +216,13 @@ def fine_tune_classifier(
         denoise_fn=None,  # type: ignore[arg-type]
         gaussian_loss_type=gaussian_loss_type,
         num_timesteps=num_timesteps,
-        scheduler=scheduler_type,
+        scheduler_type=scheduler_type,
         device=torch.device(device),
     )
     empty_diffusion.to(device)
 
     # schedule_sampler = create_named_schedule_sampler("uniform", empty_diffusion)
-    schedule_sampler = ScheduleSamplerType.UNIFORM.create_named_schedule_sampler(
-        num_timesteps
-    )
+    schedule_sampler = ScheduleSamplerType.UNIFORM.create_named_schedule_sampler(num_timesteps)
     key_value_logger = KeyValueLogger()
     classifier.train()
     for _step in range(classifier_steps):
@@ -337,9 +310,7 @@ def child_fine_tuning(
             WARNING,
             "Ensemble attack is designed for single table. You are using multi-table fine-tuning.",
         )
-        assert (
-            classifier_config is not None
-        ), "Classifier config is required for multi-table training"
+        assert classifier_config is not None, "Classifier config is required for multi-table training"
         if classifier_config["iterations"] > 0:
             child_classifier = fine_tune_classifier(
                 pre_trained_model["classifier"],
@@ -352,9 +323,9 @@ def child_fine_tuning(
                 GaussianLossType(diffusion_config["gaussian_loss_type"]),
                 classifier_config["num_timesteps"],
                 SchedulerType(diffusion_config["scheduler"]),
+                data_split_ratios=classifier_config["data_split_ratios"],
                 learning_rate=classifier_config["lr"],
                 device=device,
-                data_split_ratios=classifier_config["data_split_ratios"],
             )
             child_result["classifier"] = child_classifier
         else:

@@ -323,9 +323,7 @@ def train_model(
     model = model_type.get_model(model_params)
     model.to(device)
 
-    train_loader = prepare_fast_dataloader(
-        dataset, split=DataSplit.TRAIN, batch_size=batch_size
-    )
+    train_loader = prepare_fast_dataloader(dataset, split=DataSplit.TRAIN, batch_size=batch_size)
 
     diffusion = GaussianMultinomialDiffusion(
         num_classes=category_sizes,

@@ -15,18 +15,19 @@ from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm
 
 from midst_toolkit.models.clavaddpm.dataset import Dataset
-from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
-    GaussianMultinomialDiffusion,
-)
-from midst_toolkit.models.clavaddpm.model import Classifier
-from midst_toolkit.models.clavaddpm.train import get_df_without_id
 from midst_toolkit.models.clavaddpm.enumerations import (
     Configs,
     GroupLengthsProbDicts,
+    IsTargetCondioned,
     RelationOrder,
     Tables,
 )
-from midst_toolkit.models.clavaddpm.model import ModelParameters
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
+    GaussianMultinomialDiffusion,
+)
+from midst_toolkit.models.clavaddpm.model import Classifier, ModelParameters
+from midst_toolkit.models.clavaddpm.train import get_df_without_id
+
 
 # TODO: Too many statements and branches, refactor.
 def sample_from_diffusion(  # noqa: PLR0915, PLR0912
@@ -62,7 +63,8 @@ def sample_from_diffusion(  # noqa: PLR0915, PLR0912
     """
     num_numerical_features = dataset.x_num["train"].shape[1] if dataset.x_num is not None else 0
 
-    k = np.array(dataset.get_category_sizes("train"))
+    # TODO: fix typing. np.ndarray does not work.
+    k = np.array(dataset.get_category_sizes("train"))  # type: ignore
     if len(k) == 0 or transformation_dict["cat_encoding"] == "one-hot":
         k = np.array([0])
     # print(K)
@@ -85,9 +87,7 @@ def sample_from_diffusion(  # noqa: PLR0915, PLR0912
 
     if num_numerical_features != 0:
         assert dataset.numerical_transform is not None
-        x_num_ = dataset.numerical_transform.inverse_transform(
-            x_gen_np[:, :num_numerical_features_sample]
-        )
+        x_num_ = dataset.numerical_transform.inverse_transform(x_gen_np[:, :num_numerical_features_sample])
         actual_num_numerical_features = num_numerical_features - len(label_encoders)
         x_num = x_num_[:, :actual_num_numerical_features]
         if len(label_encoders) > 0:
@@ -108,7 +108,7 @@ def sample_from_diffusion(  # noqa: PLR0915, PLR0912
             if len(uniq_vals) <= 32 and ((uniq_vals - np.round(uniq_vals)) == 0).all():
                 disc_cols.append(col)
         # print("Discrete cols:", disc_cols)
-        if model_params.is_target_conditioned == "concat":
+        if model_params.is_target_conditioned == IsTargetCondioned.CONCAT:
             y_gen_np = x_num[:, 0]
             x_num = x_num[:, 1:]
         if disc_cols:
@@ -237,9 +237,7 @@ def conditional_sampling_by_group_size(  # noqa: PLR0915, PLR0912
 
     if num_numerical_features != 0:
         assert dataset.numerical_transform is not None
-        x_num_ = dataset.numerical_transform.inverse_transform(
-            x_gen[:, :num_numerical_features_sample]
-        )
+        x_num_ = dataset.numerical_transform.inverse_transform(x_gen[:, :num_numerical_features_sample])
         actual_num_numerical_features = num_numerical_features - len(label_encoders)
         x_num = x_num_[:, :actual_num_numerical_features]
         if len(label_encoders) > 0:

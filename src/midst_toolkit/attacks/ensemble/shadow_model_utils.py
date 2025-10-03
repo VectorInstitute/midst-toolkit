@@ -11,9 +11,10 @@ from midst_toolkit.attacks.ensemble.data_utils import load_multi_table
 from midst_toolkit.attacks.ensemble.tabddpm_fine_tuning import clava_fine_tuning
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
+from midst_toolkit.models.clavaddpm.enumerations import Configs
 from midst_toolkit.models.clavaddpm.synthesizer import clava_synthesizing
 from midst_toolkit.models.clavaddpm.train import clava_training
-from midst_toolkit.models.clavaddpm.enumerations import Configs
+
 
 def config_tabddpm(
     data_dir: Path,
