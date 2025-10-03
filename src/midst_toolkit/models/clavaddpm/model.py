@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Literal, Self
+from dataclasses import dataclass
+from enum import Enum
+from logging import INFO
+from typing import Any, Self
 
 import pandas as pd
 import torch
@@ -10,7 +13,34 @@ import torch.nn.functional as F
 # ruff: noqa: N812
 from torch import Tensor, nn
 
-from midst_toolkit.models.clavaddpm.typing import ModuleType
+from midst_toolkit.common.logger import log
+from midst_toolkit.models.clavaddpm.enumerations import IsTargetCondioned, ModuleType
+
+
+@dataclass
+class DiffusionParameters:
+    """Parameters for the diffusion model."""
+
+    d_layers: list[int]
+    dropout: float
+    d_in: int = 0
+    d_out: int = 0
+    emb_d: int = 0
+    n_blocks: int = 0
+    d_main: int = 0
+    d_hidden: int = 0
+    dropout_first: float = 0
+    dropout_second: float = 0
+
+
+@dataclass
+class ModelParameters:
+    """Parameters for the ClavaDDPM model."""
+
+    diffusion_parameters: DiffusionParameters
+    d_in: int = 0
+    num_classes: int = 0
+    is_target_conditioned: IsTargetCondioned = IsTargetCondioned.NONE
 
 
 class Classifier(nn.Module):
@@ -120,29 +150,6 @@ def get_table_info(df: pd.DataFrame, domain_dict: dict[str, Any], y_col: str) ->
     df_info["task_type"] = "multiclass"
 
     return df_info
-
-
-def get_model(
-    model_name: Literal["mlp", "resnet"],
-    model_params: dict[str, Any],
-) -> nn.Module:
-    """
-    Get the model.
-
-    Args:
-        model_name: The name of the model. Can be "mlp" or "resnet".
-        model_params: The dictionary of parameters of the model.
-
-    Returns:
-        The model.
-    """
-    print(model_name)
-    if model_name == "mlp":
-        return MLPDiffusion(**model_params)
-    if model_name == "resnet":
-        return ResNetDiffusion(**model_params)
-
-    raise ValueError("Unknown model!")
 
 
 def timestep_embedding(timesteps: Tensor, dim: int, max_period: int = 10000) -> Tensor:
@@ -586,8 +593,8 @@ class MLPDiffusion(nn.Module):
         self,
         d_in: int,
         num_classes: int,
-        is_y_cond: Literal["concat", "embedding", "none"],
-        rtdl_params: dict[str, Any],
+        is_target_conditioned: IsTargetCondioned,
+        diffusion_parameters: DiffusionParameters,
         dim_t: int = 128,
     ):
         """
@@ -596,26 +603,30 @@ class MLPDiffusion(nn.Module):
         Args:
             d_in: The input dimension size.
             num_classes: The number of classes.
-            is_y_cond: The condition on the y column. Can be "concat", "embedding", or "none".
-            rtdl_params: The dictionary of parameters for the MLP.
+            is_target_conditioned: The condition on the model target.
+            diffusion_parameters: The parameters for the MLP.
             dim_t: The dimension size of the timestep.
         """
         super().__init__()
         self.dim_t = dim_t
         self.num_classes = num_classes
-        self.is_y_cond = is_y_cond
+        self.is_target_conditioned = is_target_conditioned
 
-        # d0 = rtdl_params['d_layers'][0]
+        self.diffusion_parameters = diffusion_parameters
+        self.diffusion_parameters.d_in = dim_t
+        self.diffusion_parameters.d_out = d_in
 
-        rtdl_params["d_in"] = dim_t
-        rtdl_params["d_out"] = d_in
-
-        self.mlp = MLP.make_baseline(**rtdl_params)
+        self.mlp = MLP.make_baseline(
+            d_in=self.diffusion_parameters.d_in,
+            d_layers=self.diffusion_parameters.d_layers,
+            dropout=self.diffusion_parameters.dropout,
+            d_out=self.diffusion_parameters.d_out,
+        )
 
         self.label_emb: nn.Embedding | nn.Linear
-        if self.num_classes > 0 and is_y_cond == "embedding":
+        if self.num_classes > 0 and is_target_conditioned == IsTargetCondioned.EMBEDDING:
             self.label_emb = nn.Embedding(self.num_classes, dim_t)
-        elif self.num_classes == 0 and is_y_cond == "embedding":
+        elif self.num_classes == 0 and is_target_conditioned == IsTargetCondioned.EMBEDDING:
             self.label_emb = nn.Linear(1, dim_t)
 
         self.proj = nn.Linear(d_in, dim_t)
@@ -634,7 +645,7 @@ class MLPDiffusion(nn.Module):
             The output tensor.
         """
         emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
-        if self.is_y_cond == "embedding" and y is not None:
+        if self.is_target_conditioned == IsTargetCondioned.EMBEDDING and y is not None:
             y = y.squeeze() if self.num_classes > 0 else y.resize_(y.size(0), 1).float()
             emb += F.silu(self.label_emb(y))
         x = self.proj(x) + emb
@@ -646,9 +657,9 @@ class ResNetDiffusion(nn.Module):
         self,
         d_in: int,
         num_classes: int,
-        rtdl_params: dict[str, Any],
+        diffusion_parameters: DiffusionParameters,
         dim_t: int = 256,
-        is_y_cond: Literal["concat", "embedding", "none"] | None = None,
+        is_target_conditioned: IsTargetCondioned | None = None,
     ):
         """
         Initialize the ResNet diffusion model.
@@ -656,24 +667,34 @@ class ResNetDiffusion(nn.Module):
         Args:
             d_in: The input dimension size.
             num_classes: The number of classes.
-            rtdl_params: The dictionary of parameters for the ResNet.
+            diffusion_parameters: The parameters for the ResNet.
             dim_t: The dimension size of the timestep.
-            is_y_cond: The condition on the y column. Can be "concat", "embedding", or "none".
-                Optional, default is None.
+            is_target_conditioned: The condition on the model target. Optional, default is None.
         """
         super().__init__()
         self.dim_t = dim_t
         self.num_classes = num_classes
+        self.is_target_conditioned = is_target_conditioned
 
-        rtdl_params["d_in"] = d_in
-        rtdl_params["d_out"] = d_in
-        rtdl_params["emb_d"] = dim_t
-        self.resnet = ResNet.make_baseline(**rtdl_params)
+        self.diffusion_parameters = diffusion_parameters
+        self.diffusion_parameters.d_in = d_in
+        self.diffusion_parameters.d_out = d_in
+        self.diffusion_parameters.emb_d = dim_t
+
+        self.resnet = ResNet.make_baseline(
+            d_in=self.diffusion_parameters.d_in,
+            n_blocks=self.diffusion_parameters.n_blocks,
+            d_main=self.diffusion_parameters.d_main,
+            d_hidden=self.diffusion_parameters.d_hidden,
+            dropout_first=self.diffusion_parameters.dropout_first,
+            dropout_second=self.diffusion_parameters.dropout_second,
+            d_out=self.diffusion_parameters.d_out,
+        )
 
         self.label_emb: nn.Embedding | nn.Linear
-        if self.num_classes > 0 and is_y_cond == "embedding":
+        if self.num_classes > 0 and is_target_conditioned == IsTargetCondioned.EMBEDDING:
             self.label_emb = nn.Embedding(self.num_classes, dim_t)
-        elif self.num_classes == 0 and is_y_cond == "embedding":
+        elif self.num_classes == 0 and is_target_conditioned == IsTargetCondioned.EMBEDDING:
             self.label_emb = nn.Linear(1, dim_t)
 
         self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
@@ -806,3 +827,37 @@ def _make_nn_module(module_type: ModuleType, *args: Any) -> nn.Module:
         if isinstance(module_type, str)
         else module_type(*args)
     )
+
+
+class ModelType(Enum):
+    """Possible model types for the ClavaDDPM model."""
+
+    MLP = "mlp"
+    RESNET = "resnet"
+
+    def get_model(self, model_parameters: ModelParameters) -> nn.Module:
+        """
+        Get the model.
+
+        Args:
+            model_parameters: The parameters of the model.
+
+        Returns:
+            The model.
+        """
+        log(INFO, f"Getting model: {self.value}")
+        if self == ModelType.MLP:
+            return MLPDiffusion(
+                d_in=model_parameters.d_in,
+                num_classes=model_parameters.num_classes,
+                is_target_conditioned=model_parameters.is_target_conditioned,
+                diffusion_parameters=model_parameters.diffusion_parameters,
+            )
+        if self == ModelType.RESNET:
+            return ResNetDiffusion(
+                d_in=model_parameters.d_in,
+                num_classes=model_parameters.num_classes,
+                diffusion_parameters=model_parameters.diffusion_parameters,
+            )
+
+        raise ValueError(f"Unsupported model type: {self.value}")

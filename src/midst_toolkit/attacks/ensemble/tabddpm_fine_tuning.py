@@ -4,49 +4,71 @@ https://github.com/CRCHUM-CITADEL/ensemble-mia.
 
 from logging import WARNING
 from typing import Any, Literal
-
+from dataclasses import asdict
 import numpy as np
 import pandas as pd
 import torch
 from torch import optim
 
-from midst_toolkit.common.logger import log
+from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
 from midst_toolkit.models.clavaddpm.dataset import (
     Transformations,
-    get_T_dict,
     make_dataset_from_df,
 )
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
     GaussianMultinomialDiffusion,
 )
-from midst_toolkit.models.clavaddpm.model import (
-    Classifier,
-    get_model,
-    get_table_info,
-)
-from midst_toolkit.models.clavaddpm.sampler import (
-    create_named_schedule_sampler,
-)
+from midst_toolkit.common.enumerations import DataSplit
+
 from midst_toolkit.models.clavaddpm.train import (
     _numerical_forward_backward_log,
-    get_model_params,
 )
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
-from midst_toolkit.models.clavaddpm.typing import Configs, RelationOrder, Tables
+from midst_toolkit.models.clavaddpm.enumerations import (
+    Configs,
+    RelationOrder,
+    Tables,
+)
+
+from midst_toolkit.models.clavaddpm.model import (
+    Classifier,
+    DiffusionParameters,
+    ModelParameters,
+    ModelType,
+    get_table_info,
+)
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
+    GaussianLossType,
+    GaussianMultinomialDiffusion,
+    SchedulerType,
+)
+
+from midst_toolkit.models.clavaddpm.enumerations import (
+    CategoricalEncoding,
+    Configs,
+    IsTargetCondioned,
+    ReductionMethod,
+    RelationOrder,
+    Tables,
+    TargetType,
+)
+
+from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, ScheduleSamplerType
 
 
 def fine_tune_model(
     trained_diffusion: GaussianMultinomialDiffusion,
     data_frame: pd.DataFrame,
     data_frame_info: dict[str, Any],
-    model_params: dict[str, Any],
-    transformations_dict: dict[str, Any],
+    model_params: ModelParameters,
+    transformations: Transformations,
     steps: int,
     batch_size: int,
-    model_type: Literal["mlp", "resnet"],
+    model_type: ModelType,
     lr: float,
     weight_decay: float,
+    data_split_ratios: list[float],
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
 ) -> dict[str, Any]:
     """
@@ -72,29 +94,36 @@ def fine_tune_model(
             - dataset: The dataset.
             - column_orders: The column orders.
     """
-    transformations = Transformations(**transformations_dict)
-    # ruff: noqa: N806
     dataset, label_encoders, column_orders = make_dataset_from_df(
         data_frame,
         transformations,
-        is_y_cond=model_params["is_y_cond"],
-        ratios=[0.99, 0.005, 0.005],
+        is_target_conditioned=model_params.is_target_conditioned,
+        ratios=data_split_ratios,
         df_info=data_frame_info,
         std=0,
     )
 
-    category_sizes = np.array(dataset.get_category_sizes("train"))
-    if len(category_sizes) == 0 or transformations_dict["cat_encoding"] == "one-hot":
+    category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
+    if (
+        len(category_sizes) == 0
+        or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT
+    ):
         category_sizes = np.array([0])
 
-    num_numerical_features = dataset.x_num["train"].shape[1] if dataset.x_num is not None else 0
+    num_numerical_features = (
+        dataset.x_num[DataSplit.TRAIN.value].shape[1]
+        if dataset.x_num is not None
+        else 0
+    )
     d_in = np.sum(category_sizes) + num_numerical_features
-    model_params["d_in"] = d_in
+    model_params.d_in = d_in
 
-    model = get_model(model_type, model_params)
+    model = model_type.get_model(model_params)
     model.to(device)
 
-    train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size)
+    train_loader = prepare_fast_dataloader(
+        dataset, split=DataSplit.TRAIN, batch_size=batch_size
+    )
 
     diffusion = trained_diffusion
     diffusion.to(device)
@@ -110,7 +139,7 @@ def fine_tune_model(
     )
     trainer.train()
 
-    if model_params["is_y_cond"] == "concat":
+    if model_params.is_target_conditioned == IsTargetCondioned.CONCAT:
         column_orders = column_orders[1:] + [column_orders[0]]
     else:
         column_orders = column_orders + [data_frame_info["y_col"]]
@@ -120,6 +149,14 @@ def fine_tune_model(
         "label_encoders": label_encoders,
         "dataset": dataset,
         "column_orders": column_orders,
+        "num_numerical_features": num_numerical_features,
+        "K": category_sizes,
+        "is_regression": dataset.is_regression,
+        "inverse_transform": (
+            dataset.numerical_transform.inverse_transform
+            if dataset.numerical_transform is not None
+            else None
+        ),
     }
 
 
@@ -129,13 +166,14 @@ def fine_tune_classifier(
     pre_trained_classifier: Classifier,
     data_frame: pd.DataFrame,
     data_frame_info: dict[str, Any],
-    model_params: dict[str, Any],
-    transformations_dict: dict[str, Any],
+    model_params: ModelParameters,
+    transformations: Transformations,
     classifier_steps: int,
     batch_size: int,
-    gaussian_loss_type: str,
+    gaussian_loss_type: GaussianLossType,
     num_timesteps: int,
-    scheduler: str,
+    data_split_ratios: list[float],
+    scheduler_type: SchedulerType,
     learning_rate: float = 0.0001,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
 ) -> Classifier:
@@ -152,38 +190,45 @@ def fine_tune_classifier(
         batch_size: Batch size to use for training.
         gaussian_loss_type: Type of the gaussian loss to use.
         num_timesteps: Number of timesteps to use for the diffusion model.
-        scheduler: Scheduler to use for the diffusion model.
+        data_split_ratios: The ratios of the dataset to split into train, validation, and test.
+            It must have exactly 3 values and their sum must amount to 1 (with a tolerance of 0.01).
+        scheduler_type: Type of scheduler to use for the diffusion model.
         learning_rate: Learning rate for the optimizer. Default is 0.0001.
         device: Device to use for training.
 
     Returns:
         The fine-tuned classifier model.
     """
-    transformations = Transformations(**transformations_dict)
     # ruff: noqa: N806
     dataset, label_encoders, column_orders = make_dataset_from_df(
         data_frame,
         transformations,
-        is_y_cond=model_params["is_y_cond"],
-        ratios=[0.99, 0.005, 0.005],
+        is_target_conditioned=model_params.is_target_conditioned,
+        ratios=data_split_ratios,
         df_info=data_frame_info,
         std=0,
     )
-    train_loader = prepare_fast_dataloader(dataset, split="train", batch_size=batch_size, y_type="long")
-
-    category_sizes = np.array(dataset.get_category_sizes("train"))
-    # ruff: noqa: N806
-    if len(category_sizes) == 0 or transformations_dict["cat_encoding"] == "one-hot":
+    train_loader = prepare_fast_dataloader(
+        dataset,
+        split=DataSplit.TRAIN,
+        batch_size=batch_size,
+        target_type=TargetType.LONG,
+    )
+    category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
+    if (
+        len(category_sizes) == 0
+        or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT
+    ):
         category_sizes = np.array([0])
-        # ruff: noqa: N806
+    print(category_sizes)
 
     if dataset.x_num is None:
         log(WARNING, "dataset.x_num is None. num_numerical_features will be set to 0")
         num_numerical_features = 0
     else:
-        num_numerical_features = dataset.x_num["train"].shape[1]
+        num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1]
 
-    if model_params["is_y_cond"] == "concat":
+    if model_params.is_target_conditioned == IsTargetCondioned.CONCAT:
         num_numerical_features -= 1
 
     classifier = pre_trained_classifier.to(device)
@@ -196,15 +241,20 @@ def fine_tune_classifier(
         denoise_fn=None,  # type: ignore[arg-type]
         gaussian_loss_type=gaussian_loss_type,
         num_timesteps=num_timesteps,
-        scheduler=scheduler,
+        scheduler=scheduler_type,
         device=torch.device(device),
     )
     empty_diffusion.to(device)
 
-    schedule_sampler = create_named_schedule_sampler("uniform", empty_diffusion)
-
+    # schedule_sampler = create_named_schedule_sampler("uniform", empty_diffusion)
+    schedule_sampler = ScheduleSamplerType.UNIFORM.create_named_schedule_sampler(
+        num_timesteps
+    )
+    key_value_logger = KeyValueLogger()
     classifier.train()
     for _step in range(classifier_steps):
+        key_value_logger.save_entry("step", float(_step))
+        key_value_logger.save_entry("samples", float((_step + 1) * batch_size))
         _numerical_forward_backward_log(
             classifier,
             classifier_optimizer,
@@ -212,8 +262,9 @@ def fine_tune_classifier(
             dataset,
             schedule_sampler,
             empty_diffusion,
-            prefix="train",
+            prefix=DataSplit.TRAIN.value,
             device=device,
+            key_value_logger=key_value_logger,
         )
 
     return classifier
@@ -256,55 +307,65 @@ def child_fine_tuning(
     else:
         y_col = f"{parent_name}_{child_name}_cluster"
     child_info = get_table_info(child_df_with_cluster, child_domain_dict, y_col)
-    child_model_params = get_model_params(
-        {
-            "d_layers": diffusion_config["d_layers"],
-            "dropout": diffusion_config["dropout"],
-        }
+    child_model_params = ModelParameters(
+        diffusion_parameters=DiffusionParameters(
+            d_layers=diffusion_config["d_layers"],
+            dropout=diffusion_config["dropout"],
+        ),
     )
-    child_t_dict = get_T_dict()
+    child_transformations = Transformations.default()
 
     child_result = fine_tune_model(
         pre_trained_model["diffusion"],
         child_df_with_cluster,
         child_info,
         child_model_params,
-        child_t_dict,
+        child_transformations,
         fine_tuning_diffusion_iterations,  # fine_tuning_diffusion_iterations used here.
         diffusion_config["batch_size"],
-        diffusion_config["model_type"],
+        ModelType(diffusion_config["model_type"]),
         diffusion_config["lr"],
         diffusion_config["weight_decay"],
+        diffusion_config["data_split_ratios"],
         device=device,
     )
 
     if parent_name is None:
         child_result["classifier"] = None
     else:
-        log(WARNING, "Ensemble attack is designed for single table. You are using multi-table fine-tuning.")
-        assert classifier_config is not None, "Classifier config is required for multi-table training"
+        log(
+            WARNING,
+            "Ensemble attack is designed for single table. You are using multi-table fine-tuning.",
+        )
+        assert (
+            classifier_config is not None
+        ), "Classifier config is required for multi-table training"
         if classifier_config["iterations"] > 0:
             child_classifier = fine_tune_classifier(
                 pre_trained_model["classifier"],
                 child_df_with_cluster,
                 child_info,
                 child_model_params,
-                child_t_dict,
+                child_transformations,
                 fine_tuning_classifier_iterations,
                 classifier_config["batch_size"],
-                classifier_config["gaussian_loss_type"],
+                GaussianLossType(diffusion_config["gaussian_loss_type"]),
                 classifier_config["num_timesteps"],
-                classifier_config["scheduler"],
+                SchedulerType(diffusion_config["scheduler"]),
                 learning_rate=classifier_config["lr"],
                 device=device,
+                data_split_ratios=classifier_config["data_split_ratios"],
             )
             child_result["classifier"] = child_classifier
         else:
-            log(WARNING, "Skipping classifier training since classifier_config['iterations'] <= 0")
+            log(
+                WARNING,
+                "Skipping classifier training since classifier_config['iterations'] <= 0",
+            )
 
     child_result["df_info"] = child_info
-    child_result["model_params"] = child_model_params
-    child_result["T_dict"] = child_t_dict
+    child_result["model_params"] = asdict(child_model_params)
+    child_result["T_dict"] = asdict(child_transformations)
     return child_result
 
 

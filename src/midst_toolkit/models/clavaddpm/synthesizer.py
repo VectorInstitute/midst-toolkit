@@ -20,8 +20,13 @@ from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
 )
 from midst_toolkit.models.clavaddpm.model import Classifier
 from midst_toolkit.models.clavaddpm.train import get_df_without_id
-from midst_toolkit.models.clavaddpm.typing import Configs, GroupLengthsProbDicts, RelationOrder, Tables
-
+from midst_toolkit.models.clavaddpm.enumerations import (
+    Configs,
+    GroupLengthsProbDicts,
+    RelationOrder,
+    Tables,
+)
+from midst_toolkit.models.clavaddpm.model import ModelParameters
 
 # TODO: Too many statements and branches, refactor.
 def sample_from_diffusion(  # noqa: PLR0915, PLR0912
@@ -31,7 +36,7 @@ def sample_from_diffusion(  # noqa: PLR0915, PLR0912
     dataset: Dataset,
     label_encoders: dict[int, LabelEncoder],
     sample_size: int,
-    model_params: dict[str, Any],
+    model_params: ModelParameters,
     transformation_dict: dict[str, Any],
     sample_batch_size: int = 8192,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -63,13 +68,13 @@ def sample_from_diffusion(  # noqa: PLR0915, PLR0912
     # print(K)
 
     d_in = np.sum(k) + num_numerical_features
-    model_params["d_in"] = d_in
+    model_params.d_in = d_in
     # print(d_in)
     _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.y["train"]), return_counts=True)
     x_gen, y_gen = diffusion.sample_all(sample_size, sample_batch_size, empirical_class_dist.float(), ddim=False)
     x_gen_np, y_gen_np = x_gen.numpy(), y_gen.numpy()
     num_numerical_features_sample = num_numerical_features + int(
-        dataset.is_regression and not model_params["is_y_cond"]
+        dataset.is_regression and not model_params.is_target_conditioned
     )
 
     x_num_real = df[df_info["num_cols"]].to_numpy().astype(float)
@@ -79,8 +84,10 @@ def sample_from_diffusion(  # noqa: PLR0915, PLR0912
     x_num_ = x_gen_np
 
     if num_numerical_features != 0:
-        assert dataset.num_transform is not None
-        x_num_ = dataset.num_transform.inverse_transform(x_gen_np[:, :num_numerical_features_sample])
+        assert dataset.numerical_transform is not None
+        x_num_ = dataset.numerical_transform.inverse_transform(
+            x_gen_np[:, :num_numerical_features_sample]
+        )
         actual_num_numerical_features = num_numerical_features - len(label_encoders)
         x_num = x_num_[:, :actual_num_numerical_features]
         if len(label_encoders) > 0:
@@ -101,7 +108,7 @@ def sample_from_diffusion(  # noqa: PLR0915, PLR0912
             if len(uniq_vals) <= 32 and ((uniq_vals - np.round(uniq_vals)) == 0).all():
                 disc_cols.append(col)
         # print("Discrete cols:", disc_cols)
-        if model_params["is_y_cond"] == "concat":
+        if model_params.is_target_conditioned == "concat":
             y_gen_np = x_num[:, 0]
             x_num = x_num[:, 1:]
         if disc_cols:
@@ -229,8 +236,10 @@ def conditional_sampling_by_group_size(  # noqa: PLR0915, PLR0912
     x_num_ = x_gen
 
     if num_numerical_features != 0:
-        assert dataset.num_transform is not None
-        x_num_ = dataset.num_transform.inverse_transform(x_gen[:, :num_numerical_features_sample])
+        assert dataset.numerical_transform is not None
+        x_num_ = dataset.numerical_transform.inverse_transform(
+            x_gen[:, :num_numerical_features_sample]
+        )
         actual_num_numerical_features = num_numerical_features - len(label_encoders)
         x_num = x_num_[:, :actual_num_numerical_features]
         if len(label_encoders) > 0:
@@ -565,7 +574,7 @@ def clava_synthesizing(  # noqa: PLR0915, PLR0912
                 dataset=result["dataset"],
                 label_encoders=result["label_encoders"],
                 sample_size=int(sample_scale * len(df_without_id)),
-                model_params=result["model_params"],
+                model_params=ModelParameters(**result["model_params"]),
                 transformation_dict=result["T_dict"],
                 sample_batch_size=configs["sampling"]["batch_size"],
             )

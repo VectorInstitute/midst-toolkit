@@ -5,11 +5,9 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.evaluation.quality.synthcity.dataloader import DataLoader
 from midst_toolkit.evaluation.quality.synthcity.one_class import OneClassLayer
-
-
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class MetricEvaluator(metaclass=ABCMeta):
@@ -84,7 +82,13 @@ class MetricEvaluator(metaclass=ABCMeta):
 
     @classmethod
     def fqdn(cls) -> str:
-        """No idea."""
+        """
+        Return the fully qualified domain name of the metric.
+
+        Returns:
+            The fully qualified domain name of the metric, composed of the
+            type and name of the metric, separated by a dot.
+        """
         return f"{cls.type()}.{cls.name()}"
 
     def reduction(self) -> Callable:
