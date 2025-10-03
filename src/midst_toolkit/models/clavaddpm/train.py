@@ -49,7 +49,7 @@ def clava_training(
     save_dir: Path,
     diffusion_config: Configs,
     classifier_config: Configs | None,
-    device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    device: str = "cuda",
 ) -> tuple[Tables, dict[tuple[str, str], dict[str, Any]]]:
     """
     Training function for the ClavaDDPM model.
@@ -729,36 +729,3 @@ def _split_microbatches(
     else:
         for i in range(0, bs, microbatch):
             yield batch[i : i + microbatch], labels[i : i + microbatch], t[i : i + microbatch]
-
-
-# TODO make this into a class with default parameters
-def get_model_params(rtdl_params: dict[str, Any] | None = None) -> dict[str, Any]:
-    """
-    Return the model parameters.
-
-    Args:
-        rtdl_params: The parameters for the RTDL model. If None, the default parameters below are used:
-            {
-                "d_layers": [512, 1024, 1024, 1024, 1024, 512],
-                "dropout": 0.0,
-            }
-
-    Returns:
-        The model parameters as a dictionary containing the following keys:
-            - num_classes: The number of classes. Defaults to 0.
-            - is_y_cond: Affects how y is generated. For more information, see the documentation
-                of the `make_dataset_from_df` function. Can be any of ["none", "concat", "embedding"].
-                Defaults to "none".
-            - rtdl_params: The parameters for the RTDL model.
-    """
-    if rtdl_params is None:
-        rtdl_params = {
-            "d_layers": [512, 1024, 1024, 1024, 1024, 512],
-            "dropout": 0.0,
-        }
-
-    return {
-        "num_classes": 0,
-        "is_y_cond": "none",
-        "rtdl_params": rtdl_params,
-    }
