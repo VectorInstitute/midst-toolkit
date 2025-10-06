@@ -102,7 +102,7 @@ class TargetType(Enum):
     LONG = "long"
 
 
-class ForeignKeyScalingType(Enum):
+class KeyScalingType(Enum):
     """Possible types of scaling for the foreign key."""
 
     MINMAX = "minmax"
