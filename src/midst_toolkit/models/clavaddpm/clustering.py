@@ -18,8 +18,8 @@ from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.enumerations import (
     ClusteringMethod,
     Configs,
-    ForeignKeyScalingType,
     GroupLengthsProbDicts,
+    KeyScalingType,
     RelationOrder,
     Tables,
 )
@@ -295,15 +295,19 @@ def _pair_clustering(
     return parent_df_with_cluster, child_df_with_cluster, group_lengths_probabilities
 
 
-def _denormalize_parent_data(
+def _merge_parent_data_with_child_data(
     child_data: np.ndarray,
     parent_data: np.ndarray,
     parent_primary_key_index: int,
     foreign_key_index: int,
 ) -> np.ndarray:
     """
-    Denormalize the parent data in relation to the child group data,
-    i.e. duplicate the parent data for each element of the child group data.
+    Merge the parent data in relation to the child group data.
+
+    This is done by duplicating the parent data for each element of the child group data
+    in a process akin to database table denormalization.
+
+    https://en.wikipedia.org/wiki/Denormalization
 
     Args:
         child_data: Numpy array of the child data. Should be sorted by the foreign key.
@@ -312,7 +316,7 @@ def _denormalize_parent_data(
         foreign_key_index: Index of the foreign key to the child data.
 
     Returns:
-        Numpy array of the parent data denormalized for each group of the child group data.
+        Numpy array of the parent data merged for each group of the child group data.
     """
     child_group_data_dict = _get_group_data_dict(child_data, [foreign_key_index])
 
@@ -325,10 +329,10 @@ def _denormalize_parent_data(
         else:
             group_lengths.append(len(child_group_data_dict[group_id_tuple]))
     group_lengths_np = np.array(group_lengths, dtype=int)
-    denormalized_parent_data = np.repeat(parent_data, group_lengths_np, axis=0)
-    assert (denormalized_parent_data[:, parent_primary_key_index] == child_data[:, foreign_key_index]).all()
+    merged_parent_data = np.repeat(parent_data, group_lengths_np, axis=0)
+    assert (merged_parent_data[:, parent_primary_key_index] == child_data[:, foreign_key_index]).all()
 
-    return denormalized_parent_data
+    return merged_parent_data
 
 
 def _get_min_max_and_quantile_for_numerical_columns(
@@ -420,11 +424,12 @@ def _prepare_cluster_data(
     parent_primary_key: str,
     parent_scale: float,
     key_scale: float,
-    key_scaling_type: ForeignKeyScalingType = ForeignKeyScalingType.MINMAX,
+    key_scaling_type: KeyScalingType = KeyScalingType.MINMAX,
 ) -> np.ndarray:
     """
-    Prepare the data for the clustering algorithm, which comprises of denormalizing the parent data,
-    splitting the data into categorical and numerical columns, and normalizing the data.
+    Prepare the data for the clustering algorithm, which comprises of merging the parent
+    and child data, splitting the data into categorical and numerical columns, and
+    normalizing the data.
 
     Args:
         child_data: Numpy array of the child data.
@@ -438,10 +443,9 @@ def _prepare_cluster_data(
         parent_primary_key: Name of the parent primary key.
         parent_scale: Scaling factor applied to the parent table, provided by the config.
             It will be applied to the features to weight their importance during clustering.
-        key_scale: Scaling factor applied to the foreign key values that link
-            the child table to the parent table. This will weight how much influence
+        key_scale: Scaling factor applied to the tables' keys. This will weight how much influence
             the parent-child relationship has in the clustering algorithm.
-        key_scaling_type: Type of scaling for the foreign key. Default is ForeignKeyScalingType.MINMAX.
+        key_scaling_type: Type of scaling for the tables' keys. Default is KeyScalingType.MINMAX.
 
     Returns:
         Numpy array of the data prepared for the clustering algorithm.
@@ -450,7 +454,7 @@ def _prepare_cluster_data(
     parent_primary_key_index = all_parent_columns.index(parent_primary_key)
     foreign_key_index = all_child_columns.index(parent_primary_key)
 
-    denormalized_parent_data = _denormalize_parent_data(
+    merged_data = _merge_parent_data_with_child_data(
         child_data,
         parent_data,
         parent_primary_key_index,
@@ -470,8 +474,8 @@ def _prepare_cluster_data(
 
     child_numerical_data = child_data[:, child_numerical_columns]
     child_categorical_data = child_data[:, child_categorical_columns]
-    parent_numerical_data = denormalized_parent_data[:, parent_numerical_columns]
-    parent_categorical_data = denormalized_parent_data[:, parent_categorical_columns]
+    parent_numerical_data = merged_data[:, parent_numerical_columns]
+    parent_categorical_data = merged_data[:, parent_categorical_columns]
 
     numerical_min_max, numerical_quantile = _get_min_max_and_quantile_for_numerical_columns(
         child_numerical_data,
@@ -479,11 +483,11 @@ def _prepare_cluster_data(
         parent_scale,
     )
 
-    reshaped_parent_data = denormalized_parent_data[:, parent_primary_key_index].reshape(-1, 1)
-    if key_scaling_type == ForeignKeyScalingType.MINMAX:
+    reshaped_parent_data = merged_data[:, parent_primary_key_index].reshape(-1, 1)
+    if key_scaling_type == KeyScalingType.MINMAX:
         key_normalized = _min_max_normalize_sklearn(reshaped_parent_data)
         numerical_normalized = numerical_min_max
-    elif key_scaling_type == ForeignKeyScalingType.QUANTILE:
+    elif key_scaling_type == KeyScalingType.QUANTILE:
         key_normalized = _quantile_normalize_sklearn(reshaped_parent_data)
         numerical_normalized = numerical_quantile
     else:
