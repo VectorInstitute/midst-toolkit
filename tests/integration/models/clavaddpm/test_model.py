@@ -73,7 +73,7 @@ def test_load_single_table():
         "num_col_idx": [0, 3, 4, 7],
         "cat_col_idx": [1, 2, 5, 6],
         "target_col_idx": [],
-        "task_type": "None",
+        "task_type": None,
         "column_names": ["trans_date", "trans_type", "operation", "amount", "balance", "k_symbol", "bank", "account"],
         "column_info": {
             0: {},
@@ -139,7 +139,7 @@ def test_load_multi_table():
         "num_col_idx": [1],
         "cat_col_idx": [0],
         "target_col_idx": [],
-        "task_type": "None",
+        "task_type": None,
         "column_names": ["frequency", "account_date"],
         "column_info": {
             0: {},
@@ -196,7 +196,7 @@ def test_load_multi_table():
         "num_col_idx": [0, 3, 4, 7],
         "cat_col_idx": [1, 2, 5, 6],
         "target_col_idx": [],
-        "task_type": "None",
+        "task_type": None,
         "column_names": ["trans_date", "trans_type", "operation", "amount", "balance", "k_symbol", "bank", "account"],
         "column_info": {
             0: {},
