@@ -7,7 +7,8 @@ authors = [ {name = "Vector AI Engineering", email = "ai_engineering@vectorinsti
 license = "MIT"
 repository = "https://github.com/VectorInstitute/midst-toolkit"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -37,7 +38,10 @@ dev = [
     "opacus<=1.4.0",
     "syntheval>=1.6.2",
     "hydra-core>=1.3.2",
-    "omegaconf>=2.3.0"
+    "omegaconf>=2.3.0",
+    "gower>=0.1.2",
+    "optuna",
+    "xgboost"
 ]
 docs = [
     "jinja2>=3.1.6", # Pinning version to address vulnerability GHSA-cpwx-vrp4-4pq7

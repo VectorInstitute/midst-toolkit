@@ -6,8 +6,8 @@ source .venv/bin/activate
 echo "Active Environment:"
 which python
 
-echo Experiments Launched
+echo "Experiments Launched"
 
 python -m examples.ensemble_attack.run_attack
 
-echo Experiments Completed
+echo "Experiments Completed"
