@@ -1,0 +1,146 @@
+import numpy as np
+import optuna
+import pandas as pd
+import xgboost as xgb
+from optuna.trial import FrozenTrial, Trial
+from sklearn.compose import ColumnTransformer
+from sklearn.metrics import make_scorer
+from sklearn.model_selection import cross_val_score
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+
+from midst_toolkit.attacks.ensemble.train_utils import get_tpr_at_fpr
+from midst_toolkit.common.variables import DEVICE
+
+
+# Setting the logging level to WARNING, suppressing INFO and DEBUG messages from Optuna
+optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+
+class XgBoostHyperparameterTuner:
+    def __init__(
+        self,
+        input_features: pd.DataFrame,
+        labels: np.ndarray,
+        use_gpu: bool = False,
+        random_seed: int | None = None,
+    ):
+        """
+        Class for tuning XGBoost hyperparameters using Optuna. Optuna performs hyperparameter optimization
+        by maximizing the mean True Positive Rate (TPR) at a fixed False Positive Rate (FPR) using cross-validation.
+
+
+        Args:
+            input_features: Input features as a DataFrame.
+            labels: Labels for input features as a numpy array.
+            use_gpu: Whether to use GPU acceleration. Defaults to False.
+            random_seed: Random seed for reproducibility. Defaults to None.
+        """
+        self.input_features = input_features
+        self.labels = labels
+        self.use_gpu = use_gpu
+        self.random_seed = random_seed
+        self.device = DEVICE.type
+
+    def _create_preprocessing_pipeline(self) -> ColumnTransformer:
+        """
+        Creates a preprocessing pipeline for the input features.
+        It only scales continuous features using StandardScaler.
+
+        Returns:
+            A ColumnTransformer for preprocessing.
+        """
+        return ColumnTransformer(
+            [
+                ("continuous", StandardScaler(), self.input_features.columns),  # All features are numerical
+            ],
+            verbose_feature_names_out=False,
+            remainder="passthrough",
+        )
+
+    def _create_xgb_pipeline(self, trial: Trial | FrozenTrial) -> Pipeline:
+        """
+        Creates a XGBoost pipeline for an Optuna trial.
+
+        Args:
+            trial: An Optuna trial object, which can either be dynamic or immutable.
+
+        Returns:
+            A Scikit-learn Pipeline with preprocessing and XGBoost classifier.
+        """
+        preprocessing = self._create_preprocessing_pipeline()
+        return Pipeline(
+            steps=[
+                ("preprocessing", preprocessing),
+                (
+                    "xgboost",
+                    xgb.XGBClassifier(
+                        n_estimators=100,
+                        eta=trial.suggest_float("eta", 0.0001, 0.1, log=True),
+                        max_depth=trial.suggest_int("max_depth", 3, 10),
+                        subsample=trial.suggest_float("subsample", 0.1, 1),
+                        colsample_bytree=trial.suggest_float("colsample_bylevel", 0.5, 1),
+                        reg_alpha=trial.suggest_categorical("reg_alpha", [0, 0.1, 0.5, 1, 5, 10]),
+                        reg_lambda=trial.suggest_categorical("reg_lambda", [0, 0.1, 0.5, 1, 5, 10, 100]),
+                        device="cuda" if self.use_gpu and self.device == "cuda" else "cpu",
+                        objective="binary:logistic",
+                        seed=self.random_seed,
+                        verbosity=1,
+                    ),
+                ),
+            ]
+        )
+
+    def _evaluate_pipeline_cv(self, trial: Trial, num_kfolds: int) -> float:
+        """
+        Performs cross-validation on the pipeline and returns the mean TPR at FPR=0.1.
+
+        Args:
+            trial: An Optuna trial object.
+            num_kfolds: Number of folds for cross-validation.
+
+        Returns:
+            Mean TPR at FPR=0.1 across all folds.
+        """
+        pipeline = self._create_xgb_pipeline(trial)
+        tpr_scorer = make_scorer(get_tpr_at_fpr)
+
+        cv_scores = cross_val_score(
+            pipeline,
+            self.input_features,
+            self.labels,
+            cv=num_kfolds,
+            scoring=tpr_scorer,
+        )
+        return np.mean(cv_scores)
+
+    def tune_hyperparameters(
+        self,
+        num_optuna_trials: int = 50,
+        num_kfolds: int = 5,
+    ) -> Pipeline:
+        """
+        Performs hyperparameter tuning using Optuna and returns the best pipeline.
+
+        Args:
+            num_optuna_trials: Number of Optuna trials for hyperparameter optimization. Defaults to 50.
+            num_kfolds: Number of folds for cross-validation. Defaults to 5.
+
+        Returns:
+            The best Scikit-learn Pipeline with optimized hyperparameters.
+
+        """
+
+        def objective(trial: Trial) -> float:
+            return self._evaluate_pipeline_cv(trial, num_kfolds=num_kfolds)
+
+        study = optuna.create_study(
+            direction="maximize",
+            sampler=optuna.samplers.TPESampler(n_startup_trials=10, seed=self.random_seed),
+        )
+        study.optimize(objective, n_trials=num_optuna_trials)
+
+        best_pipe = self._create_xgb_pipeline(study.best_trial)
+        best_pipe.fit(self.input_features, self.labels)
+
+        return best_pipe
