@@ -13,6 +13,7 @@ from sklearn.cluster import KMeans
 from sklearn.mixture import BayesianGaussianMixture, GaussianMixture
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler, OneHotEncoder, QuantileTransformer
 
+from midst_toolkit.common.enumerations import DomainDataType
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.enumerations import (
     ClusteringMethod,
@@ -200,8 +201,8 @@ def _pair_clustering(
     child_df = tables[child_name]["df"]
     parent_df = tables[parent_name]["df"]
     # The domain dictionary holds metadata about the columns of each one of the tables.
-    child_domain_dict = tables[child_name]["domain"]
-    parent_domain_dict = tables[parent_name]["domain"]
+    child_domain = tables[child_name]["domain"]
+    parent_domain = tables[parent_name]["domain"]
     child_primary_key = f"{child_name}_id"
     parent_primary_key = f"{parent_name}_id"
     all_child_columns = list(child_df.columns)
@@ -221,8 +222,8 @@ def _pair_clustering(
     cluster_data = _prepare_cluster_data(
         sorted_child_data,
         sorted_parent_data,
-        child_domain_dict,
-        parent_domain_dict,
+        child_domain,
+        parent_domain,
         all_child_columns,
         all_parent_columns,
         parent_primary_key,
@@ -282,14 +283,14 @@ def _pair_clustering(
     )
 
     new_col_entry = {
-        "type": "discrete",
+        "type": DomainDataType.DISCRETE.value,
         "size": len(set(parent_data_clusters.flatten())),
     }
 
     log(INFO, f"Number of cluster centers: {new_col_entry['size']}")
 
-    parent_domain_dict[relation_cluster_name] = new_col_entry.copy()
-    child_domain_dict[relation_cluster_name] = new_col_entry.copy()
+    parent_domain[relation_cluster_name] = new_col_entry.copy()
+    child_domain[relation_cluster_name] = new_col_entry.copy()
 
     return parent_df_with_cluster, child_df_with_cluster, group_lengths_probabilities
 
@@ -588,7 +589,7 @@ def _get_group_lengths_probabilities(
 
     group_lengths_probabilities: dict[int, dict[int, float]] = {}
     for group_label, frequencies_dict in group_lengths_dict.items():
-        group_lengths_probabilities[group_label] = _freq_to_prob(frequencies_dict)
+        group_lengths_probabilities[group_label] = _frequency_to_probability(frequencies_dict)
 
     return group_lengths_probabilities
 
@@ -642,7 +643,7 @@ def _get_categorical_and_numerical_columns(
 
     Args:
         all_columns: List of all columns.
-        table_domain: Dictionary of the domain.
+        table_domain: Dictionary of the table's domain containing metadata about the data columns.
 
     Returns:
         Tuple with two lists of indices, one for the numerical columns and one for the categorical columns.
@@ -650,9 +651,9 @@ def _get_categorical_and_numerical_columns(
     numerical_columns = []
     categorical_columns = []
 
-    for col_index, col in enumerate(all_columns):
-        if col in table_domain:
-            if table_domain[col]["type"] == "discrete":
+    for col_index, column in enumerate(all_columns):
+        if column in table_domain:
+            if table_domain[column]["type"] == DomainDataType.DISCRETE.value:
                 categorical_columns.append(col_index)
             else:
                 numerical_columns.append(col_index)
@@ -854,17 +855,17 @@ def _get_group_cluster_labels_through_voting(
     return group_cluster_labels, agree_rates
 
 
-def _freq_to_prob(freq_dict: dict[int, int]) -> dict[int, float]:
+def _frequency_to_probability(frequencies: dict[int, int]) -> dict[int, float]:
     """
     Convert a frequency dictionary to a probability dictionary.
 
     Args:
-        freq_dict: Dictionary of frequencies.
+        frequencies: Dictionary of frequencies.
 
     Returns:
         Dictionary of probabilities.
     """
-    prob_dict: dict[Any, float] = {}
-    for key, freq in freq_dict.items():
-        prob_dict[key] = freq / sum(list(freq_dict.values()))
-    return prob_dict
+    probabilities: dict[Any, float] = {}
+    for key, freq in frequencies.items():
+        probabilities[key] = freq / sum(list(frequencies.values()))
+    return probabilities
