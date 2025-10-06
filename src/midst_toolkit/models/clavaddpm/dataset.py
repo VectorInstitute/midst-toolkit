@@ -257,7 +257,7 @@ def get_category_sizes(features: torch.Tensor | np.ndarray) -> list[int]:
     unique values in each column.
 
     Args:
-        features: The data to get the size of the categories of.
+        features: The data from which to extract category sizes.
 
     Returns:
         A list with the category sizes in the data.
@@ -398,6 +398,7 @@ def make_dataset_from_df(
     info: dict[str, Any],
     data_split_ratios: list[float] | None = None,
     std: float = 0,
+    data_split_random_state: int = 42,
 ) -> tuple[Dataset, dict[int, LabelEncoder], list[str]]:
     """
     Generate a dataset from a pandas DataFrame.
@@ -435,6 +436,8 @@ def make_dataset_from_df(
         data_split_ratios: The ratios of the dataset to split into train, val, and test. The sum of
             the ratios must amount to 1 (with a tolerance of 0.01). Optional, default is [0.7, 0.2, 0.1].
         std: The standard deviation of the labels. Optional, default is 0.
+        data_split_random_state: The random state to use for the data split. Will be passed down to the
+            train_test_split function from sklearn. Optional, default is 42.
 
     Returns:
         A tuple with the dataset, the label encoders, and the column orders.
@@ -447,11 +450,15 @@ def make_dataset_from_df(
         "The sum of the ratios must amount to 1 (with a tolerance of 0.01)."
     )
 
-    train_val_data, test_data = train_test_split(data, test_size=data_split_ratios[2], random_state=42)
+    train_val_data, test_data = train_test_split(
+        data,
+        test_size=data_split_ratios[2],
+        random_state=data_split_random_state,
+    )
     train_data, val_data = train_test_split(
         train_val_data,
         test_size=data_split_ratios[1] / (data_split_ratios[0] + data_split_ratios[1]),
-        random_state=42,
+        random_state=data_split_random_state,
     )
 
     categorical_column_names, numerical_column_names = _get_categorical_and_numerical_column_names(
@@ -459,7 +466,7 @@ def make_dataset_from_df(
         is_target_conditioned,
     )
 
-    if categorical_column_names is not None and len(categorical_column_names) > 0:
+    if len(categorical_column_names) > 0:
         categorical_features = {
             DataSplit.TRAIN.value: train_data[categorical_column_names].to_numpy(dtype=np.str_),
             DataSplit.VALIDATION.value: val_data[categorical_column_names].to_numpy(dtype=np.str_),
@@ -468,7 +475,7 @@ def make_dataset_from_df(
     else:
         categorical_features = None
 
-    if numerical_column_names is not None and len(numerical_column_names) > 0:
+    if len(numerical_column_names) > 0:
         numerical_features = {
             DataSplit.TRAIN.value: train_data[numerical_column_names].values.astype(np.float32),
             DataSplit.VALIDATION.value: val_data[numerical_column_names].values.astype(np.float32),
@@ -525,7 +532,7 @@ def _get_categorical_and_numerical_column_names(
         if info["cat_cols"] is not None:
             categorical_columns += info["cat_cols"]
         if is_target_conditioned == IsTargetCondioned.CONCAT:
-            categorical_columns = [info["y_col"]] + categorical_columns
+            categorical_columns += [info["y_col"]]
 
         numerical_columns = info["num_cols"]
 
@@ -533,7 +540,7 @@ def _get_categorical_and_numerical_column_names(
         if info["num_cols"] is not None:
             numerical_columns += info["num_cols"]
         if is_target_conditioned == IsTargetCondioned.CONCAT:
-            numerical_columns = [info["y_col"]] + numerical_columns
+            numerical_columns += [info["y_col"]]
 
         categorical_columns = info["cat_cols"]
 

@@ -150,7 +150,7 @@ def process_split_data(
     processed_attack_data_path: Path,
     column_to_stratify: str,
     num_total_samples: int = 40000,
-    random_seed: int = 42,
+    random_seed: int = 42,  # TODO: do we really need to hardcode the random state?
 ) -> None:
     """
     Splits the data into train, validation, and test sets according to the attack design.
