@@ -306,7 +306,7 @@ def train_model(
         is_target_conditioned=model_params.is_target_conditioned,
         data_split_ratios=data_split_ratios,
         info=data_frame_info,
-        std=0,
+        noise_scale=0,
     )
 
     category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
@@ -421,7 +421,7 @@ def train_classifier(
         is_target_conditioned=model_params.is_target_conditioned,
         data_split_ratios=data_split_ratios,
         info=data_frame_info,
-        std=0,
+        noise_scale=0,
     )
     print(dataset.n_features)
     train_loader = prepare_fast_dataloader(

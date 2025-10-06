@@ -397,7 +397,7 @@ def make_dataset_from_df(
     is_target_conditioned: IsTargetCondioned,
     info: dict[str, Any],
     data_split_ratios: list[float] | None = None,
-    std: float = 0,
+    noise_scale: float = 0,
     data_split_random_state: int = 42,
 ) -> tuple[Dataset, dict[int, LabelEncoder], list[str]]:
     """
@@ -435,7 +435,7 @@ def make_dataset_from_df(
         info: A dictionary with metadata about the DataFrame.
         data_split_ratios: The ratios of the dataset to split into train, val, and test. The sum of
             the ratios must amount to 1 (with a tolerance of 0.01). Optional, default is [0.7, 0.2, 0.1].
-        std: The standard deviation of the labels. Optional, default is 0.
+        noise_scale: The scale of the noise to add to the categorical features. Optional, default is 0.
         data_split_random_state: The random state to use for the data split. Will be passed down to the
             train_test_split function from sklearn. Optional, default is 42.
 
@@ -498,7 +498,7 @@ def make_dataset_from_df(
     column_orders_indices = numerical_column_orders + categorical_column_orders
     column_orders = [index_to_column[index] for index in column_orders_indices]
 
-    numerical_features, label_encoders = _merge_features(categorical_features, numerical_features, std)
+    numerical_features, label_encoders = _merge_features(categorical_features, numerical_features, noise_scale)
 
     assert isinstance(info["n_classes"], int)
 
@@ -550,7 +550,7 @@ def _get_categorical_and_numerical_column_names(
 def _merge_features(
     categorical_features: ArrayDict | None,
     numerical_features: ArrayDict | None,
-    std: float,
+    noise_scale: float,
 ) -> tuple[ArrayDict, dict[int, LabelEncoder]]:
     """
     Merge the categorical with the numerical features for train, validation, and test datasets.
@@ -558,7 +558,7 @@ def _merge_features(
     Args:
         categorical_features: The categorical features.
         numerical_features: The numerical features.
-        std: The standard deviation of the labels.
+        noise_scale: The scale of the noise to add to the categorical features.
 
     Returns:
         The merged features for train, validation, and test datasets and the label encoders
@@ -584,9 +584,9 @@ def _merge_features(
         label_encoder = LabelEncoder()
         encoded_labels = label_encoder.fit_transform(all_categorical_data[:, column]).astype(float)
         categorical_data_converted.append(encoded_labels)
-        if std > 0:
+        if noise_scale > 0:
             # add noise
-            categorical_data_converted[-1] += np.random.normal(0, std, categorical_data_converted[-1].shape)
+            categorical_data_converted[-1] += np.random.normal(0, noise_scale, categorical_data_converted[-1].shape)
         label_encoders[column] = label_encoder
 
     categorical_data_transposed = np.vstack(categorical_data_converted).T
