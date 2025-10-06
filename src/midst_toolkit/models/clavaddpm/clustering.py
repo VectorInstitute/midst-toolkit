@@ -18,6 +18,7 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     ClusteringMethod,
     Configs,
     GroupLengthsProbDicts,
+    KeyScalingType,
     RelationOrder,
     Tables,
 )
@@ -141,7 +142,7 @@ def _run_clustering(
                 parent_df_with_cluster,
                 child_df_with_cluster,
                 group_lengths_prob_dicts,
-            ) = _pair_clustering_keep_id(
+            ) = _pair_clustering(
                 tables,
                 child,
                 parent,
@@ -157,8 +158,7 @@ def _run_clustering(
     return tables, all_group_lengths_prob_dicts
 
 
-def _pair_clustering_keep_id(
-    # ruff: noqa: PLR0912, PLR0915
+def _pair_clustering(
     tables: Tables,
     child_name: str,
     parent_name: str,
@@ -189,6 +189,13 @@ def _pair_clustering_keep_id(
             - parent_df_with_cluster: DataFrame of the parent table with the cluster column.
             - child_df_with_cluster: DataFrame of the child table with the cluster column.
             - group_lengths_prob_dicts: Dictionary of group lengths and probabilities.
+
+        NOTE: It will also mutate the "domain" dictionaries under the child and parent tables
+        to add the following entry:
+            "{parent_name}_{child_name}_cluster": {
+                "type": "discrete",
+                "size": num_clusters,
+            }
     """
     child_df = tables[child_name]["df"]
     parent_df = tables[parent_name]["df"]
@@ -197,99 +204,327 @@ def _pair_clustering_keep_id(
     parent_domain_dict = tables[parent_name]["domain"]
     child_primary_key = f"{child_name}_id"
     parent_primary_key = f"{parent_name}_id"
-    all_child_cols = list(child_df.columns)
-    all_parent_cols = list(parent_df.columns)
+    all_child_columns = list(child_df.columns)
+    all_parent_columns = list(parent_df.columns)
 
-    # Splitting the data columns into categorical and numerical based on the domain dictionary.
-    # Columns that are not in the domain dictionary are ignored (except for the primary and foreign keys).
-    child_num_cols, child_cat_cols = _get_categorical_and_numerical_columns(all_child_cols, child_domain_dict)
-    parent_num_cols, parent_cat_cols = _get_categorical_and_numerical_columns(all_parent_cols, parent_domain_dict)
-
-    parent_primary_key_index = all_parent_cols.index(parent_primary_key)
-    foreign_key_index = all_child_cols.index(parent_primary_key)
+    parent_primary_key_index = all_parent_columns.index(parent_primary_key)
+    foreign_key_index = all_child_columns.index(parent_primary_key)
 
     # sort child data by foreign key
     child_data = child_df.to_numpy()
     sorted_child_data = child_data[np.argsort(child_data[:, foreign_key_index])]
-    child_group_data_dict = _get_group_data_dict(sorted_child_data, [foreign_key_index])
 
     # sort parent data by primary key
     parent_data = parent_df.to_numpy()
     sorted_parent_data = parent_data[np.argsort(parent_data[:, parent_primary_key_index])]
 
-    group_lengths = []
-    unique_group_ids = sorted_parent_data[:, parent_primary_key_index]
-    for group_id in unique_group_ids:
-        group_id = (group_id,)
-        if group_id not in child_group_data_dict:
-            group_lengths.append(0)
-        else:
-            group_lengths.append(len(child_group_data_dict[group_id]))
+    cluster_data = _prepare_cluster_data(
+        sorted_child_data,
+        sorted_parent_data,
+        child_domain_dict,
+        parent_domain_dict,
+        all_child_columns,
+        all_parent_columns,
+        parent_primary_key,
+        parent_scale,
+        key_scale,
+    )
 
-    group_lengths_np = np.array(group_lengths, dtype=int)
-
-    sorted_parent_data_repeated = np.repeat(sorted_parent_data, group_lengths_np, axis=0)
-    assert (sorted_parent_data_repeated[:, parent_primary_key_index] == sorted_child_data[:, foreign_key_index]).all()
-
-    sorted_child_num_data = sorted_child_data[:, child_num_cols]
-    sorted_child_cat_data = sorted_child_data[:, child_cat_cols]
-    sorted_parent_num_data = sorted_parent_data_repeated[:, parent_num_cols]
-    sorted_parent_cat_data = sorted_parent_data_repeated[:, parent_cat_cols]
-
-    joint_num_matrix = np.concatenate([sorted_child_num_data, sorted_parent_num_data], axis=1)
-    joint_cat_matrix = np.concatenate([sorted_child_cat_data, sorted_parent_cat_data], axis=1)
-
-    if joint_cat_matrix.shape[1] > 0:
-        joint_cat_matrix_p_index = sorted_child_cat_data.shape[1]
-        joint_num_matrix_p_index = sorted_child_num_data.shape[1]
-
-        cat_converted = []
-        label_encoders = []
-        for i in range(joint_cat_matrix.shape[1]):
-            # A threshold of 1000 unique values is used to prevent the one-hot encoding of large categorical columns
-            if len(np.unique(joint_cat_matrix[:, i])) > 1000:
-                log(WARNING, f"Categorical column {i} has more than 1000 unique values, skipping...")
-                continue
-            label_encoder = LabelEncoder()
-            cat_converted.append(label_encoder.fit_transform(joint_cat_matrix[:, i]).astype(float))
-            label_encoders.append(label_encoder)
-
-        cat_converted_transposed = np.vstack(cat_converted).T
-
-        # Initialize an empty array to store the encoded values
-        cat_one_hot = np.empty((cat_converted_transposed.shape[0], 0))
-
-        # Loop through each column in the data and encode it
-        for col in range(cat_converted_transposed.shape[1]):
-            encoder = OneHotEncoder(sparse_output=False)
-            column = cat_converted_transposed[:, col].reshape(-1, 1)
-            encoded_column = encoder.fit_transform(column)
-            cat_one_hot = np.concatenate((cat_one_hot, encoded_column), axis=1)
-
-        cat_one_hot[:, joint_cat_matrix_p_index:] = parent_scale * cat_one_hot[:, joint_cat_matrix_p_index:]
-
-    # Perform quantile normalization using QuantileTransformer
-    num_quantile = _quantile_normalize_sklearn(joint_num_matrix)
-    num_min_max = _min_max_normalize_sklearn(joint_num_matrix)
-
-    # TODO: change the commented lines below into options/if-conditions.
-    # key_quantile =
-    #   quantile_normalize_sklearn(sorted_parent_data_repeated[:, parent_primary_key_index].reshape(-1, 1))
-    key_min_max = _min_max_normalize_sklearn(sorted_parent_data_repeated[:, parent_primary_key_index].reshape(-1, 1))
-
-    # key_scaled = key_scaler * key_quantile
-    key_scaled = key_scale * key_min_max
-
-    num_quantile[:, joint_num_matrix_p_index:] = parent_scale * num_quantile[:, joint_num_matrix_p_index:]
-    num_min_max[:, joint_num_matrix_p_index:] = parent_scale * num_min_max[:, joint_num_matrix_p_index:]
-
-    if joint_cat_matrix.shape[1] > 0:
-        cluster_data = np.concatenate((num_min_max, cat_one_hot, key_scaled), axis=1)
-    else:
-        cluster_data = np.concatenate((num_min_max, key_scaled), axis=1)
+    cluster_labels = _get_cluster_labels(cluster_data, clustering_method, num_clusters)
 
     child_group_data = _get_group_data(sorted_child_data, [foreign_key_index])
     child_group_lengths = np.array([len(group) for group in child_group_data], dtype=int)
+
+    if clustering_method == ClusteringMethod.VARIATIONAL:
+        group_cluster_labels, agree_rates = _aggregate_and_sample(cluster_labels, child_group_lengths)
+    else:
+        group_cluster_labels, agree_rates = _get_group_cluster_labels_through_voting(
+            cluster_labels, child_group_lengths
+        )
+
+    # Compute the average agree rate across all groups
+    average_agree_rate = np.mean(agree_rates)
+    log(INFO, f"Average agree rate: {average_agree_rate}")
+
+    # obtain the child data with clustering
+    group_assignment = np.repeat(group_cluster_labels, child_group_lengths, axis=0).reshape((-1, 1))
+    sorted_child_data_with_cluster = np.concatenate([sorted_child_data, group_assignment], axis=1)
+
+    # recover the preprocessed data back to dataframe
+    relation_cluster_name = f"{parent_name}_{child_name}_cluster"
+    child_df_with_cluster = pd.DataFrame(
+        sorted_child_data_with_cluster,
+        columns=all_child_columns + [relation_cluster_name],
+    )
+
+    # recover child df order
+    child_df_with_cluster = pd.merge(
+        child_df[[child_primary_key]],
+        child_df_with_cluster,
+        on=child_primary_key,
+        how="left",
+    )
+
+    parent_data_clusters = _get_parent_data_clusters(
+        sorted_child_data_with_cluster,
+        parent_data,
+        parent_primary_key_index,
+        foreign_key_index,
+    )
+    parent_data_with_cluster = np.concatenate([parent_data, parent_data_clusters], axis=1)
+    parent_df_with_cluster = pd.DataFrame(
+        parent_data_with_cluster, columns=all_parent_columns + [relation_cluster_name]
+    )
+
+    group_lengths_probabilities = _get_group_lengths_probabilities(
+        group_cluster_labels,
+        child_group_lengths.tolist(),
+    )
+
+    new_col_entry = {
+        "type": "discrete",
+        "size": len(set(parent_data_clusters.flatten())),
+    }
+
+    log(INFO, f"Number of cluster centers: {new_col_entry['size']}")
+
+    parent_domain_dict[relation_cluster_name] = new_col_entry.copy()
+    child_domain_dict[relation_cluster_name] = new_col_entry.copy()
+
+    return parent_df_with_cluster, child_df_with_cluster, group_lengths_probabilities
+
+
+def _merge_parent_data_with_child_data(
+    child_data: np.ndarray,
+    parent_data: np.ndarray,
+    parent_primary_key_index: int,
+    foreign_key_index: int,
+) -> np.ndarray:
+    """
+    Merge the parent data in relation to the child group data.
+
+    This is done by duplicating the parent data for each element of the child group data
+    in a process akin to database table denormalization.
+
+    https://en.wikipedia.org/wiki/Denormalization
+
+    Args:
+        child_data: Numpy array of the child data. Should be sorted by the foreign key.
+        parent_data: Numpy array of the parent data. Should be sorted by the parent primary key.
+        parent_primary_key_index: Index of the parent primary key.
+        foreign_key_index: Index of the foreign key to the child data.
+
+    Returns:
+        Numpy array of the parent data merged for each group of the child group data.
+    """
+    child_group_data_dict = _get_group_data_dict(child_data, [foreign_key_index])
+
+    group_lengths = []
+    unique_group_ids = parent_data[:, parent_primary_key_index]
+    for group_id in unique_group_ids:
+        group_id_tuple = (group_id,)
+        if group_id_tuple not in child_group_data_dict:
+            group_lengths.append(0)
+        else:
+            group_lengths.append(len(child_group_data_dict[group_id_tuple]))
+    group_lengths_np = np.array(group_lengths, dtype=int)
+    merged_parent_data = np.repeat(parent_data, group_lengths_np, axis=0)
+    assert (merged_parent_data[:, parent_primary_key_index] == child_data[:, foreign_key_index]).all()
+
+    return merged_parent_data
+
+
+def _get_min_max_and_quantile_for_numerical_columns(
+    child_numerical_data: np.ndarray,
+    parent_numerical_data: np.ndarray,
+    parent_scale: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Get the min-max and quantile values for the numerical columns in both the
+    child and parent data.
+
+    Args:
+        child_numerical_data: Numpy array of the child numerical data.
+        parent_numerical_data: Numpy array of the parent numerical data.
+        parent_scale: Scaling factor applied to the parent data.
+
+    Returns:
+        A tuple with two numpy arrays, one with the min-max values and one with the quantile
+        values for the numerical columns.
+    """
+    joint_matrix = np.concatenate([child_numerical_data, parent_numerical_data], axis=1)
+    matrix_p_index = child_numerical_data.shape[1]
+
+    # Perform quantile normalization using QuantileTransformer
+    numerical_quantile = _quantile_normalize_sklearn(joint_matrix)
+    numerical_min_max = _min_max_normalize_sklearn(joint_matrix)
+
+    numerical_quantile[:, matrix_p_index:] = parent_scale * numerical_quantile[:, matrix_p_index:]
+    numerical_min_max[:, matrix_p_index:] = parent_scale * numerical_min_max[:, matrix_p_index:]
+
+    return numerical_min_max, numerical_quantile
+
+
+def _one_hot_encode_categorical_columns(
+    child_categorical_data: np.ndarray,
+    parent_categorical_data: np.ndarray,
+    parent_scale: float,
+) -> np.ndarray | None:
+    """
+    One-hot encode the categorical columns in both the child and parent data.
+
+    Args:
+        child_categorical_data: Numpy array of the child categorical data.
+        parent_categorical_data: Numpy array of the parent categorical data.
+        parent_scale: Scaling factor applied to the parent data.
+
+    Returns:
+        Numpy array of the one-hot encoded categorical columns.
+    """
+    joint_matrix = np.concatenate([child_categorical_data, parent_categorical_data], axis=1)
+    if joint_matrix.shape[1] == 0:
+        return None
+
+    matrix_p_index = child_categorical_data.shape[1]
+
+    categories_converted = []
+    for i in range(joint_matrix.shape[1]):
+        # A threshold of 1000 unique values is used to prevent the one-hot encoding of large categorical columns
+        if len(np.unique(joint_matrix[:, i])) > 1000:
+            log(WARNING, f"Categorical column '{i}' has more than 1000 unique values, skipping...")
+            continue
+
+        categories_converted.append(LabelEncoder().fit_transform(joint_matrix[:, i]).astype(float))
+
+    transposed_categories = np.vstack(categories_converted).T
+
+    # Initialize an empty array to store the encoded values
+    categorical_one_hot = np.empty((transposed_categories.shape[0], 0))
+
+    # Loop through each column in the data and encode it
+    for column in range(transposed_categories.shape[1]):
+        encoder = OneHotEncoder(sparse_output=False)
+        reshaped_column = transposed_categories[:, column].reshape(-1, 1)
+        encoded_column = encoder.fit_transform(reshaped_column)
+        categorical_one_hot = np.concatenate((categorical_one_hot, encoded_column), axis=1)
+
+    categorical_one_hot[:, matrix_p_index:] = parent_scale * categorical_one_hot[:, matrix_p_index:]
+
+    return categorical_one_hot
+
+
+def _prepare_cluster_data(
+    child_data: np.ndarray,
+    parent_data: np.ndarray,
+    child_domain: dict[str, Any],
+    parent_domain: dict[str, Any],
+    all_child_columns: list[str],
+    all_parent_columns: list[str],
+    parent_primary_key: str,
+    parent_scale: float,
+    key_scale: float,
+    key_scaling_type: KeyScalingType = KeyScalingType.MINMAX,
+) -> np.ndarray:
+    """
+    Prepare the data for the clustering algorithm, which comprises of merging the parent
+    and child data, splitting the data into categorical and numerical columns, and
+    normalizing the data.
+
+    Args:
+        child_data: Numpy array of the child data.
+        parent_data: Numpy array of the parent data.
+        child_domain: Dictionary of the domain of the child table. The domain dictionary
+            holds metadata about the columns of each one of the tables.
+        parent_domain: Dictionary of the domain of the parent table. The domain dictionary
+            holds metadata about the columns of each one of the tables.
+        all_child_columns: List of all child columns.
+        all_parent_columns: List of all parent columns.
+        parent_primary_key: Name of the parent primary key.
+        parent_scale: Scaling factor applied to the parent table, provided by the config.
+            It will be applied to the features to weight their importance during clustering.
+        key_scale: Scaling factor applied to the tables' keys. This will weight how much influence
+            the parent-child relationship has in the clustering algorithm.
+        key_scaling_type: Type of scaling for the tables' keys. Default is KeyScalingType.MINMAX.
+
+    Returns:
+        Numpy array of the data prepared for the clustering algorithm.
+    """
+    # Recalculating the keys' indices here to save us from passing one extra parameter.
+    parent_primary_key_index = all_parent_columns.index(parent_primary_key)
+    foreign_key_index = all_child_columns.index(parent_primary_key)
+
+    merged_data = _merge_parent_data_with_child_data(
+        child_data,
+        parent_data,
+        parent_primary_key_index,
+        foreign_key_index,
+    )
+
+    # Splitting the data columns into categorical and numerical based on the domain dictionary.
+    # Columns that are not in the domain dictionary are ignored (except for the primary and foreign keys).
+    child_numerical_columns, child_categorical_columns = _get_categorical_and_numerical_columns(
+        all_child_columns,
+        child_domain,
+    )
+    parent_numerical_columns, parent_categorical_columns = _get_categorical_and_numerical_columns(
+        all_parent_columns,
+        parent_domain,
+    )
+
+    child_numerical_data = child_data[:, child_numerical_columns]
+    child_categorical_data = child_data[:, child_categorical_columns]
+    parent_numerical_data = merged_data[:, parent_numerical_columns]
+    parent_categorical_data = merged_data[:, parent_categorical_columns]
+
+    numerical_min_max, numerical_quantile = _get_min_max_and_quantile_for_numerical_columns(
+        child_numerical_data,
+        parent_numerical_data,
+        parent_scale,
+    )
+
+    reshaped_parent_data = merged_data[:, parent_primary_key_index].reshape(-1, 1)
+    if key_scaling_type == KeyScalingType.MINMAX:
+        key_normalized = _min_max_normalize_sklearn(reshaped_parent_data)
+        numerical_normalized = numerical_min_max
+    elif key_scaling_type == KeyScalingType.QUANTILE:
+        key_normalized = _quantile_normalize_sklearn(reshaped_parent_data)
+        numerical_normalized = numerical_quantile
+    else:
+        raise ValueError(f"Unsupported foreign key scaling type: {key_scaling_type}")
+
+    key_scaled = key_scale * key_normalized
+
+    categorical_one_hot = _one_hot_encode_categorical_columns(
+        child_categorical_data,
+        parent_categorical_data,
+        parent_scale,
+    )
+
+    if categorical_one_hot is None:
+        return np.concatenate((numerical_normalized, key_scaled), axis=1)
+
+    return np.concatenate((numerical_normalized, categorical_one_hot, key_scaled), axis=1)
+
+
+def _get_cluster_labels(
+    cluster_data: np.ndarray,
+    clustering_method: ClusteringMethod,
+    num_clusters: int,
+) -> np.ndarray:
+    """
+    Get the cluster labels from the clustering algorithm chosen by the given clustering method.
+    The cluster labels are obtained by fitting the clustering algorithm to the data prepared
+    for the clustering algorithm.
+
+    Args:
+        cluster_data: Numpy array of the data prepared for the clustering algorithm.
+        clustering_method: The clustering method to use.
+        num_clusters: Number of clusters. If the number of clusters is greater than the
+            number of data points, the number of clusters will be set to the number of data points.
+
+    Returns:
+        Numpy array of the cluster labels for the data.
+    """
     num_clusters = min(num_clusters, len(cluster_data))
 
     if clustering_method == ClusteringMethod.KMEANS:
@@ -325,58 +560,66 @@ def _pair_clustering_keep_id(
         gmm.fit(cluster_data)
         cluster_labels = gmm.predict(cluster_data)
 
-    if clustering_method == ClusteringMethod.VARIATIONAL:
-        group_cluster_labels, agree_rates = _aggregate_and_sample(cluster_labels, child_group_lengths)
-    else:
-        group_cluster_labels, agree_rates = _get_group_cluster_labels_through_voting(
-            cluster_labels, child_group_lengths
-        )
+    return cluster_labels
 
-    # Compute the average agree rate across all groups
-    average_agree_rate = np.mean(agree_rates)
-    log(INFO, f"Average agree rate: {average_agree_rate}")
 
-    group_assignment = np.repeat(group_cluster_labels, child_group_lengths, axis=0).reshape((-1, 1))
+def _get_group_lengths_probabilities(
+    group_cluster_labels: list[int],
+    child_group_lengths: list[int],
+) -> dict[int, dict[int, float]]:
+    """
+    Calculate the group lengths probabilities from the frequency in which the child group lengths
+    appear for each of the group cluster labels.
 
-    # obtain the child data with clustering
-    sorted_child_data_with_cluster = np.concatenate([sorted_child_data, group_assignment], axis=1)
+    Args:
+        group_cluster_labels: List of the group cluster labels.
+        child_group_lengths: List of the child group lengths.
 
-    group_labels_list = group_cluster_labels
-    group_lengths_list = child_group_lengths.tolist()
-
+    Returns:
+        Dictionary of the group lengths probabilities.
+        The keys are the group cluster labels and the values are the probabilities of the group lengths.
+    """
     group_lengths_dict: dict[int, dict[int, int]] = {}
-    for i in range(len(group_labels_list)):
-        group_label = group_labels_list[i]
+    for i in range(len(group_cluster_labels)):
+        group_label = group_cluster_labels[i]
         if group_label not in group_lengths_dict:
             group_lengths_dict[group_label] = defaultdict(int)
-        group_lengths_dict[group_label][group_lengths_list[i]] += 1
+        group_lengths_dict[group_label][child_group_lengths[i]] += 1
 
-    group_lengths_prob_dicts: dict[int, dict[int, float]] = {}
-    for group_label, freq_dict in group_lengths_dict.items():
-        group_lengths_prob_dicts[group_label] = _freq_to_prob(freq_dict)
+    group_lengths_probabilities: dict[int, dict[int, float]] = {}
+    for group_label, frequencies_dict in group_lengths_dict.items():
+        group_lengths_probabilities[group_label] = _freq_to_prob(frequencies_dict)
 
-    # recover the preprocessed data back to dataframe
-    relation_cluster_name = f"{parent_name}_{child_name}_cluster"
-    child_df_with_cluster = pd.DataFrame(
-        sorted_child_data_with_cluster,
-        columns=all_child_cols + [relation_cluster_name],
-    )
+    return group_lengths_probabilities
 
-    # recover child df order
-    child_df_with_cluster = pd.merge(
-        child_df[[child_primary_key]],
-        child_df_with_cluster,
-        on=child_primary_key,
-        how="left",
-    )
 
+def _get_parent_data_clusters(
+    child_data_with_cluster: np.ndarray,
+    parent_data: np.ndarray,
+    parent_primary_key_index: int,
+    foreign_key_index: int,
+) -> np.ndarray:
+    """
+    Get the parent data clusters from the child data with cluster and the parent data.
+    The child data needs to be sorted by the foreign key.
+
+    Args:
+        child_data_with_cluster: Numpy array of the child data with cluster information.
+            Should be sorted by the foreign key.
+        parent_data: Numpy array of the parent data.
+        parent_primary_key_index: Index of the parent primary key.
+        foreign_key_index: Index of the foreign key to the child data.
+
+    Returns:
+        Numpy array of the parent data clusters.
+    """
     parent_id_to_cluster: dict[Any, Any] = {}
-    for i in range(len(sorted_child_data)):
-        parent_id = sorted_child_data[i, foreign_key_index]
+    for i in range(len(child_data_with_cluster)):
+        parent_id = child_data_with_cluster[i, foreign_key_index]
         if parent_id in parent_id_to_cluster:
-            assert parent_id_to_cluster[parent_id] == sorted_child_data_with_cluster[i, -1]
+            assert parent_id_to_cluster[parent_id] == child_data_with_cluster[i, -1]
         else:
-            parent_id_to_cluster[parent_id] = sorted_child_data_with_cluster[i, -1]
+            parent_id_to_cluster[parent_id] = child_data_with_cluster[i, -1]
 
     max_cluster_label = max(parent_id_to_cluster.values())
 
@@ -387,33 +630,19 @@ def _pair_clustering_keep_id(
         else:
             parent_data_clusters.append(max_cluster_label + 1)
 
-    parent_data_clusters_np = np.array(parent_data_clusters).reshape(-1, 1)
-    parent_data_with_cluster = np.concatenate([parent_data, parent_data_clusters_np], axis=1)
-    parent_df_with_cluster = pd.DataFrame(parent_data_with_cluster, columns=all_parent_cols + [relation_cluster_name])
-
-    new_col_entry = {
-        "type": "discrete",
-        "size": len(set(parent_data_clusters_np.flatten())),
-    }
-
-    log(INFO, f"Number of cluster centers: {new_col_entry['size']}")
-
-    parent_domain_dict[relation_cluster_name] = new_col_entry.copy()
-    child_domain_dict[relation_cluster_name] = new_col_entry.copy()
-
-    return parent_df_with_cluster, child_df_with_cluster, group_lengths_prob_dicts
+    return np.array(parent_data_clusters).reshape(-1, 1)
 
 
 def _get_categorical_and_numerical_columns(
     all_columns: list[str],
-    domain_dictionary: dict[str, Any],
+    table_domain: dict[str, Any],
 ) -> tuple[list[int], list[int]]:
     """
-    Return the list of numerical and categorical column indices from the domain dictionary.
+    Return the list of numerical and categorical column indices from the table domain dictionary.
 
     Args:
         all_columns: List of all columns.
-        domain_dictionary: Dictionary of the domain.
+        table_domain: Dictionary of the domain.
 
     Returns:
         Tuple with two lists of indices, one for the numerical columns and one for the categorical columns.
@@ -422,8 +651,8 @@ def _get_categorical_and_numerical_columns(
     categorical_columns = []
 
     for col_index, col in enumerate(all_columns):
-        if col in domain_dictionary:
-            if domain_dictionary[col]["type"] == "discrete":
+        if col in table_domain:
+            if table_domain[col]["type"] == "discrete":
                 categorical_columns.append(col_index)
             else:
                 numerical_columns.append(col_index)
