@@ -662,39 +662,49 @@ def transform_dataset(
 
     numerical_transform = None
     categorical_transform = None
-    x_num = dataset.x_num
+    numerical_features = dataset.x_num
+    categorical_features = dataset.x_cat
 
-    if x_num is not None and transformations.normalization is not None:
-        x_num, numerical_transform = normalize(  # type: ignore[assignment]
-            x_num,
+    if numerical_features is not None and transformations.normalization is not None:
+        numerical_features, numerical_transform = normalize(
+            numerical_features,
             transformations.normalization,
             transformations.seed,
-            return_normalizer=True,
         )
 
-    if dataset.x_cat is None:
+    if categorical_features is None:
         assert transformations.categorical_nan_policy is None
         assert transformations.category_minimum_frequency is None
-        # assert transformations.cat_encoding is None
-        x_cat = None
     else:
-        x_cat = process_nans_in_categorical_features(dataset.x_cat, transformations.categorical_nan_policy)
+        categorical_features = process_nans_in_categorical_features(
+            categorical_features,
+            transformations.categorical_nan_policy,
+        )
         if transformations.category_minimum_frequency is not None:
-            x_cat = drop_rare_categories(x_cat, transformations.category_minimum_frequency)
-        x_cat, is_num, categorical_transform = encode_categorical_features(
-            x_cat,
+            categorical_features = drop_rare_categories(
+                categorical_features,
+                transformations.category_minimum_frequency,
+            )
+
+        categorical_features, is_numerical, categorical_transform = encode_categorical_features(
+            categorical_features,
             transformations.categorical_encoding,
             dataset.y[DataSplit.TRAIN.value],
             transformations.seed,
             return_encoder=True,
         )
-        if is_num:
-            x_num = x_cat if x_num is None else {x: np.hstack([x_num[x], x_cat[x]]) for x in x_num}
-            x_cat = None
+        if is_numerical:
+            if numerical_features is None:
+                numerical_features = categorical_features
+            else:
+                numerical_features = {
+                    x: np.hstack([numerical_features[x], categorical_features[x]]) for x in numerical_features
+                }
+            categorical_features = None
 
-    y, y_info = build_target(dataset.y, transformations.target_policy, dataset.task_type)
+    target, target_info = build_target(dataset.y, transformations.target_policy, dataset.task_type)
 
-    dataset = replace(dataset, x_num=x_num, x_cat=x_cat, y=y, y_info=y_info)
+    dataset = replace(dataset, x_num=numerical_features, x_cat=categorical_features, y=target, y_info=target_info)
     dataset.numerical_transform = numerical_transform
     dataset.categorical_transform = categorical_transform
 
@@ -731,13 +741,11 @@ def dump_pickle(x: Any, path: Path | str, **kwargs: Any) -> None:
 
 
 # Inspired by: https://github.com/yandex-research/rtdl/blob/a4c93a32b334ef55d2a0559a4407c8306ffeeaee/lib/data.py#L20
-# TODO: fix this hideous output type
 def normalize(
     x: ArrayDict,
     normalization: Normalization,
     seed: int | None,
-    return_normalizer: bool = False,
-) -> ArrayDict | tuple[ArrayDict, StandardScaler | MinMaxScaler | QuantileTransformer]:
+) -> tuple[ArrayDict, StandardScaler | MinMaxScaler | QuantileTransformer]:
     """
     Normalize the input data.
 
@@ -745,11 +753,9 @@ def normalize(
         x: The data to normalize.
         normalization: The normalization to use.
         seed: The seed to use for the random state. Optional, default is None.
-        return_normalizer: Whether to return the normalizer. Optional, default is False.
 
     Returns:
-        The normalized data. If return_normalizer is True, will return a tuple with the
-            normalized data and the normalizer.
+        The normalized data and the normalizer.
     """
     x_train = x[DataSplit.TRAIN.value]
     if normalization == Normalization.STANDARD:
@@ -766,9 +772,8 @@ def normalize(
     else:
         raise ValueError(f"Unsupported normalization: {normalization.value}")
     normalizer.fit(x_train)
-    if return_normalizer:
-        return {k: normalizer.transform(v) for k, v in x.items()}, normalizer
-    return {k: normalizer.transform(v) for k, v in x.items()}
+
+    return {k: normalizer.transform(v) for k, v in x.items()}, normalizer
 
 
 # TODO: is there any relationship between this function and the cat_process_nans function?
@@ -791,28 +796,41 @@ def process_nans_in_numerical_features(dataset: Dataset, policy: NumericalNaNPol
         return dataset
 
     assert policy is not None
+
     if policy == NumericalNaNPolicy.DROP_ROWS:
         valid_masks = {k: ~v.any(1) for k, v in nan_masks.items()}
         assert valid_masks[DataSplit.TEST.value].all(), (
             "Cannot drop test rows, since this will affect the final metrics."
         )
-        new_data = {}
-        for data_name in ["x_num", "x_cat", "y"]:
-            # TODO: find a way to do this without getattr
-            data_dict = getattr(dataset, data_name)
-            if data_dict is not None:
-                new_data[data_name] = {k: v[valid_masks[k]] for k, v in data_dict.items()}
-        dataset = replace(dataset, **new_data)  # type: ignore[arg-type]
+        dataset.x_num = None if dataset.x_num is None else _apply_mask(dataset.x_num, valid_masks)
+        dataset.x_cat = None if dataset.x_cat is None else _apply_mask(dataset.x_cat, valid_masks)
+        dataset.y = _apply_mask(dataset.y, valid_masks)
+
     elif policy == NumericalNaNPolicy.MEAN:
-        new_values = np.nanmean(dataset.x_num[DataSplit.TRAIN.value], axis=0)  # type: ignore[index]
-        x_num = deepcopy(dataset.x_num)
-        for k, v in x_num.items():  # type: ignore[union-attr]
-            num_nan_indices = np.where(nan_masks[k])
-            v[num_nan_indices] = np.take(new_values, num_nan_indices[1])
-        dataset = replace(dataset, x_num=x_num)
+        new_values = np.nanmean(dataset.x_num[DataSplit.TRAIN.value], axis=0)
+        numerical_features = deepcopy(dataset.x_num)
+        for feature_name, feature_value in numerical_features.items():
+            numerical_nan_indices = np.where(nan_masks[feature_name])
+            feature_value[numerical_nan_indices] = np.take(new_values, numerical_nan_indices[1])
+        dataset.x_num = numerical_features
+
     else:
         raise ValueError(f"Unsupported policy: {policy.value}")
     return dataset
+
+
+def _apply_mask(data: ArrayDict, valid_masks: dict[str, np.ndarray]) -> ArrayDict:
+    """
+    Apply the given masks to the given data.
+
+    Args:
+        data: The data to apply the mask to.
+        valid_masks: The valid masks to apply to the data.
+
+    Returns:
+        The data with the mask applied.
+    """
+    return {k: v[valid_masks[k]] for k, v in data.items()}
 
 
 def process_nans_in_categorical_features(x: ArrayDict, policy: CategoricalNaNPolicy | None) -> ArrayDict:
@@ -924,10 +942,9 @@ def encode_categorical_features(
             dtype=np.float32,
         )
         encoder = make_pipeline(ohe)
-
-        # encoder.steps.append(('ohe', ohe))
         encoder.fit(x[DataSplit.TRAIN.value])
         x = {k: encoder.transform(v) for k, v in x.items()}
+
     elif encoding == CategoricalEncoding.COUNTER:
         assert y_train is not None
         assert seed is not None
@@ -936,7 +953,7 @@ def encode_categorical_features(
         encoder.fit(x[DataSplit.TRAIN.value], y_train)
         x = {k: encoder.transform(v).astype("float32") for k, v in x.items()}
         if not isinstance(x[DataSplit.TRAIN.value], pd.DataFrame):
-            x = {k: v.values for k, v in x.items()}  # type: ignore[attr-defined]
+            x = {k: v.value if hasattr(v, "value") else v for k, v in x.items()}
     else:
         raise ValueError(f"Unsupported encoding: {encoding.value}")
 

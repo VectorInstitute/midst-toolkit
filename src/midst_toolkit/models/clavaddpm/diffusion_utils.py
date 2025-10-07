@@ -1,15 +1,9 @@
-"""PLACEHOLDER."""
-
-from collections.abc import Callable
-from inspect import isfunction
-from typing import Any
+"""Utility functions for the diffusion models."""
 
 import numpy as np
 import torch
-import torch.nn.functional as F
-
-# ruff: noqa: N812
 from torch import Tensor
+from torch.nn import functional
 
 
 def normal_kl(
@@ -97,90 +91,154 @@ def mean_flat(tensor: Tensor) -> Tensor:
     return tensor.mean(dim=list(range(1, len(tensor.shape))))
 
 
-def ohe_to_categories(ohe: Tensor, K: Tensor) -> Tensor:
-    # ruff: noqa: D103, N803
-    K = torch.from_numpy(K)
-    # ruff: noqa: N806
-    indices = torch.cat([torch.zeros((1,)), K.cumsum(dim=0)], dim=0).int().tolist()
-    res = []
+def ohe_to_categories(ohe: Tensor, num_categories: Tensor) -> Tensor:
+    """
+    Convert one-hot encoded categorical data to categorical data.
+
+    Args:
+        ohe: The one-hot encoded categorical data tensor.
+        num_categories: The number of categories.
+
+    Returns:
+        The categorical data tensor.
+    """
+    num_categories = torch.from_numpy(num_categories)
+    indices = torch.cat([torch.zeros((1,)), num_categories.cumsum(dim=0)], dim=0).int().tolist()
+
+    result = []
     for i in range(len(indices) - 1):
-        res.append(ohe[:, indices[i] : indices[i + 1]].argmax(dim=1))
-    return torch.stack(res, dim=1)
+        result.append(ohe[:, indices[i] : indices[i + 1]].argmax(dim=1))
+
+    return torch.stack(result, dim=1)
 
 
 def log_1_min_a(a: Tensor) -> Tensor:
-    # ruff: noqa: D103
+    """
+    Compute the log of 1 minus the exponential of a tensor.
+
+    Args:
+        a: The tensor.
+
+    Returns:
+        The log of 1 minus the exponential of a tensor.
+    """
     return torch.log(1 - a.exp() + 1e-40)
 
 
 def log_add_exp(a: Tensor, b: Tensor) -> Tensor:
-    # ruff: noqa: D103
+    """
+    Compute the log of the sum of the exponential of two tensors.
+
+    Args:
+        a: The first tensor.
+        b: The second tensor.
+    """
     maximum = torch.max(a, b)
     return maximum + torch.log(torch.exp(a - maximum) + torch.exp(b - maximum))
 
 
-def exists(x: Any) -> bool:
-    # ruff: noqa: D103
-    return x is not None
+def extract(input_tensor: Tensor, index: Tensor, output_shape: tuple[int, ...]) -> Tensor:
+    """
+    Extract a value from a tensor.
+
+    Args:
+        input_tensor: The tensor.
+        index: The index.
+        output_shape: The shape of the output tensor.
+
+    Returns:
+        The extracted tensor.
+    """
+    index = index.to(input_tensor.device)
+    output_tensor = input_tensor.gather(-1, index)
+    while len(output_tensor.shape) < len(output_shape):
+        output_tensor = output_tensor[..., None]
+    return output_tensor.expand(output_shape)
 
 
-def extract(a: Tensor, t: Tensor, x_shape: tuple[int, ...]) -> Tensor:
-    # ruff: noqa: D103
-    b, *_ = t.shape
-    t = t.to(a.device)
-    out = a.gather(-1, t)
-    while len(out.shape) < len(x_shape):
-        out = out[..., None]
-    return out.expand(x_shape)
+def log_categorical(log_features_start: Tensor, log_probabilities: Tensor) -> Tensor:
+    """
+    Compute the expected log-probability under a categorical distribution.
+
+    Args:
+        log_features_start: Log of target category probabilities.
+        log_probabilities: Log-probabilities over categories aligned with log_x_start.
+
+    Returns:
+        Tensor with expected log-probabilities along dim=1.
+    """
+    return (log_features_start.exp() * log_probabilities).sum(dim=1)
 
 
-def default(val: Tensor, d: Callable[[], Tensor] | Tensor) -> Tensor:
-    # ruff: noqa: D103
-    if exists(val):
-        return val
-    if isfunction(d):
-        return d()
-    assert isinstance(d, Tensor)
-    return d
+def index_to_log_onehot(input_tensor: Tensor, num_classes: Tensor) -> Tensor:
+    """
+    Convert an index to a log one-hot tensor.
 
+    Args:
+        input_tensor: The input tensor.
+        num_classes: The number of classes.
 
-def log_categorical(log_x_start: Tensor, log_prob: Tensor) -> Tensor:
-    # ruff: noqa: D103
-    return (log_x_start.exp() * log_prob).sum(dim=1)
-
-
-def index_to_log_onehot(x: Tensor, num_classes: Tensor) -> Tensor:
-    # ruff: noqa: D103
+    Returns:
+        The log one-hot tensor.
+    """
     onehots = []
     for i in range(len(num_classes)):
-        onehots.append(F.one_hot(x[:, i], int(num_classes[i])))
+        onehots.append(functional.one_hot(input_tensor[:, i], int(num_classes[i])))
 
-    x_onehot = torch.cat(onehots, dim=1)
-    return torch.log(x_onehot.float().clamp(min=1e-30))
+    input_onehot = torch.cat(onehots, dim=1)
+    return torch.log(input_onehot.float().clamp(min=1e-30))
 
 
-def log_sum_exp_by_classes(x: Tensor, slices: Tensor) -> Tensor:
-    # ruff: noqa: D103
-    res = torch.zeros_like(x)
-    for ixs in slices:
-        res[:, ixs] = torch.logsumexp(x[:, ixs], dim=1, keepdim=True)
+def log_sum_exp_by_classes(input_tensor: Tensor, slices: Tensor) -> Tensor:
+    """
+    Compute the log of the sum of the exponential of the input tensor by classes.
 
-    assert x.size() == res.size()
+    Args:
+        input_tensor: The input tensor.
+        slices: The slices.
 
-    return res
+    Returns:
+        The log of the sum of the exponential of the input tensor by classes.
+    """
+    result = torch.zeros_like(input_tensor)
+    for slice in slices:
+        result[:, slice] = torch.logsumexp(input_tensor[:, slice], dim=1, keepdim=True)
+
+    assert input_tensor.size() == result.size()
+
+    return result
 
 
 @torch.jit.script
-def log_sub_exp(a: Tensor, b: Tensor) -> Tensor:
-    # ruff: noqa: D103
-    m = torch.maximum(a, b)
-    return torch.log(torch.exp(a - m) - torch.exp(b - m)) + m
+def log_sub_exp(first_tensor: Tensor, second_tensor: Tensor) -> Tensor:
+    """
+    Compute the log of the difference of the exponential of the input tensor.
+
+    Args:
+        first_tensor: The first tensor.
+        second_tensor: The second tensor.
+
+    Returns:
+        The log of the difference of the exponential of the input tensor.
+    """
+    maximum = torch.maximum(first_tensor, second_tensor)
+    return torch.log(torch.exp(first_tensor - maximum) - torch.exp(second_tensor - maximum)) + maximum
 
 
 @torch.jit.script
-def sliced_logsumexp(x: Tensor, slices: Tensor) -> Tensor:
-    # ruff: noqa: D103
-    lse = torch.logcumsumexp(torch.nn.functional.pad(x, [1, 0, 0, 0], value=-float("inf")), dim=-1)
+def sliced_logsumexp(input_tensor: Tensor, slices: Tensor) -> Tensor:
+    """
+    Compute the log of the sum of the exponential of the input tensor by slices.
+
+    Args:
+        input_tensor: The input tensor.
+        slices: The slices.
+
+    Returns:
+        The log of the sum of the exponential of the input tensor by slices.
+    """
+    padded_input_tensor = torch.nn.functional.pad(input_tensor, [1, 0, 0, 0], value=-float("inf"))
+    lse = torch.logcumsumexp(padded_input_tensor, dim=-1)
 
     slice_starts = slices[:-1]
     slice_ends = slices[1:]
@@ -189,14 +247,27 @@ def sliced_logsumexp(x: Tensor, slices: Tensor) -> Tensor:
     return torch.repeat_interleave(slice_lse, slice_ends - slice_starts, dim=-1)
 
 
-def log_onehot_to_index(log_x: Tensor) -> Tensor:
-    # ruff: noqa: D103
-    return log_x.argmax(1)
+def log_onehot_to_index(log_one_hot_tensor: Tensor) -> Tensor:
+    """
+    Convert a log one-hot tensor to an index tensor.
+
+    Args:
+        log_one_hot_tensor: The log one-hot tensor.
+
+    Returns:
+        The index tensor.
+    """
+    return log_one_hot_tensor.argmax(1)
 
 
 class FoundNaNsError(BaseException):
     """Found NANs during sampling."""
 
     def __init__(self, message: str = "Found NANs during sampling.") -> None:
-        # ruff: noqa: D107
+        """
+        Initialize the FoundNaNsError.
+
+        Args:
+            message: The error message.
+        """
         super(FoundNaNsError, self).__init__(message)
