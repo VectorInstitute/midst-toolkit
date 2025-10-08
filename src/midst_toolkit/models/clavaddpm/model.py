@@ -13,6 +13,7 @@ import torch.nn.functional as F
 # ruff: noqa: N812
 from torch import Tensor, nn
 
+from midst_toolkit.common.enumerations import DomainDataType, TaskType
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.enumerations import IsTargetCondioned, ModuleType
 
@@ -114,13 +115,13 @@ class Classifier(nn.Module):
         return self.model(x)
 
 
-def get_table_info(df: pd.DataFrame, domain_dict: dict[str, Any], y_col: str) -> dict[str, Any]:
+def get_table_info(df: pd.DataFrame, table_domain: dict[str, Any], y_col: str) -> dict[str, Any]:
     """
     Get the dictionary of table information.
 
     Args:
         df: The dataframe containing the data.
-        domain_dict: The domain dictionary of metadata about the data columns.
+        table_domain: The table's domain dictionary containing metadata about the data columns.
         y_col: The name of the target column.
 
     Returns:
@@ -136,8 +137,8 @@ def get_table_info(df: pd.DataFrame, domain_dict: dict[str, Any], y_col: str) ->
     cat_cols = []
     num_cols = []
     for col in df.columns:
-        if col in domain_dict and col != y_col:
-            if domain_dict[col]["type"] == "discrete":
+        if col in table_domain and col != y_col:
+            if table_domain[col]["type"] == DomainDataType.DISCRETE.value:
                 cat_cols.append(col)
             else:
                 num_cols.append(col)
@@ -147,7 +148,7 @@ def get_table_info(df: pd.DataFrame, domain_dict: dict[str, Any], y_col: str) ->
     df_info["num_cols"] = num_cols
     df_info["y_col"] = y_col
     df_info["n_classes"] = 0
-    df_info["task_type"] = "multiclass"
+    df_info["task_type"] = TaskType.MULTICLASS.value
 
     return df_info
 

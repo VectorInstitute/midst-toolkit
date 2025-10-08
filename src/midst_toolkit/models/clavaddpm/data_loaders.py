@@ -1,6 +1,6 @@
 import json
-import os
 from collections.abc import Generator
+from dataclasses import dataclass
 from logging import INFO
 from pathlib import Path
 from typing import Any, Self
@@ -9,14 +9,16 @@ import numpy as np
 import pandas as pd
 import torch
 
-from midst_toolkit.common.enumerations import DataSplit
+from midst_toolkit.common.enumerations import DataSplit, DomainDataType, InfoDataType, TaskType
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.dataset import Dataset
 from midst_toolkit.models.clavaddpm.enumerations import TargetType
 
 
 def load_multi_table(
-    data_dir: Path, verbose: bool = True
+    data_dir: Path,
+    verbose: bool = True,
+    training_data_ratio: float = 1,
 ) -> tuple[dict[str, Any], list[tuple[str, str]], dict[str, Any]]:
     """
     Load the multi-table dataset from the data directory.
@@ -24,6 +26,8 @@ def load_multi_table(
     Args:
         data_dir: The directory to load the dataset from.
         verbose: Whether to print verbose output. Optional, default is True.
+        training_data_ratio: The ratio of the data to be used for training. Should be between 0 and 1.
+            If it's equal to 1, it will only return the training set. Optional, default is 1.
 
     Returns:
         A tuple with 3 values:
@@ -57,27 +61,21 @@ def load_multi_table(
         tables[table]["original_df"] = tables[table]["df"].copy()
         id_cols = [col for col in tables[table]["df"].columns if "_id" in col]
         df_no_id = tables[table]["df"].drop(columns=id_cols)
-        info = get_info_from_domain(df_no_id, tables[table]["domain"])
-        _, info = pipeline_process_data(
-            name=table,
-            data_df=df_no_id,
-            info=info,
-            ratio=1,
-            save=False,
-            verbose=verbose,
-        )
+        table_domain = tables[table]["domain"]
+
+        _, info = process_pipeline_data(df_no_id, table_domain, training_data_ratio, verbose)
         tables[table]["info"] = info
 
     return tables, relation_order, dataset_meta
 
 
-def get_info_from_domain(data_df: pd.DataFrame, domain_dict: dict[str, Any]) -> dict[str, Any]:
+def get_info_from_domain(data: pd.DataFrame, table_domain: dict[str, Any]) -> dict[str, Any]:
     """
-    Get the information dictionary from the domain dictionary.
+    Get the information dictionary from the table domain dictionary.
 
     Args:
-        data_df: The dataframe containing the data.
-        domain_dict: The domain dictionary containing metadata about the data columns.
+        data: The dataframe containing the data.
+        table_domain: The table's domain dictionary containing metadata about the data columns.
 
     Returns:
         The information dictionary containing the following keys:
@@ -90,27 +88,39 @@ def get_info_from_domain(data_df: pd.DataFrame, domain_dict: dict[str, Any]) -> 
     info: dict[str, Any] = {}
     info["num_col_idx"] = []
     info["cat_col_idx"] = []
-    columns = data_df.columns.tolist()
+    columns = data.columns.tolist()
     for i in range(len(columns)):
-        if domain_dict[columns[i]]["type"] == "discrete":
+        if table_domain[columns[i]]["type"] == DomainDataType.DISCRETE.value:
             info["cat_col_idx"].append(i)
         else:
             info["num_col_idx"].append(i)
 
     info["target_col_idx"] = []
-    info["task_type"] = "None"
+    info["task_type"] = None
     info["column_names"] = columns
 
     return info
 
 
-def pipeline_process_data(
-    # ruff: noqa: PLR0915, PLR0912
-    name: str,
-    data_df: pd.DataFrame,
-    info: dict[str, Any],
-    ratio: float = 0.9,
-    save: bool = False,
+@dataclass
+class DataFeatures:
+    data: pd.DataFrame
+    numerical_features: np.ndarray | None = None
+    categorical_features: np.ndarray | None = None
+    target_features: np.ndarray | None = None
+
+
+@dataclass
+class DataSplits:
+    train_data: DataFeatures
+    test_data: DataFeatures | None = None
+    seed: int | None = None
+
+
+def process_pipeline_data(
+    data: pd.DataFrame,
+    table_domain: dict[str, Any],
+    training_data_ratio: float = 0.9,
     verbose: bool = True,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     """
@@ -122,12 +132,10 @@ def pipeline_process_data(
     metadata.
 
     Args:
-        name: The name of the table. Used to name the files when saving the data.
-        data_df: The dataframe containing the data.
-        info: The information dictionary, retrieved from the get_info_from_domain function.
-        ratio: The ratio of the data to be used for training. Should be between 0 and 1.
-            If it's == 1, it will only return the training set. Optional, default is 0.9.
-        save: Whether to save the data. Optional, default is False.
+        data: The dataframe containing the data.
+        table_domain: The table domain dictionary containing metadata about the data columns.
+        training_data_ratio: The ratio of the data to be used for training. Should be between 0 and 1.
+            If it's equal to 1, it will only return the training set. Optional, default is 0.9.
         verbose: Whether to print verbose output. Optional, default is True.
 
     Returns:
@@ -135,223 +143,87 @@ def pipeline_process_data(
             - The data dictionary containing the following keys:
                 - "df": The dataframe containing the data.
                     - DataSplit.TRAIN: The dataframe containing the training set.
-                    - DataSplit.TEST: The dataframe containing the test set. It will be absent if ratio == 1.
+                    - DataSplit.TEST: The dataframe containing the test set. It will be absent if
+                        training_data_ratio == 1.
                 - "numpy": A dictionary with the numeric data, containing the keys:
                     - "x_num_train": The numeric data for the training set.
                     - "x_cat_train": The categorical data for the training set.
                     - "y_train": The target data for the training set.
-                    - "x_num_test": The numeric data for the test set. It will be absent if ratio == 1.
-                    - "x_cat_test": The categorical data for the test set. It will be absent if ratio == 1.
-                    - "y_test": The target data for the test set. It will be absent if ratio == 1.
-            - The information dictionary with updated values.
+                    - "x_num_test": The numeric data for the test set. It will be absent if
+                        training_data_ratio == 1.
+                    - "x_cat_test": The categorical data for the test set. It will be absent if
+                        training_data_ratio == 1.
+                    - "y_test": The target data for the test set. It will be absent if
+                        training_data_ratio == 1.
+            - The information dictionary as returned by the _split_data_and_populate_info function
+                with additional metadata.
     """
-    assert 0 < ratio <= 1, "Ratio must be between 0 and 1."
-    if ratio == 1:
-        log(INFO, "Ratio is 1, so the data will not be split into training and test sets.")
-
-    num_data = data_df.shape[0]
-
-    column_names = info["column_names"] if info["column_names"] else data_df.columns.tolist()
-
-    num_col_idx = info["num_col_idx"]
-    cat_col_idx = info["cat_col_idx"]
-    target_col_idx = info["target_col_idx"]
-
-    idx_mapping, inverse_idx_mapping, idx_name_mapping = get_column_name_mapping(
-        data_df, num_col_idx, cat_col_idx, column_names
-    )
-
-    num_columns = [column_names[i] for i in num_col_idx]
-    cat_columns = [column_names[i] for i in cat_col_idx]
-    target_columns = [column_names[i] for i in target_col_idx]
-
-    # Train/ Test Split, 90% Training, 10% Testing (Validation set will be selected from Training set)
-    num_train = int(num_data * ratio)
-    num_test = num_data - num_train
-
-    test_df: pd.DataFrame | None = None
-
-    if ratio < 1:
-        train_df, test_df, seed = train_test_split(data_df, cat_columns, num_train, num_test)
-    else:
-        train_df = data_df.copy()
-
-    train_df.columns = list(range(len(train_df.columns)))
-
-    if ratio < 1:
-        assert test_df is not None
-        test_df.columns = list(range(len(test_df.columns)))
-
-    col_info: dict[Any, Any] = {}
-
-    for col_idx in num_col_idx:
-        col_info[col_idx] = {}
-        col_info["type"] = "numerical"
-        col_info["max"] = float(train_df[col_idx].max())
-        col_info["min"] = float(train_df[col_idx].min())
-
-    for col_idx in cat_col_idx:
-        col_info[col_idx] = {}
-        col_info["type"] = "categorical"
-        col_info["categorizes"] = list(set(train_df[col_idx]))
-
-    for col_idx in target_col_idx:
-        if info["task_type"] == "regression":
-            col_info[col_idx] = {}
-            col_info["type"] = "numerical"
-            col_info["max"] = float(train_df[col_idx].max())
-            col_info["min"] = float(train_df[col_idx].min())
-        else:
-            col_info[col_idx] = {}
-            col_info["type"] = "categorical"
-            col_info["categorizes"] = list(set(train_df[col_idx]))
-
-    info["column_info"] = col_info
-
-    train_df.rename(columns=idx_name_mapping, inplace=True)
-    if ratio < 1:
-        assert test_df is not None
-        test_df.rename(columns=idx_name_mapping, inplace=True)
-
-    for col in num_columns:
-        train_df.loc[train_df[col] == "?", col] = np.nan
-    for col in cat_columns:
-        train_df.loc[train_df[col] == "?", col] = "nan"
-
-    if ratio < 1:
-        assert test_df is not None
-        for col in num_columns:
-            test_df.loc[test_df[col] == "?", col] = np.nan
-        for col in cat_columns:
-            test_df.loc[test_df[col] == "?", col] = "nan"
-
-    x_num_train = train_df[num_columns].to_numpy().astype(np.float32)
-    x_cat_train = train_df[cat_columns].to_numpy()
-    y_train = train_df[target_columns].to_numpy()
-
-    x_num_test: np.ndarray | None = None
-    x_cat_test: np.ndarray | None = None
-    y_test: np.ndarray | None = None
-
-    if ratio < 1:
-        assert test_df is not None
-        x_num_test = test_df[num_columns].to_numpy().astype(np.float32)
-        x_cat_test = test_df[cat_columns].to_numpy()
-        y_test = test_df[target_columns].to_numpy()
-
-    if save:
-        save_dir = f"data/{name}"
-        np.save(f"{save_dir}/x_num_train.npy", x_num_train)
-        np.save(f"{save_dir}/x_cat_train.npy", x_cat_train)
-        np.save(f"{save_dir}/y_train.npy", y_train)
-
-        if ratio < 1:
-            assert x_num_test is not None and x_cat_test is not None and y_test is not None
-            np.save(f"{save_dir}/x_num_test.npy", x_num_test)
-            np.save(f"{save_dir}/x_cat_test.npy", x_cat_test)
-            np.save(f"{save_dir}/y_test.npy", y_test)
-
-    train_df[num_columns] = train_df[num_columns].astype(np.float32)
-
-    if ratio < 1:
-        assert test_df is not None
-        test_df[num_columns] = test_df[num_columns].astype(np.float32)
-
-    if save:
-        train_df.to_csv(f"{save_dir}/train.csv", index=False)
-
-        if ratio < 1:
-            assert test_df is not None
-            test_df.to_csv(f"{save_dir}/test.csv", index=False)
-
-        if not os.path.exists(f"synthetic/{name}"):
-            os.makedirs(f"synthetic/{name}")
-
-        train_df.to_csv(f"synthetic/{name}/real.csv", index=False)
-
-        if ratio < 1:
-            assert test_df is not None
-            test_df.to_csv(f"synthetic/{name}/test.csv", index=False)
-
-    info["column_names"] = column_names
-    info["train_num"] = train_df.shape[0]
-
-    if ratio < 1:
-        assert test_df is not None
-        info["test_num"] = test_df.shape[0]
-
-    info["idx_mapping"] = idx_mapping
-    info["inverse_idx_mapping"] = inverse_idx_mapping
-    info["idx_name_mapping"] = idx_name_mapping
+    data_splits, info = _split_data_and_generate_info(data, table_domain, training_data_ratio)
 
     metadata: dict[str, Any] = {"columns": {}}
     task_type = info["task_type"]
-    num_col_idx = info["num_col_idx"]
-    cat_col_idx = info["cat_col_idx"]
-    target_col_idx = info["target_col_idx"]
+    numerical_column_indices = info["num_col_idx"]
+    categorical_column_indices = info["cat_col_idx"]
+    target_columns_indices = info["target_col_idx"]
 
-    for i in num_col_idx:
-        metadata["columns"][i] = {}
-        metadata["columns"][i]["sdtype"] = "numerical"
-        metadata["columns"][i]["computer_representation"] = "Float"
+    for i in numerical_column_indices:
+        metadata["columns"][i] = {
+            "sdtype": InfoDataType.NUMERICAL.value,
+            "computer_representation": "Float",
+        }
 
-    for i in cat_col_idx:
-        metadata["columns"][i] = {}
-        metadata["columns"][i]["sdtype"] = "categorical"
+    for i in categorical_column_indices:
+        metadata["columns"][i] = {"sdtype": InfoDataType.CATEGORICAL.value}
 
-    if task_type == "regression":
-        for i in target_col_idx:
-            metadata["columns"][i] = {}
-            metadata["columns"][i]["sdtype"] = "numerical"
-            metadata["columns"][i]["computer_representation"] = "Float"
+    if task_type == TaskType.REGRESSION.value:
+        for i in target_columns_indices:
+            metadata["columns"][i] = {
+                "sdtype": InfoDataType.NUMERICAL.value,
+                "computer_representation": "Float",
+            }
 
     else:
-        for i in target_col_idx:
-            metadata["columns"][i] = {}
-            metadata["columns"][i]["sdtype"] = "categorical"
+        for i in target_columns_indices:
+            metadata["columns"][i] = {"sdtype": InfoDataType.CATEGORICAL.value}
 
     info["metadata"] = metadata
 
-    if save:
-        with open(f"{save_dir}/info.json", "w") as file:
-            json.dump(info, file, indent=4)
-
     if verbose:
-        if ratio < 1:
-            assert test_df is not None
-            str_shape = f"Train dataframe shape: {train_df.shape}, Test dataframe shape: {test_df.shape}, Total dataframe shape: {data_df.shape}"
-        else:
-            str_shape = f"Table name: {name}, Total dataframe shape: {data_df.shape}"
+        log(INFO, f"Train dataframe shape: {data_splits.train_data.data.shape}")
+        if data_splits.test_data is not None:
+            log(INFO, f"Test dataframe shape: {data_splits.test_data.data.shape}")
+        log(INFO, f"Total dataframe shape: {data.shape}")
 
-        str_shape += f", Numerical data shape: {x_num_train.shape}"
-        str_shape += f", Categorical data shape: {x_cat_train.shape}"
-        log(INFO, str_shape)
+        assert data_splits.train_data.numerical_features is not None
+        assert data_splits.train_data.categorical_features is not None
+        log(INFO, f"Numerical data shape: {data_splits.train_data.numerical_features.shape}")
+        log(INFO, f"Categorical data shape: {data_splits.train_data.categorical_features.shape}")
 
-    data: dict[str, dict[str, Any]] = {
+    output_data: dict[str, dict[str, Any]] = {
         "df": {
-            DataSplit.TRAIN.value: train_df,
+            DataSplit.TRAIN.value: data_splits.train_data.data,
         },
         "numpy": {
-            "x_num_train": x_num_train,
-            "x_cat_train": x_cat_train,
-            "y_train": y_train,
+            "x_num_train": data_splits.train_data.numerical_features,
+            "x_cat_train": data_splits.train_data.categorical_features,
+            "y_train": data_splits.train_data.target_features,
         },
     }
 
-    if ratio < 1:
-        assert test_df is not None and x_num_test is not None and x_cat_test is not None and y_test is not None
-        data["df"][DataSplit.TEST.value] = test_df
-        data["numpy"]["x_num_test"] = x_num_test
-        data["numpy"]["x_cat_test"] = x_cat_test
-        data["numpy"]["y_test"] = y_test
+    if data_splits.test_data is not None:
+        output_data["df"][DataSplit.TEST.value] = data_splits.test_data.data
+        output_data["numpy"]["x_num_test"] = data_splits.test_data.numerical_features
+        output_data["numpy"]["x_cat_test"] = data_splits.test_data.categorical_features
+        output_data["numpy"]["y_test"] = data_splits.test_data.target_features
 
-    return data, info
+    return output_data, info
 
 
+# TODO: this might not be needed at all now.
 def get_column_name_mapping(
-    data_df: pd.DataFrame,
-    num_col_idx: list[int],
-    cat_col_idx: list[int],
+    data: pd.DataFrame,
+    numerical_columns_indices: list[int],
+    categorical_column_indices: list[int],
     column_names: list[str] | None = None,
 ) -> tuple[dict[int, int], dict[int, int], dict[int, str]]:
     """
@@ -359,65 +231,243 @@ def get_column_name_mapping(
 
     Will produce 3 mappings:
         - The mapping of the categorical and numerical columns from their original indices
-            in the dataframe to their indices in the num_col_idx and cat_col_idx lists.
+            in the dataframe to their indices in the numerical_columns_indices and
+            categorical_column_indices lists.
         - The inverse mapping of the above, i.e. the mapping from their indices in the
-            num_col_idx and cat_col_idx lists to their original indices in the dataframe.
+            numerical_columns_indices and categorical_column_indices lists to their original
+            indices in the dataframe.
         - The mapping of the indices in the original dataframe to the column names for all columns.
 
     Args:
-        data_df: The dataframe containing the data.
-        num_col_idx: The indices of the numerical columns.
-        cat_col_idx: The indices of the categorical columns.
+        data: The dataframe containing the data.
+        numerical_columns_indices: The indices of the numerical columns.
+        categorical_column_indices: The indices of the categorical columns.
         column_names: The names of the columns. Optional, default is None. If None,
             it will use the columns of the dataframe.
 
     Returns:
         A tuple with 3 values:
             - The mapping of the categorical and numerical columns from their original indices
-            in the dataframe to their indices in the num_col_idx and cat_col_idx lists.
+            in the dataframe to their indices in the numerical_columns_indices and
+            categorical_column_indices lists.
             - The inverse mapping of the above, i.e. the mapping from their indices in the
-            num_col_idx and cat_col_idx lists to their original indices in the dataframe.
+            numerical_columns_indices and categorical_column_indices lists to their original
+            indices in the dataframe.
             - The mapping of the indices in the original dataframe to the column names for all columns.
     """
     if not column_names:
-        column_names = data_df.columns.tolist()
+        column_names = data.columns.tolist()
 
-    idx_mapping = {}
+    index_mapping = {}
 
     curr_num_idx = 0
-    curr_cat_idx = len(num_col_idx)
-    curr_target_idx = curr_cat_idx + len(cat_col_idx)
+    curr_cat_idx = len(numerical_columns_indices)
+    curr_target_idx = curr_cat_idx + len(categorical_column_indices)
 
     for idx in range(len(column_names)):
-        if idx in num_col_idx:
-            idx_mapping[idx] = curr_num_idx
+        if idx in numerical_columns_indices:
+            index_mapping[idx] = curr_num_idx
             curr_num_idx += 1
-        elif idx in cat_col_idx:
-            idx_mapping[idx] = curr_cat_idx
+        elif idx in categorical_column_indices:
+            index_mapping[idx] = curr_cat_idx
             curr_cat_idx += 1
         else:
-            idx_mapping[idx] = curr_target_idx
+            index_mapping[idx] = curr_target_idx
             curr_target_idx += 1
 
-    inverse_idx_mapping = {}
-    for k, v in idx_mapping.items():
-        inverse_idx_mapping[v] = k
+    inverse_index_mapping = {}
+    for k, v in index_mapping.items():
+        inverse_index_mapping[v] = k
 
-    idx_name_mapping = {}
+    index_to_name_mapping = {}
 
     for i in range(len(column_names)):
-        idx_name_mapping[i] = column_names[i]
+        index_to_name_mapping[i] = column_names[i]
 
-    return idx_mapping, inverse_idx_mapping, idx_name_mapping
+    return index_mapping, inverse_index_mapping, index_to_name_mapping
+
+
+def _get_columns_info(
+    train_data: pd.DataFrame,
+    numerical_column_indices: list[int],
+    categorical_column_indices: list[int],
+    target_columns_indices: list[int],
+    task_type: TaskType | None,
+) -> dict[str, Any]:
+    """
+    Get the columns info dictionary to be populated into the info dictionary.
+
+    Args:
+        train_data: The training data.
+        numerical_column_indices: The indices of the numerical columns.
+        categorical_column_indices: The indices of the categorical columns.
+        target_columns_indices: The indices of the target columns.
+        task_type: The type of the task. If None, it will assume the target
+            columns are categorical.
+
+    Returns:
+        The columns info dictionary to be populated into the info dictionary.
+        It will contain the following keys for numerical columns:
+            - type: equals to InfoDataType.NUMERICAL.value.
+            - max: The maximum value of the column.
+            - min: The minimum value of the column.
+        It will contain the following keys for categorical columns:
+            - type: equals to InfoDataType.CATEGORICAL.value.
+            - categorizes: The list of possible categories of the column.
+    """
+    columns_info: dict[Any, Any] = {}
+
+    for column in numerical_column_indices:
+        column_name = train_data.columns[column]
+        columns_info[column] = {}
+        columns_info["type"] = InfoDataType.NUMERICAL.value
+        columns_info["max"] = float(train_data[column_name].max())
+        columns_info["min"] = float(train_data[column_name].min())
+
+    for column in categorical_column_indices:
+        column_name = train_data.columns[column]
+        columns_info[column] = {}
+        columns_info["type"] = InfoDataType.CATEGORICAL.value
+        columns_info["categorizes"] = list(set(train_data[column_name]))
+
+    for column in target_columns_indices:
+        if task_type == TaskType.REGRESSION:
+            column_name = train_data.columns[column]
+            columns_info[column] = {}
+            columns_info["type"] = InfoDataType.NUMERICAL.value
+            columns_info["max"] = float(train_data[column_name].max())
+            columns_info["min"] = float(train_data[column_name].min())
+        else:
+            column_name = train_data.columns[column]
+            columns_info[column] = {}
+            columns_info["type"] = InfoDataType.CATEGORICAL.value
+            columns_info["categorizes"] = list(set(train_data[column_name]))
+
+    return columns_info
+
+
+def _split_data_and_generate_info(
+    data: pd.DataFrame,
+    table_domain: dict[str, Any],
+    training_data_ratio: float,
+) -> tuple[DataSplits, dict[str, Any]]:
+    """
+    Split the data into training and test sets and populate the info dictionary
+    with additional metadata.
+
+    Args:
+        data: The dataframe containing the data.
+        table_domain: The table domain dictionary containing metadata about the data columns.
+        training_data_ratio: The ratio of the data to be used for training.
+            Should be between 0 and 1. If it's equal to 1, it will only return the training set.
+
+    Returns:
+        A tuple with 2 values:
+            - The data splits as an instance of the DataSplits class. Test data will be None if the
+                training_data_ratio is 1.
+            - The info dictionary as retrieved from the get_info_from_domain function with updated metadata, namely:
+                - column_info: The columns info dictionary, as returned by the _get_columns_info function.
+                - idx_mapping: The mapping of the indices in the original dataframe to the column names
+                    for all columns, as returned by the get_column_name_mapping function.
+                - inverse_idx_mapping: The inverse mapping of the indices in the original dataframe to
+                    the column names for all columns, as returned by the get_column_name_mapping function.
+                - idx_name_mapping: The mapping of the indices in the original dataframe to the column names
+                    for all columns, as returned by the get_column_name_mapping function.
+                - train_num: The number of samples in the training set.
+                - test_num: The number of samples in the test set. It will be absent if the training_data_ratio is 1.
+                - column_names: The names of the columns.
+    """
+    info = get_info_from_domain(data, table_domain)
+
+    column_names = info["column_names"] if info["column_names"] else data.columns.tolist()
+    numerical_column_indices = info["num_col_idx"]
+    categorical_column_indices = info["cat_col_idx"]
+    target_columns_indices = info["target_col_idx"]
+    numerical_column_names = [column_names[i] for i in numerical_column_indices]
+    categorical_column_names = [column_names[i] for i in categorical_column_indices]
+    target_column_names = [column_names[i] for i in target_columns_indices]
+
+    index_mapping, inverse_index_mapping, index_to_name_mapping = get_column_name_mapping(
+        data,
+        numerical_column_indices,
+        categorical_column_indices,
+        column_names,
+    )
+
+    # Splitting the data into training and test sets
+    data_splits = train_test_split(data, categorical_column_names, training_data_ratio)
+
+    # Populating the column info into the info dictionary
+    info["column_info"] = _get_columns_info(
+        data_splits.train_data.data,
+        numerical_column_indices,
+        categorical_column_indices,
+        target_columns_indices,
+        TaskType(info["task_type"]) if info["task_type"] else None,
+    )
+
+    # Replace the invalid and missing values with np.nan for the numerical columns
+    # and "nan" for the categorical columns
+    for column_name in numerical_column_names:
+        column_data = data_splits.train_data.data[column_name]
+        data_splits.train_data.data.loc[column_data == "?", column_name] = np.nan
+    for column_name in categorical_column_names:
+        column_data = data_splits.train_data.data[column_name]
+        data_splits.train_data.data.loc[column_data == "?", column_name] = "nan"
+
+    if data_splits.test_data is not None:
+        for column_name in numerical_column_names:
+            column_data = data_splits.test_data.data[column_name]
+            data_splits.test_data.data.loc[column_data == "?", column_name] = np.nan
+        for column_name in categorical_column_names:
+            column_data = data_splits.test_data.data[column_name]
+            data_splits.test_data.data.loc[column_data == "?", column_name] = "nan"
+
+    # Extract the numerical, categorical and target features
+    # and convert them to numpy arrays
+    numerical_features = data_splits.train_data.data[numerical_column_names].to_numpy().astype(np.float32)
+    data_splits.train_data.numerical_features = numerical_features
+    categorical_features = data_splits.train_data.data[categorical_column_names].to_numpy()
+    data_splits.train_data.categorical_features = categorical_features
+    target_features = data_splits.train_data.data[target_column_names].to_numpy()
+    data_splits.train_data.target_features = target_features
+
+    if data_splits.test_data is not None:
+        numerical_features = data_splits.test_data.data[numerical_column_names].to_numpy().astype(np.float32)
+        data_splits.test_data.numerical_features = numerical_features
+        categorical_features = data_splits.test_data.data[categorical_column_names].to_numpy()
+        data_splits.test_data.categorical_features = categorical_features
+        target_features = data_splits.test_data.data[target_column_names].to_numpy()
+        data_splits.test_data.target_features = target_features
+
+    # Making sure the numerical data is float
+    numerical_data_as_float = data_splits.train_data.data[numerical_column_names].astype(np.float32)
+    data_splits.train_data.data[numerical_column_names] = numerical_data_as_float
+
+    if data_splits.test_data is not None:
+        numerical_data_as_float = data_splits.test_data.data[numerical_column_names].astype(np.float32)
+        data_splits.test_data.data[numerical_column_names] = numerical_data_as_float
+
+    # Populating the rest of the info dictionary
+    info["column_names"] = column_names
+    info["train_num"] = data_splits.train_data.data.shape[0]
+
+    if data_splits.test_data is not None:
+        info["test_num"] = data_splits.test_data.data.shape[0]
+
+    info["idx_mapping"] = index_mapping
+    info["inverse_idx_mapping"] = inverse_index_mapping
+    info["idx_name_mapping"] = index_to_name_mapping
+
+    return data_splits, info
 
 
 # TODO: refactor this function so it doesn't run the risk of running indefinitely.
 def train_test_split(
-    data_df: pd.DataFrame,
-    cat_columns: list[str],
-    num_train: int = 0,
-    num_test: int = 0,
-) -> tuple[pd.DataFrame, pd.DataFrame, int]:
+    data: pd.DataFrame,
+    categorical_columns: list[str],
+    training_data_ratio: float = 0.9,
+) -> DataSplits:
     """
     Split the data into training and test sets.
 
@@ -425,10 +475,10 @@ def train_test_split(
     columns represented.
 
     Args:
-        data_df: The dataframe containing the data.
-        cat_columns: The names of the categorical columns.
-        num_train: The number of rows in the training set. Optional, default is 0.
-        num_test: The number of rows in the test set. Optional, default is 0.
+        data: The dataframe containing the data.
+        categorical_columns: The names of the categorical columns.
+        training_data_ratio: The ratio of the data to be used for training. Should be between 0 and 1.
+            If it's equal to 1, it will only return the training set. Optional, default is 0.9.
 
     Returns:
         A tuple with 3 values:
@@ -436,32 +486,48 @@ def train_test_split(
             - The test dataframe.
             - The seed used by the random number generator to generate the split.
     """
-    total_num = data_df.shape[0]
-    idx = np.arange(total_num)
+    assert 0 < training_data_ratio <= 1, "Training data ratio must be between 0 and 1."
+    if training_data_ratio == 1:
+        log(INFO, "Training data ratio is 1, so the data will not be split into training and test sets.")
 
-    seed = 1234
+    if training_data_ratio == 1:
+        return DataSplits(train_data=DataFeatures(data=data.copy()))
 
+    # Train/ Test Split:# Train/ Test Split:
+    # num_train_samples% for Training, (1 - num_test_samples)% for Testing
+    # Validation set will be selected from Training set
+    num_samples = data.shape[0]
+    num_train_samples = int(num_samples * training_data_ratio)
+    num_test_samples = num_samples - num_train_samples
+
+    indices = np.arange(num_samples)
+    current_seed = 1234
     while True:
-        np.random.seed(seed)
-        np.random.shuffle(idx)
+        np.random.seed(current_seed)
+        np.random.shuffle(indices)
 
-        train_idx = idx[:num_train]
-        test_idx = idx[-num_test:]
+        train_indices = indices[:num_train_samples]
+        test_indices = indices[-num_test_samples:]
 
-        train_df = data_df.loc[train_idx]
-        test_df = data_df.loc[test_idx]
+        train_data = data.loc[train_indices]
+        test_data = data.loc[test_indices]
 
-        flag = 0
-        for i in cat_columns:
-            if len(set(train_df[i])) != len(set(data_df[i])):
-                flag = 1
+        stop = True
+        for i in categorical_columns:
+            if len(set(train_data[i])) != len(set(data[i])):
+                stop = False
                 break
 
-        if flag == 0:
+        if stop:
             break
-        seed += 1
 
-    return train_df, test_df, seed
+        current_seed += 1
+
+    return DataSplits(
+        train_data=DataFeatures(data=train_data),
+        test_data=DataFeatures(data=test_data),
+        seed=current_seed,
+    )
 
 
 class FastTensorDataLoader:
