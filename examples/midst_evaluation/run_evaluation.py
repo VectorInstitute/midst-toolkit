@@ -33,6 +33,7 @@ from midst_toolkit.evaluation.quality import (
     MeanF1ScoreDifference,
     MeanHellingerDistance,
     MeanPropensityMeanSquaredError,
+    MeanRegressionDifference,
     MutualInformationDifference,
 )
 from midst_toolkit.evaluation.quality.confidence_interval_overlap import ConfidenceLevel
@@ -136,6 +137,7 @@ def should_syntheval_preprocess(cfg: DictConfig, for_privacy: bool) -> bool:
             cfg.correlation_diff.run,
             cfg.mean_diff.run,
             cfg.f1_score_diff.run,
+            cfg.regression_score_diff.run,
             cfg.hellinger.run,
             cfg.propensity_mse.run,
             cfg.mutual_information.run,
@@ -252,6 +254,24 @@ def run_quality_evaluations(
         )
         results = metric.compute(syntheval_real_data_train, syntheval_synthetic_data, syntheval_real_data_test)
         report_metrics(cfg, "F1 SCORE DIFFERENCE", results)
+
+    if cfg.regression_score_diff.run:
+        # Explicitly removing the target/label column from other column names
+        label_column = cfg.regression_score_diff.label_column
+        filtered_numerical_columns, filtered_categorical_columns = remove_label_column_from_other_columns(
+            label_column, numerical_columns, categorical_columns
+        )
+        log(INFO, "Running Regression Score Difference Evaluation")
+        metric = MeanRegressionDifference(
+            categorical_columns=filtered_categorical_columns,
+            numerical_columns=filtered_numerical_columns,
+            label_column=label_column,
+            verbose=cfg.regression_score_diff.verbose,
+            # Regression has it's own preprocessing pipeline
+            do_preprocess=True,
+        )
+        results = metric.compute(real_data_train, synthetic_data, real_data_test)
+        report_metrics(cfg, "REGRESSION SCORE DIFFERENCE", results)
 
     if cfg.hellinger.run:
         log(INFO, "Running Hellinger Distance Difference Evaluation")

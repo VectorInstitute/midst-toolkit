@@ -64,6 +64,11 @@ f1_score_diff:
   folds: 5
   f1_type: "macro"
 
+regression_score_diff:
+  run: False
+  label_column: "balance"
+  verbose: True
+
 hellinger:
   run: True
   include_numerical_columns: True

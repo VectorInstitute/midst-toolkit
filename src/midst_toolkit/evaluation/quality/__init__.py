@@ -6,6 +6,7 @@ from .kolmogorov_smirnov_total_variation import KolmogorovSmirnovAndTotalVariati
 from .mean_f1_score_difference import MeanF1ScoreDifference
 from .mean_hellinger_distance import MeanHellingerDistance
 from .mean_propensity_mse import MeanPropensityMeanSquaredError
+from .mean_regression_difference import MeanRegressionDifference
 from .mutual_information_difference import MutualInformationDifference
 
 
@@ -19,4 +20,5 @@ __all__ = [
     "MeanHellingerDistance",
     "MeanPropensityMeanSquaredError",
     "MutualInformationDifference",
+    "MeanRegressionDifference",
 ]
