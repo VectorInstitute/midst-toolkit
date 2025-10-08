@@ -430,8 +430,8 @@ class MeanRegressionDifference(SynthEvalMetric):
         # package real data results
         processed_results = {}
         all_scores = []
+        gathered_metrics = defaultdict(list)
         for model_name, model_results in results.items():
-            gathered_metrics = defaultdict(list)
             for metric_name, score in model_results.items():
                 processed_results[f"{model_name}_{metric_name}"] = score
                 gathered_metrics[metric_name].append(score)
