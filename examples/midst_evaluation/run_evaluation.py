@@ -53,7 +53,7 @@ def log_metrics(header: str, results: dict[str, float]) -> None:
     """
     log(INFO, f"\n{header}\n{SEPARATOR}\n")
     for metric_name, metric_value in results.items():
-        log(INFO, f"Metric: {metric_name}\tMetric: {metric_value}")
+        log(INFO, rf"Metric: {metric_name}\Score: {metric_value}")
     log(INFO, f"{SEPARATOR}\n")
 
 
@@ -266,6 +266,7 @@ def run_quality_evaluations(
             categorical_columns=filtered_categorical_columns,
             numerical_columns=filtered_numerical_columns,
             label_column=label_column,
+            preprocess_labels=cfg.regression_score_diff.preprocess_labels,
             verbose=cfg.regression_score_diff.verbose,
             # Regression has it's own preprocessing pipeline
             do_preprocess=True,
@@ -401,7 +402,7 @@ def run_privacy_evaluations(
         report_metrics(cfg, "NEAREST NEIGHBOR DISTANCE RATIO", results)
 
 
-@hydra.main(config_path=".", config_name="config_adult", version_base=None)
+@hydra.main(config_path=".", config_name="config_berka", version_base=None)
 def main(cfg: DictConfig) -> None:
     """Entry point for the evaluation script."""
     log(INFO, "Loading Data for Evaluations")

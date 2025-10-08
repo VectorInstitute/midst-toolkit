@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from pandas.api.types import is_float_dtype
 from sklearn.base import BaseEstimator
-from sklearn.ensemble import RandomForestClassifier  # noqa: F401
+from sklearn.ensemble import RandomForestRegressor  # noqa: F401
 from sklearn.linear_model import LinearRegression  # noqa: F401
 from sklearn.metrics import (
     explained_variance_score as compute_explained_variance,
@@ -46,6 +46,7 @@ class MeanRegressionDifference(SynthEvalMetric):
         numerical_columns: list[str],
         label_column: str,
         do_preprocess: bool = False,
+        preprocess_labels: bool = False,
         regressors_config_path: Path = Path("src/midst_toolkit/evaluation/quality/assets/regression_config.json"),
         verbose: bool = True,
     ):
@@ -91,6 +92,7 @@ class MeanRegressionDifference(SynthEvalMetric):
                 test dataset utility. This column MUST be present in both the real and synthetic data provided.
             do_preprocess: Whether or not to preprocess the dataframes with the default pipeline used by SynthEval.
                 Defaults to False.
+            preprocess_labels: Whether or not to preprocess the label column with a MinMaxScaler. Defaults to False.
             regressors_config_path: Path to the configuration file for the regressors to be applied in the evaluation.
                 The default configuration (and a good example) are housed in the default path of this class.
                 Defaults to Path("src/midst_toolkit/evaluation/quality/assets/regression_config.json").
@@ -108,6 +110,7 @@ class MeanRegressionDifference(SynthEvalMetric):
         self.all_columns = categorical_columns + numerical_columns + [label_column]
         self.regressors_config_path = regressors_config_path
         self.verbose = verbose
+        self.preprocess_labels = preprocess_labels
 
     def get_regressors_specifications(self) -> list[dict[str, Any]]:
         """
@@ -194,6 +197,11 @@ class MeanRegressionDifference(SynthEvalMetric):
         preprocessed_train_data = self.apply_transformations(train_data, one_hot_encoder, scaler)
         preprocessed_test_data = self.apply_transformations(test_data, one_hot_encoder, scaler)
 
+        if self.preprocess_labels:
+            label_scalar = MinMaxScaler().fit(combined_data[[self.label_column]])
+            preprocessed_train_data[[self.label_column]] = label_scalar.transform(train_data[[self.label_column]])
+            preprocessed_test_data[[self.label_column]] = label_scalar.transform(test_data[[self.label_column]])
+
         return preprocessed_train_data, preprocessed_test_data
 
     def prepare_training_data(
@@ -276,7 +284,7 @@ class MeanRegressionDifference(SynthEvalMetric):
             A dictionary of all four metrics evaluated on the provided test data if ``compute_only`` is None. Otherwise
             a float representing only the metric specified by ``compute_only``.
         """
-        regressor.fit(train_data_features, train_data_labels)
+        regressor.fit(train_data_features, train_data_labels[self.label_column])
         pred = regressor.predict(test_data_features)
 
         if compute_only is None:
@@ -327,7 +335,9 @@ class MeanRegressionDifference(SynthEvalMetric):
             trained (and hyper-parameter tuned) on ``train_data`` when evaluated on `test_data`
         """
         # Create the regressor from the specifications
-        model_class = regressor_specifications["class"]
+        model_class_str = regressor_specifications["class"]
+        assert model_class_str in {"LinearRegression", "MLPRegressor", "XGBRegressor", "RandomForestRegressor"}
+        model_class = eval(model_class_str)
         model_kwargs = regressor_specifications.get("kwargs", {})
 
         # Create a set of parameters to search
@@ -345,7 +355,7 @@ class MeanRegressionDifference(SynthEvalMetric):
         # Run through all parameter combinations
         results = pd.DataFrame([])
         for parameters in tqdm(parameter_set):
-            model = eval(model_class)(**parameters)
+            model = model_class(**parameters)
 
             metrics: dict[str, Any] = self.train_and_evaluate_model(
                 train_data_features, train_data_labels, validation_data_features, validation_data_labels, model
@@ -353,12 +363,13 @@ class MeanRegressionDifference(SynthEvalMetric):
 
             metrics["parameters"] = parameters
 
-            results = pd.concat((results, pd.DataFrame(metrics)))
+            results = pd.concat((results, pd.DataFrame([metrics])))
 
-        best_r2_parameters = results.param[results.r2.idxmax()]
-        best_explained_variance_parameters = results.param[results.explained_variance.idxmax()]
-        best_mean_absolute_error_parameters = results.param[results.mean_absolute_error.idxmin()]
-        best_mean_squared_error_parameters = results.param[results.mean_squared_error.idxmin()]
+        results.reset_index(inplace=True)
+        best_r2_parameters = results.parameters[results.r2.idxmax()]
+        best_explained_variance_parameters = results.parameters[results.explained_variance.idxmax()]
+        best_mean_absolute_error_parameters = results.parameters[results.mean_absolute_error.idxmin()]
+        best_mean_squared_error_parameters = results.parameters[results.mean_squared_error.idxmin()]
 
         # With each of the best parameter combinations by metric, we train a model with those parameters to be
         # evaluated on the test set.
