@@ -372,9 +372,9 @@ def test_train_multi_table(tmp_path: Path):
 
     ys_tensor = torch.tensor(np.array(ys).reshape(-1, 1), requires_grad=False)
     conditional_sample, _ = models[1][key]["diffusion"].conditional_sample(
-        ys=ys_tensor,
+        targets=ys_tensor,
         model_kwargs={"y": ys_tensor},
-        cond_fn=get_conditional_function_for_the_classifier(models[1][key]["classifier"], classifier_scale),
+        cond_fn=get_conditioning_function_for_diffusion(models[1][key]["classifier"], classifier_scale),
     )
 
     expected_conditional_sample = torch.load(
@@ -444,7 +444,7 @@ def test_clustering_reload(tmp_path: Path):
     unset_all_random_seeds()
 
 
-def get_conditional_function_for_the_classifier(classifier: Classifier, classifier_scale: float) -> Callable:
+def get_conditioning_function_for_diffusion(classifier: Classifier, classifier_scale: float) -> Callable:
     def cond_fn(
         x: torch.Tensor,
         t: torch.Tensor,
