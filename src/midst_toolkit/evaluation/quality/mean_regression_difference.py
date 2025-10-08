@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 from pandas.api.types import is_float_dtype
 from sklearn.base import BaseEstimator
+from sklearn.ensemble import RandomForestClassifier  # noqa: F401
+from sklearn.linear_model import LinearRegression  # noqa: F401
 from sklearn.metrics import (
     explained_variance_score as compute_explained_variance,
 )
@@ -22,8 +24,10 @@ from sklearn.metrics import (
     r2_score as compute_r2_score,
 )
 from sklearn.model_selection import ParameterGrid, train_test_split
+from sklearn.neural_network import MLPRegressor  # noqa: F401
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
 from tqdm import tqdm
+from xgboost import XGBRegressor  # noqa: F401
 
 from midst_toolkit.evaluation.metrics_base import SynthEvalMetric
 
