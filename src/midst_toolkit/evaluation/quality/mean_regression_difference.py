@@ -51,7 +51,7 @@ class MeanRegressionDifference(SynthEvalMetric):
         this requires there to be a regression label column present for both datasets. This class will train a set of
         regression models determined by the JSON file in the ``regressors_config_path``.
 
-        The default configuration trains four sklearn models: ``LogisticRegression``, ``MLPRegressor``,
+        The default configuration trains four sklearn models: ``LinearRegression``, ``MLPRegressor``,
         ``XGBRegressor``, and ``RandomForestRegressor``.
 
         The models are trained on provided real and synthetic data separately and these models are evaluated on a
@@ -331,17 +331,17 @@ class MeanRegressionDifference(SynthEvalMetric):
 
         # Split the data and possibly preprocess
         train_data, validation_data, test_data = self.prepare_training_data(train_data, test_data)
-        train_data_features = train_data.drop(self.label_column, inplace=False)
+        train_data_features = train_data.drop(self.label_column, axis=1, inplace=False)
         train_data_labels = train_data[[self.label_column]]
-        validation_data_features = validation_data.drop(self.label_column, inplace=False)
+        validation_data_features = validation_data.drop(self.label_column, axis=1, inplace=False)
         validation_data_labels = validation_data[[self.label_column]]
-        test_data_features = test_data.drop(self.label_column, inplace=False)
+        test_data_features = test_data.drop(self.label_column, axis=1, inplace=False)
         test_data_labels = test_data[[self.label_column]]
 
         # Run through all parameter combinations
         results = pd.DataFrame([])
         for parameters in tqdm(parameter_set):
-            model = model_class(**parameters)
+            model = eval(model_class)(**parameters)
 
             metrics: dict[str, Any] = self.train_and_evaluate_model(
                 train_data_features, train_data_labels, validation_data_features, validation_data_labels, model
@@ -478,7 +478,7 @@ class MeanRegressionDifference(SynthEvalMetric):
         this requires there to be a regression label column present for both datasets. The regression models to be
         trained are determined by the JSON file in the ``regressors_config_path`` of the class.
 
-        The default configuration trains four sklearn models: ``LogisticRegression``, ``MLPRegressor``,
+        The default configuration trains four sklearn models: ``LinearRegression``, ``MLPRegressor``,
         ``XGBRegressor``, and ``RandomForestRegressor``.
 
         The models are trained on provided real and synthetic data separately and these models are evaluated on a
