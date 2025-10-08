@@ -79,7 +79,7 @@ class ConditioningFunction(Protocol):
             **kwargs: Extra keyword arguments passed to the model.
 
         Returns:
-            The model output.
+            The tensor result of the conditioning function.
         """
         ...
 
