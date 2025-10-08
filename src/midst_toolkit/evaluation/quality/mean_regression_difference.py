@@ -176,12 +176,16 @@ class MeanRegressionDifference(SynthEvalMetric):
         if len(self.numerical_columns) > 0:
             combined_numerical_data = combined_data[self.numerical_columns]
             scaler = MinMaxScaler().fit(combined_numerical_data)
+        else:
+            scaler = None
 
         if len(self.categorical_columns) > 0:
             combined_categorical_data = combined_data[self.categorical_columns]
             one_hot_encoder = OneHotEncoder(sparse_output=False, handle_unknown="ignore").fit(
                 combined_categorical_data
             )
+        else:
+            one_hot_encoder = None
 
         preprocessed_train_data = self.apply_transformations(train_data, one_hot_encoder, scaler)
         preprocessed_test_data = self.apply_transformations(test_data, one_hot_encoder, scaler)
