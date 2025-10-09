@@ -7,6 +7,7 @@ import pytest
 
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.evaluation.quality.mean_regression_difference import MeanRegressionDifference
+from tests.utils.architecture import is_apple_silicon
 
 
 def get_data() -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -101,7 +102,11 @@ def test_mean_regression_diff_with_no_categorical() -> None:
     )
 
     score = metric.compute(real_data, synthetic_data, holdout_data)
-    assert pytest.approx(-0.0565015943519761, abs=1e-8) == score["RandomForestRegressor_r2_difference"]
+    # Due to numerical fluctuations on github runners, we have slightly different values.
+    if is_apple_silicon():
+        assert pytest.approx(-0.0565015943519761, abs=1e-8) == score["RandomForestRegressor_r2_difference"]
+    else:
+        assert pytest.approx(-0.05648909197410379, abs=1e-8) == score["RandomForestRegressor_r2_difference"]
 
     unset_all_random_seeds()
 
