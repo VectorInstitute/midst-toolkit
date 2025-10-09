@@ -8,22 +8,29 @@ data_paths:
   midst_data_path: ${base_data_dir}/midst_data_all_attacks # Used only for reading the data
   population_path: ${base_data_dir}/population_data  # Path where the population data should be stored
   processed_attack_data_path: ${base_data_dir}/attack_data # Path where the processed attack real train and evaluation data is stored
+  attack_results_path: ${base_example_dir}/attack_results # Path where the attack results will be stored
+
+model_paths:
+  shadow_models_path: ${base_example_dir}/shadow_models # Path where the shadow models are stored
+  metaclassifier_model_path: ${base_example_dir}/trained_models # Path where the trained metaclassifier model will be saved
 
 # Pipeline control
 pipeline:
-  run_data_processing: false # Set this to false if you have already saved the processed data
-  run_shadow_model_training: True
+  run_data_processing: true # Set this to false if you have already saved the processed data
+  run_shadow_model_training: false
+  run_metaclassifier_training: true
+
 
 # Dataset specific information used for processing in this example
 data_processing_config:
   collect_attack_data_types:
-          [
-            "tabddpm_black_box",
-            "tabsyn_black_box",
-            "tabddpm_white_box",
-            "tabsyn_white_box",
-            "clavaddpm_black_box",
-            "clavaddpm_white_box",
+        [
+          "tabddpm_black_box",
+          "tabsyn_black_box",
+          "tabddpm_white_box",
+          "tabsyn_white_box",
+          "clavaddpm_black_box",
+          "clavaddpm_white_box",
         ]
   # The column name in the data to be used for stratified splitting.
   column_to_stratify: "trans_type"  # Attention: This value is not documented in the original codebase.
@@ -35,10 +42,10 @@ data_processing_config:
   single_table_train_data_file_name: "train_with_id.csv"
   multi_table_train_data_file_name: "trans.csv"
   challenge_data_file_name: "challenge_with_id.csv"
-  population_sample_size: 30 #Population size the total data that your attack has access to.
+  population_sample_size: 11956 #Population size the total data that your attack has access to.
   #The size of the master challenge dataset is half of the population size based on the attack design.
 
-# Training and data settings for shadow models
+# Training and data settings for shadow models (temporary, numbers subject to change)
 shadow_training:
   # Data Config files path used for training a TabDDPM model
   training_json_config_paths: # Config json files used for tabddpm training on the trans table
@@ -52,6 +59,16 @@ shadow_training:
     fine_tune_diffusion_iterations: 2
     fine_tune_classifier_iterations: 2
     pre_train_data_size: 10 #10 for test run. Original code: 60000
+
+
+# Metaclassifier settings
+metaclassifier:
+  # Data types json file is used for xgboost model training.
+  data_types_file_path: ${base_example_dir}/data_configs/data_types.json
+  model_type: "xgb"
+  use_gpu: true
+  # Temporary. Might remove having an epoch parameter.
+  epochs: 1
 
 
 # General settings

@@ -7,7 +7,9 @@ from typing import Any
 import pandas as pd
 
 from midst_toolkit.common.logger import log
-from midst_toolkit.models.clavaddpm.data_loaders import get_info_from_domain, pipeline_process_data
+from midst_toolkit.models.clavaddpm.data_loaders import (
+    process_pipeline_data,
+)
 
 
 def save_dataframe(df: pd.DataFrame, file_path: Path, file_name: str) -> None:
@@ -60,7 +62,10 @@ def load_dataframe(file_path: Path, file_name: str) -> pd.DataFrame:
 # The following function is the slightly modified version of
 # ``midst_toolkit.models.clavaddpm.data_loaders`` by the CITADEL & UQAM team.
 def load_multi_table(
-    data_dir: Path, train_df: pd.DataFrame | None = None, verbose: bool = True
+    data_dir: Path,
+    train_df: pd.DataFrame | None = None,
+    training_data_ratio: float = 1,
+    verbose: bool = True,
 ) -> tuple[dict[str, Any], list[tuple[str, str]], dict[str, Any]]:
     """
     Load the multi-table dataset from the data directory.
@@ -71,6 +76,8 @@ def load_multi_table(
         train_df: Optional DataFrame to be used as the training data.
             If None, the function will look for a train.csv or ``f{table_name}.csv``
             file in the ``data_dir``.
+        training_data_ratio: The ratio of the data to be used for training. Should be between 0 and 1.
+            If it's equal to 1, it will only return the training set. Optional, default is 1.
         verbose: Whether to print verbose output. Optional, default is True.
 
     Returns:
@@ -106,15 +113,9 @@ def load_multi_table(
         tables[table]["original_df"] = tables[table]["df"].copy()
         id_cols = [col for col in tables[table]["df"].columns if "_id" in col]
         df_no_id = tables[table]["df"].drop(columns=id_cols)
-        info = get_info_from_domain(df_no_id, tables[table]["domain"])
-        data, info = pipeline_process_data(
-            name=table,
-            data_df=df_no_id,
-            info=info,
-            ratio=1,
-            save=False,
-            verbose=verbose,
-        )
+        table_domain = tables[table]["domain"]
+
+        _, info = process_pipeline_data(df_no_id, table_domain, training_data_ratio, verbose)
         tables[table]["info"] = info
 
     return tables, relation_order, dataset_meta
