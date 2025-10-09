@@ -203,4 +203,4 @@ def collect_population_data_ensemble(
         save_dir,
         "population_all_with_challenge_no_id.csv",
     )
-    return df_population_with_challenge_no_id
+    return df_population_with_challenge

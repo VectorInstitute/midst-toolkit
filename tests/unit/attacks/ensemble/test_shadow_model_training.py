@@ -8,7 +8,7 @@ from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
-    train_fine_tuning_shadows,
+    train_fine_tuned_shadow_models,
     train_shadow_on_half_challenge_data,
 )
 
@@ -19,24 +19,26 @@ def cfg() -> DictConfig:
         return compose(config_name="shadow_training_config")
 
 
-def test_train_fine_tuning_shadows(cfg: DictConfig, tmp_path: Path) -> None:
-    # Models and training artifacts are saved under ``shadow_models_data_path``
-    # Replace ``tmp_path`` with config's ``shadow_models_data_path`` in the next line to save
+def test_train_fine_tuned_shadow_models(cfg: DictConfig, tmp_path: Path) -> None:
+    # Models and training artifacts are saved under ``shadow_models_output_path``
+    # Replace ``tmp_path`` with config's ``shadow_models_output_path`` in the next line to save
     # the trained models at and see the output files.
-    shadow_models_data_path = tmp_path
+    shadow_models_output_path = tmp_path
     # Input
     # Population data is used to pre-train some of the shadow models.
     population_data = load_dataframe(Path("tests/unit/attacks/ensemble/assets/population_data"), "all_population.csv")
-    result_path = train_fine_tuning_shadows(
+    result_path = train_fine_tuned_shadow_models(
         n_models=2,
         n_reps=1,
         population_data=population_data,
         master_challenge_data=population_data[0:20],  # For testing purposes only.
-        shadow_models_data_path=shadow_models_data_path,
+        shadow_models_output_path=shadow_models_output_path,
         training_json_config_paths=cfg.shadow_training.training_json_config_paths,
         fine_tuning_config=cfg.shadow_training.fine_tuning_config,
         init_model_id=1,
         init_data_seed=cfg.random_seed,
+        table_name="trans",
+        id_column_name="trans_id",
         pre_training_data_size=cfg.shadow_training.fine_tuning_config.pre_train_data_size,
         random_seed=cfg.random_seed,
     )
@@ -66,10 +68,10 @@ def test_train_fine_tuning_shadows(cfg: DictConfig, tmp_path: Path) -> None:
 
 
 def test_train_shadow_on_half_challenge_data(cfg: DictConfig, tmp_path: Path) -> None:
-    # Models and training artifacts are saved under ``shadow_models_data_path``
-    # Replace ``tmp_path`` with config's ``shadow_models_data_path`` in the next line to save
+    # Models and training artifacts are saved under ``shadow_models_output_path``
+    # Replace ``tmp_path`` with config's ``shadow_models_output_path`` in the next line to save
     # the trained models at and see the output files.
-    shadow_models_data_path = tmp_path
+    shadow_models_output_path = tmp_path
     # Input
     # Population data is loaded and used as challenge data for testing purposes.
     population_data = load_dataframe(Path("tests/unit/attacks/ensemble/assets/population_data"), "all_population.csv")
@@ -77,8 +79,10 @@ def test_train_shadow_on_half_challenge_data(cfg: DictConfig, tmp_path: Path) ->
         n_models=2,
         n_reps=1,
         master_challenge_data=population_data[0:40],  # For testing purposes only.
-        shadow_models_data_path=shadow_models_data_path,
+        shadow_models_output_path=shadow_models_output_path,
         training_json_config_paths=cfg.shadow_training.training_json_config_paths,
+        table_name="trans",
+        id_column_name="trans_id",
         random_seed=cfg.random_seed,
     )
     # Expected saved models and synthesized data:

@@ -68,9 +68,9 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
     tabddpm_config_path = Path(cfg.shadow_training.training_json_config_paths.tabddpm_training_config_path)
     tmp_training_dir = tmp_path
     # We should move ``dataset_meta.json`` and ``trans_domain.json`` files to the ``tmp_training_dir``
-    assert Path(cfg.shadow_training.training_json_config_paths.trans_domain_file_path).exists()
+    assert Path(cfg.shadow_training.training_json_config_paths.table_domain_file_path).exists()
     shutil.copyfile(
-        cfg.shadow_training.training_json_config_paths.trans_domain_file_path,
+        cfg.shadow_training.training_json_config_paths.table_domain_file_path,
         Path(tmp_training_dir / "trans_domain.json"),
     )
 
