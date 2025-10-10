@@ -19,6 +19,7 @@ def load_multi_table(
     data_dir: Path,
     verbose: bool = True,
     training_data_ratio: float = 1,
+    train_data: dict[str, pd.DataFrame] | None = None,
 ) -> tuple[dict[str, Any], list[tuple[str, str]], dict[str, Any]]:
     """
     Load the multi-table dataset from the data directory.
@@ -28,6 +29,9 @@ def load_multi_table(
         verbose: Whether to print verbose output. Optional, default is True.
         training_data_ratio: The ratio of the data to be used for training. Should be between 0 and 1.
             If it's equal to 1, it will only return the training set. Optional, default is 1.
+        train_data: Optional DataFrame to be used as the training data.
+            If None, the function will look for a train.csv or ``f{table_name}.csv``
+            file in the ``data_dir``.
 
     Returns:
         A tuple with 3 values:
@@ -43,7 +47,9 @@ def load_multi_table(
     tables = {}
 
     for table, meta in dataset_meta["tables"].items():
-        if (data_dir / "train.csv").exists():
+        if train_data is not None:
+            train_df = train_data[table]
+        elif (data_dir / "train.csv").exists():
             train_df = pd.read_csv(data_dir / "train.csv")
         else:
             train_df = pd.read_csv(data_dir / f"{table}.csv")

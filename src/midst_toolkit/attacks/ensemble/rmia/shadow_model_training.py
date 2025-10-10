@@ -3,6 +3,7 @@ import random
 import shutil
 from logging import INFO
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 from omegaconf import DictConfig
@@ -25,11 +26,11 @@ def train_fine_tuned_shadow_models(
     training_json_config_paths: DictConfig,
     fine_tuning_config: DictConfig,
     init_model_id: int,
-    init_data_seed: int,
     table_name: str,
     id_column_name: str,
     pre_training_data_size: int = 60000,
-    random_seed: int = 42,
+    init_data_seed: int | None = None,
+    random_seed: int | None = None,
 ) -> Path:
     """
     Train ``n_models`` shadow models that start from a pre-trained TabDDPM model and are fine-tuned on
@@ -65,12 +66,13 @@ def train_fine_tuned_shadow_models(
                 - dataset_meta_file_path (str): Path to dataset meta json file.
                 - tabddpm_training_config_path (str): Path to table's training config json file.
             fine_tuning_config: Configuration dictionary containing shadow model fine-tuning specific information.
-            init_model_id: Distinguishes the pre-trained initial models.
-            init_data_seed: Random seed for the initial training set.
+            init_model_id: An ID to assign to the pre-trained initial models. This can be used to save multiple
+                pre-trained models with different IDs.
             table_name: Name of the main table to be used for training the TabDDPM model.
             id_column_name: Name of the ID column in the data.
             pre_training_data_size: Size of the initial training set, defaults to 60,000.
-            random_seed: Random seed used for reproducibility, defaults to 42.
+            init_data_seed: Random seed for the initial training set.
+            random_seed: Random seed used for reproducibility, defaults to None.
 
     Returns:
             The path where the shadow models and their artifacts are saved.
@@ -99,11 +101,11 @@ def train_fine_tuned_shadow_models(
     # Copy the json config files to the data folder
     shutil.copyfile(
         training_json_config_paths.table_domain_file_path,
-        Path(shadow_model_data_folder, f"{table_name}_domain.json"),
+        shadow_model_data_folder / f"{table_name}_domain.json",
     )
     shutil.copyfile(
         training_json_config_paths.dataset_meta_file_path,
-        Path(shadow_model_data_folder, "dataset_meta.json"),
+        shadow_model_data_folder / "dataset_meta.json",
     )
 
     # Train initial model with 60K data without any challenge points
@@ -143,7 +145,10 @@ def train_fine_tuned_shadow_models(
         for idx in selected_lists:
             selected_id_lists[idx].append(uid)
 
-    attack_data = {"fine_tuning_sets": selected_id_lists, "fine_tuned_results": []}
+    attack_data: dict[str, Any] = {
+        "fine_tuning_sets": selected_id_lists,
+        "fine_tuned_results": [],
+    }
 
     for model_id, ref_list in enumerate(selected_id_lists):
         log(INFO, f"Reference model number: {model_id}")
@@ -181,7 +186,7 @@ def train_shadow_on_half_challenge_data(
     training_json_config_paths: DictConfig,
     table_name: str,
     id_column_name: str,
-    random_seed: int = 42,
+    random_seed: int | None = None,
 ) -> Path:
     """
     1. Create eight training sets with exactly half of the observations included in the challenge lists
@@ -204,7 +209,7 @@ def train_shadow_on_half_challenge_data(
                 - tabddpm_training_config_path (str): Path to table's training config json file.
             table_name: Name of the main table to be used for training the TabDDPM model.
             id_column_name: Name of the ID column in the data.
-            random_seed: Random seed used for reproducibility, defaults to 42.
+            random_seed: Random seed used for reproducibility, defaults to None.
 
     Returns:
             The path where the shadow models and their artifacts are saved.
@@ -224,15 +229,15 @@ def train_shadow_on_half_challenge_data(
             selected_id_lists[idx].append(uid)
 
     # Create the necessary folders and config files
-    shadow_folder = Path(shadow_models_output_path / "shadow_model_rmia_third_set")
+    shadow_folder = shadow_models_output_path / "shadow_model_rmia_third_set"
     shadow_folder.mkdir(exist_ok=True)
     shutil.copyfile(
         training_json_config_paths.table_domain_file_path,
-        Path(shadow_folder / f"{table_name}_domain.json"),
+        shadow_folder / f"{table_name}_domain.json",
     )
     shutil.copyfile(
         training_json_config_paths.dataset_meta_file_path,
-        Path(shadow_folder / "dataset_meta.json"),
+        shadow_folder / "dataset_meta.json",
     )
     configs, save_dir = config_tabddpm(
         data_dir=shadow_folder,
@@ -240,7 +245,10 @@ def train_shadow_on_half_challenge_data(
         final_json_path=shadow_folder / f"{table_name}.json",  # Path to the new json
         experiment_name="trained_model",
     )
-    attack_data = {"selected_sets": selected_id_lists, "trained_results": []}
+    attack_data: dict[str, Any] = {
+        "selected_sets": selected_id_lists,
+        "trained_results": [],
+    }
 
     for model_id, ref_list in enumerate(selected_id_lists):
         log(INFO, f"Reference model number: {model_id}")
@@ -279,11 +287,10 @@ def train_three_sets_of_shadow_models(
     id_column_name: str,
     n_models_per_set: int = 4,
     n_reps: int = 12,
-    random_seed: int = 42,
+    random_seed: int | None = None,
 ) -> tuple[Path, Path, Path]:
     """
-    Runs the shadow model training pipeline of the ensemble attack. This pipeline consists of three sets of
-    shadow model training.
+    Runs the shadow model training pipeline of the ensemble attack. This pipeline trains three sets of shadow models.
     In the first step, one-fourth of the shadow models are pre-trained on a random subset of the ``population_data``
     and then fine-tuned on half of the challenge points. In the second step, another one-fourth of the shadow models
     are pre-trained on a different random subset of the ``population_data`` and then fine-tuned on half of the
@@ -325,9 +332,9 @@ def train_three_sets_of_shadow_models(
                 - pre_train_data_size (int): Size of the data used for pre-training the initial TabDDPM model.
         table_name: Name of the main table to be used for training the TabDDPM model.
         id_column_name: Name of the ID column in the data.
-        n_models_per_set: Number of shadow models to train by each approach, must be even, defaults to 4.
+        n_models_per_set: Number of shadow models to train by each approach. Must be an even number. Defaults to 4.
         n_reps: Number of repetitions for each challenge point in the fine-tuning or training sets, defaults to 12.
-        random_seed: Random seed used for reproducibility, defaults to 42.
+        random_seed: Random seed used for reproducibility, defaults to None.
 
     Returns:
         Paths where the shadow models and their artifacts including synthetic data are saved for each of
@@ -347,17 +354,18 @@ def train_three_sets_of_shadow_models(
         training_json_config_paths=training_json_config_paths,
         fine_tuning_config=fine_tuning_config,
         init_model_id=1,  # To distinguish these shadow models from the next ones
-        init_data_seed=random_seed,
         table_name=table_name,
         id_column_name=id_column_name,
         pre_training_data_size=fine_tuning_config.pre_train_data_size,
+        init_data_seed=random_seed,
         random_seed=random_seed,
     )
     log(
         INFO,
         f"First set of shadow model training completed and saved at {first_set_result_path}",
     )
-    # Attack codebase comment: "The following four models are trained in the same way, with a new initial training set
+    # Original codebase comment: "The following four models are trained in the same way,
+    # with a new initial training set
     # in the hopes of increased performance (gain was minimal based on the submission comments).""
     second_set_result_path = train_fine_tuned_shadow_models(
         n_models=n_models_per_set,
@@ -368,17 +376,18 @@ def train_three_sets_of_shadow_models(
         training_json_config_paths=training_json_config_paths,
         fine_tuning_config=fine_tuning_config,
         init_model_id=2,  # To distinguish these shadow models from the previous ones
-        init_data_seed=random_seed + 1,
         table_name=table_name,
         id_column_name=id_column_name,
         pre_training_data_size=fine_tuning_config.pre_train_data_size,
+        # Setting a different seed for the second train set
+        init_data_seed=random_seed + 1 if random_seed is not None else None,
         random_seed=random_seed,
     )
     log(
         INFO,
         f"Second set of shadow model training completed and saved at {second_set_result_path}.",
     )
-    # Attack codebase comment: "The following eight models are trained from scratch on the challenge points,
+    # Original codebase comment: "The following eight models are trained from scratch on the challenge points,
     # still in the hopes of increased performance (again the gain was minimal).""
     third_set_result_path = train_shadow_on_half_challenge_data(
         n_models=n_models_per_set * 2,

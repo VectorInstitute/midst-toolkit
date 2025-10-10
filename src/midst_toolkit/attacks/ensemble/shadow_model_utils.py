@@ -8,10 +8,10 @@ from typing import Any
 import pandas as pd
 import torch
 
-from midst_toolkit.attacks.ensemble.data_utils import load_multi_table
 from midst_toolkit.attacks.ensemble.tabddpm_fine_tuning import clava_fine_tuning
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
+from midst_toolkit.models.clavaddpm.data_loaders import load_multi_table
 from midst_toolkit.models.clavaddpm.enumerations import Configs
 from midst_toolkit.models.clavaddpm.synthesizer import clava_synthesizing
 from midst_toolkit.models.clavaddpm.train import clava_training
@@ -93,7 +93,9 @@ def train_tabddpm_and_synthesize(
     }
 
     # Load tables
-    tables, relation_order, dataset_meta = load_multi_table(Path(configs["general"]["data_dir"]), train_df=train_set)
+    tables, relation_order, dataset_meta = load_multi_table(
+        Path(configs["general"]["data_dir"]), train_data={"trans": train_set}
+    )
     material["relation_order"] = relation_order
 
     # Clustering on the multi-table dataset
@@ -178,7 +180,8 @@ def fine_tune_tabddpm_and_synthesize(
 
     # Load tables
     new_tables, relation_order, dataset_meta = load_multi_table(
-        Path(configs["general"]["data_dir"]), train_df=new_train_set
+        Path(configs["general"]["data_dir"]),
+        train_data={"trans": new_train_set},
     )
     material["relation_order"] = relation_order
 
