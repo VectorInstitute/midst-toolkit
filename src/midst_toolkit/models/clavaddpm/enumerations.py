@@ -1,9 +1,7 @@
-from collections.abc import Callable
 from enum import Enum
 from typing import Any
 
 import numpy as np
-from torch import nn
 
 
 # TODO: Temporary, will switch to classes later
@@ -12,7 +10,6 @@ Tables = dict[str, dict[str, Any]]
 RelationOrder = list[tuple[str, str]]
 GroupLengthsProbDicts = dict[tuple[str, str], dict[int, dict[int, float]]]
 ArrayDict = dict[str, np.ndarray]
-ModuleType = str | Callable[..., nn.Module]
 
 
 class ClusteringMethod(Enum):
@@ -107,3 +104,12 @@ class KeyScalingType(Enum):
 
     MINMAX = "minmax"
     QUANTILE = "quantile"
+
+
+class ModuleType(Enum):
+    """Possible types of modules for the MLP or ResNet models."""
+
+    REGLU = "ReGLU"
+    GEGLU = "GEGLU"
+    RELU = "ReLU"
+    BATCH_NORM_1D = "BatchNorm1d"
