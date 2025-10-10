@@ -440,7 +440,7 @@ def make_dataset_from_df(
             train_test_split function from sklearn. Optional, default is 42.
 
     Returns:
-        A tuple with the dataset, the label encoders, and the column orders.
+        A tuple with the dataset, the label encoders, and the column names in the order they appear in the dataset.
     """
     if data_split_ratios is None:
         data_split_ratios = [0.7, 0.2, 0.1]
@@ -490,6 +490,9 @@ def make_dataset_from_df(
         DataSplit.TEST.value: test_data[info["y_col"]].values.astype(np.float32),
     }
 
+    # build the column_orders list
+    # It's a string list with the names numerical columns followed by the names of
+    # the categorical columns in order they appear in the dataset that will be returned
     index_to_column = list(data.columns)
     column_to_index = {col: i for i, col in enumerate(index_to_column)}
     categorical_column_orders = [column_to_index[col] for col in categorical_column_names]
@@ -498,7 +501,12 @@ def make_dataset_from_df(
     column_orders_indices = numerical_column_orders + categorical_column_orders
     column_orders = [index_to_column[index] for index in column_orders_indices]
 
-    numerical_features, label_encoders = _merge_features(categorical_features, numerical_features, noise_scale)
+    # Encode the categorical features and merge them with the numerical features
+    numerical_features, label_encoders = _encode_and_merge_features(
+        categorical_features,
+        numerical_features,
+        noise_scale,
+    )
 
     assert isinstance(info["n_classes"], int)
 
@@ -547,7 +555,7 @@ def _get_categorical_and_numerical_column_names(
     return categorical_columns, numerical_columns
 
 
-def _merge_features(
+def _encode_and_merge_features(
     categorical_features: ArrayDict | None,
     numerical_features: ArrayDict | None,
     noise_scale: float,
@@ -555,9 +563,17 @@ def _merge_features(
     """
     Merge the categorical with the numerical features for train, validation, and test datasets.
 
+    The categorical features are encoded and then merged with the numerical features. The
+    label encoders used to do that are also returned.
+
+    If ``noise_scale`` is greater than 0, noise from a normal distribution with a standard
+    deviation of ``noise_scale`` is added to the categorical features.
+
     Args:
-        categorical_features: The categorical features.
-        numerical_features: The numerical features.
+        categorical_features: A dictionary with the categorical features data for train,
+            validation, and test datasets.
+        numerical_features: A dictionary with the numerical features data for train,
+            validation, and test datasets.
         noise_scale: The scale of the noise to add to the categorical features.
 
     Returns:
