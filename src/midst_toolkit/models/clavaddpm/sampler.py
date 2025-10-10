@@ -146,6 +146,9 @@ class LossSecondMomentResampler(LossAwareSampler):
         Return the weights.
 
         Warms up the sampler if it's not warmed up.
+
+        Returns:
+            The weights as a tensor.
         """
         if not self._warmed_up():
             return torch.from_numpy(np.ones([self.num_timesteps], dtype=np.float64))
@@ -155,15 +158,15 @@ class LossSecondMomentResampler(LossAwareSampler):
         weights += self.uniform_prob / len(weights)
         return torch.from_numpy(weights)
 
-    def update_with_all_losses(self, ts: list[int], losses: list[float]) -> None:
+    def update_with_all_losses(self, timestep: list[int], losses: list[float]) -> None:
         """
         Update the reweighting using losses from the model.
 
         Args:
-            ts: The timesteps.
+            timestep: The timesteps.
             losses: The losses.
         """
-        for t, loss in zip(ts, losses):
+        for t, loss in zip(timestep, losses):
             if self._loss_counts[t] == self.history_per_term:
                 # Shift out the oldest loss term.
                 self._loss_history[t, :-1] = self._loss_history[t, 1:]

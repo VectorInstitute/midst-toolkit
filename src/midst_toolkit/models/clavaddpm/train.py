@@ -206,7 +206,6 @@ def child_training(
         ),
     )
     child_transformations = Transformations.default()
-    # ruff: noqa: N806
 
     child_result = train_model(
         child_df_with_cluster,
@@ -464,7 +463,7 @@ def train_classifier(
     diffusion_model = GaussianMultinomialDiffusion(
         num_classes=category_sizes,
         num_numerical_features=num_numerical_features,
-        denoise_fn=None,  # type: ignore[arg-type]
+        denoise_fn=torch.nn.Module(),  # This is not used, so passing an empty module is fine
         gaussian_loss_type=gaussian_loss_type,
         num_timesteps=num_timesteps,
         scheduler_type=scheduler_type,
