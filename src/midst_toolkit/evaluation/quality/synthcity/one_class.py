@@ -179,7 +179,17 @@ class OneClassLayer(BaseNet):
             outputs = self.model(inputs)
 
             # get loss for the predicted output
-            self.loss = self.loss_fn(outputs=outputs, r=torch.Tensor([self.r]), c=self.c, nu=torch.Tensor([self.nu]))
+            r = (
+                self.r.clone().detach().to(self.device)
+                if isinstance(self.r, torch.Tensor)
+                else torch.tensor([self.r], device=self.device)
+            )
+            nu = (
+                self.nu.clone().detach().to(self.device)
+                if isinstance(self.nu, torch.Tensor)
+                else torch.tensor([self.nu], device=self.device)
+            )
+            self.loss = self.loss_fn(outputs=outputs, r=r, c=self.c, nu=nu)
 
             # get gradients w.r.t to parameters
             self.loss.backward(retain_graph=True)
