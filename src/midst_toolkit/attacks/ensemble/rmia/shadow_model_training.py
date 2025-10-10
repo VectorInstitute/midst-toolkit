@@ -60,6 +60,10 @@ def train_fine_tuned_shadow_models(
             shadow_models_output_path: Path where the all datasets and information necessary to train shadow models
                 will be saved. Model artifacts and synthetic data will be saved under this directory as well.
             training_json_config_paths: Configuration dictionary containing paths to the data JSON config files.
+                An example of this config is provided in ``examples/ensemble_attack/config.yaml``. Required keys are:
+                - table_domain_file_path (str): Path to the table domain json file.
+                - dataset_meta_file_path (str): Path to dataset meta json file.
+                - tabddpm_training_config_path (str): Path to table's training config json file.
             fine_tuning_config: Configuration dictionary containing shadow model fine-tuning specific information.
             init_model_id: Distinguishes the pre-trained initial models.
             init_data_seed: Random seed for the initial training set.
@@ -131,17 +135,17 @@ def train_fine_tuned_shadow_models(
     # to be used for fine-tuning.
     random.shuffle(unique_ids)  # Shuffle to randomize order
     half_models = n_models // 2
-    lists: list = [[] for _ in range(n_models)]
+    selected_id_lists: list[list[int]] = [[] for _ in range(n_models)]
 
     # Assign each unique_id to half of the random lists (used to train shadow models)
     for uid in unique_ids:
         selected_lists = random.sample(range(n_models), half_models)  # Select 2 random list indices
         for idx in selected_lists:
-            lists[idx].append(uid)
+            selected_id_lists[idx].append(uid)
 
-    attack_data = {"fine_tuning_sets": lists, "fine_tuned_results": []}
+    attack_data = {"fine_tuning_sets": selected_id_lists, "fine_tuned_results": []}
 
-    for model_id, ref_list in enumerate(lists):
+    for model_id, ref_list in enumerate(selected_id_lists):
         log(INFO, f"Reference model number: {model_id}")
         selected_challenges = master_challenge_data[master_challenge_data[id_column_name].isin(ref_list)]
         # Repeat each row n_reps times
@@ -194,9 +198,17 @@ def train_shadow_on_half_challenge_data(
             shadow_models_output_path: Path where the all datasets and information necessary to train shadow models
                 will be saved.
             training_json_config_paths: Configuration dictionary containing paths to the data JSON config files.
+                An example of this config is provided in ``examples/ensemble_attack/config.yaml``. Required keys are:
+                - table_domain_file_path (str): Path to the table domain json file.
+                - dataset_meta_file_path (str): Path to dataset meta json file.
+                - tabddpm_training_config_path (str): Path to table's training config json file.
             table_name: Name of the main table to be used for training the TabDDPM model.
             id_column_name: Name of the ID column in the data.
             random_seed: Random seed used for reproducibility, defaults to 42.
+
+    Returns:
+            The path where the shadow models and their artifacts are saved.
+
     """
     # Extract unique id values of the master challenge points
     unique_ids = master_challenge_data[id_column_name].unique().tolist()
@@ -204,12 +216,12 @@ def train_shadow_on_half_challenge_data(
     # Create 4 random list of challenge points for each shadow model training..
     random.shuffle(unique_ids)  # Shuffle to randomize order
     half_models = n_models // 2
-    lists: list = [[] for _ in range(n_models)]
+    selected_id_lists: list[list[int]] = [[] for _ in range(n_models)]
     # Assign each unique_id to half of the random lists
     for uid in unique_ids:
         selected_lists = random.sample(range(n_models), half_models)  # Select 2 random list indices
         for idx in selected_lists:
-            lists[idx].append(uid)
+            selected_id_lists[idx].append(uid)
 
     # Create the necessary folders and config files
     shadow_folder = Path(shadow_models_output_path / "shadow_model_rmia_third_set")
@@ -228,9 +240,9 @@ def train_shadow_on_half_challenge_data(
         final_json_path=shadow_folder / f"{table_name}.json",  # Path to the new json
         experiment_name="trained_model",
     )
-    attack_data = {"selected_sets": lists, "trained_results": []}
+    attack_data = {"selected_sets": selected_id_lists, "trained_results": []}
 
-    for model_id, ref_list in enumerate(lists):
+    for model_id, ref_list in enumerate(selected_id_lists):
         log(INFO, f"Reference model number: {model_id}")
 
         selected_challenges = master_challenge_data[master_challenge_data[id_column_name].isin(ref_list)]
@@ -305,7 +317,7 @@ def train_three_sets_of_shadow_models(
             An example of this config is provided in ``examples/ensemble_attack/config.yaml``. Required keys are:
                 - table_domain_file_path (str): Path to the table domain json file.
                 - dataset_meta_file_path (str): Path to dataset meta json file.
-                - tabddpm_training_config_path (str): Path to table's TabDDPM training config json file.
+                - tabddpm_training_config_path (str): Path to table's training config json file.
         fine_tuning_config: Configuration dictionary containing shadow model fine-tuning specific information.
             An example of this config is provided in ``examples/ensemble_attack/config.yaml``. Required keys are:
                 - fine_tune_diffusion_iterations (int): Number of diffusion fine-tuning iterations.

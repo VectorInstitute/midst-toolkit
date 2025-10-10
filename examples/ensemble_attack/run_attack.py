@@ -132,6 +132,11 @@ def run_metaclassifier_training(config: DictConfig) -> None:
         Path(config.data_paths.population_path),
         "population_all_with_challenge_no_id.csv",
     )
+    # We should drop the id column from master metaclassifier train data.
+    if "trans_id" in df_meta_train.columns:
+        df_meta_train = df_meta_train.drop(columns=["trans_id", "account_id"])
+    if "trans_id" in df_meta_test.columns:
+        df_meta_test = df_meta_test.drop(columns=["trans_id", "account_id"])
 
     # Fit the metaclassifier.
     meta_classifier_enum = MetaClassifierType(config.metaclassifier.model_type)
@@ -156,6 +161,7 @@ def run_metaclassifier_training(config: DictConfig) -> None:
     log(INFO, "Metaclassifier training finished.")
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # TODO: Create the directory folder if it does not exist.
     model_filename = f"{timestamp}_{config.metaclassifier.model_type}_trained_metaclassifier.pkl"
     with open(Path(config.model_paths.metaclassifier_model_path) / model_filename, "wb") as f:
         pickle.dump(blending_attacker.trained_model, f)
@@ -171,6 +177,7 @@ def run_metaclassifier_training(config: DictConfig) -> None:
     )
 
     # Save the prediction probabilities
+    # TODO: Create the attack results directory folder if it does not exist.
     np.save(
         Path(config.data_paths.attack_results_path)
         / f"{timestamp}_{config.metaclassifier.model_type}_test_pred_proba.npy",
