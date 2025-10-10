@@ -1,6 +1,7 @@
 import copy
 import json
 import os
+from dataclasses import dataclass
 from logging import INFO
 from pathlib import Path
 from typing import Any
@@ -12,15 +13,31 @@ from midst_toolkit.attacks.ensemble.tabddpm_fine_tuning import clava_fine_tuning
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 from midst_toolkit.models.clavaddpm.data_loaders import load_multi_table
-from midst_toolkit.models.clavaddpm.enumerations import Configs
+from midst_toolkit.models.clavaddpm.enumerations import (
+    Configs,
+    GroupLengthsProbDicts,
+    RelationOrder,
+    Tables,
+)
 from midst_toolkit.models.clavaddpm.synthesizer import clava_synthesizing
 from midst_toolkit.models.clavaddpm.train import clava_training
 
 
-def config_tabddpm(
+@dataclass
+class TrainingResult:
+    save_dir: Path
+    configs: Configs
+    tables: Tables
+    relation_order: RelationOrder
+    all_group_lengths_probabilities: GroupLengthsProbDicts
+    models: dict[tuple[str, str], dict[str, Any]]
+    synthetic_data: pd.DataFrame | None = None
+
+
+def save_additional_tabddpm_config(
     data_dir: Path,
-    training_json_path: Path,
-    final_json_path: Path,
+    training_config_json_path: Path,
+    final_config_json_path: Path,
     experiment_name: str = "attack_experiment",
     workspace_name: str = "shadow_workspace",
 ) -> tuple[Configs, Path]:
@@ -30,8 +47,8 @@ def config_tabddpm(
 
     Args:
             data_dir: Directory containing dataset_meta.json, trans_domain.json, and trans.json files.
-            training_json_path: Path to the original TabDDPM training configuration JSON file.
-            final_json_path: Path where the modified configuration JSON file will be saved.
+            training_config_json_path: Path to the original TabDDPM training configuration JSON file.
+            final_config_json_path: Path where the modified configuration JSON file will be saved.
             experiment_name: Name of the experiment, used to create a unique save directory.
             workspace_name: Name of the workspace, used to create a unique save directory.
 
@@ -40,7 +57,7 @@ def config_tabddpm(
             save_dir: Directory path where results will be saved.
     """
     # Modify the config file to give the correct training data and saving directory
-    with open(training_json_path, "r") as file:
+    with open(training_config_json_path, "r") as file:
         config_data = json.load(file)
 
     config_data["general"]["data_dir"] = str(data_dir)
@@ -49,13 +66,13 @@ def config_tabddpm(
     config_data["general"]["exp_name"] = experiment_name
 
     # save the changed to the new json file
-    with open(final_json_path, "w") as file:
+    with open(final_config_json_path, "w") as file:
         json.dump(config_data, file, indent=4)
 
-    log(INFO, f"DataFrame saved to {final_json_path}")
+    log(INFO, f"Config saved to {final_config_json_path}")
 
     # Set up the config
-    configs, save_dir = load_configs(str(final_json_path))
+    configs, save_dir = load_configs(str(final_config_json_path))
 
     return configs, Path(save_dir)
 
@@ -67,7 +84,7 @@ def train_tabddpm_and_synthesize(
     save_dir: Path,
     synthesize: bool = True,
     sample_scale: float = 1.0,
-) -> dict[str, Any]:
+) -> TrainingResult:
     """
     Train a TabDDPM model on the provided training set and optionally synthesize data using the trained models.
 
@@ -80,28 +97,23 @@ def train_tabddpm_and_synthesize(
             Defaults to 1.0.
 
     Returns:
-        A dictionary containing tables, trained models, synthetic data, and other relevant information.
+        A dataclass TrainingResult object containing:
+            - save_dir: Directory where results are saved.
+            - configs: Configuration dictionary used for training.
+            - tables: Loaded tables after clustering.
+            - relation_order: Relation order of the tables.
+            - all_group_lengths_probabilities: Group lengths probability dictionaries.
+            - models: The trained models.
+            - synthetic_data: The synthesized data as a pandas DataFrame, if synthesis was performed,
+              otherwise, None.
     """
-    material = {
-        "tables": {},
-        "relation_order": {},
-        "save_dir": save_dir,
-        "all_group_lengths_prob_dicts": {},
-        "models": {},
-        "configs": configs,
-        "synth_data": {},
-    }
-
     # Load tables
     tables, relation_order, dataset_meta = load_multi_table(
         Path(configs["general"]["data_dir"]), train_data={"trans": train_set}
     )
-    material["relation_order"] = relation_order
 
     # Clustering on the multi-table dataset
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, save_dir, configs)
-    material["tables"] = tables
-    material["all_group_lengths_prob_dicts"] = all_group_lengths_prob_dicts
 
     # Train models
     tables, models = clava_training(
@@ -112,7 +124,14 @@ def train_tabddpm_and_synthesize(
         classifier_config=configs["classifier"],
         device="cuda" if torch.cuda.is_available() else "cpu",
     )
-    material["models"] = models
+    result = TrainingResult(
+        save_dir=save_dir,
+        configs=configs,
+        tables=tables,
+        relation_order=relation_order,
+        all_group_lengths_probabilities=all_group_lengths_prob_dicts,
+        models=models,
+    )
 
     if synthesize:
         # By default, we want the length of the final synthetic data to be ``len(provided_synth_data) = 20,000``
@@ -132,21 +151,21 @@ def train_tabddpm_and_synthesize(
             sample_scale=sample_scale,
         )
 
-        material["synth_data"] = cleaned_tables["trans"]
+        result.synthetic_data = cleaned_tables["trans"]
 
-    return material
+    return result
 
 
 def fine_tune_tabddpm_and_synthesize(
     trained_models: dict[tuple[str, str], dict[str, Any]],
-    new_train_set: pd.DataFrame,
+    fine_tune_set: pd.DataFrame,
     configs: Configs,
     save_dir: Path,
     fine_tuning_diffusion_iterations: int = 100,
     fine_tuning_classifier_iterations: int = 10,
     synthesize: bool = True,
     sample_scale: float = 1.0,
-) -> dict[str, Any]:
+) -> TrainingResult:
     """
     Given the trained models and a new training set, fine-tune the TabDDPM models.
     If ``synthesize`` is True, synthesizes data using the fine-tuned models. Number of
@@ -154,7 +173,7 @@ def fine_tune_tabddpm_and_synthesize(
 
     Args:
         trained_models: The previously trained model material.
-        new_train_set: The new training dataset for fine-tuning.
+        fine_tune_set: The new training dataset for fine-tuning.
         configs: Configuration dictionary for TabDDPM.
         save_dir:  Directory path where models and results will be saved.
         fine_tuning_diffusion_iterations: Diffusion iterations for fine tuning. Defaults to 100.
@@ -165,31 +184,25 @@ def fine_tune_tabddpm_and_synthesize(
             Defaults to 1.0.
 
     Returns:
-        dict[str, Any]: The newly trained model material, including tables,
-            relation order, models, and synthetic data.
+        A dataclass TrainingResult object containing:
+            - save_dir: Directory where results are saved.
+            - configs: Configuration dictionary used for training.
+            - tables: Loaded tables after clustering.
+            - relation_order: Relation order of the tables.
+            - all_group_lengths_probabilities: Group lengths probability dictionaries.
+            - models: The trained models.
+            - synthetic_data: The synthesized data as a pandas DataFrame, if synthesis was performed,
+              otherwise, None.
     """
-    material = {
-        "tables": {},
-        "relation_order": {},
-        "save_dir": save_dir,
-        "all_group_lengths_prob_dicts": {},
-        "new_models": {},
-        "configs": configs,
-        "synth_data": {},
-    }
-
     # Load tables
     new_tables, relation_order, dataset_meta = load_multi_table(
         Path(configs["general"]["data_dir"]),
-        train_data={"trans": new_train_set},
+        train_data={"trans": fine_tune_set},
     )
-    material["relation_order"] = relation_order
 
     # Clustering on the multi-table dataset
     # Original submission uses 'force_tables=True' to run the clustering even if checkpoint is found.
     new_tables, all_group_lengths_prob_dicts = clava_clustering(new_tables, relation_order, save_dir, configs)
-    material["tables"] = new_tables
-    material["all_group_lengths_prob_dicts"] = all_group_lengths_prob_dicts
 
     # Train models
     copied_models = copy.deepcopy(trained_models)
@@ -202,7 +215,14 @@ def fine_tune_tabddpm_and_synthesize(
         fine_tuning_diffusion_iterations=fine_tuning_diffusion_iterations,
         fine_tuning_classifier_iterations=fine_tuning_classifier_iterations,
     )
-    material["new_models"] = new_models
+    result = TrainingResult(
+        save_dir=save_dir,
+        configs=configs,
+        tables=new_tables,
+        relation_order=relation_order,
+        all_group_lengths_probabilities=all_group_lengths_prob_dicts,
+        models=new_models,
+    )
 
     if synthesize:
         # By default, we want the length of the final synthetic data to be ``len(provided_synth_data) = 20,000``
@@ -220,16 +240,22 @@ def fine_tune_tabddpm_and_synthesize(
             sample_scale=sample_scale,
         )
 
-        material["synth_data"] = cleaned_tables["trans"]
+        result.synthetic_data = cleaned_tables["trans"]
 
-    return material
+    return result
 
 
 # TODO: The following function is directly copied from the midst reference code since
-# I need it to run the attack code, but, it should probably be moved to somewhere else.
+# I need it to run the attack code, but, it should probably be moved to somewhere else
+# as it is an essential part of a working TabDDPM training pipeline.
 def load_configs(config_path: str) -> tuple[Configs, Path]:
     """
     Load configuration from a JSON file and set up necessary directories.
+
+    The following directories are created to save the models and intermediate results.
+        - save_dir -> configs["general"]["workspace_dir"]/configs["general"]["exp_name"]
+        - save_dir/models
+        - save_dir/before_matching
 
     Args:
         config_path: Path to the configuration JSON file.
@@ -240,7 +266,6 @@ def load_configs(config_path: str) -> tuple[Configs, Path]:
     """
     with open(config_path, "r") as file:
         configs = json.load(file)
-
     # Following directories are created to save the models and intermediate results.
     save_dir = os.path.join(configs["general"]["workspace_dir"], configs["general"]["exp_name"])
     os.makedirs(save_dir, exist_ok=True)

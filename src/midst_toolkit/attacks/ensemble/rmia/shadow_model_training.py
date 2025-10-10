@@ -9,8 +9,8 @@ import pandas as pd
 from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.shadow_model_utils import (
-    config_tabddpm,
     fine_tune_tabddpm_and_synthesize,
+    save_additional_tabddpm_config,
     train_tabddpm_and_synthesize,
 )
 from midst_toolkit.common.logger import log
@@ -109,29 +109,29 @@ def train_fine_tuned_shadow_models(
     )
 
     # Train initial model with 60K data without any challenge points
-    # ``config_tabddpm`` makes a personalized copy of the training config for each
+    # ``save_additional_tabddpm_config`` makes a personalized copy of the training config for each
     # tabddpm model (here the base model).
     # All the shadow models will be saved under the base model data directory.
-    configs, save_dir = config_tabddpm(
+    configs, save_dir = save_additional_tabddpm_config(
         data_dir=shadow_model_data_folder,
-        training_json_path=Path(training_json_config_paths.tabddpm_training_config_path),
-        final_json_path=shadow_model_data_folder / f"{table_name}.json",  # Path to the new json
+        training_config_json_path=Path(training_json_config_paths.tabddpm_training_config_path),
+        final_config_json_path=shadow_model_data_folder / f"{table_name}.json",  # Path to the new json
         experiment_name="pre_trained_model",
     )
 
     # Train the initial model if it is not already trained and saved.
     if not (save_dir / f"rmia_initial_model_{init_model_id}.pkl").exists():
-        initial_model = train_tabddpm_and_synthesize(train, configs, save_dir, synthesize=False)
+        initial_model_training_results = train_tabddpm_and_synthesize(train, configs, save_dir, synthesize=False)
 
         # Save the initial model
         # Pickle dump the results
         with open(save_dir / f"rmia_initial_model_{init_model_id}.pkl", "wb") as file:
-            pickle.dump(initial_model, file)
+            pickle.dump(initial_model_training_results, file)
     else:
         with open(save_dir / f"rmia_initial_model_{init_model_id}.pkl", "rb") as f:
-            initial_model = pickle.load(f)
+            initial_model_training_results = pickle.load(f)
 
-    assert initial_model["models"][(None, table_name)]["diffusion"] is not None
+    assert initial_model_training_results.models[("", table_name)]["diffusion"] is not None
 
     # Then create 4 random list of challenge points for each shadow model
     # to be used for fine-tuning.
@@ -159,8 +159,8 @@ def train_fine_tuned_shadow_models(
         selected_challenges = selected_challenges.sample(frac=1, random_state=random_seed).reset_index(drop=True)
 
         train_result = fine_tune_tabddpm_and_synthesize(
-            trained_models=initial_model["models"],
-            new_train_set=selected_challenges,
+            trained_models=initial_model_training_results.models,
+            fine_tune_set=selected_challenges,
             configs=configs,
             save_dir=save_dir,
             fine_tuning_diffusion_iterations=fine_tuning_config.fine_tune_diffusion_iterations,
@@ -239,10 +239,10 @@ def train_shadow_on_half_challenge_data(
         training_json_config_paths.dataset_meta_file_path,
         shadow_folder / "dataset_meta.json",
     )
-    configs, save_dir = config_tabddpm(
+    configs, save_dir = save_additional_tabddpm_config(
         data_dir=shadow_folder,
-        training_json_path=Path(training_json_config_paths.tabddpm_training_config_path),
-        final_json_path=shadow_folder / f"{table_name}.json",  # Path to the new json
+        training_config_json_path=Path(training_json_config_paths.tabddpm_training_config_path),
+        final_config_json_path=shadow_folder / f"{table_name}.json",  # Path to the new json
         experiment_name="trained_model",
     )
     attack_data: dict[str, Any] = {
@@ -254,7 +254,10 @@ def train_shadow_on_half_challenge_data(
         log(INFO, f"Reference model number: {model_id}")
 
         selected_challenges = master_challenge_data[master_challenge_data[id_column_name].isin(ref_list)]
-        log(INFO, f"Number of selected challenges to train the shadow model: {len(selected_challenges)}")
+        log(
+            INFO,
+            f"Number of selected challenges to train the shadow model: {len(selected_challenges)}",
+        )
         # Repeat each row n_reps times
         selected_challenges = pd.concat([selected_challenges] * n_reps, ignore_index=True)
         # Shuffle the dataset

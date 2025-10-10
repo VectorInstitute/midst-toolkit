@@ -9,8 +9,8 @@ from hydra import compose, initialize
 from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.shadow_model_utils import (
-    config_tabddpm,
     fine_tune_tabddpm_and_synthesize,
+    save_additional_tabddpm_config,
     train_tabddpm_and_synthesize,
 )
 
@@ -21,7 +21,7 @@ def cfg() -> DictConfig:
         return compose(config_name="shadow_training_config")
 
 
-def test_config_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
+def test_save_additional_tabddpm_config(cfg: DictConfig, tmp_path: Path) -> None:
     # Input path
     tabddpm_config_path = Path(cfg.shadow_training.training_json_config_paths.tabddpm_training_config_path)
 
@@ -38,10 +38,10 @@ def test_config_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
     new_experiment_name = "test_experiment"
     final_json_path = tmp_path / "modified_config.json"
 
-    configs, save_dir = config_tabddpm(
+    configs, save_dir = save_additional_tabddpm_config(
         data_dir=new_data_dir,
-        training_json_path=tabddpm_config_path,
-        final_json_path=final_json_path,
+        training_config_json_path=tabddpm_config_path,
+        final_config_json_path=final_json_path,
         experiment_name=new_experiment_name,
         workspace_name=new_workspace_name,
     )
@@ -78,10 +78,10 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
         cfg.shadow_training.training_json_config_paths.dataset_meta_file_path,
         Path(tmp_training_dir / "dataset_meta.json"),
     )
-    configs, save_dir = config_tabddpm(
+    configs, save_dir = save_additional_tabddpm_config(
         data_dir=tmp_training_dir,
-        training_json_path=tabddpm_config_path,
-        final_json_path=tmp_training_dir / "trans.json",
+        training_config_json_path=tabddpm_config_path,
+        final_config_json_path=tmp_training_dir / "trans.json",
         experiment_name="test_experiment",
         workspace_name="test_workspace",
     )
@@ -105,7 +105,7 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
     # Now fine-tune the trained TabDDPM model on a small set of data
     fine_tuned_results = fine_tune_tabddpm_and_synthesize(
         trained_models=train_result["models"],
-        new_train_set=fine_tuning_set,  # fine-tuning on the same data for testing purposes
+        fine_tune_set=fine_tuning_set,  # fine-tuning on the same data for testing purposes
         configs=configs,
         save_dir=save_dir,
         fine_tuning_diffusion_iterations=cfg.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations,
