@@ -56,9 +56,5 @@ jobs:
         with:
           virtual-environment: .venv/
           # GHSA-4xh5-x5gv-qwph: This is a vulnerability in pip 25.2 that has no fix version yet
-          # GHSA-887c-mr87-cxwp and GHSA-3749-ghw9-m3mg are vulnerabilities in torch 2.6.0. These are only
-          # problematic if installing on Linux (we pin to 2.6.0 to support older linux distros)
           ignore-vulns: |
             GHSA-4xh5-x5gv-qwph
-            GHSA-3749-ghw9-m3mg
-            GHSA-887c-mr87-cxwp

@@ -1149,7 +1149,6 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.5.0" },
     { name = "syntheval", specifier = ">=1.6.2" },
     { name = "torch", specifier = ">=2.6.0" },
-    { name = "torch", marker = "sys_platform == 'linux'", specifier = "==2.6.0" },
     { name = "tqdm" },
     { name = "urllib3", specifier = ">=2.5.0" },
     { name = "xgboost" },
