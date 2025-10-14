@@ -19,7 +19,7 @@
         "dropout": 0.1,
         "num_timesteps": 3,
         "model_type": "mlp",
-        "iterations": 5,
+        "iterations": 3,
         "batch_size": 1,
         "lr": 0.0006,
         "gaussian_loss_type": "mse",
@@ -35,7 +35,7 @@
         "lr": 0.0001,
         "dim_t": 4,
         "batch_size": 1,
-        "iterations": 3
+        "iterations": 2
     },
     "sampling": {
         "batch_size": 2,
