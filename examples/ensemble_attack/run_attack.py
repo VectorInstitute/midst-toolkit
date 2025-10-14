@@ -45,12 +45,14 @@ def run_data_processing(config: DictConfig) -> None:
     log(INFO, "Data processing pipeline finished.")
 
 
-def run_metaclassifier_training(config: DictConfig) -> None:
+def run_metaclassifier_training(config: DictConfig, attack_data_paths: list[str], target_data_path: str) -> None:
     """
     Fuction to run the metaclassifier training and evaluation.
 
     Args:
         config: Configuration object set in config.yaml.
+        attack_data_paths: List of paths to the trained shadow models and all their attributes and synthetic data.
+        target_data_path: Path to the target model and all its attributes and synthetic data.
     """
     log(INFO, "Running metaclassifier training...")
     # Load the processed data splits.
@@ -68,6 +70,18 @@ def run_metaclassifier_training(config: DictConfig) -> None:
     y_meta_test = np.load(
         Path(config.data_paths.processed_attack_data_path) / "master_challenge_test_labels.npy",
     )
+
+    # Three sets of shadow models are trained separately and their paths are provided here.
+    attack_data_collection = []
+    for model_path in attack_data_paths:
+        with open(model_path, "rb") as f:
+            shadow_model = pickle.load(f)
+            attack_data_collection.append(shadow_model)
+
+    target_data_collection = []
+    with open(target_data_path, "rb") as f:
+        target_model = pickle.load(f)
+        target_data_collection.append(target_model)
 
     # Synthetic data borrowed from the attack implementation repository.
     # From (https://github.com/CRCHUM-CITADEL/ensemble-mia/tree/main/input/tabddpm_black_box/meta_classifier)
@@ -87,8 +101,13 @@ def run_metaclassifier_training(config: DictConfig) -> None:
 
     # 1. Initialize the attacker
     blending_attacker = BlendingPlusPlus(
-        config=config, meta_classifier_type=meta_classifier_enum, random_seed=config.random_seed
+        config=config,
+        attack_data_collection=attack_data_collection,
+        target_data_collection=target_data_collection,
+        meta_classifier_type=meta_classifier_enum,
+        random_seed=config.random_seed,
     )
+
     log(INFO, f"{meta_classifier_enum} created with random seed {config.random_seed}, starting training...")
 
     # 2. Train the attacker on the meta-train set
@@ -142,8 +161,14 @@ def main(config: DictConfig) -> None:
     """
     if config.pipeline.run_data_processing:
         run_data_processing(config)
+
+    # Placeholder variables for the shadow model training step
+    # TODO: Remove these lines after merging the shadow model training code
+    first_set_result_path, second_set_result_path, third_set_result_path = "", "", ""
+    attack_data_paths = [first_set_result_path, second_set_result_path, third_set_result_path]
+
     if config.pipeline.run_metaclassifier_training:
-        run_metaclassifier_training(config)
+        run_metaclassifier_training(config, attack_data_paths, target_data_path=str())
 
 
 if __name__ == "__main__":

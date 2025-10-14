@@ -9,6 +9,7 @@ from omegaconf import DictConfig
 from sklearn.linear_model import LogisticRegression
 
 from midst_toolkit.attacks.ensemble.distance_features import calculate_domias_score, calculate_gower_features
+from midst_toolkit.attacks.ensemble.rmia.rmia_calculation import calculate_rmia_signals
 from midst_toolkit.attacks.ensemble.train_utils import get_tpr_at_fpr
 from midst_toolkit.attacks.ensemble.xgboost_tuner import XgBoostHyperparameterTuner
 
@@ -22,6 +23,8 @@ class BlendingPlusPlus:
     def __init__(
         self,
         config: DictConfig,
+        attack_data_collection: list[dict],
+        target_data_collection: list[dict],
         meta_classifier_type: MetaClassifierType = MetaClassifierType.XGB,
         random_seed: int | None = None,
     ) -> None:
@@ -30,18 +33,25 @@ class BlendingPlusPlus:
 
         This class encapsulates the entire workflow:
         1. Generates features from Gower distance and DOMIAS.
-        2. Assembles a meta-feature set.
-        3. Trains a meta-classifier on these features.
-        4. Predicts membership probability on new data.
+        2. Calculates RMIA signals using the provided attack data, which contains training/fine-tuning data
+            and the synthetic data generated.
+        3. Assembles a meta-feature set (original numerical features + Gower + DOMIAS + RMIA).
+        4. Trains a meta-classifier on these features.
+        5. Predicts membership probability on new data.
 
         Args:
             config: Dictionary storing data configuration paths and parameters, used to load data properties.
+            attack_data_collection: List of training data of the shadow models and their generated synthetic data.
+            target_data_collection: List of training data of the target model and its generated synthetic data.
             meta_classifier_type: Type of meta classifier model. Defaults to MetaClassifierType.XGB.
             random_seed: Random seed for reproducibility. Defaults to None.
 
         """
         with open(config.data_processing_config.data_types_file_path, "r") as f:
             self.column_types = json.load(f)
+
+        self.attack_data_collection = attack_data_collection
+        self.target_data_collection = target_data_collection
         self.meta_classifier_type = meta_classifier_type
         self.trained_model = None
         self.random_seed = random_seed
@@ -83,12 +93,21 @@ class BlendingPlusPlus:
             df_input=df_input, df_synthetic=df_synthetic, df_reference=df_reference
         )
 
-        # 3. Get RMIA signals (borrowed from the attack implementation repository,
-        # at https://github.com/CRCHUM-CITADEL/ensemble-mia/tree/main/input/tabddpm_black_box/meta_classifier)
-        # Will be removed after our own implementation is ready.
-        rmia_signals = pd.read_csv(
-            "examples/ensemble_attack/data/attack_data/og_rmia_train_meta_pred.csv"
-        )  # Placeholder for RMIA features
+        # 3. Get RMIA signals
+        # TODO: make sure df_input has IDs (assuming shadow models and target model synth data have IDs too)
+        rmia_signals = calculate_rmia_signals(
+            df_input=df_input,
+            attack_data_collection=self.attack_data_collection,
+            target_data_collection=self.target_data_collection,
+            categorical_column_names=categorical_cols,
+        )
+
+        # # (borrowed from the attack implementation repository,
+        # # at https://github.com/CRCHUM-CITADEL/ensemble-mia/tree/main/input/tabddpm_black_box/meta_classifier)
+        # # Will be removed after our own implementation is ready.
+        # rmia_signals = pd.read_csv(
+        #     "examples/ensemble_attack/data/attack_data/og_rmia_train_meta_pred.csv"
+        # )  # Placeholder for RMIA features
 
         original_numerical_features = df_input[numerical_cols]  # Numerical features from original data
 
@@ -102,6 +121,7 @@ class BlendingPlusPlus:
             axis=1,
         )
 
+    # TODO: Handle epochs parameter
     def fit(
         self,
         df_train: pd.DataFrame,
