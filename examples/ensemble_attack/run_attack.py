@@ -3,15 +3,15 @@ This file is an uncompleted example script for running the Ensemble Attack on MI
 provided resources and data.
 """
 
+import importlib
 from logging import INFO
 from pathlib import Path
 
 import hydra
 from omegaconf import DictConfig
-import importlib
+
 from examples.ensemble_attack.real_data_collection import collect_population_data_ensemble
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
-
 from midst_toolkit.common.logger import log
 
 
@@ -58,9 +58,7 @@ def main(config: DictConfig) -> None:
     # A quick solution is to load modules dynamically if any of the pipelines is called.
     # TODO: Investigate the source of error.
     if config.pipeline.run_shadow_model_training:
-        shadow_pipeline = importlib.import_module(
-            "examples.ensemble_attack.run_shadow_model_training"
-        )
+        shadow_pipeline = importlib.import_module("examples.ensemble_attack.run_shadow_model_training")
         shadow_pipeline.run_shadow_model_training(config)
     if config.pipeline.run_metaclassifier_training:
         meta_pipeline = importlib.import_module("examples.ensemble_attack.run_metaclassifier_training")
