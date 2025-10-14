@@ -36,6 +36,9 @@ examples/**/data/
 examples/ensemble_attack/trained_models/
 examples/ensemble_attack/attack_results/
 
+# Shadow models
+examples/ensemble_attack/shadow_models_data/
+
 # hydra output
 outputs/
 

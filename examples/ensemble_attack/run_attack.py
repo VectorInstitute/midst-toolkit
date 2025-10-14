@@ -74,7 +74,9 @@ def run_metaclassifier_training(config: DictConfig, attack_data_paths: list[str]
     # Three sets of shadow models are trained separately and their paths are provided here.
     attack_data_collection = []
     for model_path in attack_data_paths:
-        with open(model_path, "rb") as f:
+        full_path = Path(config.model_paths.shadow_models_path) / model_path
+        with open(full_path, "rb") as f:
+            import pdb; pdb.set_trace()
             shadow_model = pickle.load(f)
             attack_data_collection.append(shadow_model)
 
@@ -165,10 +167,17 @@ def main(config: DictConfig) -> None:
     # Placeholder variables for the shadow model training step
     # TODO: Remove these lines after merging the shadow model training code
     first_set_result_path, second_set_result_path, third_set_result_path = "", "", ""
+
+    first_set_result_path = "initial_model_rmia_1/shadow_workspace/pre_trained_model/rmia_shadows.pkl"
+
+    second_set_result_path = "initial_model_rmia_2/shadow_workspace/pre_trained_model/rmia_shadows.pkl"
+
+    third_set_result_path = "shadow_model_rmia_third_set/shadow_workspace/trained_model/rmia_shadows_third_set.pkl"
+
     attack_data_paths = [first_set_result_path, second_set_result_path, third_set_result_path]
 
     if config.pipeline.run_metaclassifier_training:
-        run_metaclassifier_training(config, attack_data_paths, target_data_path=str())
+        run_metaclassifier_training(config, attack_data_paths, target_data_path="")
 
 
 if __name__ == "__main__":

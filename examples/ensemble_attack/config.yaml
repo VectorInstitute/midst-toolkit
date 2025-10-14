@@ -11,7 +11,7 @@ data_paths:
   attack_results_path: ${base_example_dir}/attack_results # Path where the attack results will be stored
 
 model_paths:
-  shadow_models_path: ${base_example_dir}/shadow_models # Path where the shadow models are stored
+  shadow_models_path: ${base_example_dir}/shadow_models_data # Path where the shadow models are stored
   metaclassifier_model_path: ${base_example_dir}/trained_models # Path where the trained metaclassifier model will be saved
 
 # Pipeline control
