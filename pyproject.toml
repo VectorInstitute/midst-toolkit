@@ -60,7 +60,7 @@ default-groups = ["dev", "docs"]
 
 [tool.ruff]
 include = ["*.py", "pyproject.toml"]
-exclude = ["mypy_disallow_legacy_types.py", "*.ipynb", ".*\\.csv$", ".*\\.npy$"]
+exclude = ["mypy_disallow_legacy_types.py", "*.ipynb"]
 line-length = 119
 
 [tool.ruff.format]

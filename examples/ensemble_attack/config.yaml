@@ -16,9 +16,9 @@ model_paths:
 
 # Pipeline control
 pipeline:
-  run_data_processing: false # Set this to false if you have already saved the processed data
+  run_data_processing: true # Set this to false if you have already saved the processed data
   run_shadow_model_training: true
-  run_metaclassifier_training: false
+  run_metaclassifier_training: true
 
 
 # Dataset specific information used for processing in this example

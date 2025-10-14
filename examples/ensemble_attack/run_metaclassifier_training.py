@@ -6,8 +6,6 @@ from pathlib import Path
 import numpy as np
 from omegaconf import DictConfig
 
-# Note: Importing the following two classes causes a segmentation fault error if imported in run_attack.py
-# TODO: Investigate the source of error.
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.common.logger import log
