@@ -94,17 +94,17 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
     )
     # By default, with a sampling scale of 1, the size of the synthesized data is equal
     # to the size of the training data.
-    assert "synth_data" in train_result
-    assert type(train_result["synth_data"]) is pd.DataFrame
-    assert len(train_result["synth_data"]) == 99
+    assert train_result.synthetic_data is not None
+    assert type(train_result.synthetic_data) is pd.DataFrame
+    assert len(train_result.synthetic_data) == 99
 
-    assert "models" in train_result
-    assert type(train_result["models"]) is dict
-    assert len(train_result["models"]) == 1  # Only one model (TabDDPM) is trained.
+    assert train_result.models is not None
+    assert type(train_result.models) is dict
+    assert len(train_result.models) == 1  # Only one model (TabDDPM) is trained.
 
     # Now fine-tune the trained TabDDPM model on a small set of data
     fine_tuned_results = fine_tune_tabddpm_and_synthesize(
-        trained_models=train_result["models"],
+        trained_models=train_result.models,
         fine_tune_set=fine_tuning_set,  # fine-tuning on the same data for testing purposes
         configs=configs,
         save_dir=save_dir,
@@ -113,8 +113,7 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
         # Number of synthetic samples is defined according to tabddpm_training_config's classifier_scale value.
         synthesize=False,
     )
-    assert "synth_data" in fine_tuned_results
-    assert fine_tuned_results["synth_data"] == {}
-    assert "new_models" in fine_tuned_results
-    assert type(fine_tuned_results["new_models"]) is dict
-    assert len(fine_tuned_results["new_models"]) == 1  # Only one model (TabDDPM) is fine-tuned.
+    assert fine_tuned_results.synthetic_data is None
+    assert fine_tuned_results.models is not None
+    assert type(fine_tuned_results.models) is dict
+    assert len(fine_tuned_results.models) == 1  # Only one model (TabDDPM) is fine-tuned.

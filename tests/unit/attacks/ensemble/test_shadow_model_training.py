@@ -11,6 +11,7 @@ from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
     train_fine_tuned_shadow_models,
     train_shadow_on_half_challenge_data,
 )
+from midst_toolkit.attacks.ensemble.shadow_model_utils import TrainingResult
 
 
 @pytest.fixture(scope="module")
@@ -51,14 +52,15 @@ def test_train_fine_tuned_shadow_models(cfg: DictConfig, tmp_path: Path) -> None
     assert len(shadow_data["fine_tuning_sets"]) == 2  # n_models
     assert len(shadow_data["fine_tuned_results"]) == 2  # n_models
     for result in shadow_data["fine_tuned_results"]:
-        assert "synth_data" in result
-        assert "tables" in result
-        assert "new_models" in result
-        assert "configs" in result
-        assert "save_dir" in result
-        assert "relation_order" in result
-        assert "all_group_lengths_prob_dicts" in result
-        assert type(result["synth_data"]) is pd.DataFrame
+        assert type(result) is TrainingResult
+        assert result.synthetic_data is not None
+        assert result.tables is not None
+        assert result.models is not None
+        assert result.configs is not None
+        assert result.save_dir is not None
+        assert result.relation_order is not None
+        assert result.all_group_lengths_probabilities is not None
+        assert type(result.synthetic_data) is pd.DataFrame
 
     # Fine tuning sets should be disjoint
     assert set(shadow_data["fine_tuning_sets"][0]).isdisjoint(set(shadow_data["fine_tuning_sets"][1]))
@@ -94,14 +96,15 @@ def test_train_shadow_on_half_challenge_data(cfg: DictConfig, tmp_path: Path) ->
     assert len(shadow_data["selected_sets"]) == 2  # n_models
     assert len(shadow_data["trained_results"]) == 2  # n_models
     for result in shadow_data["trained_results"]:
-        assert "synth_data" in result
-        assert "tables" in result
-        assert "models" in result
-        assert "configs" in result
-        assert "save_dir" in result
-        assert "relation_order" in result
-        assert "all_group_lengths_prob_dicts" in result
-        assert type(result["synth_data"]) is pd.DataFrame
+        assert type(result) is TrainingResult
+        assert result.synthetic_data is not None
+        assert result.tables is not None
+        assert result.models is not None
+        assert result.configs is not None
+        assert result.save_dir is not None
+        assert result.relation_order is not None
+        assert result.all_group_lengths_probabilities is not None
+        assert type(result.synthetic_data) is pd.DataFrame
 
     # Training sets should be disjoint
     assert set(shadow_data["selected_sets"][0]).isdisjoint(set(shadow_data["selected_sets"][1]))

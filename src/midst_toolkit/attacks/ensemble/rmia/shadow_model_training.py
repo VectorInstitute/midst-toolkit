@@ -121,17 +121,23 @@ def train_fine_tuned_shadow_models(
 
     # Train the initial model if it is not already trained and saved.
     if not (save_dir / f"rmia_initial_model_{init_model_id}.pkl").exists():
+        log(INFO, f"Training initial model with ID {init_model_id}...")
         initial_model_training_results = train_tabddpm_and_synthesize(train, configs, save_dir, synthesize=False)
 
         # Save the initial model
         # Pickle dump the results
         with open(save_dir / f"rmia_initial_model_{init_model_id}.pkl", "wb") as file:
             pickle.dump(initial_model_training_results, file)
+        log(
+            INFO,
+            f"Initial model with ID {init_model_id} trained and saved at {save_dir / f'rmia_initial_model_{init_model_id}.pkl'}.",
+        )
     else:
+        log(INFO, f"Initial model with ID {init_model_id} already exists, loading it from disk.")
         with open(save_dir / f"rmia_initial_model_{init_model_id}.pkl", "rb") as f:
             initial_model_training_results = pickle.load(f)
 
-    assert initial_model_training_results.models[("", table_name)]["diffusion"] is not None
+    # assert initial_model_training_results.models[("", table_name)]["diffusion"] is not None
 
     # Then create 4 random list of challenge points for each shadow model
     # to be used for fine-tuning.

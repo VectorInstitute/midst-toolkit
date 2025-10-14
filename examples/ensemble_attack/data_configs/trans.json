@@ -8,7 +8,7 @@
     },
     "clustering": {
         "parent_scale": 1.0,
-        "num_clusters": 50,
+        "num_clusters": 4,
         "clustering_method": "both"
     },
     "diffusion": {
@@ -16,10 +16,10 @@
             4,
             8
         ],
-        "dropout": 0.0,
+        "dropout": 0.1,
         "num_timesteps": 3,
         "model_type": "mlp",
-        "iterations": 2,
+        "iterations": 5,
         "batch_size": 1,
         "lr": 0.0006,
         "gaussian_loss_type": "mse",
