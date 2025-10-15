@@ -158,8 +158,54 @@ def calculate_rmia_signals(
     # Create a dataframe for the computed scores
     signal_shadows = pd.DataFrame(signal_shadows, columns=["signal_shadow_k_" + str(k)])
     signal_shadows["signal_shadow_k_1"] = signal_shadows_k_1
-    signal_shadows["id_column"] = id_column_data.values
+    signal_shadows[id_column_name] = id_column_data.values
 
-    # Create an empty dataframe to store the RMIA signals
-    # rmia_signals = pd.DataFrame()
+    # _____________________________________________________________________________________________________________________
+
+    # Create masks of shape (16, 200) where True means that shadow_lists[i] contains trans_id[j]
+    # for mask_in (and vice versa for mask_out)
+    mask_in = np.array(
+        [
+            [signal_shadows[id_column_name][j] in shadow_gower_list[i] for j in range(200)]
+            for i in range(len(shadow_gower_list))
+        ]
+    )
+    mask_out = np.array(
+        [
+            [signal_shadows[id_column_name][j] not in shadow_gower_list[i] for j in range(200)]
+            for i in range(len(shadow_gower_list))
+        ]
+    )
+
+    import pdb; pdb.set_trace()
+
+    # ValueError: operands could not be broadcast together with shapes (16,5978) (3,200)
+    # Compute the mean using only valid values (to get the membership signals)
+    signal_shadows["signal_shadows_in_k_1"] = np.where(
+        mask_in.sum(axis=0) > 0, np.sum(min_dist_shadow * mask_in, axis=0) / mask_in.sum(axis=0), np.nan
+    )
+    signal_shadows["signal_shadows_in_k_" + str(k)] = np.where(
+        mask_in.sum(axis=0) > 0, np.sum(mean_dist_shadow * mask_in, axis=0) / mask_in.sum(axis=0), np.nan
+    )
+    signal_shadows["signal_shadows_out_k_1"] = np.where(
+        mask_out.sum(axis=0) > 0, np.sum(min_dist_shadow * mask_out, axis=0) / mask_out.sum(axis=0), np.nan
+    )
+    signal_shadows["signal_shadows_out_k_" + str(k)] = np.where(
+        mask_out.sum(axis=0) > 0, np.sum(mean_dist_shadow * mask_out, axis=0) / mask_out.sum(axis=0), np.nan
+    )
+
+    # RMIA computation and selection of useful features
+    signal_shadows["signal_target_k_1"] = signal_target_k_1
+    signal_shadows["signal_target_k_" + str(k)] = signal_target
+    signal_shadows["rmia_k_1"] = signal_shadows["signal_target_k_1"] / signal_shadows["signal_shadow_k_1"]
+    signal_shadows["rmia_k_" + str(k)] = (
+        signal_shadows["signal_target_k_" + str(k)] / signal_shadows["signal_shadow_k_" + str(k)]
+    )
+    signal_shadows["rmia_out_k_1"] = signal_shadows["signal_target_k_1"] / signal_shadows["signal_shadows_out_k_1"]
+    signal_shadows["rmia_out_k_" + str(k)] = (
+        signal_shadows["signal_target_k_" + str(k)] / signal_shadows["signal_shadows_out_k_" + str(k)]
+    )
+
+
+
     return signal_shadows
