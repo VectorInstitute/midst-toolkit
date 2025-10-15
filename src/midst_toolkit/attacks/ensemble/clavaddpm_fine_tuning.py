@@ -1,5 +1,7 @@
 """Functions in this module are taken with some modifications from CITADEL & UQAM team's attack implementation at
 https://github.com/CRCHUM-CITADEL/ensemble-mia.
+TODO: Merge the fine-tuning functionalities in this file with the training functionalities in
+`midst_toolkit/models/clavaddpm/train.py`.
 """
 
 from dataclasses import asdict
@@ -13,6 +15,7 @@ from torch import optim
 
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import KeyValueLogger, log
+from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
 from midst_toolkit.models.clavaddpm.dataset import (
     Transformations,
@@ -35,7 +38,6 @@ from midst_toolkit.models.clavaddpm.model import (
     Classifier,
     DiffusionParameters,
     ModelParameters,
-    ModelType,
     get_table_info,
 )
 from midst_toolkit.models.clavaddpm.sampler import ScheduleSamplerType
@@ -46,26 +48,26 @@ from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 
 
 def fine_tune_model(
-    trained_diffusion: GaussianMultinomialDiffusion,
-    data_frame: pd.DataFrame,
-    data_frame_info: dict[str, Any],
+    trained_diffusion_model: GaussianMultinomialDiffusion,
+    fine_tuning_data: pd.DataFrame,
+    fine_tuning_data_info: dict[str, Any],
     model_params: ModelParameters,
     transformations: Transformations,
     steps: int,
     batch_size: int,
-    model_type: ModelType,
+    # model_type: ModelType,
     lr: float,
     weight_decay: float,
     data_split_ratios: list[float],
-    device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    device: torch.device = DEVICE,
 ) -> dict[str, Any]:
     """
     Fine-tune a trained diffusion model on a new dataset.
 
     Args:
-        trained_diffusion: The pre-trained diffusion model to be fine-tuned.
-        data_frame: The new dataset to fine-tune the model on.
-        data_frame_info: Information about the new dataset.
+        trained_diffusion_model: The pre-trained diffusion model to be fine-tuned.
+        fine_tuning_data: The new dataset to fine-tune the model on.
+        fine_tuning_data_info: Information about the new dataset.
         model_params: Parameters for the model architecture.
         transformations: Object containing transformation configurations.
         steps: Number of training steps for fine-tuning.
@@ -85,11 +87,11 @@ def fine_tune_model(
             - column_orders: The column orders.
     """
     dataset, label_encoders, column_orders = make_dataset_from_df(
-        data_frame,
+        fine_tuning_data,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
         ratios=data_split_ratios,
-        df_info=data_frame_info,
+        df_info=fine_tuning_data_info,
         std=0,
     )
 
@@ -98,15 +100,17 @@ def fine_tune_model(
         category_sizes = np.array([0])
 
     num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1] if dataset.x_num is not None else 0
-    d_in = np.sum(category_sizes) + num_numerical_features
-    model_params.d_in = d_in
+    # input_dimension = np.sum(category_sizes) + num_numerical_features
 
-    model = model_type.get_model(model_params)
-    model.to(device)
+    # fine_tuning_params = deepcopy(model_params)
+    # fine_tuning_params.d_in = input_dimension
+
+    # model = model_type.get_model(fine_tuning_params)
+    # model.to(device)
 
     train_loader = prepare_fast_dataloader(dataset, split=DataSplit.TRAIN, batch_size=batch_size)
 
-    diffusion = trained_diffusion
+    diffusion = trained_diffusion_model
     diffusion.to(device)
     diffusion.train()
 
@@ -116,14 +120,14 @@ def fine_tune_model(
         lr=lr,
         weight_decay=weight_decay,
         steps=steps,
-        device=device,
+        device=str(device),
     )
     trainer.train()
 
     if model_params.is_target_conditioned == IsTargetCondioned.CONCAT:
         column_orders = column_orders[1:] + [column_orders[0]]
     else:
-        column_orders = column_orders + [data_frame_info["y_col"]]
+        column_orders = column_orders + [fine_tuning_data_info["y_col"]]
 
     return {
         "diffusion": diffusion,
@@ -143,8 +147,8 @@ def fine_tune_model(
 # but this is added here for completeness in case we decide to experiment with multi-table as well.
 def fine_tune_classifier(
     pre_trained_classifier: Classifier,
-    data_frame: pd.DataFrame,
-    data_frame_info: dict[str, Any],
+    fine_tuning_data: pd.DataFrame,
+    fine_tuning_data_info: dict[str, Any],
     model_params: ModelParameters,
     transformations: Transformations,
     classifier_steps: int,
@@ -154,16 +158,16 @@ def fine_tune_classifier(
     scheduler_type: SchedulerType,
     data_split_ratios: list[float],
     learning_rate: float = 0.0001,
-    device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    device: torch.device = DEVICE,
 ) -> Classifier:
     """
     Fine-tuning function for the classifier model.
 
     Args:
         pre_trained_classifier: The pre-trained classifier model to be fine-tuned.
-        data_frame: DataFrame to train the model on.
-        data_frame_info: Dictionary of the table information.
-        model_params: Dictionary of the model parameters.
+        fine_tuning_data: DataFrame to train the model on.
+        fine_tuning_data_info: Dictionary of the table information.
+        model_params: Parameters for the model architecture.
         transformations: Transformation object containing all the transformations.
         classifier_steps: Number of steps to fine-tune the classifier.
         batch_size: Batch size to use for training.
@@ -179,11 +183,11 @@ def fine_tune_classifier(
         The fine-tuned classifier model.
     """
     dataset, label_encoders, column_orders = make_dataset_from_df(
-        data_frame,
+        fine_tuning_data,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
         ratios=data_split_ratios,
-        df_info=data_frame_info,
+        df_info=fine_tuning_data_info,
         std=0,
     )
     train_loader = prepare_fast_dataloader(
@@ -195,7 +199,6 @@ def fine_tune_classifier(
     category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
     if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = np.array([0])
-    print(category_sizes)
 
     if dataset.x_num is None:
         log(WARNING, "dataset.x_num is None. num_numerical_features will be set to 0")
@@ -210,7 +213,7 @@ def fine_tune_classifier(
 
     classifier_optimizer = optim.AdamW(classifier.parameters(), lr=learning_rate)
 
-    empty_diffusion = GaussianMultinomialDiffusion(
+    diffusion = GaussianMultinomialDiffusion(
         num_classes=category_sizes,
         num_numerical_features=num_numerical_features,
         denoise_fn=None,  # type: ignore[arg-type]
@@ -219,9 +222,8 @@ def fine_tune_classifier(
         scheduler_type=scheduler_type,
         device=torch.device(device),
     )
-    empty_diffusion.to(device)
+    diffusion.to(device)
 
-    # schedule_sampler = create_named_schedule_sampler("uniform", empty_diffusion)
     schedule_sampler = ScheduleSamplerType.UNIFORM.create_named_schedule_sampler(num_timesteps)
     key_value_logger = KeyValueLogger()
     classifier.train()
@@ -234,11 +236,13 @@ def fine_tune_classifier(
             train_loader,
             dataset,
             schedule_sampler,
-            empty_diffusion,
+            diffusion,
             prefix=DataSplit.TRAIN.value,
-            device=device,
+            device=str(device),
             key_value_logger=key_value_logger,
         )
+        # Dump the contents of the key value logger before returning.
+        key_value_logger.dump()
 
     return classifier
 
@@ -253,7 +257,7 @@ def child_fine_tuning(
     classifier_config: Configs | None,
     fine_tuning_diffusion_iterations: int,
     fine_tuning_classifier_iterations: int,
-    device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    device: torch.device = DEVICE,
 ) -> dict[str, Any]:
     """
     Fine-tune a child model based on the parent model.
@@ -275,11 +279,11 @@ def child_fine_tuning(
 
     """
     if parent_name is None:
-        y_col = "placeholder"
+        target_col = "placeholder"
         child_df_with_cluster["placeholder"] = list(range(len(child_df_with_cluster)))
     else:
-        y_col = f"{parent_name}_{child_name}_cluster"
-    child_info = get_table_info(child_df_with_cluster, child_domain_dict, y_col)
+        target_col = f"{parent_name}_{child_name}_cluster"
+    child_info = get_table_info(child_df_with_cluster, child_domain_dict, target_col)
     child_model_params = ModelParameters(
         diffusion_parameters=DiffusionParameters(
             d_layers=diffusion_config["d_layers"],
@@ -294,9 +298,8 @@ def child_fine_tuning(
         child_info,
         child_model_params,
         child_transformations,
-        fine_tuning_diffusion_iterations,  # fine_tuning_diffusion_iterations used here.
+        fine_tuning_diffusion_iterations,
         diffusion_config["batch_size"],
-        ModelType(diffusion_config["model_type"]),
         diffusion_config["lr"],
         diffusion_config["weight_decay"],
         diffusion_config["data_split_ratios"],
