@@ -10,8 +10,8 @@ from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 
 @pytest.fixture(scope="module")
 def cfg() -> DictConfig:
-    with initialize(config_path="."):
-        return compose(config_name="test_config")
+    with initialize(config_path="configs"):
+        return compose(config_name="data_processing_config")
 
 
 def test_process_split_data(cfg: DictConfig, tmp_path: Path) -> None:

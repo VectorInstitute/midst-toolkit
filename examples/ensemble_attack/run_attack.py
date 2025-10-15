@@ -3,18 +3,14 @@ This file is an uncompleted example script for running the Ensemble Attack on MI
 provided resources and data.
 """
 
-import pickle
-from datetime import datetime
+import importlib
 from logging import INFO
 from pathlib import Path
 
 import hydra
-import numpy as np
 from omegaconf import DictConfig
 
 from examples.ensemble_attack.real_data_collection import collect_population_data_ensemble
-from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
-from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.common.logger import log
 
@@ -45,118 +41,13 @@ def run_data_processing(config: DictConfig) -> None:
     log(INFO, "Data processing pipeline finished.")
 
 
-def run_metaclassifier_training(config: DictConfig, attack_data_paths: list[str], target_data_path: str) -> None:
-    """
-    Fuction to run the metaclassifier training and evaluation.
-
-    Args:
-        config: Configuration object set in config.yaml.
-        attack_data_paths: List of paths to the trained shadow models and all their attributes and synthetic data.
-        target_data_path: Path to the target model and all its attributes and synthetic data.
-    """
-    log(INFO, "Running metaclassifier training...")
-    # Load the processed data splits.
-    df_meta_train = load_dataframe(
-        Path(config.data_paths.processed_attack_data_path),
-        "master_challenge_train.csv",
-    )
-    y_meta_train = np.load(
-        Path(config.data_paths.processed_attack_data_path) / "master_challenge_train_labels.npy",
-    )
-    df_meta_test = load_dataframe(
-        Path(config.data_paths.processed_attack_data_path),
-        "master_challenge_test.csv",
-    )
-    y_meta_test = np.load(
-        Path(config.data_paths.processed_attack_data_path) / "master_challenge_test_labels.npy",
-    )
-
-    # Three sets of shadow models are trained separately and their paths are provided here.
-    attack_data_collection = []
-    for model_path in attack_data_paths:
-        full_path = Path(config.model_paths.shadow_models_path) / model_path
-        with open(full_path, "rb") as f:
-            import pdb; pdb.set_trace()
-            shadow_model = pickle.load(f)
-            attack_data_collection.append(shadow_model)
-
-    target_data_collection = []
-    with open(target_data_path, "rb") as f:
-        target_model = pickle.load(f)
-        target_data_collection.append(target_model)
-
-    # Synthetic data borrowed from the attack implementation repository.
-    # From (https://github.com/CRCHUM-CITADEL/ensemble-mia/tree/main/input/tabddpm_black_box/meta_classifier)
-    # TODO: Change this file path to the path where the synthetic data is stored.
-    df_synthetic = load_dataframe(
-        Path(config.data_paths.processed_attack_data_path),
-        "synth.csv",
-    )
-
-    df_reference = load_dataframe(
-        Path(config.data_paths.population_path),
-        "population_all_with_challenge_no_id.csv",
-    )
-
-    # Fit the metaclassifier.
-    meta_classifier_enum = MetaClassifierType(config.metaclassifier.model_type)
-
-    # 1. Initialize the attacker
-    blending_attacker = BlendingPlusPlus(
-        config=config,
-        attack_data_collection=attack_data_collection,
-        target_data_collection=target_data_collection,
-        meta_classifier_type=meta_classifier_enum,
-        random_seed=config.random_seed,
-    )
-
-    log(INFO, f"{meta_classifier_enum} created with random seed {config.random_seed}, starting training...")
-
-    # 2. Train the attacker on the meta-train set
-
-    blending_attacker.fit(
-        df_train=df_meta_train,
-        y_train=y_meta_train,
-        df_synthetic=df_synthetic,
-        df_reference=df_reference,
-        use_gpu=config.metaclassifier.use_gpu,
-        epochs=config.metaclassifier.epochs,
-    )
-
-    log(INFO, "Metaclassifier training finished.")
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    model_filename = f"{timestamp}_{config.metaclassifier.model_type}_trained_metaclassifier.pkl"
-    with open(Path(config.model_paths.metaclassifier_model_path) / model_filename, "wb") as f:
-        pickle.dump(blending_attacker.trained_model, f)
-
-    log(INFO, "Metaclassifier model saved, starting evaluation...")
-
-    # 3. Get predictions on the test set
-    probabilities, pred_score = blending_attacker.predict(
-        df_test=df_meta_test,
-        df_synthetic=df_synthetic,
-        df_reference=df_reference,
-        y_test=y_meta_test,
-    )
-
-    # Save the prediction probabilities
-    np.save(
-        Path(config.data_paths.attack_results_path)
-        / f"{timestamp}_{config.metaclassifier.model_type}_test_pred_proba.npy",
-        probabilities,
-    )
-    log(INFO, "Test set prediction probabilities saved.")
-
-    if pred_score is not None:
-        log(INFO, f"TPR at FPR=0.1: {pred_score:.4f}")
-
-
 @hydra.main(config_path=".", config_name="config", version_base=None)
 def main(config: DictConfig) -> None:
     """
     Run the Ensemble Attack example pipeline.
     As the first step, data processing is done.
+    Second step is shadow model training used for RMIA attack.
+    Third step is metaclassifier training and evaluation.
 
     Args:
         config: Attack configuration as an OmegaConf DictConfig object.
@@ -166,18 +57,33 @@ def main(config: DictConfig) -> None:
 
     # Placeholder variables for the shadow model training step
     # TODO: Remove these lines after merging the shadow model training code
-    first_set_result_path, second_set_result_path, third_set_result_path = "", "", ""
+    # first_set_result_path, second_set_result_path, third_set_result_path = "", "", ""
 
-    first_set_result_path = "initial_model_rmia_1/shadow_workspace/pre_trained_model/rmia_shadows.pkl"
+    # first_set_result_path = "initial_model_rmia_1/shadow_workspace/pre_trained_model/rmia_shadows.pkl"
 
-    second_set_result_path = "initial_model_rmia_2/shadow_workspace/pre_trained_model/rmia_shadows.pkl"
+    # second_set_result_path = "initial_model_rmia_2/shadow_workspace/pre_trained_model/rmia_shadows.pkl"
 
-    third_set_result_path = "shadow_model_rmia_third_set/shadow_workspace/trained_model/rmia_shadows_third_set.pkl"
+    # third_set_result_path = "shadow_model_rmia_third_set/shadow_workspace/trained_model/rmia_shadows_third_set.pkl"
 
-    attack_data_paths = [first_set_result_path, second_set_result_path, third_set_result_path]
+    attack_data_paths = []
+    # Note: Importing the following two modules causes a segmentation fault error if imported together in this file.
+    # A quick solution is to load modules dynamically if any of the pipelines is called.
+    # TODO: Investigate the source of error.
+    if config.pipeline.run_shadow_model_training:
+        shadow_pipeline = importlib.import_module("examples.ensemble_attack.run_shadow_model_training")
+        attack_data_paths = shadow_pipeline.run_shadow_model_training(config)
+
+    else:
+        # If shadow model training is skipped, we need to provide the paths to pre-trained shadow models.
+        attack_data_paths = [
+            "initial_model_rmia_1/shadow_workspace/pre_trained_model/rmia_shadows.pkl",
+            "initial_model_rmia_2/shadow_workspace/pre_trained_model/rmia_shadows.pkl",
+            "shadow_model_rmia_third_set/shadow_workspace/trained_model/rmia_shadows_third_set.pkl",
+        ]
 
     if config.pipeline.run_metaclassifier_training:
-        run_metaclassifier_training(config, attack_data_paths, target_data_path="")
+        meta_pipeline = importlib.import_module("examples.ensemble_attack.run_metaclassifier_training")
+        meta_pipeline.run_metaclassifier_training(config, attack_data_paths, target_data_path="")
 
 
 if __name__ == "__main__":

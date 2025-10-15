@@ -1,5 +1,6 @@
 {
     "numerical": ["trans_date", "amount", "balance", "account"],
     "categorical": ["trans_type", "operation", "k_symbol", "bank"],
-    "variable_to_predict": "trans_type"
+    "variable_to_predict": "trans_type",
+    "id_column_name": "trans_id"
 }

@@ -22,6 +22,7 @@ Hence, make sure it is installed and then run the following:
 uv sync
 source .venv/bin/activate
 ```
+By default, this will also install the optional development dependency groups of `dev` and `docs`
 
 In order to install dependencies for testing (codestyle, unit tests, integration tests), run:
 
@@ -34,4 +35,15 @@ In order to exclude installation of packages from a specific group (e.g. docs), 
 
 ```bash
 uv sync --no-group docs
+```
+
+#### Vector Cluster Specific Installation
+
+**NOTE** Installation on the Vector cluster requires enforcing `torch==2.6.0`. As such, the process for installing has
+three steps instead of two.
+
+```bash
+uv add 'torch==2.6.0'
+uv sync
+source .venv/bin/activate
 ```

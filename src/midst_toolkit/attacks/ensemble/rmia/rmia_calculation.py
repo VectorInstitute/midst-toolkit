@@ -10,7 +10,12 @@ import pandas as pd
 
 
 def get_rmia_gower(
-    df_input: pd.DataFrame, model_data: dict, key: str, categorical_column_names: list[str], k: int
+    df_input: pd.DataFrame,
+    model_data: dict,
+    key: str,
+    categorical_column_names: list[str],
+    k: int,
+    id_column_name: str,
 ) -> dict[str, list[np.ndarray]]:
     """
     Computes the gower distance and membership signals between the challenge points
@@ -24,6 +29,7 @@ def get_rmia_gower(
         key: Either "trained_results" or "fine_tuned_results", depending on which set of shadow models to use.
         categorical_column_names: A list of categorical column names.
         k: Number of nearest neighbors to consider for the membership signal.
+        id_column_name: Name of the ID column.
 
     Returns:
         A dictionary with two keys:
@@ -39,19 +45,22 @@ def get_rmia_gower(
     mean_distances = []
 
     for i in range(len(model_data[key])):
-        df_synthetic = model_data[key][i]["synth_data"]
-
         # Convert numerical columns to float (otherwise error in the numpy divide)
-        numerical_columns = [col for col in df_synthetic.columns if col not in categorical_column_names]
+        numerical_columns = [col for col in df_input.columns if col not in categorical_column_names]
 
+        df_synthetic = model_data[key][i].synthetic_data.copy()
         df_synthetic[numerical_columns] = df_synthetic[numerical_columns].astype(float)
         df_input[numerical_columns] = df_input[numerical_columns].astype(float)
 
-        df_synthetic_sampled = df_synthetic.sample(n=20000, random_state=42)
+        # Sample synthetic data points if there's too many
+        # TODO: change this based on real shadow model training size
+        # Sample = min(config.shadow_training.fine_tuning_config.pre_train_data_size, wherever the 2000 comes from)
+        if len(df_synthetic) > 10:
+            df_synthetic = df_synthetic.sample(n=10, random_state=42)
 
-        gower_matrix = gower.gower_matrix(
-            data_x=df_input, data_y=df_synthetic_sampled, cat_features=categorical_features
-        )
+        df_synthetic = df_synthetic.drop(columns=[id_column_name])
+
+        gower_matrix = gower.gower_matrix(data_x=df_input, data_y=df_synthetic, cat_features=categorical_features)
 
         if np.any((gower_matrix < 0) | (gower_matrix > 1)):
             print("Distances are falling outside of range [0, 1].")
@@ -61,13 +70,13 @@ def get_rmia_gower(
         # TODO: check axis
         # Keep only the k smallest distances for each challenge point.
         # Original codebase says "first column is 0 for the within real/synth"
+        # import pdb; pdb.set_trace()
         distance = np.sort(gower_matrix, axis=1)[:, 0:k]
         mean_distance = np.mean(distance, axis=1)
 
         mean_distances.append(mean_distance)
 
     # TODO: potentially remove mean_distances
-
     return {"gower_matrix": gower_matrices, "mean_distances": mean_distances}
 
 
@@ -76,28 +85,32 @@ def calculate_rmia_signals(
     attack_data_collection: list[dict],
     target_data_collection: list[dict],
     categorical_column_names: list[str],
+    id_column_name: str,
+    id_column_data: pd.Series,
+    k: int = 5,
 ) -> pd.DataFrame:
     """
-    Main orchestration function to compute RMIA signals for the input dataframe with respect to both shadow and target models.
+    Main orchestration function to compute RMIA signals with respect to shadow and target models.
 
     Args:
         df_input: The dataframe to generate features for (e.g., meta classifier train or test set), derived
             from the challenge dataset and processed in process_split_data.py.
         attack_data_collection: List of trained shadow models and their synthetic data, used to compute RMIA signals.
         target_data_collection: List containing the target model and its synthetic data, used to compute RMIA signals.
-        categorical_column_names: A list of categorical column names.   
+        categorical_column_names: A list of categorical column names.
+        id_column_name: Name of the ID column.
+        id_column_data: The data in the ID column, used to ensure correct alignment of results.
+        k: Number of nearest neighbors to consider for the membership signal. Default is 5.
 
     #TODO
     Returns:
         A dataframe containing RMIA signals, with shape (num_samples, __).
         The __ features include:
-            
 
-        
     """
     shadow_gower_list = []
     shadow_mean_dist_list = []
-    k_list = [10, 1, 5]
+    gower_k_list = [10, 1, 5]
     for i in range(len(attack_data_collection)):
         attack_data = attack_data_collection[i]
         # TODO: make sure df_input has ids
@@ -105,24 +118,48 @@ def calculate_rmia_signals(
         if i == 2:
             key = "trained_results"
         shadow_similarity_features = get_rmia_gower(
-            df_input=df_input, model_data=attack_data, key=key, categorical_column_names=categorical_column_names, k=k_list[i]
+            df_input=df_input,
+            model_data=attack_data,
+            key=key,
+            categorical_column_names=categorical_column_names,
+            k=gower_k_list[i],
+            id_column_name=id_column_name,
         )
         shadow_gower_list.append(np.array(shadow_similarity_features["gower_matrix"]))
         shadow_mean_dist_list.append(np.array(shadow_similarity_features["mean_distances"]))
 
     gower_shadows = np.vstack(shadow_gower_list)
 
-    # TODO: make sure df_input has ids
-    # TODO: check key
-    
+    # TODO: check key after we have the official target model
     target_similarity_features = get_rmia_gower(
         df_input=df_input,
         model_data=target_data_collection[0],
         key="fine_tuned_results",
         categorical_column_names=categorical_column_names,
         k=10,
+        id_column_name=id_column_name,
     )
 
+    gower_target = target_similarity_features["gower_matrix"][0]
+
+    # Compute the signals based on the gower matrix wrt to the target synthetic data
+    gower_target = np.sort(gower_target, axis=1)[:, :k]
+    signal_target = np.mean(gower_target, axis=1)
+    signal_target_k_1 = np.min(gower_target, axis=1)
+
+    # Compute the shadow signals for the value of k (here, 5)
+    mean_dist_shadow = np.mean(np.sort(gower_shadows, axis=2)[:, :, :k], axis=2)
+    signal_shadows = np.mean(mean_dist_shadow, axis=0)
+
+    # Compute the shadow signals for k=1 (regardless of the set value of k above)
+    min_dist_shadow = np.min(gower_shadows, axis=2)
+    signal_shadows_k_1 = np.mean(min_dist_shadow, axis=0)
+
+    # Create a dataframe for the computed scores
+    signal_shadows = pd.DataFrame(signal_shadows, columns=["signal_shadow_k_" + str(k)])
+    signal_shadows["signal_shadow_k_1"] = signal_shadows_k_1
+    signal_shadows["id_column"] = id_column_data.values
+
     # Create an empty dataframe to store the RMIA signals
-    rmia_signals = pd.DataFrame()
-    return rmia_signals
+    # rmia_signals = pd.DataFrame()
+    return signal_shadows
