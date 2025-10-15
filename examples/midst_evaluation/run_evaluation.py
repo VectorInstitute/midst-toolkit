@@ -270,6 +270,7 @@ def run_quality_evaluations(
             include_additional_metrics=cfg.regression_score_diff.verbose,
             # Regression has it's own preprocessing pipeline
             do_preprocess=True,
+            measure_metrics_in_original_label_space=cfg.regression_score_diff.measure_metrics_in_original_label_space,
         )
         results = metric.compute(real_data_train, synthetic_data, real_data_test)
         report_metrics(cfg, "REGRESSION SCORE DIFFERENCE", results)
