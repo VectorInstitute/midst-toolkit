@@ -67,6 +67,7 @@ f1_score_diff:
 regression_score_diff:
   run: False
   label_column: "balance"
+  preprocess_labels: True
   verbose: True
 
 hellinger:
