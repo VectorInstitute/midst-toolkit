@@ -60,7 +60,7 @@ def test_mean_regression_diff_with_preprocess() -> None:
         do_preprocess=True,
         preprocess_labels=False,
         label_column="column_e",
-        verbose=False,
+        include_additional_metrics=False,
         regressors_config_path=Path("tests/assets/regression_config_1.json"),
     )
 
@@ -96,7 +96,7 @@ def test_mean_regression_diff_with_no_categorical() -> None:
         numerical_columns=["column_a", "column_b", "column_d"],
         do_preprocess=True,
         preprocess_labels=True,
-        verbose=False,
+        include_additional_metrics=False,
         label_column="column_e",
         regressors_config_path=Path("tests/assets/regression_config_2.json"),
     )
@@ -124,7 +124,7 @@ def test_mean_regression_diff_with_poor_synthetic() -> None:
         do_preprocess=True,
         preprocess_labels=True,
         label_column="column_e",
-        verbose=True,
+        include_additional_metrics=True,
         regressors_config_path=Path("tests/assets/regression_config_1.json"),
     )
 

@@ -1,6 +1,7 @@
 import json
 from collections import defaultdict
 from enum import Enum
+from logging import INFO
 from pathlib import Path
 from statistics import mean
 from typing import Any, overload
@@ -9,26 +10,19 @@ import numpy as np
 import pandas as pd
 from pandas.api.types import is_float_dtype
 from sklearn.base import BaseEstimator
-from sklearn.ensemble import RandomForestRegressor  # noqa: F401
-from sklearn.linear_model import LinearRegression  # noqa: F401
-from sklearn.metrics import (
-    explained_variance_score as compute_explained_variance,
-)
-from sklearn.metrics import (
-    mean_absolute_error as compute_mean_absolute_error,
-)
-from sklearn.metrics import (
-    mean_squared_error as compute_mean_squared_error,
-)
-from sklearn.metrics import (
-    r2_score as compute_r2_score,
-)
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import explained_variance_score as compute_explained_variance
+from sklearn.metrics import mean_absolute_error as compute_mean_absolute_error
+from sklearn.metrics import mean_squared_error as compute_mean_squared_error
+from sklearn.metrics import r2_score as compute_r2_score
 from sklearn.model_selection import ParameterGrid, train_test_split
-from sklearn.neural_network import MLPRegressor  # noqa: F401
+from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
 from tqdm import tqdm
-from xgboost import XGBRegressor  # noqa: F401
+from xgboost import XGBRegressor
 
+from midst_toolkit.common.logger import log
 from midst_toolkit.evaluation.metrics_base import SynthEvalMetric
 
 
@@ -37,6 +31,37 @@ class RegressorScores(Enum):
     EXPLAINED_VARIANCE = "explained_variance"
     MEAN_ABSOLUTE_ERROR = "mean_absolute_error"
     MEAN_SQUARED_ERROR = "mean_squared_error"
+
+
+class RegressorType(Enum):
+    """Possible types of Regressors to be used in the evaluation."""
+
+    LINEAR_REGRESSOR = "LinearRegression"
+    XGB_REGRESSOR = "XGBRegressor"
+    RANDOM_FORREST_REGRESSOR = "RandomForestRegressor"
+    MLP_REGRESSOR = "MLPRegressor"
+
+    def get_regressor(self, model_parameters: dict[str, Any]) -> BaseEstimator:
+        """
+        Get the specified Regression Model with the provided set of arguments to initialize the class.
+
+        Args:
+            model_parameters: The parameters of the model.
+
+        Returns:
+            The model.
+        """
+        log(INFO, f"Getting Regressor: {self.value}")
+        if self == RegressorType.LINEAR_REGRESSOR:
+            return LinearRegression(**model_parameters)
+        if self == RegressorType.XGB_REGRESSOR:
+            return XGBRegressor(**model_parameters)
+        if self == RegressorType.MLP_REGRESSOR:
+            return MLPRegressor(**model_parameters)
+        if self == RegressorType.RANDOM_FORREST_REGRESSOR:
+            return RandomForestRegressor(**model_parameters)
+
+        raise ValueError(f"Unsupported regressor type: {self.value}")
 
 
 class MeanRegressionDifference(SynthEvalMetric):
@@ -48,7 +73,7 @@ class MeanRegressionDifference(SynthEvalMetric):
         do_preprocess: bool = False,
         preprocess_labels: bool = False,
         regressors_config_path: Path = Path("src/midst_toolkit/evaluation/quality/assets/regression_config.json"),
-        verbose: bool = True,
+        include_additional_metrics: bool = True,
     ):
         """
         This class computes the difference in metrics for regression models trained on real and synthetic data.
@@ -96,8 +121,8 @@ class MeanRegressionDifference(SynthEvalMetric):
             regressors_config_path: Path to the configuration file for the regressors to be applied in the evaluation.
                 The default configuration (and a good example) are housed in the default path of this class.
                 Defaults to Path("src/midst_toolkit/evaluation/quality/assets/regression_config.json").
-            verbose: Whether or not to include the individual regressor performances in the metrics dictionary.
-                If false, only the differences in performance will be returned. Defaults to True.
+            include_additional_metrics: Whether or not to include the individual regressor performances in the metrics
+                dictionary. If false, only the differences in performance will be returned. Defaults to True.
         """
         super().__init__(categorical_columns, numerical_columns, do_preprocess)
         assert label_column not in numerical_columns, (
@@ -109,7 +134,7 @@ class MeanRegressionDifference(SynthEvalMetric):
         self.label_column = label_column
         self.all_columns = categorical_columns + numerical_columns + [label_column]
         self.regressors_config_path = regressors_config_path
-        self.verbose = verbose
+        self.include_additional_metrics = include_additional_metrics
         self.preprocess_labels = preprocess_labels
 
     def get_regressors_specifications(self) -> list[dict[str, Any]]:
@@ -217,7 +242,7 @@ class MeanRegressionDifference(SynthEvalMetric):
             test_data: Test data will be preprocessed with the training data if ``do_preprocess`` is True. Otherwise
                 it is unmodified.
             train_fraction: What percentage of the original training data ends up in the training data split. The
-                remaining (``1-train_fraction``) ends up in the validation split  Defaults to 0.9.
+                remaining (``1-train_fraction``) ends up in the validation split. Defaults to 0.9.
 
         Returns:
             Training, validation, and test dataframes, potentially also preprocessed together.
@@ -335,9 +360,7 @@ class MeanRegressionDifference(SynthEvalMetric):
             trained (and hyper-parameter tuned) on ``train_data`` when evaluated on `test_data`
         """
         # Create the regressor from the specifications
-        model_class_str = regressor_specifications["class"]
-        assert model_class_str in {"LinearRegression", "MLPRegressor", "XGBRegressor", "RandomForestRegressor"}
-        model_class = eval(model_class_str)
+        model_class = RegressorType(regressor_specifications["class"])
         model_kwargs = regressor_specifications.get("kwargs", {})
 
         # Create a set of parameters to search
@@ -355,7 +378,7 @@ class MeanRegressionDifference(SynthEvalMetric):
         # Run through all parameter combinations
         results = pd.DataFrame([])
         for parameters in tqdm(parameter_set):
-            model = model_class(**parameters)
+            model = model_class.get_regressor(parameters)
 
             metrics: dict[str, Any] = self.train_and_evaluate_model(
                 train_data_features, train_data_labels, validation_data_features, validation_data_labels, model
@@ -378,7 +401,7 @@ class MeanRegressionDifference(SynthEvalMetric):
             train_data_labels,
             test_data_features,
             test_data_labels,
-            model_class(**best_r2_parameters),
+            model_class.get_regressor(best_r2_parameters),
             compute_only=RegressorScores.R2,
         )
         best_explained_variance_score = self.train_and_evaluate_model(
@@ -386,7 +409,7 @@ class MeanRegressionDifference(SynthEvalMetric):
             train_data_labels,
             test_data_features,
             test_data_labels,
-            model_class(**best_explained_variance_parameters),
+            model_class.get_regressor(best_explained_variance_parameters),
             compute_only=RegressorScores.EXPLAINED_VARIANCE,
         )
         best_mean_absolute_error_score = self.train_and_evaluate_model(
@@ -394,7 +417,7 @@ class MeanRegressionDifference(SynthEvalMetric):
             train_data_labels,
             test_data_features,
             test_data_labels,
-            model_class(**best_mean_absolute_error_parameters),
+            model_class.get_regressor(best_mean_absolute_error_parameters),
             compute_only=RegressorScores.MEAN_ABSOLUTE_ERROR,
         )
         best_mean_squared_error_score = self.train_and_evaluate_model(
@@ -402,7 +425,7 @@ class MeanRegressionDifference(SynthEvalMetric):
             train_data_labels,
             test_data_features,
             test_data_labels,
-            model_class(**best_mean_squared_error_parameters),
+            model_class.get_regressor(best_mean_squared_error_parameters),
             compute_only=RegressorScores.MEAN_SQUARED_ERROR,
         )
         return (
@@ -451,9 +474,9 @@ class MeanRegressionDifference(SynthEvalMetric):
         flattened and additional statistics are computed according to `process_results`. Then, the differences
         in the various metrics when training on synthetic vs. real data are computed and stored as well.
 
-        If ``self.verbose`` is ``True``, then performance of the individual regression models when trained on real or
-        synthetic data are also reported. If it is false, only the difference between a metrics value for synthetic
-        vs. real training data is returned.
+        If ``self.include_additional_metrics`` is ``True``, then performance of the individual regression models when
+        trained on real or synthetic data are also reported. If it is false, only the difference between a metrics
+        value for synthetic vs. real training data is returned.
 
         Args:
             real_data_results: Metrics associated with training regression models on real data.
@@ -461,8 +484,8 @@ class MeanRegressionDifference(SynthEvalMetric):
 
         Returns:
             A set of results for the difference between each metric when regression models are trained on synthetic vs.
-            real data. If ``self.verbose`` is ``True``, this also includes individual metrics for real and synthetic
-            training data, respectively.
+            real data. If ``self.include_additional_metrics`` is ``True``, this also includes individual metrics for
+            real and synthetic training data, respectively.
         """
         processed_real_results = self.process_results(real_data_results)
         processed_synthetic_results = self.process_results(synthetic_data_results)
@@ -478,7 +501,7 @@ class MeanRegressionDifference(SynthEvalMetric):
             merged_scores[f"{metric_name}_difference"] = synthetic_score - real_score
 
         # Need to prefix the shared metric keys so they do not overwrite each other
-        if self.verbose:
+        if self.include_additional_metrics:
             merged_scores.update({f"real_{key}": value for key, value in processed_real_results.items()})
             merged_scores.update({f"synthetic_{key}": value for key, value in processed_synthetic_results.items()})
 

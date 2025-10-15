@@ -267,7 +267,7 @@ def run_quality_evaluations(
             numerical_columns=filtered_numerical_columns,
             label_column=label_column,
             preprocess_labels=cfg.regression_score_diff.preprocess_labels,
-            verbose=cfg.regression_score_diff.verbose,
+            include_additional_metrics=cfg.regression_score_diff.verbose,
             # Regression has it's own preprocessing pipeline
             do_preprocess=True,
         )
