@@ -148,3 +148,44 @@ def test_mean_regression_diff_with_poor_synthetic() -> None:
     assert pytest.approx(0.00001933922579472451, abs=1e-8) == score["real_MLPRegressor_mean_squared_error"]
 
     unset_all_random_seeds()
+
+
+def test_mean_regression_diff_with_original_labels() -> None:
+    set_all_random_seeds(42)
+
+    real_data, synthetic_data, holdout_data = get_data()
+    # Scale the labels by 100
+    real_data["column_e"] = 100 * real_data["column_e"]
+    synthetic_data["column_e"] = 100 * synthetic_data["column_e"]
+    holdout_data["column_e"] = 100 * holdout_data["column_e"]
+
+    metric_1 = MeanRegressionDifference(
+        categorical_columns=[],
+        numerical_columns=["column_a", "column_b", "column_d"],
+        do_preprocess=True,
+        preprocess_labels=True,
+        include_additional_metrics=False,
+        label_column="column_e",
+        regressors_config_path=Path("tests/assets/regression_config_2.json"),
+        measure_metrics_in_original_label_space=True,
+    )
+
+    metric_2 = MeanRegressionDifference(
+        categorical_columns=[],
+        numerical_columns=["column_a", "column_b", "column_d"],
+        do_preprocess=True,
+        preprocess_labels=True,
+        include_additional_metrics=False,
+        label_column="column_e",
+        regressors_config_path=Path("tests/assets/regression_config_2.json"),
+        measure_metrics_in_original_label_space=False,
+    )
+
+    score_1 = metric_1.compute(real_data, synthetic_data, holdout_data)
+    score_2 = metric_2.compute(real_data, synthetic_data, holdout_data)
+
+    assert (
+        score_1["RandomForestRegressor_mean_absolute_error_difference"]
+        > score_2["RandomForestRegressor_mean_absolute_error_difference"]
+    )
+    unset_all_random_seeds()

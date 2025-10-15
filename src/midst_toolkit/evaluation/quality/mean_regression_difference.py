@@ -74,6 +74,7 @@ class MeanRegressionDifference(SynthEvalMetric):
         preprocess_labels: bool = False,
         regressors_config_path: Path = Path("src/midst_toolkit/evaluation/quality/assets/regression_config.json"),
         include_additional_metrics: bool = True,
+        measure_metrics_in_original_label_space: bool = False,
     ):
         """
         This class computes the difference in metrics for regression models trained on real and synthetic data.
@@ -123,6 +124,9 @@ class MeanRegressionDifference(SynthEvalMetric):
                 Defaults to Path("src/midst_toolkit/evaluation/quality/assets/regression_config.json").
             include_additional_metrics: Whether or not to include the individual regressor performances in the metrics
                 dictionary. If false, only the differences in performance will be returned. Defaults to True.
+            measure_metrics_in_original_label_space: Whether to transform labels into their original space prior to
+                measuring metrics. This only affects the metric measurements if ``preprocess_labels`` is set to True.
+                Defaults to False.
         """
         super().__init__(categorical_columns, numerical_columns, do_preprocess)
         assert label_column not in numerical_columns, (
@@ -136,6 +140,7 @@ class MeanRegressionDifference(SynthEvalMetric):
         self.regressors_config_path = regressors_config_path
         self.include_additional_metrics = include_additional_metrics
         self.preprocess_labels = preprocess_labels
+        self.measure_metrics_in_original_label_space = measure_metrics_in_original_label_space
 
     def get_regressors_specifications(self) -> list[dict[str, Any]]:
         """
@@ -223,9 +228,14 @@ class MeanRegressionDifference(SynthEvalMetric):
         preprocessed_test_data = self.apply_transformations(test_data, one_hot_encoder, scaler)
 
         if self.preprocess_labels:
-            label_scalar = MinMaxScaler().fit(combined_data[[self.label_column]])
-            preprocessed_train_data[[self.label_column]] = label_scalar.transform(train_data[[self.label_column]])
-            preprocessed_test_data[[self.label_column]] = label_scalar.transform(test_data[[self.label_column]])
+            self.label_scalar = MinMaxScaler().fit(combined_data[[self.label_column]])
+            preprocessed_train_data[[self.label_column]] = self.label_scalar.transform(train_data[[self.label_column]])
+            if not self.measure_metrics_in_original_label_space:
+                preprocessed_test_data[[self.label_column]] = self.label_scalar.transform(
+                    test_data[[self.label_column]]
+                )
+        else:
+            self.label_scalar = None
 
         return preprocessed_train_data, preprocessed_test_data
 
@@ -311,6 +321,13 @@ class MeanRegressionDifference(SynthEvalMetric):
         """
         regressor.fit(train_data_features, train_data_labels[self.label_column])
         pred = regressor.predict(test_data_features)
+
+        if self.measure_metrics_in_original_label_space and self.preprocess_labels:
+            # NOTE: Test labels will not have been scaled if measure_metrics_in_original_label_space is True
+            assert self.label_scalar is not None, (
+                "Training labels should have been preprocessed, but label_scalar is None"
+            )
+            pred = self.label_scalar.inverse_transform(pred.reshape(-1, 1))
 
         if compute_only is None:
             r2 = compute_r2_score(test_data_labels, pred)
