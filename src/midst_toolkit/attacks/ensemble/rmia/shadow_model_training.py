@@ -130,11 +130,11 @@ def train_fine_tuned_shadow_models(
             pickle.dump(initial_model_training_results, file)
         log(
             INFO,
-            f"Initial model with ID {init_model_id} trained and saved at {save_dir / f'rmia_initial_model_{init_model_id}.pkl'}.",
+            f"Initial model with ID {init_model_id} trained and saved at {save_dir / f'initial_model_rmia_{init_model_id}.pkl'}.",
         )
     else:
         log(INFO, f"Initial model with ID {init_model_id} already exists, loading it from disk.")
-        with open(save_dir / f"rmia_initial_model_{init_model_id}.pkl", "rb") as f:
+        with open(save_dir / f"initial_model_rmia_{init_model_id}.pkl", "rb") as f:
             initial_model_training_results = pickle.load(f)
 
     # assert initial_model_training_results.models[("", table_name)]["diffusion"] is not None
