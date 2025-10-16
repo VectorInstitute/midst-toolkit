@@ -91,7 +91,7 @@ class BlendingPlusPlus:
         df_synthetic = df_synthetic.reset_index(drop=True)[df_input.columns]
 
         # 1. Get Gower distance features
-        
+
         log(INFO, "Calculating gower features...")
 
         gower_features = calculate_gower_features(
@@ -140,7 +140,7 @@ class BlendingPlusPlus:
         df_reference: pd.DataFrame,
         id_column_data: pd.Series,
         use_gpu: bool = True,
-        epochs: int = None,
+        epochs: int = 0,
     ) -> None:
         """
         Trains the Blending++ meta-classifier.
@@ -159,7 +159,7 @@ class BlendingPlusPlus:
             epochs: Number of training iterations. Defaults to None, in which case self.training_config.epochs is used.
 
         """
-        if epochs is None:
+        if epochs == 0:
             epochs = self.training_config.epochs
 
         meta_features = self._prepare_meta_features(
@@ -181,7 +181,7 @@ class BlendingPlusPlus:
             )
 
             # Run the tuning process
-            #TODO: Make num_optuna_trials and num_kfolds configurable parameters
+            # TODO: Make num_optuna_trials and num_kfolds configurable parameters
             self.trained_model = tuner.tune_hyperparameters(
                 num_optuna_trials=self.training_config.num_optuna_trials,
                 num_kfolds=self.training_config.num_kfolds,
