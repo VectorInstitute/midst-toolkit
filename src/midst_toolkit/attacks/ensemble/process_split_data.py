@@ -69,7 +69,7 @@ def generate_train_test_challenge_splits(
     df_real_control_val: pd.DataFrame,
     df_real_control_test: pd.DataFrame,
     stratify: pd.Series,
-    random_seed: int,
+    random_seed: int | None = None,
 ) -> tuple[pd.DataFrame, np.ndarray, pd.DataFrame, np.ndarray]:
     """
     Generates the validation and test sets with labels.
@@ -82,7 +82,7 @@ def generate_train_test_challenge_splits(
         stratify: Series used to stratify the real training data. This column is added to read train data
             as "stratify" and is used for stratified splitting. This ensures that the distribution of values
             in this column is preserved across the splits.
-        random_seed: Random seed for reproducibility.
+        random_seed: Random seed for reproducibility. Defaults to None.
 
     Returns:
         Features and labels for validation and test sets, respectively.
@@ -150,17 +150,22 @@ def process_split_data(
     processed_attack_data_path: Path,
     column_to_stratify: str,
     num_total_samples: int = 40000,
-    random_seed: int = 42,  # TODO: do we really need to hardcode the random state?
+    random_seed: int | None = None,
 ) -> None:
     """
-    Splits the data into train, validation, and test sets according to the attack design.
+    Splits the population data into training, validation, and test sets based on the attack design.
+    Saves the processed datasets, including ``master_challenge_train`` and ``master_challenge_test``,
+    along with their corresponding labels, to the specified path under ``processed_attack_data_path``.
+
+    The size of the master challenge datasets (train and test) is half of the total population data size each,
+    as determined by the attack design in the original codebase.
 
     Args:
-        all_population_data: The total population data that the attacker has access to as a DataFrame.
-        processed_attack_data_path: Path where the processed attack data will be saved.
-        column_to_stratify: Column name to use for stratified splitting.
-        num_total_samples: Number os samples that I randomly selected from the population. Defaults to 40000.
-        random_seed: Random seed used for reproducibility. Defaults to 42.
+        all_population_data: A DataFrame containing the entire population data accessible to the attacker.
+        processed_attack_data_path: Directory path where the processed datasets will be saved.
+        column_to_stratify: The column name used for stratified splitting to ensure balanced distributions.
+        num_total_samples: The number of samples randomly selected from the population. Defaults to 40,000.
+        random_seed: Seed for random number generation to ensure reproducibility. Defaults to None.
     """
     # Original Ensemble attack samples 40k data points to construct
     # 1) the main population (real data) used for training the synthetic data generator model,

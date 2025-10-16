@@ -16,8 +16,10 @@ model_paths:
 
 # Pipeline control
 pipeline:
-  run_data_processing: false
-  run_metaclassifier_training: true
+  run_data_processing: false # Set this to false if you have already saved the processed data
+  run_shadow_model_training: true
+  run_metaclassifier_training: false
+
 
 # Dataset specific information used for processing in this example
 data_processing_config:
@@ -40,27 +42,34 @@ data_processing_config:
   single_table_train_data_file_name: "train_with_id.csv"
   multi_table_train_data_file_name: "trans.csv"
   challenge_data_file_name: "challenge_with_id.csv"
+  population_sample_size: 11956 #Population size the total data that your attack has access to.
+  #The size of the master challenge dataset is half of the population size based on the attack design.
 
-  # Data Config files path
-  trans_domain_file_path: ${base_example_dir}/data_configs/trans_domain.json
-  dataset_meta_file_path: ${base_example_dir}/data_configs/dataset_meta.json
-  trans_json_file_path: ${base_example_dir}/data_configs/trans.json
-  data_types_file_path: ${base_example_dir}/data_configs/data_types.json
-  population_sample_size: 40000
-
-# Training settings (temporary, numbers subject to change)
+# Training and data settings for shadow models (temporary, numbers subject to change)
 shadow_training:
-  epochs: 10
-  learning_rate: 0.001
-  batch_size: 64
-  model_type: "tabddpm"
+  # Data Config files path used for training a TabDDPM model
+  training_json_config_paths: # Config json files used for tabddpm training on the trans table
+    table_domain_file_path: ${base_example_dir}/data_configs/trans_domain.json
+    dataset_meta_file_path: ${base_example_dir}/data_configs/dataset_meta.json
+    tabddpm_training_config_path: ${base_example_dir}/data_configs/trans.json
+  # Model training artifacts are saved under shadow_models_data_path/workspace_name/exp_name
+  # Also, training configs for each shadow model are created under shadow_models_data_path.
+  shadow_models_output_path: ${base_data_dir}/shadow_models_data
+  fine_tuning_config:
+    fine_tune_diffusion_iterations: 2
+    fine_tune_classifier_iterations: 2
+    pre_train_data_size: 10 #10 for test run. Original code: 60000
+
 
 # Metaclassifier settings
 metaclassifier:
+  # Data types json file is used for xgboost model training.
+  data_types_file_path: ${base_example_dir}/data_configs/data_types.json
   model_type: "xgb"
   use_gpu: true
   # Temporary. Might remove having an epoch parameter.
   epochs: 1
+
 
 # General settings
 random_seed: 42

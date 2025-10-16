@@ -146,6 +146,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         self,
         num_classes: np.ndarray,
         num_numerical_features: int,
+        # TODO: change the type hint of denoise_fn to include None. See `train.train_classifier`.
         denoise_fn: torch.nn.Module,
         num_timesteps: int = 1000,
         gaussian_loss_type: GaussianLossType = GaussianLossType.MSE,

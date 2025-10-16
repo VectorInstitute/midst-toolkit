@@ -460,6 +460,7 @@ def train_classifier(
     schedule_sampler = ScheduleSamplerType.UNIFORM.create_named_schedule_sampler(num_timesteps)
     key_value_logger = KeyValueLogger()
 
+    # TODO: change the type hint of denoise_fn to include None.
     diffusion_model = GaussianMultinomialDiffusion(
         num_classes=category_sizes,
         num_numerical_features=num_numerical_features,
@@ -604,7 +605,7 @@ def _numerical_forward_backward_log(
     diffusion: GaussianMultinomialDiffusion,
     prefix: str = DataSplit.TRAIN.value,
     remove_first_col: bool = False,
-    device: str = "cuda",
+    device: str = "cuda",  # TODO: type should be changed to torch.device.
     key_value_logger: KeyValueLogger | None = None,
 ) -> None:
     """
