@@ -15,14 +15,14 @@ MOCK_COLUMN_TYPES_CONTENT = {"numerical": ["numerical_col1", "numerical_col2"], 
 
 @pytest.fixture(scope="module")
 def cfg() -> DictConfig:
-    with initialize(config_path="."):
-        return compose(config_name="test_config")
+    with initialize(config_path="configs"):
+        return compose(config_name="data_processing_config")
 
 
 @pytest.fixture
 def mock_config_with_json_path():
     """Provides a mock DictConfig object with the structure required by BlendingPlusPlus.__init__."""
-    return DictConfig({"data_processing_config": {"data_types_file_path": "/mock/path/to/data_types.json"}})
+    return DictConfig({"metaclassifier": {"data_types_file_path": "/mock/path/to/data_types.json"}})
 
 
 @pytest.fixture
@@ -72,7 +72,7 @@ class TestBlendingPlusPlus:
 
         bpp_xgb = BlendingPlusPlus(config=mock_config_with_json_path, meta_classifier_type=MetaClassifierType("xgb"))
 
-        file_path = mock_config_with_json_path.data_processing_config.data_types_file_path
+        file_path = mock_config_with_json_path.metaclassifier.data_types_file_path
         mock_file.assert_called_once_with(file_path, "r")
 
         assert bpp_xgb.column_types == MOCK_COLUMN_TYPES_CONTENT

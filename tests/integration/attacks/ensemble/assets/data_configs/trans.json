@@ -1,14 +1,14 @@
 {
     "general": {
-        "data_dir": "examples/ensemble_attack/data/shadow_models_data",
+        "data_dir": "tests/integration/attacks/ensemble/assets/shadow_models_data",
         "exp_name": "ensemble_attack",
-        "workspace_dir": "examples/ensemble_attack/data/shadow_models_data/workspace",
+        "workspace_dir": "tests/integration/attacks/ensemble/assets/workspace",
         "sample_prefix": "",
-        "test_data_dir": "examples/ensemble_attack/data/shadow_models_data/test"
+        "test_data_dir": "tests/integration/attacks/ensemble/assets/test"
     },
     "clustering": {
         "parent_scale": 1.0,
-        "num_clusters": 4,
+        "num_clusters": 1,
         "clustering_method": "both"
     },
     "diffusion": {
@@ -16,26 +16,26 @@
             4,
             8
         ],
-        "dropout": 0.1,
+        "dropout": 0.0,
         "num_timesteps": 3,
         "model_type": "mlp",
-        "iterations": 3,
+        "iterations": 2,
         "batch_size": 1,
-        "lr": 0.0006,
+        "lr": 0.02,
         "gaussian_loss_type": "mse",
         "weight_decay": 1e-05,
         "scheduler": "cosine",
-        "data_split_ratios": [0.5, 0.25, 0.25]
+        "data_split_ratios": [0.8, 0.1, 0.1]
     },
     "classifier": {
         "d_layers": [
             4,
             4
         ],
-        "lr": 0.0001,
+        "lr": 0.01,
         "dim_t": 4,
         "batch_size": 1,
-        "iterations": 2
+        "iterations": 3
     },
     "sampling": {
         "batch_size": 2,
