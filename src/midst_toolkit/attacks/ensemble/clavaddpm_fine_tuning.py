@@ -55,10 +55,6 @@ def fine_tune_model(
     transformations: Transformations,
     steps: int,
     batch_size: int,
-<<<<<<< HEAD
-    # model_type: ModelType,
-=======
->>>>>>> main
     lr: float,
     weight_decay: float,
     data_split_ratios: list[float],
@@ -75,10 +71,6 @@ def fine_tune_model(
         transformations: Object containing transformation configurations.
         steps: Number of training steps for fine-tuning.
         batch_size: Batch size for fine-tuning.
-<<<<<<< HEAD
-        model_type: Type of model architecture to use. mlp or resnet currently supported.
-=======
->>>>>>> main
         lr: Learning rate for the optimizer in the diffusion model.
         weight_decay: Weight decay for the diffusion optimizer.
         data_split_ratios: The ratios of the dataset to split into train, validation, and test.
@@ -106,16 +98,6 @@ def fine_tune_model(
         category_sizes = np.array([0])
 
     num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1] if dataset.x_num is not None else 0
-<<<<<<< HEAD
-    # input_dimension = np.sum(category_sizes) + num_numerical_features
-
-    # fine_tuning_params = deepcopy(model_params)
-    # fine_tuning_params.d_in = input_dimension
-
-    # model = model_type.get_model(fine_tuning_params)
-    # model.to(device)
-=======
->>>>>>> main
 
     train_loader = prepare_fast_dataloader(dataset, split=DataSplit.TRAIN, batch_size=batch_size)
 
@@ -236,15 +218,9 @@ def fine_tune_classifier(
     schedule_sampler = ScheduleSamplerType.UNIFORM.create_named_schedule_sampler(num_timesteps)
     key_value_logger = KeyValueLogger()
     classifier.train()
-<<<<<<< HEAD
-    for _step in range(classifier_steps):
-        key_value_logger.save_entry("step", float(_step))
-        key_value_logger.save_entry("samples", float((_step + 1) * batch_size))
-=======
     for step in range(classifier_steps):
         key_value_logger.save_entry("step", float(step))
         key_value_logger.save_entry("samples", float((step + 1) * batch_size))
->>>>>>> main
         _numerical_forward_backward_log(
             classifier,
             classifier_optimizer,
