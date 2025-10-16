@@ -40,7 +40,8 @@ class BlendingPlusPlus:
             random_seed: Random seed for reproducibility. Defaults to None.
 
         """
-        with open(config.data_processing_config.data_types_file_path, "r") as f:
+        # TODO: We can directly pass the `data_types_file_path` as a parameter to this class.
+        with open(config.metaclassifier.data_types_file_path, "r") as f:
             self.column_types = json.load(f)
         self.meta_classifier_type = meta_classifier_type
         self.trained_model = None
