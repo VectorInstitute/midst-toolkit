@@ -88,9 +88,9 @@ def fine_tune_model(
         fine_tuning_data,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
-        ratios=data_split_ratios,
-        df_info=fine_tuning_data_info,
-        std=0,
+        data_split_ratios=data_split_ratios,
+        info=fine_tuning_data_info,
+        noise_scale=0,
     )
 
     category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
@@ -177,9 +177,9 @@ def fine_tune_classifier(
         fine_tuning_data,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
-        ratios=data_split_ratios,
-        df_info=fine_tuning_data_info,
-        std=0,
+        data_split_ratios=data_split_ratios,
+        info=fine_tuning_data_info,
+        noise_scale=0,
     )
     train_loader = prepare_fast_dataloader(
         dataset,
