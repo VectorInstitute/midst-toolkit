@@ -66,6 +66,9 @@ metaclassifier:
   # Data types json file is used for xgboost model training.
   data_types_file_path: ${base_example_dir}/data_configs/data_types.json
   model_type: "xgb"
+  # Model training parameters
+  num_optuna_trials: 10 # Original code: 100
+  num_kfolds: 5
   use_gpu: false
   # Temporary. Might remove having an epoch parameter.
   epochs: 1

@@ -134,6 +134,7 @@ def run_metaclassifier_training(config: DictConfig, attack_data_paths: list[str]
         df_test=df_meta_test,
         df_synthetic=df_synthetic,
         df_reference=df_reference,
+        id_column_data=train_trans_ids,
         y_test=y_meta_test,
     )
 

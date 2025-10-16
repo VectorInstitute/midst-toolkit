@@ -55,17 +55,6 @@ def main(config: DictConfig) -> None:
     if config.pipeline.run_data_processing:
         run_data_processing(config)
 
-    # Placeholder variables for the shadow model training step
-    # TODO: Remove these lines after merging the shadow model training code
-    # first_set_result_path, second_set_result_path, third_set_result_path = "", "", ""
-
-    # first_set_result_path = "initial_model_rmia_1/shadow_workspace/pre_trained_model/rmia_shadows.pkl"
-
-    # second_set_result_path = "initial_model_rmia_2/shadow_workspace/pre_trained_model/rmia_shadows.pkl"
-
-    # third_set_result_path = "shadow_model_rmia_third_set/shadow_workspace/trained_model/rmia_shadows_third_set.pkl"
-
-    attack_data_paths = []
     # Note: Importing the following two modules causes a segmentation fault error if imported together in this file.
     # A quick solution is to load modules dynamically if any of the pipelines is called.
     # TODO: Investigate the source of error.
