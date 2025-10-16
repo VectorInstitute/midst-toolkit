@@ -54,7 +54,6 @@ def main(config: DictConfig) -> None:
     """
     if config.pipeline.run_data_processing:
         run_data_processing(config)
-
     # Note: Importing the following two modules causes a segmentation fault error if imported together in this file.
     # A quick solution is to load modules dynamically if any of the pipelines is called.
     # TODO: Investigate the source of error.

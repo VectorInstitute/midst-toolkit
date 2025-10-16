@@ -10,15 +10,22 @@ from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
 from midst_toolkit.common.logger import log
 
 
+<<<<<<< HEAD
 def run_shadow_model_training(config: DictConfig) -> list[Path]:
+=======
+def run_shadow_model_training(config: DictConfig) -> None:
+>>>>>>> main
     """
     Function to run the shadow model training for RMIA attack.
 
     Args:
         config: Configuration object set in config.yaml.
+<<<<<<< HEAD
 
     Returns:
         Paths to the saved shadow model results for the three sets of shadow models.
+=======
+>>>>>>> main
     """
     log(INFO, "Running shadow model training...")
     # Load the required dataframes for shadow model training.
@@ -60,5 +67,8 @@ def run_shadow_model_training(config: DictConfig) -> list[Path]:
         INFO,
         f"Shadow model training finished and saved at 1) {first_set_result_path}, 2) {second_set_result_path}, 3) {third_set_result_path}",
     )
+<<<<<<< HEAD
 
     return [first_set_result_path, second_set_result_path, third_set_result_path]
+=======
+>>>>>>> main

@@ -84,7 +84,7 @@ def run_metaclassifier_training(config: DictConfig, attack_data_paths: list[str]
         raise Exception("Train data must have trans_id column")
 
     if "trans_id" in df_meta_test.columns:
-        train_trans_ids = df_meta_train["trans_id"]
+        test_trans_ids = df_meta_test["trans_id"]
     else:
         raise Exception("Test data must have trans_id column")
 
@@ -134,11 +134,13 @@ def run_metaclassifier_training(config: DictConfig, attack_data_paths: list[str]
         df_test=df_meta_test,
         df_synthetic=df_synthetic,
         df_reference=df_reference,
-        id_column_data=train_trans_ids,
+        id_column_data=test_trans_ids,
         y_test=y_meta_test,
     )
 
     # Save the prediction probabilities
+    attack_results_path = Path(config.data_paths.attack_results_path)
+    attack_results_path.mkdir(parents=True, exist_ok=True)
     np.save(
         Path(config.data_paths.attack_results_path)
         / f"{timestamp}_{config.metaclassifier.model_type}_test_pred_proba.npy",
