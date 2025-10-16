@@ -9,9 +9,9 @@ import faiss
 import numpy as np
 import pandas as pd
 import torch
-from torch.nn import functional
 from scipy.spatial.distance import cdist
 from sklearn.preprocessing import LabelEncoder
+from torch.nn import functional
 from tqdm import tqdm
 
 from midst_toolkit.models.clavaddpm.dataset import Dataset
@@ -468,7 +468,7 @@ def sample_from_dict(probabilities: dict[int, float]) -> int:
         The sampled key.
     """
     assert sum(probabilities.values()) == 1.0, "The sum of all probabilities must be 1.0."
-    
+
     # Generate a random number between 0 and 1
     random_number = random.random()
 
