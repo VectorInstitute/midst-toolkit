@@ -593,6 +593,8 @@ def get_df_without_id(df: pd.DataFrame) -> pd.DataFrame:
     return df.drop(columns=id_cols)
 
 
+# TODO rename this function to remove the leading `_` as it's being used in
+# other modules (not private)
 def _numerical_forward_backward_log(
     classifier: Classifier,
     optimizer: torch.optim.Optimizer,
