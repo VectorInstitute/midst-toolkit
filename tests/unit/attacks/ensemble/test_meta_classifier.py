@@ -9,6 +9,7 @@ from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
 
+
 MOCK_COLUMN_TYPES_CONTENT = {
     "numerical": ["numerical_col1", "numerical_col2"],
     "categorical": ["cat_col1"],
@@ -140,7 +141,7 @@ class TestBlendingPlusPlus:
 
         mock_gower.return_value = pd.DataFrame({"gower_1": [0.1] * 4, "gower_2": [0.2] * 4})
         mock_domias.return_value = pd.DataFrame({"domias": [0.9, 0.8, 0.7, 0.6]})
-        mock_rmia.return_value = pd.DataFrame({"rmia": [1, 0, 1, 0]}) 
+        mock_rmia.return_value = pd.DataFrame({"rmia": [1, 0, 1, 0]})
 
         bpp = BlendingPlusPlus(config=mock_config_with_json_path, attack_data_collection=[], target_data_collection=[])
 
@@ -169,7 +170,7 @@ class TestBlendingPlusPlus:
         pd.testing.assert_series_equal(
             meta_features["numerical_col1"], sample_dataframes["df_train"]["numerical_col1"], check_names=False
         )
-    
+
     @patch("builtins.open", new_callable=mock_open)
     @patch("midst_toolkit.attacks.ensemble.blending.calculate_gower_features")
     @patch("midst_toolkit.attacks.ensemble.blending.calculate_domias_score")
@@ -199,7 +200,6 @@ class TestBlendingPlusPlus:
         id_col_name = MOCK_COLUMN_TYPES_CONTENT["id_column_name"]
         id_col_data = df_train[id_col_name]
 
-
         bpp._prepare_meta_features(
             df_input=df_train,
             df_synthetic=sample_dataframes["df_synth"],
@@ -209,7 +209,6 @@ class TestBlendingPlusPlus:
             numerical_cols=MOCK_COLUMN_TYPES_CONTENT["numerical"],
             id_column_name=id_col_name,
         )
-
 
         mock_rmia.assert_called_once()
         _, call_kwargs = mock_rmia.call_args
