@@ -304,9 +304,9 @@ def train_model(
         data_frame,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
-        ratios=data_split_ratios,
-        df_info=data_frame_info,
-        std=0,
+        data_split_ratios=data_split_ratios,
+        info=data_frame_info,
+        noise_scale=0,
     )
 
     category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
@@ -419,9 +419,9 @@ def train_classifier(
         data_frame,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
-        ratios=data_split_ratios,
-        df_info=data_frame_info,
-        std=0,
+        data_split_ratios=data_split_ratios,
+        info=data_frame_info,
+        noise_scale=0,
     )
     print(dataset.n_features)
     train_loader = prepare_fast_dataloader(
@@ -461,6 +461,7 @@ def train_classifier(
     schedule_sampler = ScheduleSamplerType.UNIFORM.create_named_schedule_sampler(num_timesteps)
     key_value_logger = KeyValueLogger()
 
+    # TODO: change the type hint of denoise_fn to include None.
     diffusion_model = GaussianMultinomialDiffusion(
         num_classes=category_sizes,
         num_numerical_features=num_numerical_features,
@@ -603,7 +604,7 @@ def _numerical_forward_backward_log(
     diffusion: GaussianMultinomialDiffusion,
     prefix: str = DataSplit.TRAIN.value,
     remove_first_col: bool = False,
-    device: str = "cuda",
+    device: str = "cuda",  # TODO: type should be changed to torch.device.
     key_value_logger: KeyValueLogger | None = None,
 ) -> None:
     """
