@@ -45,18 +45,21 @@ def run_metaclassifier_training(config: DictConfig, attack_data_paths: list[str]
         with open(final_model_path, "rb") as f:
             shadow_model = pickle.load(f)
             attack_data_collection.append(shadow_model)
-
+    
+    
     # TODO: Uncomment after we get a target model.
     target_data_collection = []
     # with open(target_data_path, "rb") as f:
     #     target_model = pickle.load(f)
     #     target_data_collection.append(target_model)
 
-    # import pdb; pdb.set_trace()
 
+    # TODO: Remove after we get a target model.
     dummy_target_set = attack_data_collection[1]["fine_tuning_sets"][2]
     dummy_target_results = attack_data_collection[1]["fine_tuned_results"][2]
     # TODO: Do we need a list of target models or just one is enough? (Depends on RMIA functions structure)
+    #TODO: Maybe change this to "selected_sets" and "trained_results" if target model is not fine-tuned.
+
     target_data_collection.append(
         {
             "fine_tuning_sets": [dummy_target_set],
