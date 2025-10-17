@@ -600,7 +600,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             model_kwargs: The model kwargs. Optional, default is None.
 
         Returns:
-            The mean for the previous step.
+            The conditioned mean for the previous step.
         """
         if model_kwargs is None:
             model_kwargs = {}
@@ -1020,12 +1020,12 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             noise = torch.randn_like(numerical_features)
             numerical_features_ts = self.gaussian_q_sample(numerical_features, timestep, noise=noise)
 
-        log_categrocial_features_ts = categorical_features
+        log_categorical_features_ts = categorical_features
         if categorical_features.shape[1] > 0:
             log_x_cat = index_to_log_onehot(categorical_features.long(), torch.from_numpy(self.num_classes))
-            log_categrocial_features_ts = self.q_sample(log_x_start=log_x_cat, timestep=timestep)
+            log_categorical_features_ts = self.q_sample(log_x_start=log_x_cat, timestep=timestep)
 
-        input_features = torch.cat([numerical_features_ts, log_categrocial_features_ts], dim=1)
+        input_features = torch.cat([numerical_features_ts, log_categorical_features_ts], dim=1)
 
         model_output = self._denoise_fn(input_features, timestep, **out_dict)
 
@@ -1038,7 +1038,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             multinomial_loss = self._multinomial_loss(
                 model_categorical_output,
                 log_x_cat,
-                log_categrocial_features_ts,
+                log_categorical_features_ts,
                 timestep,
                 p_timestep,
             )
