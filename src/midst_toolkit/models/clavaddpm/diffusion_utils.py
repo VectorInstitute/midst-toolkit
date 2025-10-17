@@ -17,6 +17,17 @@ def normal_kl(
 
     Shapes are automatically broadcasted, so batches can be compared to
     scalars, among other use cases.
+
+    Note: at least one on the arguments must be a Tensor.
+
+    Args:
+        mean1: The mean of the first Gaussian.
+        logvar1: The log variance of the first Gaussian.
+        mean2: The mean of the second Gaussian.
+        logvar2: The log variance of the second Gaussian.
+
+    Returns:
+        The KL divergence between the two Gaussians.
     """
     tensor = None
     for obj in (mean1, logvar1, mean2, logvar2):
@@ -38,6 +49,12 @@ def approx_standard_normal_cdf(x: Tensor) -> Tensor:
     """
     A fast approximation of the cumulative distribution function of the
     standard normal.
+
+    Args:
+        x: The input tensor.
+
+    Returns:
+        The cumulative distribution function of the standard normal.
     """
     return 0.5 * (1.0 + torch.tanh(np.sqrt(2.0 / np.pi) * (x + 0.044715 * torch.pow(x, 3))))
 
@@ -47,11 +64,13 @@ def discretized_gaussian_log_likelihood(x: Tensor, *, means: Tensor, log_scales:
     Compute the log-likelihood of a Gaussian distribution discretizing to a
     given image.
 
-    :param x: the target images. It is assumed that this was uint8 values,
-              rescaled to the range [-1, 1].
-    :param means: the Gaussian mean Tensor.
-    :param log_scales: the Gaussian log stddev Tensor.
-    :return: a tensor like x of log probabilities (in nats).
+    Args:
+        x: The target images. It is assumed that this was uint8 values, rescaled to the range [-1, 1].
+        means: The Gaussian mean Tensor.
+        log_scales: The Gaussian log stddev Tensor.
+
+    Returns:
+        A tensor like x of log probabilities (in nats).
     """
     assert x.shape == means.shape == log_scales.shape
     centered_x = x - means
@@ -87,7 +106,15 @@ def sum_except_batch(x: Tensor, num_dims: int = 1) -> Tensor:
 
 
 def mean_flat(tensor: Tensor) -> Tensor:
-    """Take the mean over all non-batch dimensions."""
+    """
+    Take the mean over all non-batch dimensions.
+
+    Args:
+        tensor: The tensor.
+
+    Returns:
+        The mean over all non-batch dimensions.
+    """
     return tensor.mean(dim=list(range(1, len(tensor.shape))))
 
 
@@ -132,6 +159,9 @@ def log_add_exp(a: Tensor, b: Tensor) -> Tensor:
     Args:
         a: The first tensor.
         b: The second tensor.
+
+    Returns:
+        The log of the sum of the exponential of two tensors.
     """
     maximum = torch.max(a, b)
     return maximum + torch.log(torch.exp(a - maximum) + torch.exp(b - maximum))
@@ -261,13 +291,13 @@ def log_onehot_to_index(log_one_hot_tensor: Tensor) -> Tensor:
 
 
 class FoundNaNsError(BaseException):
-    """Found NANs during sampling."""
+    """Error to be raised whem NANs are found during sampling."""
 
-    def __init__(self, message: str = "Found NANs during sampling.") -> None:
+    def __init__(self, message: str = "Found NANs during sampling."):
         """
         Initialize the FoundNaNsError.
 
         Args:
-            message: The error message.
+            message: The error message. Defaults to "Found NANs during sampling."
         """
         super(FoundNaNsError, self).__init__(message)
