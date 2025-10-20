@@ -10,6 +10,7 @@ import torch
 from torch.nn import functional
 
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
+from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 from midst_toolkit.models.clavaddpm.data_loaders import load_multi_table
 from midst_toolkit.models.clavaddpm.model import Classifier
@@ -255,7 +256,7 @@ def test_train_single_table(tmp_path: Path):
     # Act
     tables, relation_order, _ = load_multi_table(Path("tests/integration/assets/single_table/"))
     tables, models = clava_training(
-        tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device="cpu"
+        tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device=DEVICE
     )
 
     # Assert
@@ -313,7 +314,7 @@ def test_train_multi_table(tmp_path: Path):
     # Act
     tables, relation_order, _ = load_multi_table(Path("tests/integration/assets/multi_table/"))
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
-    models = clava_training(tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device="cpu")
+    models = clava_training(tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device=DEVICE)
 
     # Assert
     with open(tmp_path / "models" / "account_trans_ckpt.pkl", "rb") as f:
