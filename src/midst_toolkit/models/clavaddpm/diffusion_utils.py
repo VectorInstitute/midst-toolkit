@@ -107,7 +107,7 @@ def sum_except_batch(x: Tensor, num_dims: int = 1) -> Tensor:
 
 def mean_flat(tensor: Tensor) -> Tensor:
     """
-    Take the mean over all non-batch dimensions.
+    Take the mean over all non-batch dimensions. The first dimension should be the batch.
 
     Args:
         tensor: The tensor.
@@ -118,23 +118,23 @@ def mean_flat(tensor: Tensor) -> Tensor:
     return tensor.mean(dim=list(range(1, len(tensor.shape))))
 
 
-def ohe_to_categories(ohe: Tensor, num_categories: Tensor) -> Tensor:
+def one_hot_encoding_to_categories(one_hot_encoded_features: Tensor, num_categories: np.ndarray) -> Tensor:
     """
     Convert one-hot encoded categorical data to categorical data.
 
     Args:
-        ohe: The one-hot encoded categorical data tensor.
+        one_hot_encoded_features: The one-hot encoded categorical data tensor.
         num_categories: The number of categories.
 
     Returns:
         The categorical data tensor.
     """
-    num_categories = torch.from_numpy(num_categories)
-    indices = torch.cat([torch.zeros((1,)), num_categories.cumsum(dim=0)], dim=0).int().tolist()
+    categories = torch.from_numpy(num_categories)
+    indices = torch.cat([torch.zeros((1,)), categories.cumsum(dim=0)], dim=0).int().tolist()
 
     result = []
     for i in range(len(indices) - 1):
-        result.append(ohe[:, indices[i] : indices[i + 1]].argmax(dim=1))
+        result.append(one_hot_encoded_features[:, indices[i] : indices[i + 1]].argmax(dim=1))
 
     return torch.stack(result, dim=1)
 
@@ -169,19 +169,22 @@ def log_add_exp(a: Tensor, b: Tensor) -> Tensor:
 
 def extract(input_tensor: Tensor, index: Tensor, output_shape: tuple[int, ...]) -> Tensor:
     """
-    Extract a value from a tensor.
+    Extract the value at `index` from a the ``input_tensor``.
+
+    Will return the extracted value as a tensor of shape ``output_shape``.
 
     Args:
         input_tensor: The tensor.
-        index: The index.
+        index: The index of the value to be extracted.
         output_shape: The shape of the output tensor.
 
     Returns:
-        The extracted tensor.
+        The extracted value as a tensor of shape ``output_shape``.
     """
     index = index.to(input_tensor.device)
     output_tensor = input_tensor.gather(-1, index)
     while len(output_tensor.shape) < len(output_shape):
+        # Adding a new dimension to the tensor until it reaches len(output_shape)
         output_tensor = output_tensor[..., None]
     return output_tensor.expand(output_shape)
 
@@ -202,7 +205,9 @@ def log_categorical(log_features_start: Tensor, log_probabilities: Tensor) -> Te
 
 def index_to_log_onehot(input_tensor: Tensor, num_classes: Tensor) -> Tensor:
     """
-    Convert an index to a log one-hot tensor.
+    Convert the input tensor to one-hot and takes the log of that tensor.
+
+    Will avoid producing NaN values by clamping them to a value just above zero.
 
     Args:
         input_tensor: The input tensor.
@@ -219,20 +224,20 @@ def index_to_log_onehot(input_tensor: Tensor, num_classes: Tensor) -> Tensor:
     return torch.log(input_onehot.float().clamp(min=1e-30))
 
 
-def log_sum_exp_by_classes(input_tensor: Tensor, slices: Tensor) -> Tensor:
+def log_sum_exp_by_classes(input_tensor: Tensor, classes: Tensor) -> Tensor:
     """
     Compute the log of the sum of the exponential of the input tensor by classes.
 
     Args:
         input_tensor: The input tensor.
-        slices: The slices.
+        classes: The classes.
 
     Returns:
         The log of the sum of the exponential of the input tensor by classes.
     """
     result = torch.zeros_like(input_tensor)
-    for slice in slices:
-        result[:, slice] = torch.logsumexp(input_tensor[:, slice], dim=1, keepdim=True)
+    for c in classes:
+        result[:, c] = torch.logsumexp(input_tensor[:, c], dim=1, keepdim=True)
 
     assert input_tensor.size() == result.size()
 
@@ -267,7 +272,7 @@ def sliced_logsumexp(input_tensor: Tensor, slices: Tensor) -> Tensor:
     Returns:
         The log of the sum of the exponential of the input tensor by slices.
     """
-    padded_input_tensor = torch.nn.functional.pad(input_tensor, [1, 0, 0, 0], value=-float("inf"))
+    padded_input_tensor = functional.pad(input_tensor, [1, 0, 0, 0], value=-float("inf"))
     lse = torch.logcumsumexp(padded_input_tensor, dim=-1)
 
     slice_starts = slices[:-1]
@@ -279,13 +284,13 @@ def sliced_logsumexp(input_tensor: Tensor, slices: Tensor) -> Tensor:
 
 def log_onehot_to_index(log_one_hot_tensor: Tensor) -> Tensor:
     """
-    Convert a log one-hot tensor to an index tensor.
+    Return the indices of the maximum value in the log one-hot tensor, i.e. the "hot" encoding.
 
     Args:
         log_one_hot_tensor: The log one-hot tensor.
 
     Returns:
-        The index tensor.
+        The indices of the maximum value in the log one-hot tensor, i.e. the "hot" encoding.
     """
     return log_one_hot_tensor.argmax(1)
 

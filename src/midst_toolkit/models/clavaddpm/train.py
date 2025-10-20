@@ -351,6 +351,10 @@ def train_model(
     else:
         column_orders = column_orders + [data_frame_info["y_col"]]
 
+    inverse_transform_function = None
+    if dataset.numerical_transform is not None:
+        inverse_transform_function = dataset.numerical_transform.inverse_transform
+
     return {
         "diffusion": diffusion,
         "label_encoders": label_encoders,
@@ -360,9 +364,7 @@ def train_model(
         "K": category_sizes,
         "empirical_class_dist": empirical_class_dist,
         "is_regression": dataset.is_regression,
-        "inverse_transform": dataset.numerical_transform.inverse_transform
-        if dataset.numerical_transform is not None
-        else None,
+        "inverse_transform": inverse_transform_function,
     }
 
 
