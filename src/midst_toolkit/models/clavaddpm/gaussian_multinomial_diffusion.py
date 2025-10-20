@@ -8,15 +8,16 @@ https://github.com/ehoogeboom/multinomial_diffusion
 import math
 from collections.abc import Callable
 from enum import Enum
-from typing import Any, cast
+from logging import DEBUG, INFO, WARNING
+from typing import Any, Protocol
 
 import numpy as np
 import torch
-import torch.nn.functional as F
-
-# ruff: noqa: N812
 from torch import Tensor
+from torch.nn import functional
 
+from midst_toolkit.common.logger import log
+from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.diffusion_utils import (
     FoundNaNsError,
     discretized_gaussian_log_likelihood,
@@ -66,6 +67,31 @@ class Parametrization(Enum):
     DIRECT = "direct"
 
 
+class SampleMethod(Enum):
+    """Possible types of sample method."""
+
+    UNIFORM = "uniform"
+    IMPORTANCE = "importance"
+
+
+class ConditioningFunction(Protocol):
+    """The definition of a function used to condition the model output."""
+
+    def __call__(self, features: Tensor, timestep: Tensor, **kwargs: Any) -> Tensor:
+        """
+        The function call definition.
+
+        Args:
+            features: The input features.
+            timestep: The timestep.
+            **kwargs: Extra keyword arguments passed to the model.
+
+        Returns:
+            The tensor result of the conditioning function.
+        """
+        ...
+
+
 def get_named_beta_schedule(scheduler_type: SchedulerType, num_diffusion_timesteps: int) -> np.ndarray:
     """
     Get a pre-defined beta schedule for the given name.
@@ -88,11 +114,13 @@ def get_named_beta_schedule(scheduler_type: SchedulerType, num_diffusion_timeste
         beta_start = scale * 0.0001
         beta_end = scale * 0.02
         return np.linspace(beta_start, beta_end, num_diffusion_timesteps, dtype=np.float64)
+
     if scheduler_type == SchedulerType.COSINE:
         return betas_for_alpha_bar(
             num_diffusion_timesteps,
             lambda t: math.cos((t + 0.008) / 1.008 * math.pi / 2) ** 2,
         )
+
     raise ValueError(f"Unsupported scheduler: {scheduler_type.value}")
 
 
@@ -100,24 +128,32 @@ def betas_for_alpha_bar(num_diffusion_timesteps: int, alpha_bar: Callable, max_b
     """
     Create a beta schedule that discretizes the given alpha_t_bar function,
     which defines the cumulative product of (1-beta) over time from t = [0,1].
-    :param num_diffusion_timesteps: the number of betas to produce.
-    :param alpha_bar: a lambda that takes an argument t from 0 to 1 and
-                      produces the cumulative product of (1-beta) up to that
-                      part of the diffusion process.
-    :param max_beta: the maximum beta to use; use values lower than 1 to
-                     prevent singularities.
+
+    Args:
+        num_diffusion_timesteps: The number of timesteps to produce the betas.
+        alpha_bar: A lambda that takes an argument t from 0 to 1 and
+                  produces the cumulative product of (1-beta) up to that
+                  part of the diffusion process.
+        max_beta: The maximum beta to use; use values lower than 1 to
+                  prevent singularities.
+
+    Returns:
+        The beta schedule.
     """
+    if max_beta >= 1:
+        log(WARNING, f"max_beta is set to {max_beta}. Use values lower than 1 to prevent singularities.")
+
     betas = []
     for i in range(num_diffusion_timesteps):
         t1 = i / num_diffusion_timesteps
         t2 = (i + 1) / num_diffusion_timesteps
         betas.append(min(1 - alpha_bar(t2) / alpha_bar(t1), max_beta))
+
     return np.array(betas)
 
 
 class GaussianMultinomialDiffusion(torch.nn.Module):
     def __init__(
-        # ruff: noqa: PLR0915
         self,
         num_classes: np.ndarray,
         num_numerical_features: int,
@@ -128,13 +164,23 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         gaussian_parametrization: GaussianParametrization = GaussianParametrization.EPS,
         parametrization: Parametrization = Parametrization.X0,
         scheduler_type: SchedulerType = SchedulerType.COSINE,
-        device: torch.device | None = None,
+        device: torch.device = DEVICE,
     ):
-        # ruff: noqa: D107
-        if device is None:
-            device = torch.device("cpu")
+        """
+        Initialize a GaussianMultinomialDiffusion instance.
 
-        super(GaussianMultinomialDiffusion, self).__init__()
+        Args:
+            num_classes: The number of classes.
+            num_numerical_features: The number of numerical features.
+            denoise_fn: The denoising function.
+            num_timesteps: The number of timesteps. Default is 1000.
+            gaussian_loss_type: The type of Gaussian loss. Default is GaussianLossType.MSE.
+            gaussian_parametrization: The type of Gaussian parametrization. Default is GaussianParametrization.EPS.
+            parametrization: The type of parametrization. Default is Parametrization.X0.
+            scheduler_type: The type of scheduler. Default is SchedulerType.COSINE.
+            device: The device to use. Default is midst_toolkit.common.variables.DEVICE.
+        """
+        super().__init__()
 
         self.num_numerical_features = num_numerical_features
         self.num_classes = num_classes  # it as a vector [K1, K2, ..., Km]
@@ -167,143 +213,212 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         self.log_1_min_cumprod_alpha: Tensor
         self.sqrt_recipm1_alphas_cumprod: Tensor
         self.sqrt_recip_alphas_cumprod: Tensor
-        self.Lt_history: Tensor
-        self.Lt_count: Tensor
+        self.lt_history: Tensor
+        self.lt_count: Tensor
 
-        a = 1.0 - get_named_beta_schedule(scheduler_type, num_timesteps)
-        alphas = torch.tensor(a.astype("float64"))
-        betas = 1.0 - alphas
-
-        log_alpha: Tensor = np.log(alphas)  # type: ignore[assignment]
-        log_cumprod_alpha: Tensor = np.cumsum(log_alpha)  # type: ignore[assignment]
-
-        log_1_min_alpha: Tensor = log_1_min_a(log_alpha)
-        log_1_min_cumprod_alpha: Tensor = log_1_min_a(log_cumprod_alpha)
-
-        alphas_cumprod: Tensor = np.cumprod(alphas, axis=0)  # type: ignore[assignment]
-        alphas_cumprod_prev = torch.tensor(np.append(1.0, alphas_cumprod[:-1]))
-        alphas_cumprod_next = torch.tensor(np.append(alphas_cumprod[1:], 0.0))
-        sqrt_alphas_cumprod: Tensor = np.sqrt(alphas_cumprod)  # type: ignore[assignment]
-        sqrt_one_minus_alphas_cumprod = np.sqrt(1.0 - alphas_cumprod)
-        sqrt_recip_alphas_cumprod: Tensor = np.sqrt(1.0 / alphas_cumprod)
-        sqrt_recipm1_alphas_cumprod: Tensor = np.sqrt(1.0 / alphas_cumprod - 1)
+        buffers = self._calculate_buffer_values()
 
         # Gaussian diffusion
+        betas = 1.0 - buffers["alphas"]
+        self.posterior_variance = betas * (1.0 - buffers["alphas_cumprod_prev"]) / (1.0 - buffers["alphas_cumprod"])
+        posterior_log_variance_clipped = np.log(np.append(self.posterior_variance[1], self.posterior_variance[1:]))
+        self.posterior_log_variance_clipped = torch.from_numpy(posterior_log_variance_clipped).float().to(self.device)
+        posterior_mean_coef1 = betas * torch.sqrt(buffers["alphas_cumprod_prev"]) / (1.0 - buffers["alphas_cumprod"])
+        self.posterior_mean_coef1 = posterior_mean_coef1.float().to(self.device)
+        coef2_denominator = (1.0 - buffers["alphas_cumprod_prev"]) * torch.sqrt(buffers["alphas"])
+        coef2_numerator = 1.0 - buffers["alphas_cumprod"]
+        self.posterior_mean_coef2 = (coef2_denominator / coef2_numerator).float().to(self.device)
 
-        self.posterior_variance = betas * (1.0 - alphas_cumprod_prev) / (1.0 - alphas_cumprod)
-        self.posterior_log_variance_clipped = (
-            torch.from_numpy(np.log(np.append(self.posterior_variance[1], self.posterior_variance[1:])))
-            .float()
-            .to(device)
-        )
-        self.posterior_mean_coef1 = (betas * np.sqrt(alphas_cumprod_prev) / (1.0 - alphas_cumprod)).float().to(device)
-        self.posterior_mean_coef2 = (
-            ((1.0 - alphas_cumprod_prev) * np.sqrt(alphas.numpy()) / (1.0 - alphas_cumprod)).float().to(device)
-        )
-
-        assert log_add_exp(log_alpha, log_1_min_alpha).abs().sum().item() < 1.0e-5
-        assert log_add_exp(log_cumprod_alpha, log_1_min_cumprod_alpha).abs().sum().item() < 1e-5
-        diff: Tensor = cast(Tensor, np.cumsum(log_alpha) - log_cumprod_alpha)
+        assert log_add_exp(buffers["log_alpha"], buffers["log_1_min_alpha"]).abs().sum().item() < 1.0e-5
+        assert log_add_exp(buffers["log_cumprod_alpha"], buffers["log_1_min_cumprod_alpha"]).abs().sum().item() < 1e-5
+        diff = torch.cumsum(buffers["log_alpha"], dim=0) - buffers["log_cumprod_alpha"]
         assert diff.abs().sum().item() < 1.0e-5
 
         # Convert to float32 and register buffers.
-        self.register_buffer("alphas", alphas.float().to(device))
-        self.register_buffer("log_alpha", log_alpha.float().to(device))
-        self.register_buffer("log_1_min_alpha", log_1_min_alpha.float().to(device))
-        self.register_buffer("log_1_min_cumprod_alpha", log_1_min_cumprod_alpha.float().to(device))
-        self.register_buffer("log_cumprod_alpha", log_cumprod_alpha.float().to(device))
-        self.register_buffer("alphas_cumprod", alphas_cumprod.float().to(device))
-        self.register_buffer("alphas_cumprod_prev", alphas_cumprod_prev.float().to(device))
-        self.register_buffer("alphas_cumprod_next", alphas_cumprod_next.float().to(device))
-        self.register_buffer("sqrt_alphas_cumprod", sqrt_alphas_cumprod.float().to(device))
-        self.register_buffer(
-            "sqrt_one_minus_alphas_cumprod",
-            sqrt_one_minus_alphas_cumprod.float().to(device),
-        )
-        self.register_buffer("sqrt_recip_alphas_cumprod", sqrt_recip_alphas_cumprod.float().to(device))
-        self.register_buffer(
-            "sqrt_recipm1_alphas_cumprod",
-            sqrt_recipm1_alphas_cumprod.float().to(device),
-        )
+        for key, value in buffers.items():
+            self.register_buffer(key, value.float().to(self.device))
 
-        self.register_buffer("Lt_history", torch.zeros(num_timesteps))
-        self.register_buffer("Lt_count", torch.zeros(num_timesteps))
+    def _calculate_buffer_values(self) -> dict[str, Tensor]:
+        """
+        Calculate the values to register in this module's buffer.
+
+        Returns:
+            A dictionary of tensors with the values to register in the buffer. Will contain the keys:
+            log_alpha, log_cumprod_alpha, log_1_min_alpha, log_1_min_cumprod_alpha, alphas_cumprod,
+            alphas_cumprod_prev, alphas_cumprod_next, sqrt_alphas_cumprod, sqrt_one_minus_alphas_cumprod,
+            sqrt_recip_alphas_cumprod, sqrt_recipm1_alphas_cumprod, lt_history, lt_count
+        """
+        a = 1.0 - get_named_beta_schedule(self.scheduler_type, self.num_timesteps)
+        alphas = torch.tensor(a.astype("float64"))
+
+        log_alpha = torch.log(alphas)
+        log_cumprod_alpha = torch.cumsum(log_alpha, dim=0)
+
+        log_1_min_alpha = log_1_min_a(log_alpha)
+        log_1_min_cumprod_alpha = log_1_min_a(log_cumprod_alpha)
+
+        alphas_cumprod = torch.cumprod(alphas, dim=0)
+        alphas_cumprod_prev = torch.tensor(np.append(1.0, alphas_cumprod[:-1]))
+        alphas_cumprod_next = torch.tensor(np.append(alphas_cumprod[1:], 0.0))
+        sqrt_alphas_cumprod = torch.sqrt(alphas_cumprod)
+        sqrt_one_minus_alphas_cumprod = torch.sqrt(1.0 - alphas_cumprod)
+        sqrt_recip_alphas_cumprod = torch.sqrt(1.0 / alphas_cumprod)
+        sqrt_recipm1_alphas_cumprod = torch.sqrt(1.0 / alphas_cumprod - 1)
+
+        return {
+            "alphas": alphas,
+            "log_alpha": log_alpha,
+            "log_1_min_alpha": log_1_min_alpha,
+            "log_1_min_cumprod_alpha": log_1_min_cumprod_alpha,
+            "log_cumprod_alpha": log_cumprod_alpha,
+            "alphas_cumprod": alphas_cumprod,
+            "alphas_cumprod_prev": alphas_cumprod_prev,
+            "alphas_cumprod_next": alphas_cumprod_next,
+            "sqrt_alphas_cumprod": sqrt_alphas_cumprod,
+            "sqrt_one_minus_alphas_cumprod": sqrt_one_minus_alphas_cumprod,
+            "sqrt_recip_alphas_cumprod": sqrt_recip_alphas_cumprod,
+            "sqrt_recipm1_alphas_cumprod": sqrt_recipm1_alphas_cumprod,
+            "lt_history": torch.zeros(self.num_timesteps),
+            "lt_count": torch.zeros(self.num_timesteps),
+        }
 
     # Gaussian part
-    def gaussian_q_mean_variance(self, x_start: Tensor, t: Tensor) -> tuple[Tensor, Tensor, Tensor]:
-        mean = extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
-        variance = extract(1.0 - self.alphas_cumprod, t, x_start.shape)
-        log_variance = extract(self.log_1_min_cumprod_alpha, t, x_start.shape)
+    def gaussian_q_mean_variance(self, x_start: Tensor, timestep: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+        """
+        Calculate the mean and variance of the Gaussian posterior distribution.
+
+        Args:
+            x_start: The initial, noiseless input.
+            timestep: The timestep.
+
+        Returns:
+            The mean and variance of the Gaussian posterior distribution.
+        """
+        mean = extract(self.sqrt_alphas_cumprod, timestep, x_start.shape) * x_start
+        variance = extract(1.0 - self.alphas_cumprod, timestep, x_start.shape)
+        log_variance = extract(self.log_1_min_cumprod_alpha, timestep, x_start.shape)
         return mean, variance, log_variance
 
-    def gaussian_q_sample(self, x_start: Tensor, t: Tensor, noise: Tensor | None = None) -> Tensor:
+    def gaussian_q_sample(self, x_start: Tensor, timestep: Tensor, noise: Tensor | None = None) -> Tensor:
+        """
+        Sample from the Gaussian posterior distribution.
+
+        Args:
+            x_start: The initial, noiseless input.
+            timestep: The timestep.
+            noise: The noise. Optional, default is None.
+
+        Returns:
+            The sample from the Gaussian posterior distribution.
+        """
         if noise is None:
             noise = torch.randn_like(x_start)
+
         assert noise.shape == x_start.shape
         return (
-            extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
-            + extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
+            extract(self.sqrt_alphas_cumprod, timestep, x_start.shape) * x_start
+            + extract(self.sqrt_one_minus_alphas_cumprod, timestep, x_start.shape) * noise
         )
 
     def gaussian_q_posterior_mean_variance(
         self,
-        x_start: Tensor,
-        x_t: Tensor,
-        t: Tensor,
+        features_start: Tensor,
+        features_timestep: Tensor,
+        timestep: Tensor,
     ) -> tuple[Tensor, Tensor, Tensor]:
-        assert x_start.shape == x_t.shape
+        """
+        Calculate the mean and variance of the Gaussian posterior distribution.
+
+        Args:
+            features_start: The initial, noiseless input.
+            features_timestep: The features used to compute the Gaussian parameters at the given timestep.
+            timestep: The timestep.
+
+        Returns:
+            A tuple with 3 tensors: the mean, the variance, and the log variance of
+            the Gaussian posterior distribution.
+        """
+        assert features_start.shape == features_timestep.shape
         posterior_mean = (
-            extract(self.posterior_mean_coef1, t, x_t.shape) * x_start
-            + extract(self.posterior_mean_coef2, t, x_t.shape) * x_t
+            extract(self.posterior_mean_coef1, timestep, features_timestep.shape) * features_start
+            + extract(self.posterior_mean_coef2, timestep, features_timestep.shape) * features_timestep
         )
-        posterior_variance = extract(self.posterior_variance, t, x_t.shape)
-        posterior_log_variance_clipped = extract(self.posterior_log_variance_clipped, t, x_t.shape)
+        posterior_variance = extract(self.posterior_variance, timestep, features_timestep.shape)
+        posterior_log_variance_clipped = extract(
+            self.posterior_log_variance_clipped, timestep, features_timestep.shape
+        )
         assert (
             posterior_mean.shape[0]
             == posterior_variance.shape[0]
             == posterior_log_variance_clipped.shape[0]
-            == x_start.shape[0]
+            == features_start.shape[0]
         )
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
     def gaussian_p_mean_variance(
         self,
         model_output: Tensor,
-        x: Tensor,
-        t: Tensor,
-        clip_denoised: bool = False,
-        denoised_fn: Callable | None = None,
+        features_timestep: Tensor,
+        timestep: Tensor,
         model_kwargs: dict[str, Any] | None = None,
     ) -> dict[str, Tensor]:
+        """
+        Calculate the mean and variance of the Gaussian prior distribution.
+
+        Args:
+            model_output: The model output.
+            features_timestep: The features of the Gaussian distribution at the given timestep.
+            timestep: The timestep.
+            model_kwargs: The model kwargs. Optional, default is None.
+
+        Returns:
+            A dictionary with the followingf keys:
+             - "mean": the mean of the Gaussian prior distribution.
+             - "variance": the variance of the Gaussian prior distribution.
+             - "log_variance": the log variance of the Gaussian prior distribution.
+             - "pred_xstart": the predicted xstart of the Gaussian prior distribution.
+        """
         if model_kwargs is None:
             model_kwargs = {}
 
-        B, C = x.shape[:2]
-        assert t.shape == (B,)
+        batch_size, _ = features_timestep.shape[:2]
+        assert timestep.shape == (batch_size,)
 
         model_variance = torch.cat(
             [
-                self.posterior_variance[1].unsqueeze(0).to(x.device),
+                self.posterior_variance[1].unsqueeze(0).to(self.device),
                 (1.0 - self.alphas)[1:],
             ],
             dim=0,
         )
         model_log_variance = torch.log(model_variance)
 
-        model_variance = extract(model_variance, t, x.shape)
-        model_log_variance = extract(model_log_variance, t, x.shape)
+        model_variance = extract(model_variance, timestep, features_timestep.shape)
+        model_log_variance = extract(model_log_variance, timestep, features_timestep.shape)
 
         if self.gaussian_parametrization == GaussianParametrization.EPS:
-            pred_xstart = self._predict_xstart_from_eps(x_t=x, t=t, eps=model_output)
+            pred_xstart = self._predict_xstart_from_eps(
+                features_timestep=features_timestep, timestep=timestep, eps=model_output
+            )
+
         elif self.gaussian_parametrization == GaussianParametrization.X0:
             pred_xstart = model_output
+
         else:
             raise ValueError(f"Unsupported Gaussian parametrization: {self.gaussian_parametrization}")
 
-        model_mean, _, _ = self.gaussian_q_posterior_mean_variance(x_start=pred_xstart, x_t=x, t=t)
+        model_mean, _, _ = self.gaussian_q_posterior_mean_variance(
+            features_start=pred_xstart,
+            features_timestep=features_timestep,
+            timestep=timestep,
+        )
 
-        assert model_mean.shape == model_log_variance.shape == pred_xstart.shape == x.shape, (
-            f"{model_mean.shape}, {model_log_variance.shape}, {pred_xstart.shape}, {x.shape}"
+        assert model_mean.shape == model_log_variance.shape == pred_xstart.shape == features_timestep.shape, (
+            "Expected shapes to be equal, but got: ",
+            f"model_mean.shape: {model_mean.shape}, ",
+            f"model_log_variance.shape: {model_log_variance.shape}, ",
+            f"pred_xstart.shape: {pred_xstart.shape}, ",
+            f"features.shape: {features_timestep.shape}",
         )
 
         return {
@@ -316,39 +431,55 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
     def _vb_terms_bpd(
         self,
         model_output: Tensor,
-        x_start: Tensor,
-        x_t: Tensor,
-        t: Tensor,
-        clip_denoised: bool = False,
+        features_start: Tensor,
+        features_timestep: Tensor,
+        timestep: Tensor,
         model_kwargs: dict[str, Any] | None = None,
     ) -> dict[str, Tensor]:
+        """
+        Calculate the VB terms for the Gaussian part.
+
+        Args:
+            model_output: The model output.
+            features_start: The initial, noiseless input.
+            features_timestep: The features used to compute the Gaussian parameters at the given timestep.
+            timestep: The timestep.
+            model_kwargs: The model kwargs. Optional, default is None.
+
+        Returns:
+            A dictionary with the following keys:
+            - "output": The output of the VB terms.
+            - "pred_xstart": The predicted xstart of the Gaussian prior distribution.
+            - "out_mean": The mean of the Gaussian prior distribution.
+            - "true_mean": The true mean of the Gaussian prior distribution.
+        """
         if model_kwargs is None:
             model_kwargs = {}
 
-        (
-            true_mean,
-            _,
-            true_log_variance_clipped,
-        ) = self.gaussian_q_posterior_mean_variance(x_start=x_start, x_t=x_t, t=t)
-        out = self.gaussian_p_mean_variance(
-            model_output, x_t, t, clip_denoised=clip_denoised, model_kwargs=model_kwargs
+        true_mean, _, true_log_variance_clipped = self.gaussian_q_posterior_mean_variance(
+            features_start=features_start,
+            features_timestep=features_timestep,
+            timestep=timestep,
         )
-        kl = normal_kl(true_mean, true_log_variance_clipped, out["mean"], out["log_variance"])
+        p_mean_variance = self.gaussian_p_mean_variance(
+            model_output, features_timestep, timestep, model_kwargs=model_kwargs
+        )
+        kl = normal_kl(true_mean, true_log_variance_clipped, p_mean_variance["mean"], p_mean_variance["log_variance"])
         kl = mean_flat(kl) / np.log(2.0)
 
         decoder_nll = -discretized_gaussian_log_likelihood(
-            x_start, means=out["mean"], log_scales=0.5 * out["log_variance"]
+            features_start, means=p_mean_variance["mean"], log_scales=0.5 * p_mean_variance["log_variance"]
         )
-        assert decoder_nll.shape == x_start.shape
+        assert decoder_nll.shape == features_start.shape
         decoder_nll = mean_flat(decoder_nll) / np.log(2.0)
 
         # At the first timestep return the decoder NLL,
         # otherwise return KL(q(x_{t-1}|x_t,x_0) || p(x_{t-1}|x_t))
-        output = torch.where((t == 0), decoder_nll, kl)
+        output = torch.where((timestep == 0), decoder_nll, kl)
         return {
             "output": output,
-            "pred_xstart": out["pred_xstart"],
-            "out_mean": out["mean"],
+            "pred_xstart": p_mean_variance["pred_xstart"],
+            "out_mean": p_mean_variance["mean"],
             "true_mean": true_mean,
         }
 
@@ -359,8 +490,11 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
 
         This term can't be optimized, as it only depends on the encoder.
 
-        :param x_start: the [N x C x ...] tensor of inputs.
-        :return: a batch of [N] KL values (in bits), one per batch element.
+        Args:
+            x_start: the [N x C x ...] tensor of inputs.
+
+        Returns:
+            A batch of [N] KL values (in bits), one per batch element.
         """
         batch_size = x_start.shape[0]
         t = torch.tensor([self.num_timesteps - 1] * batch_size, device=x_start.device)
@@ -371,120 +505,193 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
     def _gaussian_loss(
         self,
         model_out: Tensor,
-        x_start: Tensor,
-        x_t: Tensor,
-        t: Tensor,
+        features_start: Tensor,
+        features_timestep: Tensor,
+        timestep: Tensor,
         noise: Tensor,
         model_kwargs: dict[str, Any] | None = None,
     ) -> Tensor:
+        """
+        Calculate the Gaussian loss.
+
+        Args:
+            model_out: The model output.
+            features_start: The initial, noiseless input.
+            features_timestep: The features used to compute the Gaussian parameters at the given timestep.
+            timestep: The timestep.
+            noise: The noise.
+            model_kwargs: The model kwargs. Optional, default is None.
+
+        Returns:
+            The Gaussian loss.
+        """
         if model_kwargs is None:
             model_kwargs = {}
 
-        terms = {}
         if self.gaussian_loss_type == GaussianLossType.MSE:
-            terms["loss"] = mean_flat((noise - model_out) ** 2)
-        elif self.gaussian_loss_type == GaussianLossType.KL:
-            terms["loss"] = self._vb_terms_bpd(
+            return mean_flat((noise - model_out) ** 2)
+
+        if self.gaussian_loss_type == GaussianLossType.KL:
+            return self._vb_terms_bpd(
                 model_output=model_out,
-                x_start=x_start,
-                x_t=x_t,
-                t=t,
-                clip_denoised=False,
+                features_start=features_start,
+                features_timestep=features_timestep,
+                timestep=timestep,
                 model_kwargs=model_kwargs,
             )["output"]
 
-        return terms["loss"]
+        raise ValueError(f"Unsupported Gaussian loss type: {self.gaussian_loss_type}")
 
-    def _predict_xstart_from_eps(self, x_t: Tensor, t: Tensor, eps: Tensor) -> Tensor:
-        assert x_t.shape == eps.shape
+    def _predict_xstart_from_eps(self, features_timestep: Tensor, timestep: Tensor, eps: Tensor) -> Tensor:
+        """
+        Predict the xstart from the eps.
+
+        Args:
+            features_timestep: The features at the given timestep.
+            timestep: The timestep.
+            eps: The eps.
+
+        Returns:
+            The predicted xstart.
+        """
+        assert features_timestep.shape == eps.shape
         return (
-            extract(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t
-            - extract(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * eps
+            extract(self.sqrt_recip_alphas_cumprod, timestep, features_timestep.shape) * features_timestep
+            - extract(self.sqrt_recipm1_alphas_cumprod, timestep, features_timestep.shape) * eps
         )
 
-    def _predict_eps_from_xstart(self, x_t: Tensor, t: Tensor, pred_xstart: Tensor) -> Tensor:
-        return (extract(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t - pred_xstart) / extract(
-            self.sqrt_recipm1_alphas_cumprod, t, x_t.shape
+    def _predict_eps_from_xstart(self, features: Tensor, timestep: Tensor, pred_xstart: Tensor) -> Tensor:
+        """
+        Predict the eps from the xstart.
+
+        Args:
+            features: The features used to compute the Gaussian parameters.
+            timestep: The timestep.
+            pred_xstart: The predicted xstart.
+
+        Returns:
+            The predicted eps.
+        """
+        return (extract(self.sqrt_recip_alphas_cumprod, timestep, features.shape) * features - pred_xstart) / extract(
+            self.sqrt_recipm1_alphas_cumprod, timestep, features.shape
         )
 
     def condition_mean(
         self,
-        cond_fn: Callable[[Tensor, Tensor, Any], Tensor],
+        conditioning_function: ConditioningFunction,
         p_mean_var: dict[str, Tensor],
-        x: Tensor,
-        t: Tensor,
+        features: Tensor,
+        timestep: Tensor,
         model_kwargs: dict[str, Any] | None = None,
     ) -> Tensor:
         """
-        Compute the mean for the previous step, given a function cond_fn that
-        computes the gradient of a conditional log probability with respect to
-        x. In particular, cond_fn computes grad(log(p(y|x))), and we want to
-        condition on y.
+        Compute the mean for the previous step, given a function ``conditioning_function``
+        that computes the gradient of a conditional log probability with respect to
+        ``features``. In particular, ``conditioning_function`` computes grad(log(p(y|x))),
+        and we want to condition on y.
 
         This uses the conditioning strategy from Sohl-Dickstein et al. (2015).
+
+        Args:
+            conditioning_function: The conditioning function.
+            p_mean_var: The mean and variance of the Gaussian prior distribution.
+            features: The features used to compute the Gaussian parameters.
+            timestep: The timestep.
+            model_kwargs: The model kwargs. Optional, default is None.
+
+        Returns:
+            The conditioned mean for the previous step.
         """
         if model_kwargs is None:
             model_kwargs = {}
 
-        gradient = cond_fn(x, t, **model_kwargs)  # type: ignore[call-arg]
+        gradient = conditioning_function(features, timestep, **model_kwargs)
         return p_mean_var["mean"].float() + p_mean_var["variance"] * gradient.float()
 
     def condition_score(
         self,
-        cond_fn: Callable[[Tensor, Tensor, Any], Tensor],
+        conditioning_function: ConditioningFunction,
         p_mean_var: dict[str, Tensor],
-        x: Tensor,
-        t: Tensor,
+        features: Tensor,
+        timestep: Tensor,
         model_kwargs: dict[str, Any] | None = None,
     ) -> dict[str, Tensor]:
         """
         Compute what the p_mean_variance output would have been, should the
-        model's score function be conditioned by cond_fn.
+        model's score function be conditioned by ``conditioning_function``.
 
-        See condition_mean() for details on cond_fn.
+        See condition_mean() for details on ``conditioning_function``.
 
         Unlike condition_mean(), this instead uses the conditioning strategy
         from Song et al (2020).
+
+        Args:
+            conditioning_function: The conditioning function.
+            p_mean_var: The mean and variance of the Gaussian prior distribution.
+            features: The features used to compute the Gaussian parameters.
+            timestep: The timestep.
+            model_kwargs: The model kwargs. Optional, default is None.
+
+        Returns:
+            A copy of the ``p_mean_var`` dictionary with the following additional keys:
+                - "pred_xstart": the predicted xstart.
+                - "mean": the mean of the Gaussian prior distribution.
         """
         if model_kwargs is None:
             model_kwargs = {}
 
-        alpha_bar = extract(self.alphas_cumprod, t, x.shape)
+        alpha_bar = extract(self.alphas_cumprod, timestep, features.shape)
 
-        eps = self._predict_eps_from_xstart(x, t, p_mean_var["pred_xstart"])
-        eps = eps - (1 - alpha_bar).sqrt() * cond_fn(x, t, **model_kwargs)  # type: ignore[call-arg]
+        eps = self._predict_eps_from_xstart(features, timestep, p_mean_var["pred_xstart"])
+        eps = eps - (1 - alpha_bar).sqrt() * conditioning_function(features, timestep, **model_kwargs)
 
         out = p_mean_var.copy()
-        out["pred_xstart"] = self._predict_xstart_from_eps(x, t, eps)
-        out["mean"], _, _ = self.gaussian_q_posterior_mean_variance(x_start=out["pred_xstart"], x_t=x, t=t)
+        out["pred_xstart"] = self._predict_xstart_from_eps(features, timestep, eps)
+        out["mean"], _, _ = self.gaussian_q_posterior_mean_variance(
+            features_start=out["pred_xstart"],
+            features_timestep=features,
+            timestep=timestep,
+        )
         return out
 
     def gaussian_p_sample(
         self,
         model_out: Tensor,
-        x: Tensor,
-        t: Tensor,
-        clip_denoised: bool = False,
-        denoised_fn: Callable | None = None,
+        features: Tensor,
+        timestep: Tensor,
         model_kwargs: dict[str, Any] | None = None,
-        cond_fn: Callable | None = None,
+        cond_fn: ConditioningFunction | None = None,
     ) -> dict[str, Tensor]:
+        """
+        Sample from the Gaussian posterior distribution.
+
+        Args:
+            model_out: The model output.
+            features: The features used to compute the Gaussian parameters.
+            timestep: The timestep.
+            model_kwargs: The model kwargs. Optional, default is None.
+            cond_fn: The conditioning function. Optional, default is None.
+
+        Returns:
+            A dictionary with teo tensors:
+             - "sample": the sample from the Gaussian posterior distribution.
+             - "pred_xstart": the predicted xstart.
+        """
         if model_kwargs is None:
             model_kwargs = {}
 
         out = self.gaussian_p_mean_variance(
             model_out,
-            x,
-            t,
-            clip_denoised=clip_denoised,
-            denoised_fn=denoised_fn,
+            features,
+            timestep,
             model_kwargs=model_kwargs,
         )
-        noise = torch.randn_like(x)
-        nonzero_mask = (t != 0).float().view(-1, *([1] * (len(x.shape) - 1)))  # no noise when t == 0
+        noise = torch.randn_like(features)
+        # no noise when t == 0
+        nonzero_mask = (timestep != 0).float().view(-1, *([1] * (len(features.shape) - 1)))
 
         if cond_fn is not None:
-            out["mean"] = self.condition_mean(cond_fn, out, x, t, model_kwargs=model_kwargs)
+            out["mean"] = self.condition_mean(cond_fn, out, features, timestep, model_kwargs=model_kwargs)
 
         sample = out["mean"] + nonzero_mask * torch.exp(0.5 * out["log_variance"]) * noise
         return {"sample": sample, "pred_xstart": out["pred_xstart"]}
@@ -492,11 +699,31 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
     # Multinomial part
 
     def multinomial_kl(self, log_prob1: Tensor, log_prob2: Tensor) -> Tensor:
+        """
+        Calculate the KL divergence between two log probabilities.
+
+        Args:
+            log_prob1: The first log probability.
+            log_prob2: The second log probability.
+
+        Returns:
+            The KL divergence.
+        """
         return (log_prob1.exp() * (log_prob1 - log_prob2)).sum(dim=1)
 
-    def q_pred_one_timestep(self, log_x_t: Tensor, t: Tensor) -> Tensor:
-        log_alpha_t = extract(self.log_alpha, t, log_x_t.shape)
-        log_1_min_alpha_t = extract(self.log_1_min_alpha, t, log_x_t.shape)
+    def q_pred_one_timestep(self, log_x_t: Tensor, timestep: Tensor) -> Tensor:
+        """
+        Calculate the predicted log probability for one timestep.
+
+        Args:
+            log_x_t: The log samples of the features at the given timestep.
+            timestep: The timestep.
+
+        Returns:
+            The predicted log probability.
+        """
+        log_alpha_t = extract(self.log_alpha, timestep, log_x_t.shape)
+        log_1_min_alpha_t = extract(self.log_1_min_alpha, timestep, log_x_t.shape)
 
         # alpha_t * E[xt] + (1 - alpha_t) 1 / K
         return log_add_exp(
@@ -504,59 +731,124 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             log_1_min_alpha_t - torch.log(self.num_classes_expanded),
         )
 
-    def q_pred(self, log_x_start: Tensor, t: Tensor) -> Tensor:
-        log_cumprod_alpha_t = extract(self.log_cumprod_alpha, t, log_x_start.shape)
-        log_1_min_cumprod_alpha = extract(self.log_1_min_cumprod_alpha, t, log_x_start.shape)
+    def q_pred(self, log_x_start: Tensor, timestep: Tensor) -> Tensor:
+        """
+        Compute the predicted log-probability at ``timestep`` given ``log_x_start``.
+
+        Args:
+            log_x_start: The log sample of the start.
+            timestep: The timestep.
+
+        Returns:
+            The predicted log probability.
+        """
+        log_cumprod_alpha_t = extract(self.log_cumprod_alpha, timestep, log_x_start.shape)
+        log_1_min_cumprod_alpha = extract(self.log_1_min_cumprod_alpha, timestep, log_x_start.shape)
 
         return log_add_exp(
             log_x_start + log_cumprod_alpha_t,
             log_1_min_cumprod_alpha - torch.log(self.num_classes_expanded),
         )
 
-    def predict_start(self, model_out: Tensor, log_x_t: Tensor, t: Tensor, out_dict: dict[str, Tensor]) -> Tensor:
+    def predict_start(self, model_out: Tensor, log_x_t: Tensor) -> Tensor:
+        """
+        Predict the start from the model output.
+
+        Args:
+            model_out: The model output.
+            log_x_t: The log sample of the features at the given timestep.
+
+        Returns:
+            The predicted start.
+        """
         assert model_out.size(0) == log_x_t.size(0)
         assert self.num_classes is not None
         assert model_out.size(1) == self.num_classes.sum(), f"{model_out.size()}"
 
         log_pred = torch.empty_like(model_out)
         for ix in self.slices_for_classes:
-            log_pred[:, ix] = F.log_softmax(model_out[:, ix], dim=1)
+            log_pred[:, ix] = functional.log_softmax(model_out[:, ix], dim=1)
         return log_pred
 
-    def q_posterior(self, log_x_start: Tensor, log_x_t: Tensor, t: Tensor) -> Tensor:
-        t_minus_1 = t - 1
+    def q_posterior(self, log_x_start: Tensor, log_x_t: Tensor, timestep: Tensor) -> Tensor:
+        """
+        Calculate the posterior probability for one timestep.
+
+        Args:
+            log_x_start: The log sample of the initial input.
+            log_x_t: The log sample of the features at the given timestep.
+            timestep: The timestep.
+
+        Returns:
+            The posterior probability.
+        """
+        t_minus_1 = timestep - 1
         # Remove negative values, will not be used anyway for final decoder
         t_minus_1 = torch.where(t_minus_1 < 0, torch.zeros_like(t_minus_1), t_minus_1)
-        log_EV_qxtmin_x0 = self.q_pred(log_x_start, t_minus_1)
+        log_ev_qxtmin_x0 = self.q_pred(log_x_start, t_minus_1)
 
         num_axes = (1,) * (len(log_x_start.size()) - 1)
-        t_broadcast = t.to(log_x_start.device).view(-1, *num_axes) * torch.ones_like(log_x_start)
-        log_EV_qxtmin_x0 = torch.where(t_broadcast == 0, log_x_start, log_EV_qxtmin_x0.to(torch.float32))
+        t_broadcast = timestep.to(log_x_start.device).view(-1, *num_axes) * torch.ones_like(log_x_start)
+        log_ev_qxtmin_x0 = torch.where(t_broadcast == 0, log_x_start, log_ev_qxtmin_x0.to(torch.float32))
 
         # unnormed_logprobs = log_EV_qxtmin_x0 +
         #                     log q_pred_one_timestep(x_t, t)
         # Note: _NOT_ x_tmin1, which is how the formula is typically used!!!
         # Not very easy to see why this is true. But it is :)
-        unnormed_logprobs = log_EV_qxtmin_x0 + self.q_pred_one_timestep(log_x_t, t)
+        unnormed_logprobs = log_ev_qxtmin_x0 + self.q_pred_one_timestep(log_x_t, timestep)
 
         return unnormed_logprobs - sliced_logsumexp(unnormed_logprobs, self.offsets)
 
-    def p_pred(self, model_out: Tensor, log_x: Tensor, t: Tensor, out_dict: dict[str, Tensor]) -> Tensor:
+    def p_pred(self, model_out: Tensor, log_x: Tensor, timestep: Tensor) -> Tensor:
+        """
+        Predict the start from the model output based on the parametrization set in ``self.parametrization``.
+
+        Args:
+            model_out: The model output.
+            log_x: The log sample of the features.
+            timestep: The timestep.
+
+        Returns:
+            The predicted start from the model output.
+        """
         if self.parametrization == Parametrization.X0:
-            log_x_recon = self.predict_start(model_out, log_x, t=t, out_dict=out_dict)
-            log_model_pred = self.q_posterior(log_x_start=log_x_recon, log_x_t=log_x, t=t)
+            log_x_recon = self.predict_start(model_out, log_x)
+            log_model_pred = self.q_posterior(log_x_start=log_x_recon, log_x_t=log_x, timestep=timestep)
+
         elif self.parametrization == Parametrization.DIRECT:
-            log_model_pred = self.predict_start(model_out, log_x, t=t, out_dict=out_dict)
+            log_model_pred = self.predict_start(model_out, log_x)
+
         else:
             raise ValueError(f"Unsupported parametrization: {self.parametrization}")
+
         return log_model_pred
 
     @torch.no_grad()
-    def p_sample(self, model_out: Tensor, log_x: Tensor, t: Tensor, out_dict: dict[str, Tensor]) -> Tensor:
-        model_log_prob = self.p_pred(model_out, log_x=log_x, t=t, out_dict=out_dict)
+    def p_sample(self, model_out: Tensor, log_x: Tensor, timestep: Tensor) -> Tensor:
+        """
+        Sample from the model output.
+
+        Args:
+            model_out: The model output.
+            log_x: The log sample of the features.
+            timestep: The timestep.
+
+        Returns:
+            The sample from the model output.
+        """
+        model_log_prob = self.p_pred(model_out, log_x=log_x, timestep=timestep)
         return self.log_sample_categorical(model_log_prob)
 
     def log_sample_categorical(self, logits: Tensor) -> Tensor:
+        """
+        Sample from the categorical logits.
+
+        Args:
+            logits: The logits.
+
+        Returns:
+            The sample from the categorical logits.
+        """
         full_sample = []
         for i in range(len(self.num_classes)):
             one_class_logits = logits[:, self.slices_for_classes[i]]
@@ -564,38 +856,67 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             gumbel_noise = -torch.log(-torch.log(uniform + 1e-30) + 1e-30)
             sample = (gumbel_noise + one_class_logits).argmax(dim=1)
             full_sample.append(sample.unsqueeze(1))
+
         full_sample_tensor = torch.cat(full_sample, dim=1)
         return index_to_log_onehot(full_sample_tensor, torch.from_numpy(self.num_classes))
 
-    def q_sample(self, log_x_start: Tensor, t: Tensor) -> Tensor:
-        log_EV_qxt_x0 = self.q_pred(log_x_start, t)
-        # ruff: noqa: N806
-        return self.log_sample_categorical(log_EV_qxt_x0)
+    def q_sample(self, log_x_start: Tensor, timestep: Tensor) -> Tensor:
+        """
+        Sample from the log of the initial input for one timestep.
+
+        Args:
+            log_x_start: The log of the initial input.
+            timestep: The timestep.
+
+        Returns:
+            The sample from the categorical logits.
+        """
+        log_ev_qxt_x0 = self.q_pred(log_x_start, timestep)
+        return self.log_sample_categorical(log_ev_qxt_x0)
 
     def kl_prior(self, log_x_start: Tensor) -> Tensor:
-        b = log_x_start.size(0)
+        """
+        Calculate the KL divergence between the prior and the posterior.
+
+        Args:
+            log_x_start: The log sample of the initial input.
+
+        Returns:
+            The KL divergence between the prior and the posterior.
+        """
+        batch_size = log_x_start.size(0)
         device = log_x_start.device
-        ones = torch.ones(b, device=device).long()
+        ones = torch.ones(batch_size, device=device).long()
 
-        log_qxT_prob = self.q_pred(log_x_start, t=(self.num_timesteps - 1) * ones)
-        # ruff: noqa: N806
-        log_half_prob = -torch.log(self.num_classes_expanded * torch.ones_like(log_qxT_prob))
+        log_qxt_prob = self.q_pred(log_x_start, timestep=(self.num_timesteps - 1) * ones)
+        log_half_prob = -torch.log(self.num_classes_expanded * torch.ones_like(log_qxt_prob))
 
-        kl_prior = self.multinomial_kl(log_qxT_prob, log_half_prob)
+        kl_prior = self.multinomial_kl(log_qxt_prob, log_half_prob)
         return sum_except_batch(kl_prior)
 
-    def compute_Lt(
-        # ruff: noqa: N802
+    def compute_lt(
         self,
         model_out: Tensor,
         log_x_start: Tensor,
         log_x_t: Tensor,
-        t: Tensor,
-        out_dict: dict[str, Tensor],
+        timestep: Tensor,
         detach_mean: bool = False,
     ) -> Tensor:
-        log_true_prob = self.q_posterior(log_x_start=log_x_start, log_x_t=log_x_t, t=t)
-        log_model_prob = self.p_pred(model_out, log_x=log_x_t, t=t, out_dict=out_dict)
+        """
+        Calculate the KL divergence between the true and the model probability.
+
+        Args:
+            model_out: The model output.
+            log_x_start: The log sample of the initial input.
+            log_x_t: The log samples of the features at the given timestep.
+            timestep: The timestep.
+            detach_mean: Whether to detach the mean.
+
+        Returns:
+            The KL divergence between the true and the model probability.
+        """
+        log_true_prob = self.q_posterior(log_x_start=log_x_start, log_x_t=log_x_t, timestep=timestep)
+        log_model_prob = self.p_pred(model_out, log_x=log_x_t, timestep=timestep)
 
         if detach_mean:
             log_model_prob = log_model_prob.detach()
@@ -606,296 +927,305 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         decoder_nll = -log_categorical(log_x_start, log_model_prob)
         decoder_nll = sum_except_batch(decoder_nll)
 
-        mask = (t == torch.zeros_like(t)).float()
+        mask = (timestep == torch.zeros_like(timestep)).float()
         return mask * decoder_nll + (1.0 - mask) * kl
 
-    def sample_time(self, b: int, device: torch.device, method: str = "uniform") -> tuple[Tensor, Tensor]:
-        if method == "importance":
-            if not (self.Lt_count > 10).all():
-                return self.sample_time(b, device, method="uniform")
+    def sample_time(
+        self,
+        batch_size: int,
+        device: torch.device,
+        method: SampleMethod = SampleMethod.UNIFORM,
+    ) -> tuple[Tensor, Tensor]:
+        """
+        Sample the timestep.
 
-            Lt_sqrt = torch.sqrt(self.Lt_history + 1e-10) + 0.0001
-            # ruff: noqa: N806
-            Lt_sqrt[0] = Lt_sqrt[1]  # Overwrite decoder term with L1.
-            pt_all = (Lt_sqrt / Lt_sqrt.sum()).to(device)
+        Args:
+            batch_size: The batch size.
+            device: The device.
+            method: The method to sample the timestep.
 
-            t = torch.multinomial(pt_all, num_samples=b, replacement=True).to(device)
+        Returns:
+            The timestep and the probability of the timestep.
+        """
+        if method == SampleMethod.IMPORTANCE:
+            if not (self.lt_count > 10).all():
+                return self.sample_time(batch_size, device, method=SampleMethod.UNIFORM)
 
-            pt = pt_all.gather(dim=0, index=t)
+            lt_sqrt = torch.sqrt(self.lt_history + 1e-10) + 0.0001
+            lt_sqrt[0] = lt_sqrt[1]  # Overwrite decoder term with L1.
+            pt_all = (lt_sqrt / lt_sqrt.sum()).to(device)
 
-            return t, pt
+            timestep = torch.multinomial(pt_all, num_samples=batch_size, replacement=True).to(device)
 
-        if method == "uniform":
-            t = torch.randint(0, self.num_timesteps, (b,), device=device).long()
+            p_timestep = pt_all.gather(dim=0, index=timestep)
 
-            pt = torch.ones_like(t).float() / self.num_timesteps
-            return t, pt
-        raise ValueError
+            return timestep, p_timestep
+
+        if method == SampleMethod.UNIFORM:
+            timestep = torch.randint(0, self.num_timesteps, (batch_size,), device=device).long()
+
+            p_timestep = torch.ones_like(timestep).float() / self.num_timesteps
+            return timestep, p_timestep
+
+        raise ValueError(f"Unsupported method: {method}")
 
     def _multinomial_loss(
         self,
         model_out: Tensor,
         log_x_start: Tensor,
         log_x_t: Tensor,
-        t: Tensor,
-        pt: Tensor,
-        out_dict: dict[str, Tensor],
+        timestep: Tensor,
+        p_timestep: Tensor,
     ) -> Tensor:
+        """
+        Calculate the multinomial loss.
+
+        Args:
+            model_out: The model output.
+            log_x_start: The log samples of the initial input.
+            log_x_t: The log samples of the features at the given timestep.
+            timestep: The timestep.
+            p_timestep: The probability of the timestep.
+
+        Returns:
+            The multinomial loss.
+        """
         # Here we are calculating the VB_STOCHASTIC loss. In the original implementation, there
         # was a choice between VB_STOCHASTIC and VB_ALL. VB_ALL is deprecated for being too
         # expensive to calculate.
-        kl = self.compute_Lt(model_out, log_x_start, log_x_t, t, out_dict)
+        kl = self.compute_lt(model_out, log_x_start, log_x_t, timestep)
         kl_prior = self.kl_prior(log_x_start)
         # Upweigh loss term of the kl
-        return kl / pt + kl_prior
+        return (kl / p_timestep) + kl_prior
 
-    def mixed_loss(self, x: Tensor, out_dict: dict[str, Tensor]) -> tuple[Tensor, Tensor]:
-        b = x.shape[0]
-        device = x.device
-        t, pt = self.sample_time(b, device, "uniform")
+    def mixed_loss(self, features: Tensor, out_dict: dict[str, Tensor]) -> tuple[Tensor, Tensor]:
+        """
+        Calculate the mixed loss.
 
-        x_num = x[:, : self.num_numerical_features]
-        x_cat = x[:, self.num_numerical_features :]
+        Args:
+            features: The input features.
+            out_dict: The output dictionary.
 
-        x_num_t = x_num
-        log_x_cat_t = x_cat
-        if x_num.shape[1] > 0:
-            noise = torch.randn_like(x_num)
-            x_num_t = self.gaussian_q_sample(x_num, t, noise=noise)
-        if x_cat.shape[1] > 0:
-            log_x_cat = index_to_log_onehot(x_cat.long(), torch.from_numpy(self.num_classes))
-            log_x_cat_t = self.q_sample(log_x_start=log_x_cat, t=t)
+        Returns:
+            The multinomial loss and the Gaussian loss.
+        """
+        batch_size = features.shape[0]
+        timestep, p_timestep = self.sample_time(batch_size, self.device, method=SampleMethod.UNIFORM)
 
-        x_in = torch.cat([x_num_t, log_x_cat_t], dim=1)
+        numerical_features = features[:, : self.num_numerical_features]
+        categorical_features = features[:, self.num_numerical_features :]
 
-        model_out = self._denoise_fn(x_in, t, **out_dict)
+        numerical_features_ts = numerical_features
+        if numerical_features.shape[1] > 0:
+            noise = torch.randn_like(numerical_features)
+            numerical_features_ts = self.gaussian_q_sample(numerical_features, timestep, noise=noise)
 
-        model_out_num = model_out[:, : self.num_numerical_features]
-        model_out_cat = model_out[:, self.num_numerical_features :]
+        log_categorical_features_ts = categorical_features
+        if categorical_features.shape[1] > 0:
+            log_x_cat = index_to_log_onehot(categorical_features.long(), torch.from_numpy(self.num_classes))
+            log_categorical_features_ts = self.q_sample(log_x_start=log_x_cat, timestep=timestep)
 
-        loss_multi = torch.zeros((1,)).float()
-        loss_gauss = torch.zeros((1,)).float()
-        if x_cat.shape[1] > 0:
-            loss_multi = self._multinomial_loss(model_out_cat, log_x_cat, log_x_cat_t, t, pt, out_dict) / len(
-                self.num_classes
+        input_features = torch.cat([numerical_features_ts, log_categorical_features_ts], dim=1)
+
+        model_output = self._denoise_fn(input_features, timestep, **out_dict)
+
+        model_numerical_output = model_output[:, : self.num_numerical_features]
+        model_categorical_output = model_output[:, self.num_numerical_features :]
+
+        multinomial_loss = torch.zeros((1,)).float()
+        gaussian_loss = torch.zeros((1,)).float()
+        if categorical_features.shape[1] > 0:
+            multinomial_loss = self._multinomial_loss(
+                model_categorical_output,
+                log_x_cat,
+                log_categorical_features_ts,
+                timestep,
+                p_timestep,
+            )
+            multinomial_loss = multinomial_loss / len(self.num_classes)
+
+        if numerical_features.shape[1] > 0:
+            gaussian_loss = self._gaussian_loss(
+                model_numerical_output,
+                numerical_features,
+                numerical_features_ts,
+                timestep,
+                noise,
             )
 
-        if x_num.shape[1] > 0:
-            loss_gauss = self._gaussian_loss(model_out_num, x_num, x_num_t, t, noise)
-
-        # loss_multi = torch.where(out_dict['y'] == 1, loss_multi, 2 * loss_multi)
-        # loss_gauss = torch.where(out_dict['y'] == 1, loss_gauss, 2 * loss_gauss)
-
-        return loss_multi.mean(), loss_gauss.mean()
-
-    @torch.no_grad()
-    def mixed_elbo(self, x0: Tensor, out_dict: dict[str, Tensor]) -> dict[str, Tensor]:
-        b = x0.size(0)
-        device = x0.device
-
-        x_num = x0[:, : self.num_numerical_features]
-        x_cat = x0[:, self.num_numerical_features :]
-        has_cat = x_cat.shape[1] > 0
-        if has_cat:
-            log_x_cat = index_to_log_onehot(x_cat.long(), torch.from_numpy(self.num_classes)).to(device)
-
-        gaussian_loss = []
-        xstart_mse = []
-        mse = []
-        # mu_mse = []
-        out_mean = []
-        true_mean = []
-        multinomial_loss = []
-        for t in range(self.num_timesteps):
-            t_array = (torch.ones(b, device=device) * t).long()
-            noise = torch.randn_like(x_num)
-
-            x_num_t = self.gaussian_q_sample(x_start=x_num, t=t_array, noise=noise)
-            log_x_cat_t = self.q_sample(log_x_start=log_x_cat, t=t_array) if has_cat else x_cat
-
-            model_out = self._denoise_fn(torch.cat([x_num_t, log_x_cat_t], dim=1), t_array, **out_dict)
-
-            model_out_num = model_out[:, : self.num_numerical_features]
-            model_out_cat = model_out[:, self.num_numerical_features :]
-
-            kl = torch.tensor([0.0])
-            if has_cat:
-                kl = self.compute_Lt(
-                    model_out=model_out_cat,
-                    log_x_start=log_x_cat,
-                    log_x_t=log_x_cat_t,
-                    t=t_array,
-                    out_dict=out_dict,
-                )
-
-            out = self._vb_terms_bpd(
-                model_out_num,
-                x_start=x_num,
-                x_t=x_num_t,
-                t=t_array,
-                clip_denoised=False,
-            )
-
-            multinomial_loss.append(kl)
-            gaussian_loss.append(out["output"])
-            xstart_mse.append(mean_flat((out["pred_xstart"] - x_num) ** 2))
-            # mu_mse.append(mean_flat(out["mean_mse"]))
-            out_mean.append(mean_flat(out["out_mean"]))
-            true_mean.append(mean_flat(out["true_mean"]))
-
-            eps = self._predict_eps_from_xstart(x_num_t, t_array, out["pred_xstart"])
-            mse.append(mean_flat((eps - noise) ** 2))
-
-        gaussian_loss_tensor = torch.stack(gaussian_loss, dim=1)
-        multinomial_loss_tensor = torch.stack(multinomial_loss, dim=1)
-        xstart_mse_tensor = torch.stack(xstart_mse, dim=1)
-        mse_tensor = torch.stack(mse, dim=1)
-        # mu_mse = torch.stack(mu_mse, dim=1)
-        out_mean_tensor = torch.stack(out_mean, dim=1)
-        true_mean_tensor = torch.stack(true_mean, dim=1)
-
-        prior_gauss = self._prior_gaussian(x_num)
-
-        prior_multin = torch.tensor([0.0])
-        if has_cat:
-            prior_multin = self.kl_prior(log_x_cat)
-
-        total_gauss = gaussian_loss_tensor.sum(dim=1) + prior_gauss
-        total_multin = multinomial_loss_tensor.sum(dim=1) + prior_multin
-        return {
-            "total_gaussian": total_gauss,
-            "total_multinomial": total_multin,
-            "losses_gaussian": gaussian_loss_tensor,
-            "losses_multinimial": multinomial_loss_tensor,
-            "xstart_mse": xstart_mse_tensor,
-            "mse": mse_tensor,
-            # "mu_mse": mu_mse
-            "out_mean": out_mean_tensor,
-            "true_mean": true_mean_tensor,
-        }
+        return multinomial_loss.mean(), gaussian_loss.mean()
 
     @torch.no_grad()
     def gaussian_ddim_step(
         self,
-        model_out_num: Tensor,
-        x: Tensor,
-        t: Tensor,
-        clip_denoised: bool = False,
-        denoised_fn: Callable | None = None,
+        model_mumerical_output: Tensor,
+        features: Tensor,
+        timestep: Tensor,
         eta: float = 0.0,
         model_kwargs: dict[str, Any] | None = None,
-        cond_fn: Callable | None = None,
+        cond_fn: ConditioningFunction | None = None,
     ) -> Tensor:
+        """
+        Calculate the Gaussian DDIM step.
+
+        Args:
+            model_mumerical_output: The numerical features of themodel output.
+            features: The features.
+            timestep: The timestep.
+            eta: The DDIM stochasticity coefficient. Optional, default is 0.0.
+            model_kwargs: The model kwargs. Optional, default is None.
+            cond_fn: The conditioning function. Optional, default is None.
+
+        Returns:
+            The predicted features.
+        """
         if model_kwargs is None:
             model_kwargs = {}
 
         out = self.gaussian_p_mean_variance(
-            model_out_num,
-            x,
-            t,
-            clip_denoised=clip_denoised,
-            denoised_fn=denoised_fn,
+            model_mumerical_output,
+            features,
+            timestep,
             model_kwargs=None,
         )
 
         if cond_fn is not None:
-            out = self.condition_score(cond_fn, out, x, t, model_kwargs=model_kwargs)
+            out = self.condition_score(cond_fn, out, features, timestep, model_kwargs=model_kwargs)
 
-        eps = self._predict_eps_from_xstart(x, t, out["pred_xstart"])
+        eps = self._predict_eps_from_xstart(features, timestep, out["pred_xstart"])
 
-        alpha_bar = extract(self.alphas_cumprod, t, x.shape)
-        alpha_bar_prev = extract(self.alphas_cumprod_prev, t, x.shape)
+        alpha_bar = extract(self.alphas_cumprod, timestep, features.shape)
+        alpha_bar_prev = extract(self.alphas_cumprod_prev, timestep, features.shape)
         sigma = eta * torch.sqrt((1 - alpha_bar_prev) / (1 - alpha_bar)) * torch.sqrt(1 - alpha_bar / alpha_bar_prev)
 
-        noise = torch.randn_like(x)
+        noise = torch.randn_like(features)
         mean_pred = out["pred_xstart"] * torch.sqrt(alpha_bar_prev) + torch.sqrt(1 - alpha_bar_prev - sigma**2) * eps
-        nonzero_mask = (t != 0).float().view(-1, *([1] * (len(x.shape) - 1)))  # no noise when t == 0
+        nonzero_mask = (timestep != 0).float().view(-1, *([1] * (len(features.shape) - 1)))  # no noise when t == 0
         return mean_pred + nonzero_mask * sigma * noise
 
     @torch.no_grad()
     def gaussian_ddim_sample(
         self,
         noise: Tensor,
-        T: int,
+        num_timesteps: int,
         out_dict: dict[str, Tensor],
         eta: float = 0.0,
         model_kwargs: Any | None = None,
-        cond_fn: Callable | None = None,
+        cond_fn: ConditioningFunction | None = None,
     ) -> Tensor:
-        # ruff: noqa: D102, N803
-        x = noise
-        b = x.shape[0]
-        device = x.device
-        for t in reversed(range(T)):
-            print(f"Sample timestep {t:4d}", end="\r")
-            t_array = (torch.ones(b, device=device) * t).long()
-            out_num = self._denoise_fn(x, t_array, **out_dict)
-            x = self.gaussian_ddim_step(out_num, x, t_array, model_kwargs=model_kwargs, cond_fn=cond_fn)
-        print()
-        return x
+        """
+        Produce the Gaussian DDIM sample.
+
+        Args:
+            noise: The noise.
+            num_timesteps: The number of timesteps.
+            out_dict: The output dictionary.
+            eta: The DDIM stochasticity coefficient. Optional, default is 0.0.
+            model_kwargs: The model kwargs. Optional, default is None.
+            cond_fn: The conditioning function. Optional, default is None.
+
+        Returns:
+            The predicted features.
+        """
+        features = noise
+        batch_size = features.shape[0]
+        for t in reversed(range(num_timesteps)):
+            log(DEBUG, f"Sample timestep {t:4d}")
+            t_array = (torch.ones(batch_size, device=self.device) * t).long()
+            out_num = self._denoise_fn(features, t_array, **out_dict)
+            features = self.gaussian_ddim_step(
+                out_num,
+                features,
+                t_array,
+                eta=eta,
+                model_kwargs=model_kwargs,
+                cond_fn=cond_fn,
+            )
+
+        return features
 
     @torch.no_grad()
     def gaussian_ddim_reverse_step(
         self,
         model_out_num: Tensor,
-        x: Tensor,
-        t: Tensor,
-        clip_denoised: bool = False,
-        eta: float = 0.0,
+        features: Tensor,
+        timestep: Tensor,
     ) -> Tensor:
-        # ruff: noqa: D102
-        assert eta == 0.0, "Eta must be zero."
-        out = self.gaussian_p_mean_variance(
-            model_out_num,
-            x,
-            t,
-            clip_denoised=clip_denoised,
-            denoised_fn=None,
-            model_kwargs=None,
-        )
+        """
+        Calculate the Gaussian DDIM reverse step.
 
-        eps = (extract(self.sqrt_recip_alphas_cumprod, t, x.shape) * x - out["pred_xstart"]) / extract(
-            self.sqrt_recipm1_alphas_cumprod, t, x.shape
-        )
-        alpha_bar_next = extract(self.alphas_cumprod_next, t, x.shape)
+        Args:
+            model_out_num: The numerical features of the model output.
+            features: The input features.
+            timestep: The timestep.
+
+        Returns:
+            The predicted features.
+        """
+        out = self.gaussian_p_mean_variance(model_out_num, features, timestep)
+
+        coefficient = extract(self.sqrt_recip_alphas_cumprod, timestep, features.shape)
+        denominator = extract(self.sqrt_recipm1_alphas_cumprod, timestep, features.shape)
+        numerator = coefficient * features - out["pred_xstart"]
+        eps = numerator / denominator
+
+        alpha_bar_next = extract(self.alphas_cumprod_next, timestep, features.shape)
 
         return out["pred_xstart"] * torch.sqrt(alpha_bar_next) + torch.sqrt(1 - alpha_bar_next) * eps
 
     @torch.no_grad()
     def gaussian_ddim_reverse_sample(
         self,
-        x: Tensor,
-        T: int,
-        # ruff: noqa: N803
+        features: Tensor,
+        num_timesteps: int,
         out_dict: dict[str, Tensor],
     ) -> Tensor:
-        # ruff: noqa: D102
-        b = x.shape[0]
-        device = x.device
-        for t in range(T):
-            print(f"Reverse timestep {t:4d}", end="\r")
-            t_array = (torch.ones(b, device=device) * t).long()
-            out_num = self._denoise_fn(x, t_array, **out_dict)
-            x = self.gaussian_ddim_reverse_step(out_num, x, t_array, eta=0.0)
-        print()
+        """
+        Produce the Gaussian DDIM reverse sample.
 
-        return x
+        Args:
+            features: The input features.
+            num_timesteps: The number of timesteps.
+            out_dict: The output dictionary.
+
+        Returns:
+            The predicted features.
+        """
+        batch_size = features.shape[0]
+        output_features = features.clone()
+
+        for t in range(num_timesteps):
+            log(DEBUG, f"Reverse timestep {t:4d}")
+            t_array = (torch.ones(batch_size, device=self.device) * t).long()
+            out_num = self._denoise_fn(output_features, t_array, **out_dict)
+            output_features = self.gaussian_ddim_reverse_step(out_num, output_features, t_array)
+
+        return output_features
 
     @torch.no_grad()
     def multinomial_ddim_step(
         self,
         model_out_cat: Tensor,
         log_x_t: Tensor,
-        t: Tensor,
-        out_dict: dict[str, Tensor],
+        timestep: Tensor,
         eta: float = 0.0,
     ) -> Tensor:
-        # ruff: noqa: D102
-        # not ddim, essentially
-        log_x0 = self.predict_start(model_out_cat, log_x_t=log_x_t, t=t, out_dict=out_dict)
+        """
+        Calculate the multinomial DDIM step.
 
-        alpha_bar = extract(self.alphas_cumprod, t, log_x_t.shape)
-        alpha_bar_prev = extract(self.alphas_cumprod_prev, t, log_x_t.shape)
+        Args:
+            model_out_cat: The categorical model output.
+            log_x_t: The log samples of the features at the given timestep.
+            timestep: The timestep.
+            eta: The DDIM stochasticity coefficient. Optional, default is 0.0.
+
+        Returns:
+            The multinomial DDIM step.
+        """
+        log_x0 = self.predict_start(model_out_cat, log_x_t=log_x_t)
+
+        alpha_bar = extract(self.alphas_cumprod, timestep, log_x_t.shape)
+        alpha_bar_prev = extract(self.alphas_cumprod_prev, timestep, log_x_t.shape)
         sigma = eta * torch.sqrt((1 - alpha_bar_prev) / (1 - alpha_bar)) * torch.sqrt(1 - alpha_bar / alpha_bar_prev)
 
         coef1 = sigma
@@ -918,30 +1248,40 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
     @torch.no_grad()
     def sample_ddim(
         self,
-        num_samples: int,
-        y_dist: Tensor,
+        batch_size: int,
+        target_dist: Tensor,
         model_kwargs: dict[str, Any] | None = None,
-        cond_fn: Callable | None = None,
+        cond_fn: ConditioningFunction | None = None,
     ) -> tuple[Tensor, dict[str, Tensor]]:
-        # ruff: noqa: D102
+        """
+        Sample using DDIM.
+
+        Args:
+            batch_size: The batch size.
+            target_dist: Class distribution to sample labels from.
+            model_kwargs: The model kwargs. Optional, default is None.
+            cond_fn: The conditioning function. Optional, default is None.
+
+        Returns:
+            The samples and the output dictionary.
+        """
         if model_kwargs is None:
             model_kwargs = {}
 
-        b = num_samples
-        z_norm = torch.randn((b, self.num_numerical_features), device=self.device)
+        z_norm = torch.randn((batch_size, self.num_numerical_features), device=self.device)
 
         assert self.num_classes is not None
         has_cat = self.num_classes[0] != 0
-        log_z = torch.zeros((b, 0), device=self.device).float()
+        log_z = torch.zeros((batch_size, 0), device=self.device).float()
         if has_cat:
-            uniform_logits = torch.zeros((b, len(self.num_classes_expanded)), device=self.device)
+            uniform_logits = torch.zeros((batch_size, len(self.num_classes_expanded)), device=self.device)
             log_z = self.log_sample_categorical(uniform_logits)
 
-        y = torch.multinomial(y_dist, num_samples=b, replacement=True)
+        y = torch.multinomial(target_dist, num_samples=batch_size, replacement=True)
         out_dict = {"y": y.long().to(self.device)}
         for i in reversed(range(0, self.num_timesteps)):
-            print(f"Sample timestep {i:4d}", end="\r")
-            t = torch.full((b,), i, device=self.device, dtype=torch.long)
+            log(DEBUG, f"Sample timestep {i:4d}")
+            t = torch.full((batch_size,), i, device=self.device, dtype=torch.long)
             model_out = self._denoise_fn(torch.cat([z_norm, log_z], dim=1).float(), t, **out_dict)
             model_out_num = model_out[:, : self.num_numerical_features]
             model_out_cat = model_out[:, self.num_numerical_features :]
@@ -949,42 +1289,51 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
                 model_out_num,
                 z_norm,
                 t,
-                clip_denoised=False,
                 model_kwargs=model_kwargs,
                 cond_fn=cond_fn,
             )
             if has_cat:
-                log_z = self.multinomial_ddim_step(model_out_cat, log_z, t, out_dict)
+                log_z = self.multinomial_ddim_step(model_out_cat, log_z, t)
 
-        print()
         z_ohe = torch.exp(log_z).round()
         z_cat = log_z
         if has_cat:
             z_cat = ohe_to_categories(z_ohe, torch.from_numpy(self.num_classes))
         sample = torch.cat([z_norm, z_cat], dim=1).cpu()
+
         return sample, out_dict
 
     @torch.no_grad()
     def conditional_sample(
         self,
-        ys: Tensor,
+        targets: Tensor,
         model_kwargs: dict[str, Any] | None = None,
-        cond_fn: Callable | None = None,
+        cond_fn: ConditioningFunction | None = None,
     ) -> tuple[Tensor, dict[str, Tensor]]:
-        # ruff: noqa: D102
+        """
+        Sample using conditional DDIM.
+
+        Args:
+            targets: The targets.
+            model_kwargs: The model kwargs. Optional, default is None.
+            cond_fn: The conditioning function. Optional, default is None.
+
+        Returns:
+            The samples and the output dictionary.
+        """
         if model_kwargs is None:
             model_kwargs = {}
 
-        b = len(ys)
-        z_norm = torch.randn((b, self.num_numerical_features), device=self.device)
+        batch_size = len(targets)
+        z_norm = torch.randn((batch_size, self.num_numerical_features), device=self.device)
         assert self.num_classes is not None
         has_cat = self.num_classes[0] != 0
-        log_z = torch.zeros((b, 0), device=self.device).float()
+        log_z = torch.zeros((batch_size, 0), device=self.device).float()
 
-        out_dict = {"y": ys.long().to(self.device)}
+        out_dict = {"y": targets.long().to(self.device)}
         for i in reversed(range(0, self.num_timesteps)):
-            print(f"Sample timestep {i:4d}", end="\r")
-            t = torch.full((b,), i, device=self.device, dtype=torch.long)
+            log(DEBUG, f"Sample timestep {i:4d}")
+            t = torch.full((batch_size,), i, device=self.device, dtype=torch.long)
             model_out = self._denoise_fn(torch.cat([z_norm, log_z], dim=1).float(), t, **out_dict)
             model_out_num = model_out[:, : self.num_numerical_features]
             model_out_cat = model_out[:, self.num_numerical_features :]
@@ -992,14 +1341,12 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
                 model_out_num,
                 z_norm,
                 t,
-                clip_denoised=False,
                 model_kwargs=model_kwargs,
                 cond_fn=cond_fn,
             )["sample"]
             if has_cat:
-                log_z = self.p_sample(model_out_cat, log_z, t, out_dict)
+                log_z = self.p_sample(model_out_cat, log_z, t)
 
-        print()
         z_ohe = torch.exp(log_z).round()
         z_cat = log_z
         if has_cat:
@@ -1010,30 +1357,40 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
     @torch.no_grad()
     def sample(
         self,
-        num_samples: int,
-        y_dist: Tensor,
+        batch_size: int,
+        target_dist: Tensor,
         model_kwargs: dict[str, Any] | None = None,
-        cond_fn: Callable | None = None,
+        cond_fn: ConditioningFunction | None = None,
     ) -> tuple[Tensor, dict[str, Tensor]]:
-        # ruff: noqa: D102
+        """
+        Sample using ancestral (DDPM-style) sampling.
+
+        Args:
+            batch_size: The batch size.
+            target_dist: Class distribution to sample labels from.
+            model_kwargs: The model kwargs. Optional, default is None.
+            cond_fn: The conditioning function. Optional, default is None.
+
+        Returns:
+            The samples and the output dictionary.
+        """
         if model_kwargs is None:
             model_kwargs = {}
 
-        b = num_samples
-        z_norm = torch.randn((b, self.num_numerical_features), device=self.device)
+        z_norm = torch.randn((batch_size, self.num_numerical_features), device=self.device)
 
         assert self.num_classes is not None
         has_cat = self.num_classes[0] != 0
-        log_z = torch.zeros((b, 0), device=self.device).float()
+        log_z = torch.zeros((batch_size, 0), device=self.device).float()
         if has_cat:
-            uniform_logits = torch.zeros((b, len(self.num_classes_expanded)), device=self.device)
+            uniform_logits = torch.zeros((batch_size, len(self.num_classes_expanded)), device=self.device)
             log_z = self.log_sample_categorical(uniform_logits)
 
-        y = torch.multinomial(y_dist, num_samples=b, replacement=True)
+        y = torch.multinomial(target_dist, num_samples=batch_size, replacement=True)
         out_dict = {"y": y.long().to(self.device)}
         for i in reversed(range(0, self.num_timesteps)):
-            print(f"Sample timestep {i:4d}", end="\r")
-            t = torch.full((b,), i, device=self.device, dtype=torch.long)
+            log(DEBUG, f"Sample timestep {i:4d}")
+            t = torch.full((batch_size,), i, device=self.device, dtype=torch.long)
             model_out = self._denoise_fn(torch.cat([z_norm, log_z], dim=1).float(), t, **out_dict)
             model_out_num = model_out[:, : self.num_numerical_features]
             model_out_cat = model_out[:, self.num_numerical_features :]
@@ -1041,14 +1398,12 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
                 model_out_num,
                 z_norm,
                 t,
-                clip_denoised=False,
                 model_kwargs=model_kwargs,
                 cond_fn=cond_fn,
             )["sample"]
             if has_cat:
-                log_z = self.p_sample(model_out_cat, log_z, t, out_dict)
+                log_z = self.p_sample(model_out_cat, log_z, t)
 
-        print()
         z_ohe = torch.exp(log_z).round()
         z_cat = log_z
         if has_cat:
@@ -1060,36 +1415,48 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         self,
         num_samples: int,
         batch_size: int,
-        y_dist: Tensor,
+        target_dist: Tensor,
         ddim: bool = False,
         model_kwargs: dict[str, Any] | None = None,
-        cond_fn: Callable | None = None,
+        cond_fn: ConditioningFunction | None = None,
     ) -> tuple[Tensor, Tensor]:
-        # ruff: noqa: D102
+        """
+        Generate samples in batches of ``batch_size`` until ``num_samples`` are produced.
+        Uses DDIM if ``ddim`` is ``True``.
+
+        Args:
+            num_samples: The number of samples.
+            batch_size: The batch size.
+            target_dist: Class distribution to sample labels from.
+            ddim: Whether to use DDIM. Optional, default is False.
+            model_kwargs: The model kwargs. Optional, default is None.
+            cond_fn: The conditioning function. Optional, default is None.
+
+        Returns:
+            A tuple with the generated features and corresponding targets.
+        """
         if ddim:
-            print("Sample using DDIM.")
+            log(INFO, "Sample using DDIM.")
             sample_fn = self.sample_ddim
         else:
             sample_fn = self.sample
 
-        b = batch_size
-
-        all_y = []
+        all_targets = []
         all_samples = []
         num_generated = 0
         while num_generated < num_samples:
-            sample, out_dict = sample_fn(b, y_dist, model_kwargs=model_kwargs, cond_fn=cond_fn)
+            sample, out_dict = sample_fn(batch_size, target_dist, model_kwargs=model_kwargs, cond_fn=cond_fn)
             mask_nan = torch.any(sample.isnan(), dim=1)
             sample = sample[~mask_nan]
             out_dict["y"] = out_dict["y"][~mask_nan]
 
             all_samples.append(sample)
-            all_y.append(out_dict["y"].cpu())
-            if sample.shape[0] != b:
+            all_targets.append(out_dict["y"].cpu())
+            if sample.shape[0] != batch_size:
                 raise FoundNaNsError
             num_generated += sample.shape[0]
 
-        x_gen = torch.cat(all_samples, dim=0)[:num_samples]
-        y_gen = torch.cat(all_y, dim=0)[:num_samples]
+        generated_features = torch.cat(all_samples, dim=0)[:num_samples]
+        generated_targets = torch.cat(all_targets, dim=0)[:num_samples]
 
-        return x_gen, y_gen
+        return generated_features, generated_targets
