@@ -288,9 +288,14 @@ def test_train_single_table(tmp_path: Path):
     # Adding those asserts under an if condition because they only pass on github.
     # In the else block, we set a tolerance that would work across platforms
     # however, it is way too high of a tolerance.
-    if torch.allclose(model_data[model_layers[0]], expected_model_data[expected_model_layers[0]]):
+    if torch.allclose(
+        model_data[model_layers[0]].to(DEVICE), expected_model_data[expected_model_layers[0]].to(DEVICE)
+    ):
         # if the first layer is equal with minimal tolerance, all others should be equal as well
-        assert all(torch.allclose(model_data[layer], expected_model_data[layer]) for layer in model_layers)
+        assert all(
+            torch.allclose(model_data[layer].to(DEVICE), expected_model_data[layer].to(DEVICE))
+            for layer in model_layers
+        )
 
         # TODO: Figure out if there is a good way of testing the synthetic data results
         # on multiple platforms. https://app.clickup.com/t/868f43wp0
@@ -301,7 +306,10 @@ def test_train_single_table(tmp_path: Path):
         # Otherwise, set a tolerance that would work across platforms
         # TODO: Figure out a way to set a lower tolerance
         # https://app.clickup.com/t/868f43wp0
-        assert all(torch.allclose(model_data[layer], expected_model_data[layer], atol=0.1) for layer in model_layers)
+        assert all(
+            torch.allclose(model_data[layer].to(DEVICE), expected_model_data[layer].to(DEVICE), atol=0.1)
+            for layer in model_layers
+        )
 
     unset_all_random_seeds()
 
@@ -345,10 +353,13 @@ def test_train_multi_table(tmp_path: Path):
     # Adding those asserts under an if condition because they only pass on github.
     # In the else block, we set a tolerance that would work across platforms
     # however, it is way too high of a tolerance.
-    if np.allclose(model_data[model_layers[0]].detach(), expected_model_data[expected_model_layers[0]].detach()):
+    if torch.allclose(
+        model_data[model_layers[0]].to(DEVICE), expected_model_data[expected_model_layers[0]].to(DEVICE)
+    ):
         # if the first layer is equal with minimal tolerance, all others should be equal as well
         assert all(
-            np.allclose(model_data[layer].detach(), expected_model_data[layer].detach()) for layer in model_layers
+            torch.allclose(model_data[layer].to(DEVICE), expected_model_data[layer].to(DEVICE))
+            for layer in model_layers
         )
 
         # TODO: Figure out if there is a good way of testing the synthetic data results
@@ -361,7 +372,7 @@ def test_train_multi_table(tmp_path: Path):
         # TODO: Figure out a way to set a lower tolerance
         # https://app.clickup.com/t/868f43wp0
         assert all(
-            np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.1)
+            torch.allclose(model_data[layer].to(DEVICE), expected_model_data[layer].to(DEVICE), atol=0.1)
             for layer in model_layers
         )
 
@@ -385,9 +396,9 @@ def test_train_multi_table(tmp_path: Path):
     # Adding those asserts under an if condition because they only pass on github.
     # In the else block, we set a tolerance that would work across platforms
     # however, it is way too high of a tolerance.
-    if torch.allclose(conditional_sample[0], expected_conditional_sample[0]):
+    if torch.allclose(conditional_sample[0].to(DEVICE), expected_conditional_sample[0].to(DEVICE)):
         # if the first values are equal with minimal tolerance, all others should be equal as well
-        assert torch.allclose(conditional_sample, expected_conditional_sample)
+        assert torch.allclose(conditional_sample.to(DEVICE), expected_conditional_sample.to(DEVICE))
 
     unset_all_random_seeds()
 
