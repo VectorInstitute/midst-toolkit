@@ -109,9 +109,8 @@ def sample_from_diffusion(
 
     if real_categorical_features is not None:
         real_data = np.concatenate((real_numerical_features, real_categorical_features, real_target), axis=1)
-        generated_data = np.concatenate(
-            (numerical_features, categorical_features, np.round(generated_target).astype(int)), axis=1
-        )
+        round_target = np.round(generated_target).astype(int)
+        generated_data = np.concatenate((numerical_features, categorical_features, round_target), axis=1)
     else:
         real_data = np.concatenate((real_numerical_features, real_target), axis=1)
         generated_data = np.concatenate((numerical_features, np.round(generated_target).astype(int)), axis=1)
@@ -141,7 +140,8 @@ def sample_from_diffusion(
 
 
 def _decode_categorical_features(
-    numerical_features: np.ndarray, label_encoders: dict[int, LabelEncoder]
+    numerical_features: np.ndarray,
+    label_encoders: dict[int, LabelEncoder],
 ) -> np.ndarray:
     if len(label_encoders) > 0:
         categorical_features = numerical_features[:]  # making a shallow copy of numerical_features
