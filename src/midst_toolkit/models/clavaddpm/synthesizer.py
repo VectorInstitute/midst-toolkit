@@ -50,7 +50,7 @@ def sample_from_diffusion(
         df_info: Dictionary of the real data table information.
         diffusion: The trained diffusion model used for sampling.
         dataset: The dataset object containing training data and transformations.
-        label_encoders: The label encoders for categorical features.
+        label_encoders: The label encoders used to encode the categorical features.
         sample_size: The number of samples to generate.
         model_params: Model parameters including input dimensions and conditioning settings.
         transformations: The transformations used to preprocess the data.
@@ -139,10 +139,56 @@ def sample_from_diffusion(
     return df_real_data, df_generated_data
 
 
+def _get_numerical_features_from_generated_features(
+    generated_features: np.ndarray,
+    num_numerical_features: int,
+    dataset: Dataset,
+    is_target_conditioned: IsTargetCondioned,
+    label_encoders: dict[int, LabelEncoder],
+) -> np.ndarray:
+    """
+    Produce the numerical features from the generated features.
+
+    Args:
+        generated_features: The generated features.
+        num_numerical_features: The number of numerical features in the real data.
+        dataset: The dataset object containing the numerical transformations.
+        is_target_conditioned: The condition on the y column.
+        label_encoders: The label encoders used to encode the categorical features.
+
+    Returns:
+        The numerical features.
+    """
+    # Checking if it's a regression task and if it's target conditioned.
+    # In case either of those are false, we need to add 1 to the number of numerical features to represent the target.
+    if dataset.is_regression and is_target_conditioned == IsTargetCondioned.NONE:
+        num_numerical_features_sample = num_numerical_features
+    else:
+        num_numerical_features_sample = num_numerical_features + 1
+
+    assert dataset.numerical_transform is not None
+    numerical_features = dataset.numerical_transform.inverse_transform(
+        generated_features[:, :num_numerical_features_sample]
+    )
+
+    actual_num_numerical_features = num_numerical_features - len(label_encoders)
+    return numerical_features[:, :actual_num_numerical_features]
+
+
 def _decode_categorical_features(
     numerical_features: np.ndarray,
     label_encoders: dict[int, LabelEncoder],
 ) -> np.ndarray:
+    """
+    Decode the categorical features from the numerical features using the given label encoders.
+
+    Args:
+        numerical_features: The numerical features containing the encoded categorical features.
+        label_encoders: The label encoders used to encode the categorical features.
+
+    Returns:
+        The categorical features.
+    """
     if len(label_encoders) > 0:
         categorical_features = numerical_features[:]  # making a shallow copy of numerical_features
         categorical_features = np.round(categorical_features).astype(int)
@@ -160,6 +206,17 @@ def _decode_categorical_features(
 
 
 def _round_numerical_features(numerical_features: np.ndarray, real_numerical_features: np.ndarray) -> np.ndarray:
+    """
+    Round the numerical features to the nearest unique values found in the
+    corresponding columns of the real data.
+
+    Args:
+        numerical_features: The numerical features to round.
+        real_numerical_features: The real numerical features.
+
+    Returns:
+        The rounded numerical features.
+    """
     discrete_columns = []
     for column in range(real_numerical_features.shape[1]):
         unique_values = np.unique(real_numerical_features[:, column])
@@ -170,30 +227,6 @@ def _round_numerical_features(numerical_features: np.ndarray, real_numerical_fea
         numerical_features = round_columns(real_numerical_features, numerical_features, discrete_columns)
 
     return numerical_features
-
-
-def _get_numerical_features_from_generated_features(
-    generated_features: np.ndarray,
-    num_numerical_features: int,
-    dataset: Dataset,
-    is_target_conditioned: IsTargetCondioned,
-    label_encoders: dict[int, LabelEncoder],
-) -> np.ndarray:
-    assert dataset.numerical_transform is not None
-
-    # Checking if it's a regression task and if it's target conditioned.
-    # In case either of those are false, we need to add 1 to the number of numerical features to represent the target.
-    if dataset.is_regression and is_target_conditioned == IsTargetCondioned.NONE:
-        num_numerical_features_sample = num_numerical_features
-    else:
-        num_numerical_features_sample = num_numerical_features + 1
-
-    numerical_features = dataset.numerical_transform.inverse_transform(
-        generated_features[:, :num_numerical_features_sample]
-    )
-
-    actual_num_numerical_features = num_numerical_features - len(label_encoders)
-    return numerical_features[:, :actual_num_numerical_features]
 
 
 # TODO: Too many statements and branches, refactor.
