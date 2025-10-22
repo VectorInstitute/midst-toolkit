@@ -118,7 +118,7 @@ def run_metaclassifier_training(
     log(INFO, "Metaclassifier model saved, starting evaluation...")
 
     # Get the synthetic data provided by the challenge for evaluation
-    #TODO: Check if the file is the correct one.
+    # TODO: Check if the file is the correct one.
     df_synthetic_original = load_dataframe(
         Path(config.data_paths.processed_attack_data_path),
         "synth.csv",
