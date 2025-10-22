@@ -786,7 +786,10 @@ def clava_synthesizing(  # noqa: PLR0915, PLR0912
                 "df": child_final_df,
                 "keys": child_primary_keys_arr.flatten().tolist(),
             }
-        with open(os.path.join(save_dir, "before_matching/synthetic_tables.pkl"), "wb") as file:
+
+        before_matching_dir = save_dir / "before_matching"
+        before_matching_dir.mkdir(parents=True, exist_ok=True)
+        with open(before_matching_dir / "synthetic_tables.pkl", "wb") as file:
             pickle.dump(synthetic_tables, file)
 
     synthesizing_end_time = time.time()
@@ -800,12 +803,11 @@ def clava_synthesizing(  # noqa: PLR0915, PLR0912
 
     cleaned_tables: dict[str, pd.DataFrame] = {}
     for table_key, table_val in final_tables.items():
-        if "account_id" in tables[table_key]["original_cols"]:
-            cols = tables[table_key]["original_cols"]
-            cols.remove("account_id")
-        else:
-            cols = tables[table_key]["original_cols"]
-        cleaned_tables[table_key] = pd.DataFrame(table_val[cols])
+        column_names = []
+        for column_name in tables[table_key]["original_cols"]:
+            if "_id" not in column_name:
+                column_names.append(column_name)
+        cleaned_tables[table_key] = pd.DataFrame(table_val[column_names])
 
     for cleaned_key, cleaned_val in cleaned_tables.items():
         table_dir = os.path.join(
