@@ -50,7 +50,7 @@ def preprocess_for_distance_computation(
             preprocessed. Defaults to None.
 
     Returns:
-        Processed Pandas dataframes with the synthetic data, real data for training, real data for testing if it was
+        Processed Pandas dataframes with the real data for training, synthetic data, real data for testing if it was
         provided.
     """
     numerical_real_data_train, categorical_real_data_train = extract_columns_based_on_meta_info(
