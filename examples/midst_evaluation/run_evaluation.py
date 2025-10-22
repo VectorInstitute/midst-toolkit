@@ -377,8 +377,8 @@ def run_privacy_evaluations(
         # Categorical values are one-hot encoded, numerical values are scaled by their range, but not into [0,1]
         distance_real_data, distance_synthetic_data, distance_holdout_data = preprocess_for_distance_computation(
             meta_info=meta_info,
-            synthetic_data=synthetic_data,
             real_data_train=real_data_train,
+            synthetic_data=synthetic_data,
             real_data_test=real_data_test,
         )
 

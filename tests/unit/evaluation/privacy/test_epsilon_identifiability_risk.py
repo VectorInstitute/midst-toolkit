@@ -137,8 +137,8 @@ def test_epsilon_identifiability_risk() -> None:
         REAL_DATA_TRAIN_PATH, SYNTHETIC_DATA_PATH, META_INFO_PATH, REAL_DATA_TEST_PATH
     )
 
-    synthetic_data, real_data, holdout_data = preprocess_for_distance_computation(
-        meta_info, synthetic_data, real_data, holdout_data
+    real_data, synthetic_data, holdout_data = preprocess_for_distance_computation(
+        meta_info, real_data, synthetic_data, holdout_data
     )
 
     # After one-hot, we'll treat all the categoricals like numerical columns and leave off the target column
