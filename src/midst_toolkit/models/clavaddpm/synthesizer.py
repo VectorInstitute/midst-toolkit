@@ -59,155 +59,168 @@ def sample_from_diffusion(
     Returns:
         A tuple containing:
             - df_real_data: DataFrame of the real data.
-            - df_generated_data: DataFrame of the generated synthetic data.
+            - df_synthetic_data: DataFrame of the generated synthetic data.
 
     """
-    num_numerical_features = 0
+    num_features = 0
     if dataset.x_num is not None:
-        num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1]
+        num_features = dataset.x_num[DataSplit.TRAIN.value].shape[1]
 
     category_sizes = dataset.get_category_sizes(DataSplit.TRAIN)
     if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = [0]
 
-    input_dimension = np.sum(category_sizes) + num_numerical_features
-    model_params.d_in = input_dimension
+    model_params.d_in = np.sum(category_sizes) + num_features
 
     _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.y[DataSplit.TRAIN.value]), return_counts=True)
-    generated_data = diffusion.sample_all(
+    synthetic_data = diffusion.sample_all(
         sample_size,
         sample_batch_size,
         empirical_class_dist.float(),
         ddim=False,
     )
 
-    generated_features, generated_target = generated_data[0].numpy(), generated_data[1].numpy()
+    synthetic_features, synthetic_target = synthetic_data[0].numpy(), synthetic_data[1].numpy()
 
     real_numerical_features = df[df_info["num_cols"]].to_numpy().astype(float)
     real_categorical_features = df[df_info["cat_cols"]].to_numpy().astype(str)
     real_target = np.round(df[df_info["y_col"]].to_numpy().astype(float)).astype(int).reshape(-1, 1)
 
-    if num_numerical_features == 0:
+    if num_features == 0:
         numerical_features = np.array([])
         categorical_features = np.array([])
     else:
-        numerical_features = _get_numerical_features_from_generated_features(
-            generated_features,
-            num_numerical_features,
+        all_features = _get_all_features_from_synthetic_features(
+            synthetic_features,
             dataset,
             model_params.is_target_conditioned,
-            label_encoders,
         )
-        categorical_features = _decode_categorical_features(numerical_features, label_encoders)
-        numerical_features = _round_numerical_features(numerical_features, real_numerical_features)
+        numerical_features, encoded_categorical_features = _split_features(all_features, label_encoders)
 
-    if num_numerical_features != 0 and model_params.is_target_conditioned == IsTargetCondioned.CONCAT:
-        generated_target = numerical_features[:, 0]
+        categorical_features = _decode_categorical_features(encoded_categorical_features, label_encoders)
+        numerical_features = _round_discrete_numerical_features(numerical_features, real_numerical_features)
+
+    if num_features != 0 and model_params.is_target_conditioned == IsTargetCondioned.CONCAT:
+        synthetic_target = numerical_features[:, 0]
         numerical_features = numerical_features[:, 1:]
 
-    generated_target = generated_target.reshape(-1, 1)
+    synthetic_target = synthetic_target.reshape(-1, 1)
 
     if real_categorical_features is not None:
         real_data = np.concatenate((real_numerical_features, real_categorical_features, real_target), axis=1)
-        round_target = np.round(generated_target).astype(int)
-        generated_data = np.concatenate((numerical_features, categorical_features, round_target), axis=1)
+        round_target = np.round(synthetic_target).astype(int)
+        synthetic_data = np.concatenate((numerical_features, categorical_features, round_target), axis=1)
     else:
         real_data = np.concatenate((real_numerical_features, real_target), axis=1)
-        generated_data = np.concatenate((numerical_features, np.round(generated_target).astype(int)), axis=1)
+        synthetic_data = np.concatenate((numerical_features, np.round(synthetic_target).astype(int)), axis=1)
 
     df_real_data = pd.DataFrame(real_data)
-    df_generated_data = pd.DataFrame(generated_data)
+    df_synthetic_data = pd.DataFrame(synthetic_data)
     columns = [str(x) for x in list(df_real_data.columns)]
 
     df_real_data.columns = columns
-    df_generated_data.columns = columns
+    df_synthetic_data.columns = columns
 
     for column in df_real_data.columns:
         if int(column) < real_numerical_features.shape[1]:
             df_real_data[column] = df_real_data[column].astype(float)
-            df_generated_data[column] = df_generated_data[column].astype(float)
+            df_synthetic_data[column] = df_synthetic_data[column].astype(float)
         elif (
             real_categorical_features is not None
             and int(column) < real_numerical_features.shape[1] + real_categorical_features.shape[1]
         ):
             df_real_data[column] = df_real_data[column].astype(str)
-            df_generated_data[column] = df_generated_data[column].astype(str)
+            df_synthetic_data[column] = df_synthetic_data[column].astype(str)
         else:
             df_real_data[column] = df_real_data[column].astype(float)
-            df_generated_data[column] = df_generated_data[column].astype(float)
+            df_synthetic_data[column] = df_synthetic_data[column].astype(float)
 
-    return df_real_data, df_generated_data
+    return df_real_data, df_synthetic_data
 
 
-def _get_numerical_features_from_generated_features(
-    generated_features: np.ndarray,
-    num_numerical_features: int,
+def _get_all_features_from_synthetic_features(
+    synthetic_features: np.ndarray,
     dataset: Dataset,
     is_target_conditioned: IsTargetCondioned,
-    label_encoders: dict[int, LabelEncoder],
 ) -> np.ndarray:
     """
-    Produce the numerical features from the generated features.
+    Produce a dataset with all features from the generated synthetic features.
 
     Args:
-        generated_features: The generated features.
-        num_numerical_features: The number of numerical features in the real data.
+        synthetic_features: The generated synthetic features.
         dataset: The dataset object containing the numerical transformations.
         is_target_conditioned: The condition on the y column.
+
+    Returns:
+        All features from the synthetic features.
+    """
+    num_features = synthetic_features.shape[1]
+
+    # In case it's a regression task and it's not target conditioned,
+    # we need to add 1 to the number of numerical features to represent the target.
+    if dataset.is_regression and is_target_conditioned == IsTargetCondioned.NONE:
+        num_features_sample = num_features + 1
+    else:
+        num_features_sample = num_features
+
+    assert dataset.numerical_transform is not None
+    return dataset.numerical_transform.inverse_transform(synthetic_features[:, :num_features_sample])
+
+
+def _split_features(
+    all_features: np.ndarray,
+    label_encoders: dict[int, LabelEncoder],
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Split the features into numerical and categorical features.
+
+    Args:
+        all_features: The data with all features.
         label_encoders: The label encoders used to encode the categorical features.
 
     Returns:
-        The numerical features.
+        A tuple containing the numerical and categorical features.
     """
-    # Checking if it's a regression task and if it's target conditioned.
-    # In case either of those are false, we need to add 1 to the number of numerical features to represent the target.
-    if dataset.is_regression and is_target_conditioned == IsTargetCondioned.NONE:
-        num_numerical_features_sample = num_numerical_features
-    else:
-        num_numerical_features_sample = num_numerical_features + 1
+    num_numerical_features = all_features.shape[1] - len(label_encoders)
+    numerical_features = all_features[:, :num_numerical_features]
+    categorical_features = all_features[:, num_numerical_features:]
 
-    assert dataset.numerical_transform is not None
-    numerical_features = dataset.numerical_transform.inverse_transform(
-        generated_features[:, :num_numerical_features_sample]
-    )
-
-    actual_num_numerical_features = num_numerical_features - len(label_encoders)
-    return numerical_features[:, :actual_num_numerical_features]
+    return numerical_features, categorical_features
 
 
 def _decode_categorical_features(
-    numerical_features: np.ndarray,
+    encoded_categorical_features: np.ndarray,
     label_encoders: dict[int, LabelEncoder],
 ) -> np.ndarray:
     """
-    Decode the categorical features from the numerical features using the given label encoders.
+    Decode the encoded categorical features using the given label encoders.
 
     Args:
-        numerical_features: The numerical features containing the encoded categorical features.
+        encoded_categorical_features: The encoded categorical features.
         label_encoders: The label encoders used to encode the categorical features.
 
     Returns:
         The categorical features.
     """
-    if len(label_encoders) > 0:
-        categorical_features = numerical_features[:]  # making a shallow copy of numerical_features
-        categorical_features = np.round(categorical_features).astype(int)
-        decoded_categorical_features = []
-        for column in range(categorical_features.shape[1]):
-            categorical_feature = categorical_features[:, column]
-            categorical_feature = np.clip(categorical_feature, 0, len(label_encoders[column].classes_) - 1)
-            decoded_categorical_features.append(label_encoders[column].inverse_transform(categorical_feature))
+    if len(label_encoders) == 0:
+        return np.empty((encoded_categorical_features.shape[0], 0))
 
-        categorical_features = np.column_stack(decoded_categorical_features)
-    else:
-        categorical_features = np.empty((numerical_features.shape[0], 0))
+    categorical_features = np.round(encoded_categorical_features).astype(int)
+    decoded_categorical_features = []
+    for column in range(categorical_features.shape[1]):
+        categorical_feature = categorical_features[:, column]
+        categorical_feature = np.clip(categorical_feature, 0, len(label_encoders[column].classes_) - 1)
+        decoded_categorical_features.append(label_encoders[column].inverse_transform(categorical_feature))
 
-    return categorical_features
+    return np.column_stack(decoded_categorical_features)
 
 
-def _round_numerical_features(numerical_features: np.ndarray, real_numerical_features: np.ndarray) -> np.ndarray:
+def _round_discrete_numerical_features(
+    numerical_features: np.ndarray,
+    real_numerical_features: np.ndarray,
+) -> np.ndarray:
     """
-    Round the numerical features to the nearest unique values found in the
+    Round the discretenumerical features to the nearest unique values found in the
     corresponding columns of the real data.
 
     Args:
