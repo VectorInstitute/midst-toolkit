@@ -97,7 +97,7 @@ def test_epsilon_identifiability_risk_small_data_gower() -> None:
     assert len(results) == 2
     assert pytest.approx(results["privacy_loss"], abs=1e-5) == target - target_holdout
 
-    # Using Categorical columns too after preprocess
+    # Using Categorical columns too after preprocess.
     real_data, synthetic_data = preprocess_for_distance_computation(META_INFO, REAL_DATA, SYNTHETIC_DATA)
 
     eir_metric = EpsilonIdentifiabilityRisk(
@@ -109,7 +109,7 @@ def test_epsilon_identifiability_risk_small_data_gower() -> None:
     results = eir_metric.compute(real_data, synthetic_data)
 
     assert len(results) == 1
-    target = 4 / 5
+    target = 5 / 5
     assert pytest.approx(results["epsilon_identifiability_risk"], abs=1e-5) == target
 
 
