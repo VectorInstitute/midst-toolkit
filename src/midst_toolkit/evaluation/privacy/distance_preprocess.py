@@ -9,7 +9,9 @@ from midst_toolkit.evaluation.utils import extract_columns_based_on_meta_info
 
 @overload
 def preprocess_for_distance_computation(
-    meta_info: dict[str, Any], real_data_train: pd.DataFrame, synthetic_data: pd.DataFrame,
+    meta_info: dict[str, Any],
+    real_data_train: pd.DataFrame,
+    synthetic_data: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.DataFrame]: ...
 
 
