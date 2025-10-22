@@ -1,15 +1,9 @@
-"""PLACEHOLDER."""
-
-from collections.abc import Callable
-from inspect import isfunction
-from typing import Any
+"""Utility functions for the diffusion models."""
 
 import numpy as np
 import torch
-import torch.nn.functional as F
-
-# ruff: noqa: N812
 from torch import Tensor
+from torch.nn import functional
 
 
 def normal_kl(
@@ -23,6 +17,17 @@ def normal_kl(
 
     Shapes are automatically broadcasted, so batches can be compared to
     scalars, among other use cases.
+
+    Note: at least one on the arguments must be a Tensor.
+
+    Args:
+        mean1: The mean of the first Gaussian.
+        logvar1: The log variance of the first Gaussian.
+        mean2: The mean of the second Gaussian.
+        logvar2: The log variance of the second Gaussian.
+
+    Returns:
+        The KL divergence between the two Gaussians.
     """
     tensor = None
     for obj in (mean1, logvar1, mean2, logvar2):
@@ -44,6 +49,12 @@ def approx_standard_normal_cdf(x: Tensor) -> Tensor:
     """
     A fast approximation of the cumulative distribution function of the
     standard normal.
+
+    Args:
+        x: The input tensor.
+
+    Returns:
+        The cumulative distribution function of the standard normal.
     """
     return 0.5 * (1.0 + torch.tanh(np.sqrt(2.0 / np.pi) * (x + 0.044715 * torch.pow(x, 3))))
 
@@ -53,11 +64,13 @@ def discretized_gaussian_log_likelihood(x: Tensor, *, means: Tensor, log_scales:
     Compute the log-likelihood of a Gaussian distribution discretizing to a
     given image.
 
-    :param x: the target images. It is assumed that this was uint8 values,
-              rescaled to the range [-1, 1].
-    :param means: the Gaussian mean Tensor.
-    :param log_scales: the Gaussian log stddev Tensor.
-    :return: a tensor like x of log probabilities (in nats).
+    Args:
+        x: The target images. It is assumed that this was uint8 values, rescaled to the range [-1, 1].
+        means: The Gaussian mean Tensor.
+        log_scales: The Gaussian log stddev Tensor.
+
+    Returns:
+        A tensor like x of log probabilities (in nats).
     """
     assert x.shape == means.shape == log_scales.shape
     centered_x = x - means
@@ -93,94 +106,181 @@ def sum_except_batch(x: Tensor, num_dims: int = 1) -> Tensor:
 
 
 def mean_flat(tensor: Tensor) -> Tensor:
-    """Take the mean over all non-batch dimensions."""
+    """
+    Take the mean over all non-batch dimensions. The first dimension should be the batch.
+
+    Args:
+        tensor: The tensor.
+
+    Returns:
+        The mean over all non-batch dimensions.
+    """
     return tensor.mean(dim=list(range(1, len(tensor.shape))))
 
 
-def ohe_to_categories(ohe: Tensor, K: Tensor) -> Tensor:
-    # ruff: noqa: D103, N803
-    K = torch.from_numpy(K)
-    # ruff: noqa: N806
-    indices = torch.cat([torch.zeros((1,)), K.cumsum(dim=0)], dim=0).int().tolist()
-    res = []
+def one_hot_encoding_to_categories(one_hot_encoded_features: Tensor, num_categories: np.ndarray) -> Tensor:
+    """
+    Convert one-hot encoded categorical data to categorical data.
+
+    Args:
+        one_hot_encoded_features: The one-hot encoded categorical data tensor.
+        num_categories: The number of categories.
+
+    Returns:
+        The categorical data tensor.
+    """
+    categories = torch.from_numpy(num_categories)
+    indices = torch.cat([torch.zeros((1,)), categories.cumsum(dim=0)], dim=0).int().tolist()
+
+    result = []
     for i in range(len(indices) - 1):
-        res.append(ohe[:, indices[i] : indices[i + 1]].argmax(dim=1))
-    return torch.stack(res, dim=1)
+        result.append(one_hot_encoded_features[:, indices[i] : indices[i + 1]].argmax(dim=1))
+
+    return torch.stack(result, dim=1)
 
 
 def log_1_min_a(a: Tensor) -> Tensor:
-    # ruff: noqa: D103
+    """
+    Compute the log of 1 minus the exponential of a tensor.
+
+    Args:
+        a: The tensor.
+
+    Returns:
+        The log of 1 minus the exponential of a tensor.
+    """
     return torch.log(1 - a.exp() + 1e-40)
 
 
 def log_add_exp(a: Tensor, b: Tensor) -> Tensor:
-    # ruff: noqa: D103
+    """
+    Compute the log of the sum of the exponential of two tensors.
+
+    NOTE: This is a numerically stabilized form of performing this operation.
+
+    Args:
+        a: The first tensor.
+        b: The second tensor.
+
+    Returns:
+        The log of the sum of the exponential of two tensors.
+    """
     maximum = torch.max(a, b)
     return maximum + torch.log(torch.exp(a - maximum) + torch.exp(b - maximum))
 
 
-def exists(x: Any) -> bool:
-    # ruff: noqa: D103
-    return x is not None
+def extract(input_tensor: Tensor, index: Tensor, output_shape: tuple[int, ...]) -> Tensor:
+    """
+    Extract the value at ``index`` from a the ``input_tensor``.
+
+    Will return the extracted value as a tensor of shape ``output_shape``
+    with the value at ``index`` repeated to fit the shape.
+
+    Args:
+        input_tensor: The tensor.
+        index: The index of the value to be extracted.
+        output_shape: The shape of the output tensor.
+
+    Returns:
+        The extracted value as a tensor of shape ``output_shape``.
+    """
+    index = index.to(input_tensor.device)
+    output_tensor = input_tensor.gather(-1, index)
+    while len(output_tensor.shape) < len(output_shape):
+        # Adding a new dimension to the tensor until it reaches len(output_shape)
+        output_tensor = output_tensor[..., None]
+    return output_tensor.expand(output_shape)
 
 
-def extract(a: Tensor, t: Tensor, x_shape: tuple[int, ...]) -> Tensor:
-    # ruff: noqa: D103
-    b, *_ = t.shape
-    t = t.to(a.device)
-    out = a.gather(-1, t)
-    while len(out.shape) < len(x_shape):
-        out = out[..., None]
-    return out.expand(x_shape)
+def log_categorical(log_features_start: Tensor, log_probabilities: Tensor) -> Tensor:
+    """
+    Compute the expected log-probability under a categorical distribution.
+
+    Args:
+        log_features_start: Log of target category probabilities.
+        log_probabilities: Log-probabilities over categories aligned with log_x_start.
+
+    Returns:
+        Tensor with expected log-probabilities along dim=1.
+    """
+    return (log_features_start.exp() * log_probabilities).sum(dim=1)
 
 
-def default(val: Tensor, d: Callable[[], Tensor] | Tensor) -> Tensor:
-    # ruff: noqa: D103
-    if exists(val):
-        return val
-    if isfunction(d):
-        return d()
-    assert isinstance(d, Tensor)
-    return d
+def index_to_log_onehot(input_tensor: Tensor, num_classes: Tensor) -> Tensor:
+    """
+    Convert the input tensor to one-hot and takes the log of that tensor.
 
+    Will avoid producing NaN values by clamping them to a value just above zero.
 
-def log_categorical(log_x_start: Tensor, log_prob: Tensor) -> Tensor:
-    # ruff: noqa: D103
-    return (log_x_start.exp() * log_prob).sum(dim=1)
+    Args:
+        input_tensor: The input tensor.
+        num_classes: The number of classes.
 
-
-def index_to_log_onehot(x: Tensor, num_classes: Tensor) -> Tensor:
-    # ruff: noqa: D103
+    Returns:
+        The log one-hot tensor.
+    """
     onehots = []
     for i in range(len(num_classes)):
-        onehots.append(F.one_hot(x[:, i], int(num_classes[i])))
+        onehots.append(functional.one_hot(input_tensor[:, i], int(num_classes[i])))
 
-    x_onehot = torch.cat(onehots, dim=1)
-    return torch.log(x_onehot.float().clamp(min=1e-30))
+    input_onehot = torch.cat(onehots, dim=1)
+    return torch.log(input_onehot.float().clamp(min=1e-30))
 
 
-def log_sum_exp_by_classes(x: Tensor, slices: Tensor) -> Tensor:
-    # ruff: noqa: D103
-    res = torch.zeros_like(x)
-    for ixs in slices:
-        res[:, ixs] = torch.logsumexp(x[:, ixs], dim=1, keepdim=True)
+def log_sum_exp_by_classes(input_tensor: Tensor, classes: Tensor) -> Tensor:
+    """
+    Compute the log of the sum of the exponential of the input tensor by classes.
 
-    assert x.size() == res.size()
+    Args:
+        input_tensor: The input tensor.
+        classes: The classes.
 
-    return res
+    Returns:
+        The log of the sum of the exponential of the input tensor by classes.
+    """
+    result = torch.zeros_like(input_tensor)
+    for c in classes:
+        result[:, c] = torch.logsumexp(input_tensor[:, c], dim=1, keepdim=True)
+
+    assert input_tensor.size() == result.size()
+
+    return result
 
 
 @torch.jit.script
-def log_sub_exp(a: Tensor, b: Tensor) -> Tensor:
-    # ruff: noqa: D103
-    m = torch.maximum(a, b)
-    return torch.log(torch.exp(a - m) - torch.exp(b - m)) + m
+def log_sub_exp(first_tensor: Tensor, second_tensor: Tensor) -> Tensor:
+    """
+    Compute the log of the difference of the exponential of the input tensor.
+
+    NOTE: This is a numerically stabilized form of performing this operation.
+
+    Args:
+        first_tensor: The first tensor.
+        second_tensor: The second tensor.
+
+    Returns:
+        The log of the difference of the exponential of the input tensor.
+    """
+    maximum = torch.maximum(first_tensor, second_tensor)
+    return torch.log(torch.exp(first_tensor - maximum) - torch.exp(second_tensor - maximum)) + maximum
 
 
 @torch.jit.script
-def sliced_logsumexp(x: Tensor, slices: Tensor) -> Tensor:
-    # ruff: noqa: D103
-    lse = torch.logcumsumexp(torch.nn.functional.pad(x, [1, 0, 0, 0], value=-float("inf")), dim=-1)
+def sliced_logsumexp(input_tensor: Tensor, slices: Tensor) -> Tensor:
+    """
+    Compute the log of the sum of the exponential of the input tensor by slices.
+
+    NOTE: Some padding is also being done, maybe investigate this later.
+
+    Args:
+        input_tensor: The input tensor.
+        slices: The slices.
+
+    Returns:
+        The log of the sum of the exponential of the input tensor by slices.
+    """
+    padded_input_tensor = functional.pad(input_tensor, [1, 0, 0, 0], value=-float("inf"))
+    lse = torch.logcumsumexp(padded_input_tensor, dim=-1)
 
     slice_starts = slices[:-1]
     slice_ends = slices[1:]
@@ -189,14 +289,27 @@ def sliced_logsumexp(x: Tensor, slices: Tensor) -> Tensor:
     return torch.repeat_interleave(slice_lse, slice_ends - slice_starts, dim=-1)
 
 
-def log_onehot_to_index(log_x: Tensor) -> Tensor:
-    # ruff: noqa: D103
-    return log_x.argmax(1)
+def log_onehot_to_index(log_one_hot_tensor: Tensor) -> Tensor:
+    """
+    Return the indices of the maximum value in the log one-hot tensor, i.e. the "hot" encoding.
+
+    Args:
+        log_one_hot_tensor: The log one-hot tensor.
+
+    Returns:
+        The indices of the maximum value in the log one-hot tensor, i.e. the "hot" encoding.
+    """
+    return log_one_hot_tensor.argmax(1)
 
 
 class FoundNaNsError(BaseException):
-    """Found NANs during sampling."""
+    """Error to be raised whem NANs are found during sampling."""
 
-    def __init__(self, message: str = "Found NANs during sampling.") -> None:
-        # ruff: noqa: D107
+    def __init__(self, message: str = "Found NANs during sampling."):
+        """
+        Initialize the FoundNaNsError.
+
+        Args:
+            message: The error message. Defaults to "Found NANs during sampling."
+        """
         super(FoundNaNsError, self).__init__(message)

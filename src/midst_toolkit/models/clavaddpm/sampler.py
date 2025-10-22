@@ -68,7 +68,7 @@ class UniformSampler(ScheduleSampler):
 
 
 class LossAwareSampler(ScheduleSampler):
-    def update_with_local_losses(self, local_ts: Tensor, local_losses: Tensor) -> None:
+    def update_with_local_losses(self, local_timesteps: Tensor, local_losses: Tensor) -> None:
         """
         Update the reweighting using losses from a model.
 
@@ -78,31 +78,31 @@ class LossAwareSampler(ScheduleSampler):
         maintain the exact same reweighting.
 
         Args:
-            local_ts: An integer Tensor of timesteps.
+            local_timesteps: An integer Tensor of timesteps.
             local_losses: A 1D Tensor of losses.
         """
         batch_sizes = [
-            torch.tensor([0], dtype=torch.int32, device=local_ts.device)
+            torch.tensor([0], dtype=torch.int32, device=local_timesteps.device)
             for _ in range(torch.distributed.get_world_size())
         ]
         torch.distributed.all_gather(
             batch_sizes,
-            torch.tensor([len(local_ts)], dtype=torch.int32, device=local_ts.device),
+            torch.tensor([len(local_timesteps)], dtype=torch.int32, device=local_timesteps.device),
         )
 
         # Pad all_gather batches to be the maximum batch size.
         max_bs = max([int(x.item()) for x in batch_sizes])
 
-        timestep_batches = [torch.zeros(max_bs).to(local_ts) for bs in batch_sizes]
+        timestep_batches = [torch.zeros(max_bs).to(local_timesteps) for bs in batch_sizes]
         loss_batches = [torch.zeros(max_bs).to(local_losses) for bs in batch_sizes]
-        torch.distributed.all_gather(timestep_batches, local_ts)
+        torch.distributed.all_gather(timestep_batches, local_timesteps)
         torch.distributed.all_gather(loss_batches, local_losses)
         timesteps = [x.item() for y, bs in zip(timestep_batches, batch_sizes) for x in y[:bs]]
         losses = [x.item() for y, bs in zip(loss_batches, batch_sizes) for x in y[:bs]]
         self.update_with_all_losses(timesteps, losses)
 
     @abstractmethod
-    def update_with_all_losses(self, ts: list[int], losses: list[float]) -> None:
+    def update_with_all_losses(self, timesteps: list[int], losses: list[float]) -> None:
         """
         Update the reweighting using losses from a model.
 
@@ -115,7 +115,7 @@ class LossAwareSampler(ScheduleSampler):
         behavior to maintain state across workers.
 
         Args:
-            ts: A list of int timesteps.
+            timesteps: A list of int timesteps.
             losses: A list of float losses, one per timestep.
         """
 
@@ -146,6 +146,9 @@ class LossSecondMomentResampler(LossAwareSampler):
         Return the weights.
 
         Warms up the sampler if it's not warmed up.
+
+        Returns:
+            The weights as a tensor.
         """
         if not self._warmed_up():
             return torch.from_numpy(np.ones([self.num_timesteps], dtype=np.float64))
@@ -155,15 +158,15 @@ class LossSecondMomentResampler(LossAwareSampler):
         weights += self.uniform_prob / len(weights)
         return torch.from_numpy(weights)
 
-    def update_with_all_losses(self, ts: list[int], losses: list[float]) -> None:
+    def update_with_all_losses(self, timesteps: list[int], losses: list[float]) -> None:
         """
         Update the reweighting using losses from the model.
 
         Args:
-            ts: The timesteps.
+            timesteps: The timesteps.
             losses: The losses.
         """
-        for t, loss in zip(ts, losses):
+        for t, loss in zip(timesteps, losses):
             if self._loss_counts[t] == self.history_per_term:
                 # Shift out the oldest loss term.
                 self._loss_history[t, :-1] = self._loss_history[t, 1:]
