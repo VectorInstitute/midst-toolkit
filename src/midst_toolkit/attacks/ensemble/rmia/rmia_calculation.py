@@ -235,7 +235,7 @@ def calculate_rmia_signals(
         df_input=df_input,
         model_data=target_data_collection[0],
         min_length=min_length,
-        key=Key.FINE_TUNED_RESULTS,
+        key=Key.TRAINED_RESULTS,
         categorical_column_names=categorical_column_names,
         id_column_name=id_column_name,
     )

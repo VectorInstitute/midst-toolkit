@@ -54,12 +54,15 @@ shadow_training:
   # Model training artifacts are saved under shadow_models_data_path/workspace_name/exp_name
   # Also, training configs for each shadow model are created under shadow_models_data_path.
   shadow_models_output_path: ${base_data_dir}/shadow_models_and_data
+  target_model_output_path: ${base_data_dir}/target_model_and_data
   final_shadow_models_path: [
           "initial_model_rmia_1/shadow_workspace/pre_trained_model/rmia_shadows.pkl",
           "initial_model_rmia_2/shadow_workspace/pre_trained_model/rmia_shadows.pkl",
           "shadow_model_rmia_third_set/shadow_workspace/trained_model/rmia_shadows_third_set.pkl",
       ] # Paths to final shadow models used for metaclassifier training (relative to shadow_models_output_path)
       # Each .pkl file contains the training data, trained model and training results for all shadow models in a list.
+  final_target_model_path: "target_model/shadow_workspace/trained_target_model/target_model.pkl"
+  # Path to final target model (relative to target_model_output_path)
   fine_tuning_config:
     fine_tune_diffusion_iterations: 2
     fine_tune_classifier_iterations: 2

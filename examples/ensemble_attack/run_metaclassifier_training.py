@@ -14,7 +14,7 @@ from midst_toolkit.common.logger import log
 def run_metaclassifier_training(
     config: DictConfig,
     attack_data_paths: list[Path],
-    target_data_path: Path | None = None,
+    target_data_path: Path,
 ) -> None:
     """
     Fuction to run the metaclassifier training and evaluation.
@@ -23,8 +23,7 @@ def run_metaclassifier_training(
         config: Configuration object set in config.yaml.
         attack_data_paths: List of paths to the trained shadow models and all their attributes and synthetic data.
             The list should contain three paths, one for each set of shadow models.
-        target_data_path: Optional path to the target model and all its attributes and synthetic data.
-            If None, a dummy target model will be used.
+        target_data_path: Path to the target model and all its attributes and synthetic data.
     """
     log(INFO, "Running metaclassifier training...")
 
@@ -61,41 +60,14 @@ def run_metaclassifier_training(
             shadow_model = pickle.load(f)
             attack_data_collection.append(shadow_model)
 
-    if target_data_path is None:  # No target model path provided
-        log(INFO, "No target model path provided, using a dummy target model for metaclassifier training.")
+    assert target_data_path.exists(), (
+        f"No file found at {target_data_path}. Make sure the path is correct and that you have trained the target model."
+    )
+    with open(target_data_path, "rb") as f:
+        target_model = pickle.load(f)
+        target_data_collection.append(target_model)
 
-        # Create a dummy target model using one of the shadow models' data.
-        shadow_model_collection_instance = attack_data_collection[1]
-        instance_fine_tuning_sets = shadow_model_collection_instance["fine_tuning_sets"]
-        instance_fine_tuned_results = shadow_model_collection_instance["fine_tuned_results"]
-
-        # Use the last shadow model in the set as the dummy target model data.
-        dummy_target_set = instance_fine_tuning_sets[2]
-        dummy_target_results = instance_fine_tuned_results[2]
-
-        # TODO: Do we need a list of target models or just one is enough? (Depends on RMIA functions structure)
-        target_data_collection.append(
-            {
-                "fine_tuning_sets": [dummy_target_set],
-                "fine_tuned_results": [dummy_target_results],
-            }
-        )
-
-        # Synthetic data borrowed from the attack implementation repository.
-        # From (https://github.com/CRCHUM-CITADEL/ensemble-mia/tree/main/input/tabddpm_black_box/meta_classifier)
-        # TODO: Change this file path to the path where the synthetic data is stored, or get from the target model.
-        df_synthetic = load_dataframe(
-            Path(config.data_paths.processed_attack_data_path),
-            "synth.csv",
-        )
-
-    else:  # Load the provided target model data
-        assert target_data_path.exists(), f"No file found at {target_data_path}. Make sure the path is correct."
-        with open(target_data_path, "rb") as f:
-            target_model = pickle.load(f)
-            target_data_collection.append(target_model)
-
-        df_synthetic = target_data_collection[0]["fine_tuned_results"][0].synthetic_data.copy()
+    df_synthetic = target_data_collection[0]["trained_results"][0].synthetic_data.copy()
 
     df_reference = load_dataframe(
         Path(config.data_paths.population_path),
@@ -145,10 +117,17 @@ def run_metaclassifier_training(
 
     log(INFO, "Metaclassifier model saved, starting evaluation...")
 
+    # Get the synthetic data provided by the challenge for evaluation
+    #TODO: Check if the file is the correct one.
+    df_synthetic_original = load_dataframe(
+        Path(config.data_paths.processed_attack_data_path),
+        "synth.csv",
+    )
+
     # 3. Get predictions on the test set
     probabilities, pred_score = blending_attacker.predict(
         df_test=df_meta_test,
-        df_synthetic=df_synthetic,
+        df_synthetic=df_synthetic_original,
         df_reference=df_reference,
         id_column_data=test_trans_ids,
         y_test=y_meta_test,
