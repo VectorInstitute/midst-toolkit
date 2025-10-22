@@ -66,12 +66,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: integration-tests-artifacts
-          path: tests/integration/assets/multi_table/assertion_data/cleaned_tables.pkl
-          retention-days: 1
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: integration-tests-artifacts
           path: tests/integration/assets/multi_table/assertion_data/diffusion_parameters_gh.pkl
           retention-days: 1

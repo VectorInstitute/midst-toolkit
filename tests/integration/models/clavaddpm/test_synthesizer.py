@@ -1,4 +1,3 @@
-import pickle
 from copy import deepcopy
 from pathlib import Path
 
@@ -82,7 +81,5 @@ def test_clava_syntheesize_multi_table(tmp_path: Path):
         models[1],
         configs,
     )
-
-    pickle.dump(cleaned_tables, open("tests/integration/assets/multi_table/assertion_data/cleaned_tables.pkl", "wb"))
 
     unset_all_random_seeds()
