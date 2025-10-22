@@ -1,5 +1,6 @@
 {
     "relation_order": [
+        [null, "account"],
         ["account", "trans"]
     ],
     "tables": {

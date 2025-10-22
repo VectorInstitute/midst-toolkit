@@ -240,8 +240,8 @@ def test_load_multi_table():
         },
     }
 
-    assert relation_order == [["account", "trans"]]
-    assert dataset_meta["relation_order"] == [["account", "trans"]]
+    assert relation_order == [[None, "account"], ["account", "trans"]]
+    assert dataset_meta["relation_order"] == [[None, "account"], ["account", "trans"]]
     assert dataset_meta["tables"] == {
         "account": {"children": ["trans"], "parents": []},
         "trans": {"children": [], "parents": ["account"]},
@@ -337,6 +337,10 @@ def test_train_multi_table(tmp_path: Path):
 
     model_data = dict(models[1][key]["diffusion"].named_parameters())
 
+    pickle.dump(
+        model_data, open("tests/integration/assets/multi_table/assertion_data/diffusion_parameters_gh.pkl", "wb")
+    )
+
     expected_model_data = pickle.loads(
         Path("tests/integration/assets/multi_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
     )
@@ -374,7 +378,7 @@ def test_train_multi_table(tmp_path: Path):
     conditional_sample, _ = models[1][key]["diffusion"].conditional_sample(
         targets=ys_tensor,
         model_kwargs={"y": ys_tensor},
-        cond_fn=get_conditioning_function_for_diffusion(models[1][key]["classifier"], classifier_scale),
+        conditioning_function=get_conditioning_function_for_diffusion(models[1][key]["classifier"], classifier_scale),
     )
 
     expected_conditional_sample = torch.load(
@@ -401,7 +405,7 @@ def test_clustering_reload(tmp_path: Path):
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
 
     # Assert
-    account_df_no_clustering = tables["account"]["df"].drop(columns=["account_trans_cluster"])
+    account_df_no_clustering = tables["account"]["df"].drop(columns=["account_trans_cluster", "placeholder"])
     account_original_df_as_float = tables["account"]["original_df"].astype(float)
     assert account_df_no_clustering.equals(account_original_df_as_float)
 
