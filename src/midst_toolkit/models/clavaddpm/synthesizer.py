@@ -3,7 +3,7 @@ import pickle
 import random
 import time
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import faiss
 import numpy as np
@@ -25,6 +25,7 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     Tables,
 )
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
+    ConditioningFunction,
     GaussianMultinomialDiffusion,
 )
 from midst_toolkit.models.clavaddpm.model import Classifier, ModelParameters
@@ -253,7 +254,7 @@ def conditional_sampling_by_group_size(  # noqa: PLR0915, PLR0912
     group_labels: list[int],
     sample_batch_size: int,
     group_lengths_prob_dicts: dict[int, dict[int, float]],
-    is_y_cond: Literal["concat", "embedding", "none"] | None = None,
+    is_target_conditioned: IsTargetCondioned | None = None,
     classifier_scale: float = 1.0,
 ) -> tuple[pd.DataFrame, pd.DataFrame, list[int]]:
     """
@@ -269,34 +270,12 @@ def conditional_sampling_by_group_size(  # noqa: PLR0915, PLR0912
         group_labels: List of group labels for conditional sampling.
         sample_batch_size: Batch size used in sampling.
         group_lengths_prob_dicts: Dictionary of group length probabilities for each group label.
-        is_y_cond: Conditioning method for the target variable. Can be "concat", "embedding", or "none".
+        is_target_conditioned: Conditioning method for the target variable. Defaults to IsTargetCondioned.NONE.
         classifier_scale: Scale factor for the classifier. Defaults to 1.0.
 
     Returns:
         _description_
     """
-
-    def cond_fn(
-        features: torch.Tensor,
-        timestep: torch.Tensor,
-        **kwargs: Any,
-    ) -> torch.Tensor:
-        assert "y" in kwargs and kwargs["y"] is not None, "The kwargs parameter `y` must be provided."
-        assert isinstance(kwargs["y"], torch.Tensor), "The kwargs parameter `y` must be a Tensor."
-
-        y = kwargs["y"]
-        remove_first_col = kwargs.get("remove_first_col", False)
-
-        with torch.enable_grad():
-            if remove_first_col:
-                x_in = features[:, 1:].detach().requires_grad_(True).float()
-            else:
-                x_in = features.detach().requires_grad_(True).float()
-            logits = classifier(x_in, timestep)
-            log_probs = functional.log_softmax(logits, dim=-1)
-            selected = log_probs[range(len(logits)), y.view(-1)]
-            return torch.autograd.grad(selected.sum(), x_in)[0] * classifier_scale
-
     sampled_group_sizes = []
     ys = []
     for group_label in group_labels:
@@ -311,12 +290,17 @@ def conditional_sampling_by_group_size(  # noqa: PLR0915, PLR0912
     all_rows = []
     all_clusters = []
     curr_index = 0
+    conditioning_function = _get_conditioning_function(classifier, classifier_scale)
     while curr_index < len(ys):
         end_index = min(curr_index + sample_batch_size, len(ys))
         curr_ys = torch.tensor(np.array(ys[curr_index:end_index]).reshape(-1, 1), requires_grad=False)
         curr_model_kwargs = {}
         curr_model_kwargs["y"] = curr_ys
-        curr_sample, _ = diffusion.conditional_sample(targets=curr_ys, model_kwargs=curr_model_kwargs, cond_fn=cond_fn)
+        curr_sample, _ = diffusion.conditional_sample(
+            targets=curr_ys,
+            model_kwargs=curr_model_kwargs,
+            conditioning_function=conditioning_function,
+        )
         all_rows.extend([sample.cpu().numpy() for sample in [curr_sample]])
         all_clusters.extend([curr_ys.cpu().numpy() for curr_ys in [curr_ys]])
         curr_index += sample_batch_size
@@ -327,7 +311,7 @@ def conditional_sampling_by_group_size(  # noqa: PLR0915, PLR0912
     num_numerical_features = dataset.x_num["train"].shape[1] if dataset.x_num is not None else 0
 
     x_gen, y_gen = arr, cluster_arr
-    num_numerical_features_sample = num_numerical_features + int(dataset.is_regression and not is_y_cond)
+    num_numerical_features_sample = num_numerical_features + int(dataset.is_regression and not is_target_conditioned)
 
     x_num_real = df[df_info["num_cols"]].to_numpy().astype(float)
     x_cat_real = df[df_info["cat_cols"]].to_numpy().astype(str)
@@ -354,7 +338,7 @@ def conditional_sampling_by_group_size(  # noqa: PLR0915, PLR0912
             if len(uniq_vals) <= 32 and ((uniq_vals - np.round(uniq_vals)) == 0).all():
                 disc_cols.append(col)
         # print("Discrete cols:", disc_cols)
-        if is_y_cond == "concat":
+        if is_target_conditioned == IsTargetCondioned.CONCAT:
             y_gen = x_num[:, 0]
             x_num = x_num[:, 1:]
         if disc_cols:
@@ -391,6 +375,31 @@ def conditional_sampling_by_group_size(  # noqa: PLR0915, PLR0912
             df_gen[col_str] = df_gen[col_str].astype(float)
 
     return df_total, df_gen, sampled_group_sizes
+
+
+def _get_conditioning_function(classifier: Classifier, classifier_scale: float) -> ConditioningFunction:
+    def conditioning_function(
+        features: torch.Tensor,
+        timestep: torch.Tensor,
+        **kwargs: Any,
+    ) -> torch.Tensor:
+        assert "y" in kwargs and kwargs["y"] is not None, "The kwargs parameter `y` must be provided."
+        assert isinstance(kwargs["y"], torch.Tensor), "The kwargs parameter `y` must be a Tensor."
+
+        y = kwargs["y"]
+        remove_first_col = kwargs.get("remove_first_col", False)
+
+        with torch.enable_grad():
+            if remove_first_col:
+                x_in = features[:, 1:].detach().requires_grad_(True).float()
+            else:
+                x_in = features.detach().requires_grad_(True).float()
+            logits = classifier(x_in, timestep)
+            log_probs = functional.log_softmax(logits, dim=-1)
+            selected = log_probs[range(len(logits)), y.view(-1)]
+            return torch.autograd.grad(selected.sum(), x_in)[0] * classifier_scale
+
+    return conditioning_function
 
 
 def handle_multi_parent(
@@ -751,7 +760,7 @@ def clava_synthesizing(  # noqa: PLR0915, PLR0912
                 .tolist(),
                 group_lengths_prob_dicts=all_group_lengths_prob_dicts[(parent, child)],
                 sample_batch_size=configs["sampling"]["batch_size"],
-                is_y_cond="none",
+                is_target_conditioned=IsTargetCondioned.NONE,
                 classifier_scale=configs["sampling"]["classifier_scale"],
             )
 

@@ -660,7 +660,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         features: Tensor,
         timestep: Tensor,
         model_kwargs: dict[str, Any] | None = None,
-        cond_fn: ConditioningFunction | None = None,
+        conditioning_function: ConditioningFunction | None = None,
     ) -> dict[str, Tensor]:
         """
         Sample from the Gaussian posterior distribution.
@@ -670,7 +670,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             features: The features used to compute the Gaussian parameters.
             timestep: The timestep.
             model_kwargs: The model kwargs. Optional, default is None.
-            cond_fn: The conditioning function. Optional, default is None.
+            conditioning_function: The conditioning function. Optional, default is None.
 
         Returns:
             A dictionary with teo tensors:
@@ -690,8 +690,10 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         # no noise when t == 0
         nonzero_mask = (timestep != 0).float().view(-1, *([1] * (len(features.shape) - 1)))
 
-        if cond_fn is not None:
-            out["mean"] = self.condition_mean(cond_fn, out, features, timestep, model_kwargs=model_kwargs)
+        if conditioning_function is not None:
+            out["mean"] = self.condition_mean(
+                conditioning_function, out, features, timestep, model_kwargs=model_kwargs
+            )
 
         sample = out["mean"] + nonzero_mask * torch.exp(0.5 * out["log_variance"]) * noise
         return {"sample": sample, "pred_xstart": out["pred_xstart"]}
@@ -1308,7 +1310,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         self,
         targets: Tensor,
         model_kwargs: dict[str, Any] | None = None,
-        cond_fn: ConditioningFunction | None = None,
+        conditioning_function: ConditioningFunction | None = None,
     ) -> tuple[Tensor, dict[str, Tensor]]:
         """
         Sample using conditional DDIM.
@@ -1316,7 +1318,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         Args:
             targets: The targets.
             model_kwargs: The model kwargs. Optional, default is None.
-            cond_fn: The conditioning function. Optional, default is None.
+            conditioning_function: The conditioning function. Optional, default is None.
 
         Returns:
             The samples and the output dictionary.
@@ -1342,7 +1344,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
                 z_norm,
                 t,
                 model_kwargs=model_kwargs,
-                cond_fn=cond_fn,
+                conditioning_function=conditioning_function,
             )["sample"]
             if has_cat:
                 log_z = self.p_sample(model_out_cat, log_z, t)
@@ -1399,7 +1401,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
                 z_norm,
                 t,
                 model_kwargs=model_kwargs,
-                cond_fn=cond_fn,
+                conditioning_function=cond_fn,
             )["sample"]
             if has_cat:
                 log_z = self.p_sample(model_out_cat, log_z, t)
