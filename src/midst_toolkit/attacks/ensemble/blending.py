@@ -112,7 +112,7 @@ class BlendingPlusPlus:
 
         # 1. Get Gower distance features
 
-        log(INFO, "Calculating gower features...")
+        log(INFO, "Calculating Gower features...")
 
         gower_features = calculate_gower_features(
             df_input=df_input, df_synthetic=df_synthetic, categorical_column_names=categorical_cols
