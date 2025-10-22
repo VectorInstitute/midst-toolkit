@@ -156,6 +156,8 @@ def log_add_exp(a: Tensor, b: Tensor) -> Tensor:
     """
     Compute the log of the sum of the exponential of two tensors.
 
+    NOTE: This is a numerically stabilized form of performing this operation.
+
     Args:
         a: The first tensor.
         b: The second tensor.
@@ -169,9 +171,10 @@ def log_add_exp(a: Tensor, b: Tensor) -> Tensor:
 
 def extract(input_tensor: Tensor, index: Tensor, output_shape: tuple[int, ...]) -> Tensor:
     """
-    Extract the value at `index` from a the ``input_tensor``.
+    Extract the value at ``index`` from a the ``input_tensor``.
 
-    Will return the extracted value as a tensor of shape ``output_shape``.
+    Will return the extracted value as a tensor of shape ``output_shape``
+    with the value at ``index`` repeated to fit the shape.
 
     Args:
         input_tensor: The tensor.
@@ -249,6 +252,8 @@ def log_sub_exp(first_tensor: Tensor, second_tensor: Tensor) -> Tensor:
     """
     Compute the log of the difference of the exponential of the input tensor.
 
+    NOTE: This is a numerically stabilized form of performing this operation.
+
     Args:
         first_tensor: The first tensor.
         second_tensor: The second tensor.
@@ -264,6 +269,8 @@ def log_sub_exp(first_tensor: Tensor, second_tensor: Tensor) -> Tensor:
 def sliced_logsumexp(input_tensor: Tensor, slices: Tensor) -> Tensor:
     """
     Compute the log of the sum of the exponential of the input tensor by slices.
+
+    NOTE: Some padding is also being done, maybe investigate this later.
 
     Args:
         input_tensor: The input tensor.
