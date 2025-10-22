@@ -104,7 +104,9 @@ def run_shadow_model_training(config: DictConfig) -> list[Path]:
         config: Configuration object set in config.yaml.
 
     Returns:
-        Paths to the saved shadow model results for the three sets of shadow models.
+        Paths to the saved shadow model results for the three sets of shadow models. For more details,
+        see the documentation and return value of `train_three_sets_of_shadow_models`
+        at src/midst_toolkit/attacks/ensemble/rmia/shadow_model_training.py.
     """
     log(INFO, "Running shadow model training...")
     # Load the required dataframes for shadow model training.
@@ -144,7 +146,7 @@ def run_shadow_model_training(config: DictConfig) -> list[Path]:
     )
     log(
         INFO,
-        f"Shadow model training finished and saved at 1) {first_set_result_path}, 2) {second_set_result_path}, 3) {third_set_result_path}",
+        f"Shadow model training finished and saved at \n1) {first_set_result_path} \n2) {second_set_result_path} \n3) {third_set_result_path}",
     )
 
     return [first_set_result_path, second_set_result_path, third_set_result_path]

@@ -60,18 +60,23 @@ def main(config: DictConfig) -> None:
     if config.pipeline.run_shadow_model_training:
         shadow_pipeline = importlib.import_module("examples.ensemble_attack.run_shadow_model_training")
         attack_data_paths = shadow_pipeline.run_shadow_model_training(config)
-
-    else:
-        # If shadow model training is skipped, we need to provide the paths to pre-trained shadow models.
-        attack_data_paths = [
-            "initial_model_rmia_1/shadow_workspace/pre_trained_model/rmia_shadows.pkl",
-            "initial_model_rmia_2/shadow_workspace/pre_trained_model/rmia_shadows.pkl",
-            "shadow_model_rmia_third_set/shadow_workspace/trained_model/rmia_shadows_third_set.pkl",
-        ]
+        attack_data_paths = [Path(path) for path in attack_data_paths]
 
     if config.pipeline.run_metaclassifier_training:
+        if not config.pipeline.run_shadow_model_training:
+            # If shadow model training is skipped, we need to provide the previous shadow model and target model paths.
+            attack_data_paths = [
+                Path(Path(config.shadow_training.shadow_models_output_path) / path)
+                for path in config.shadow_training.final_shadow_models_path
+            ]
+
+            # target_data_path = Path(config.model_paths.final_target_model_path)
+
+        assert len(attack_data_paths) == 3, "The attack_data_paths list must contain exactly three elements."
+        # assert target_data_path is not None, "The target_data_path must be provided for metaclassifier training."
+
         meta_pipeline = importlib.import_module("examples.ensemble_attack.run_metaclassifier_training")
-        meta_pipeline.run_metaclassifier_training(config, attack_data_paths, target_data_path="")
+        meta_pipeline.run_metaclassifier_training(config, attack_data_paths, target_data_path=None)
 
 
 if __name__ == "__main__":

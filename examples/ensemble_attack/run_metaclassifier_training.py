@@ -11,16 +11,23 @@ from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.common.logger import log
 
 
-def run_metaclassifier_training(config: DictConfig, attack_data_paths: list[str], target_data_path: str) -> None:
+def run_metaclassifier_training(
+    config: DictConfig,
+    attack_data_paths: list[Path],
+    target_data_path: Path | None = None,
+) -> None:
     """
     Fuction to run the metaclassifier training and evaluation.
 
     Args:
         config: Configuration object set in config.yaml.
         attack_data_paths: List of paths to the trained shadow models and all their attributes and synthetic data.
-        target_data_path: Path to the target model and all its attributes and synthetic data.
+            The list should contain three paths, one for each set of shadow models.
+        target_data_path: Optional path to the target model and all its attributes and synthetic data.
+            If None, a dummy target model will be used.
     """
     log(INFO, "Running metaclassifier training...")
+
     # Load the processed data splits.
     df_meta_train = load_dataframe(
         Path(config.data_paths.processed_attack_data_path),
@@ -38,42 +45,57 @@ def run_metaclassifier_training(config: DictConfig, attack_data_paths: list[str]
     )
 
     # Three sets of shadow models are trained separately and their paths are provided here.
-    base_path = Path(config.model_paths.shadow_models_path)
-    attack_data_collection = []
+
+    assert len(attack_data_paths) == 3, (
+        "At this point of development, the attack_data_paths list must contain exactly three elements."
+    )
+
+    attack_data_collection, target_data_collection = [], []
+
     for model_path in attack_data_paths:
-        final_model_path = base_path / model_path
-        with open(final_model_path, "rb") as f:
+        assert model_path.exists(), (
+            f"No file found at {model_path}. Make sure the path is correct, or run shadow model training first."
+        )
+
+        with open(model_path, "rb") as f:
             shadow_model = pickle.load(f)
             attack_data_collection.append(shadow_model)
-    
-    
-    # TODO: Uncomment after we get a target model.
-    target_data_collection = []
-    # with open(target_data_path, "rb") as f:
-    #     target_model = pickle.load(f)
-    #     target_data_collection.append(target_model)
 
+    if target_data_path is None:  # No target model path provided
+        log(INFO, "No target model path provided, using a dummy target model for metaclassifier training.")
 
-    # TODO: Remove after we get a target model.
-    dummy_target_set = attack_data_collection[1]["fine_tuning_sets"][2]
-    dummy_target_results = attack_data_collection[1]["fine_tuned_results"][2]
-    # TODO: Do we need a list of target models or just one is enough? (Depends on RMIA functions structure)
-    #TODO: Maybe change this to "selected_sets" and "trained_results" if target model is not fine-tuned.
+        # Create a dummy target model using one of the shadow models' data.
+        shadow_model_collection_instance = attack_data_collection[1]
+        instance_fine_tuning_sets = shadow_model_collection_instance["fine_tuning_sets"]
+        instance_fine_tuned_results = shadow_model_collection_instance["fine_tuned_results"]
 
-    target_data_collection.append(
-        {
-            "fine_tuning_sets": [dummy_target_set],
-            "fine_tuned_results": [dummy_target_results],
-        }
-    )
+        # Use the last shadow model in the set as the dummy target model data.
+        dummy_target_set = instance_fine_tuning_sets[2]
+        dummy_target_results = instance_fine_tuned_results[2]
 
-    # Synthetic data borrowed from the attack implementation repository.
-    # From (https://github.com/CRCHUM-CITADEL/ensemble-mia/tree/main/input/tabddpm_black_box/meta_classifier)
-    # TODO: Change this file path to the path where the synthetic data is stored, or get from the target model.
-    df_synthetic = load_dataframe(
-        Path(config.data_paths.processed_attack_data_path),
-        "synth.csv",
-    )
+        # TODO: Do we need a list of target models or just one is enough? (Depends on RMIA functions structure)
+        target_data_collection.append(
+            {
+                "fine_tuning_sets": [dummy_target_set],
+                "fine_tuned_results": [dummy_target_results],
+            }
+        )
+
+        # Synthetic data borrowed from the attack implementation repository.
+        # From (https://github.com/CRCHUM-CITADEL/ensemble-mia/tree/main/input/tabddpm_black_box/meta_classifier)
+        # TODO: Change this file path to the path where the synthetic data is stored, or get from the target model.
+        df_synthetic = load_dataframe(
+            Path(config.data_paths.processed_attack_data_path),
+            "synth.csv",
+        )
+
+    else:  # Load the provided target model data
+        assert target_data_path.exists(), f"No file found at {target_data_path}. Make sure the path is correct."
+        with open(target_data_path, "rb") as f:
+            target_model = pickle.load(f)
+            target_data_collection.append(target_model)
+
+        df_synthetic = target_data_collection[0]["fine_tuned_results"][0].synthetic_data.copy()
 
     df_reference = load_dataframe(
         Path(config.data_paths.population_path),
@@ -81,21 +103,14 @@ def run_metaclassifier_training(config: DictConfig, attack_data_paths: list[str]
     )
 
     # Extract trans_id from both train and test dataframes
-    if "trans_id" in df_meta_train.columns:
-        train_trans_ids = df_meta_train["trans_id"]
-    else:
-        raise Exception("Train data must have trans_id column")
+    assert "trans_id" in df_meta_train.columns, "Meta train data must have trans_id column"
+    train_trans_ids = df_meta_train["trans_id"]
 
-    if "trans_id" in df_meta_test.columns:
-        test_trans_ids = df_meta_test["trans_id"]
-    else:
-        raise Exception("Test data must have trans_id column")
+    assert "trans_id" in df_meta_test.columns, "Meta test data must have trans_id column"
+    test_trans_ids = df_meta_test["trans_id"]
 
-    # We should drop the id column from master metaclassifier train data.
-    if "trans_id" in df_meta_train.columns:
-        df_meta_train = df_meta_train.drop(columns=["trans_id", "account_id"])
-    if "trans_id" in df_meta_test.columns:
-        df_meta_test = df_meta_test.drop(columns=["trans_id", "account_id"])
+    df_meta_train = df_meta_train.drop(columns=["trans_id", "account_id"])
+    df_meta_test = df_meta_test.drop(columns=["trans_id", "account_id"])
 
     # Fit the metaclassifier.
     meta_classifier_enum = MetaClassifierType(config.metaclassifier.model_type)
@@ -122,8 +137,6 @@ def run_metaclassifier_training(config: DictConfig, attack_data_paths: list[str]
         use_gpu=config.metaclassifier.use_gpu,
         epochs=config.metaclassifier.epochs,
     )
-
-    log(INFO, "Metaclassifier training finished.")
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     model_filename = f"{timestamp}_{config.metaclassifier.model_type}_trained_metaclassifier.pkl"
