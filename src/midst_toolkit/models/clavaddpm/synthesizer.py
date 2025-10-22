@@ -220,7 +220,7 @@ def _round_discrete_numerical_features(
     real_numerical_features: np.ndarray,
 ) -> np.ndarray:
     """
-    Round the discretenumerical features to the nearest unique values found in the
+    Round the discrete numerical features to the nearest unique values found in the
     corresponding columns of the real data.
 
     Args:
