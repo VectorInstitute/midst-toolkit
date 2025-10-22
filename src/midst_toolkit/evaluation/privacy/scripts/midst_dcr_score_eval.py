@@ -106,8 +106,8 @@ if __name__ == "__main__":
         real_data_train_path, synthetic_data_path, meta_info_path, real_data_test_path
     )
 
-    synthetic_data, real_data_train, real_data_test = preprocess_for_distance_computation(
-        meta_info, synthetic_data, real_data_train, real_data_test
+    real_data_train, synthetic_data, real_data_test = preprocess_for_distance_computation(
+        meta_info, real_data_train, synthetic_data, real_data_test
     )
     metric = DistanceToClosestRecordScore()
     dcr_score = metric.compute(synthetic_data, real_data_train, real_data_test)

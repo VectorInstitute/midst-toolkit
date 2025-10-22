@@ -89,8 +89,8 @@ class DistanceToClosestRecordScore(MetricBase):
         assert holdout_data is not None, "For DCR score calculations, a holdout dataset is required"
 
         if self.do_preprocess:
-            synthetic_data, real_data, holdout_data = preprocess_for_distance_computation(
-                self.meta_info, synthetic_data, real_data, holdout_data
+            real_data, synthetic_data, holdout_data = preprocess_for_distance_computation(
+                self.meta_info, real_data, synthetic_data, holdout_data
             )
 
         real_data_train_tensor = torch.tensor(real_data.to_numpy()).to(self.device)
@@ -187,7 +187,7 @@ class MedianDistanceToClosestRecordScore(MetricBase):
             Example: { "median_dcr_score": 0.79 }
         """
         if self.do_preprocess:
-            synthetic_data, real_data = preprocess_for_distance_computation(self.meta_info, synthetic_data, real_data)
+            real_data, synthetic_data = preprocess_for_distance_computation(self.meta_info, real_data, synthetic_data)
 
         real_data_tensor = torch.tensor(real_data.to_numpy()).to(self.device)
         synthetic_data_tensor = torch.tensor(synthetic_data.to_numpy()).to(self.device)

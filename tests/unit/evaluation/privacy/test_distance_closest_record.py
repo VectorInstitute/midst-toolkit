@@ -52,8 +52,8 @@ def test_dcr_score() -> None:
         REAL_DATA_TRAIN_PATH, SYNTHETIC_DATA_PATH, META_INFO_PATH, REAL_DATA_TEST_PATH
     )
 
-    synthetic_data, real_data_train, real_data_test = preprocess_for_distance_computation(
-        meta_info, synthetic_data, real_data_train, real_data_test
+    real_data_train, synthetic_data, real_data_test = preprocess_for_distance_computation(
+        meta_info, real_data_train, synthetic_data, real_data_test
     )
     dcr_metric = DistanceToClosestRecordScore()
     dcr_score = dcr_metric.compute(real_data_train, synthetic_data, real_data_test)

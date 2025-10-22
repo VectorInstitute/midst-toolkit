@@ -10,6 +10,7 @@ import torch
 from torch.nn import functional
 
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
+from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 from midst_toolkit.models.clavaddpm.data_loaders import load_multi_table
 from midst_toolkit.models.clavaddpm.model import Classifier
@@ -255,7 +256,7 @@ def test_train_single_table(tmp_path: Path):
     # Act
     tables, relation_order, _ = load_multi_table(Path("tests/integration/assets/single_table/"))
     tables, models = clava_training(
-        tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device="cpu"
+        tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device=DEVICE
     )
 
     # Assert
@@ -280,6 +281,8 @@ def test_train_single_table(tmp_path: Path):
     expected_model_data = pickle.loads(
         Path("tests/integration/assets/single_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
     )
+    # Making sure the expected model data is loaded on the correct device
+    expected_model_data = {layer: data.to(DEVICE) for layer, data in expected_model_data.items()}
 
     model_layers = list(model_data.keys())
     expected_model_layers = list(expected_model_data.keys())
@@ -313,7 +316,7 @@ def test_train_multi_table(tmp_path: Path):
     # Act
     tables, relation_order, _ = load_multi_table(Path("tests/integration/assets/multi_table/"))
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
-    models = clava_training(tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device="cpu")
+    models = clava_training(tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device=DEVICE)
 
     # Assert
     with open(tmp_path / "models" / "account_trans_ckpt.pkl", "rb") as f:
@@ -337,6 +340,8 @@ def test_train_multi_table(tmp_path: Path):
     expected_model_data = pickle.loads(
         Path("tests/integration/assets/multi_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
     )
+    # Making sure the expected model data is loaded on the correct device
+    expected_model_data = {layer: data.to(DEVICE) for layer, data in expected_model_data.items()}
 
     model_layers = list(model_data.keys())
     expected_model_layers = list(expected_model_data.keys())
@@ -344,11 +349,9 @@ def test_train_multi_table(tmp_path: Path):
     # Adding those asserts under an if condition because they only pass on github.
     # In the else block, we set a tolerance that would work across platforms
     # however, it is way too high of a tolerance.
-    if np.allclose(model_data[model_layers[0]].detach(), expected_model_data[expected_model_layers[0]].detach()):
+    if torch.allclose(model_data[model_layers[0]], expected_model_data[expected_model_layers[0]]):
         # if the first layer is equal with minimal tolerance, all others should be equal as well
-        assert all(
-            np.allclose(model_data[layer].detach(), expected_model_data[layer].detach()) for layer in model_layers
-        )
+        assert all(torch.allclose(model_data[layer], expected_model_data[layer]) for layer in model_layers)
 
         # TODO: Figure out if there is a good way of testing the synthetic data results
         # on multiple platforms. https://app.clickup.com/t/868f43wp0
@@ -359,10 +362,7 @@ def test_train_multi_table(tmp_path: Path):
         # Otherwise, set a tolerance that would work across platforms
         # TODO: Figure out a way to set a lower tolerance
         # https://app.clickup.com/t/868f43wp0
-        assert all(
-            np.allclose(model_data[layer].detach(), expected_model_data[layer].detach(), atol=0.1)
-            for layer in model_layers
-        )
+        assert all(torch.allclose(model_data[layer], expected_model_data[layer], atol=0.1) for layer in model_layers)
 
     classifier_scale = 1.0
     classifier_batch_size = 5
@@ -372,14 +372,14 @@ def test_train_multi_table(tmp_path: Path):
 
     ys_tensor = torch.tensor(np.array(ys).reshape(-1, 1), requires_grad=False)
     conditional_sample, _ = models[1][key]["diffusion"].conditional_sample(
-        ys=ys_tensor,
+        targets=ys_tensor,
         model_kwargs={"y": ys_tensor},
-        cond_fn=get_conditional_function_for_the_classifier(models[1][key]["classifier"], classifier_scale),
+        cond_fn=get_conditioning_function_for_diffusion(models[1][key]["classifier"], classifier_scale),
     )
 
     expected_conditional_sample = torch.load(
         "tests/integration/assets/multi_table/assertion_data/conditional_samples.pt"
-    )
+    ).to(DEVICE)
 
     # Adding those asserts under an if condition because they only pass on github.
     # In the else block, we set a tolerance that would work across platforms
@@ -444,7 +444,7 @@ def test_clustering_reload(tmp_path: Path):
     unset_all_random_seeds()
 
 
-def get_conditional_function_for_the_classifier(classifier: Classifier, classifier_scale: float) -> Callable:
+def get_conditioning_function_for_diffusion(classifier: Classifier, classifier_scale: float) -> Callable:
     def cond_fn(
         x: torch.Tensor,
         t: torch.Tensor,

@@ -181,18 +181,22 @@ def conditional_sampling_by_group_size(  # noqa: PLR0915, PLR0912
     """
 
     def cond_fn(
-        x: torch.Tensor,
-        t: torch.Tensor,
-        y: torch.Tensor | None = None,
-        remove_first_col: bool = False,
+        features: torch.Tensor,
+        timestep: torch.Tensor,
+        **kwargs: Any,
     ) -> torch.Tensor:
-        assert y is not None
+        assert "y" in kwargs and kwargs["y"] is not None, "The kwargs parameter `y` must be provided."
+        assert isinstance(kwargs["y"], torch.Tensor), "The kwargs parameter `y` must be a Tensor."
+
+        y = kwargs["y"]
+        remove_first_col = kwargs.get("remove_first_col", False)
+
         with torch.enable_grad():
             if remove_first_col:
-                x_in = x[:, 1:].detach().requires_grad_(True).float()
+                x_in = features[:, 1:].detach().requires_grad_(True).float()
             else:
-                x_in = x.detach().requires_grad_(True).float()
-            logits = classifier(x_in, t)
+                x_in = features.detach().requires_grad_(True).float()
+            logits = classifier(x_in, timestep)
             log_probs = F.log_softmax(logits, dim=-1)
             selected = log_probs[range(len(logits)), y.view(-1)]
             return torch.autograd.grad(selected.sum(), x_in)[0] * classifier_scale
@@ -216,7 +220,7 @@ def conditional_sampling_by_group_size(  # noqa: PLR0915, PLR0912
         curr_ys = torch.tensor(np.array(ys[curr_index:end_index]).reshape(-1, 1), requires_grad=False)
         curr_model_kwargs = {}
         curr_model_kwargs["y"] = curr_ys
-        curr_sample, _ = diffusion.conditional_sample(ys=curr_ys, model_kwargs=curr_model_kwargs, cond_fn=cond_fn)
+        curr_sample, _ = diffusion.conditional_sample(targets=curr_ys, model_kwargs=curr_model_kwargs, cond_fn=cond_fn)
         all_rows.extend([sample.cpu().numpy() for sample in [curr_sample]])
         all_clusters.extend([curr_ys.cpu().numpy() for curr_ys in [curr_ys]])
         curr_index += sample_batch_size
