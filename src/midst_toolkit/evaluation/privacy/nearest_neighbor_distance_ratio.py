@@ -106,12 +106,12 @@ class NearestNeighborDistanceRatio(MetricBase):
         """
         if self.do_preprocess:
             if holdout_data is None:
-                synthetic_data, real_data = preprocess_for_distance_computation(
-                    self.meta_info, synthetic_data, real_data
+                real_data, synthetic_data = preprocess_for_distance_computation(
+                    self.meta_info, real_data, synthetic_data
                 )
             else:
-                synthetic_data, real_data, holdout_data = preprocess_for_distance_computation(
-                    self.meta_info, synthetic_data, real_data, holdout_data
+                real_data, synthetic_data, holdout_data = preprocess_for_distance_computation(
+                    self.meta_info, real_data, synthetic_data, holdout_data
                 )
 
         synthetic_data_tensor = torch.tensor(synthetic_data.to_numpy()).to(self.device)
