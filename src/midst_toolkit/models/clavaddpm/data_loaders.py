@@ -537,7 +537,7 @@ def train_test_split(
 
 
 class FastTensorDataLoader:
-    def __init__(self, tensors: tuple[torch.Tensor, ...], batch_size: int = 32, shuffle: bool = False):
+    def __init__(self, tensors: list[torch.Tensor], batch_size: int = 32, shuffle: bool = False):
         """
         Initialize a FastTensorDataLoader.
 
@@ -547,7 +547,7 @@ class FastTensorDataLoader:
         Source: https://discuss.pytorch.org/t/dataloader-much-slower-than-manual-batching/27014/6
 
         Args:
-            tensors: a tuple of tensors to store. The first dimension for each tensor is the
+            tensors: a list of tensors to store. The first dimension for each tensor is the
                 number of samples, and all tensors must have the same number of samples.
             batch_size: batch size to load. Optional, default is 32.
             shuffle: if True, shuffle the data *in-place* whenever an
@@ -577,7 +577,7 @@ class FastTensorDataLoader:
         """
         if self.shuffle:
             r = torch.randperm(self.dataset_len)
-            self.tensors = [t[r] for t in self.tensors]  # type: ignore[assignment]
+            self.tensors = [t[r] for t in self.tensors]
         self.i = 0
         return self
 
@@ -638,6 +638,6 @@ def prepare_fast_dataloader(
     else:
         raise ValueError(f"Unsupported target type: {target_type}")
 
-    dataloader = FastTensorDataLoader((x, y), batch_size=batch_size, shuffle=(split == DataSplit.TRAIN))
+    dataloader = FastTensorDataLoader([x, y], batch_size=batch_size, shuffle=(split == DataSplit.TRAIN))
     while True:
         yield from dataloader

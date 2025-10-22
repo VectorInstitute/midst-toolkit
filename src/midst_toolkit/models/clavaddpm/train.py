@@ -206,7 +206,6 @@ def child_training(
         ),
     )
     child_transformations = Transformations.default()
-    # ruff: noqa: N806
 
     child_result = train_model(
         child_df_with_cluster,
@@ -352,6 +351,10 @@ def train_model(
     else:
         column_orders = column_orders + [data_frame_info["y_col"]]
 
+    inverse_transform_function = None
+    if dataset.numerical_transform is not None:
+        inverse_transform_function = dataset.numerical_transform.inverse_transform
+
     return {
         "diffusion": diffusion,
         "label_encoders": label_encoders,
@@ -361,9 +364,7 @@ def train_model(
         "K": category_sizes,
         "empirical_class_dist": empirical_class_dist,
         "is_regression": dataset.is_regression,
-        "inverse_transform": dataset.numerical_transform.inverse_transform
-        if dataset.numerical_transform is not None
-        else None,
+        "inverse_transform": inverse_transform_function,
     }
 
 
@@ -465,7 +466,7 @@ def train_classifier(
     diffusion_model = GaussianMultinomialDiffusion(
         num_classes=category_sizes,
         num_numerical_features=num_numerical_features,
-        denoise_fn=None,  # type: ignore[arg-type]
+        denoise_fn=torch.nn.Module(),  # This is not used, so passing an empty module is fine
         gaussian_loss_type=gaussian_loss_type,
         num_timesteps=num_timesteps,
         scheduler_type=scheduler_type,
@@ -595,6 +596,8 @@ def get_df_without_id(df: pd.DataFrame) -> pd.DataFrame:
     return df.drop(columns=id_cols)
 
 
+# TODO rename this function to remove the leading `_` as it's being used in
+# other modules (not private)
 def _numerical_forward_backward_log(
     classifier: Classifier,
     optimizer: torch.optim.Optimizer,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from logging import INFO
@@ -8,10 +9,8 @@ from typing import Any, Self
 
 import pandas as pd
 import torch
-import torch.nn.functional as F
-
-# ruff: noqa: N812
 from torch import Tensor, nn
+from torch.nn import functional
 
 from midst_toolkit.common.enumerations import DomainDataType, TaskType
 from midst_toolkit.common.logger import log
@@ -109,9 +108,8 @@ class Classifier(nn.Module):
         Returns:
             The output tensor.
         """
-        emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
-        x = self.proj(x) + emb
-        # x = self.transformer_layer(x, x)
+        embeddings = self.time_embed(timestep_embedding(timesteps, self.dim_t))
+        x = self.proj(x) + embeddings
         return self.model(x)
 
 
@@ -134,23 +132,23 @@ def get_table_info(df: pd.DataFrame, table_domain: dict[str, Any], y_col: str) -
             "task_type": str,
         }
     """
-    cat_cols = []
-    num_cols = []
-    for col in df.columns:
-        if col in table_domain and col != y_col:
-            if table_domain[col]["type"] == DomainDataType.DISCRETE.value:
-                cat_cols.append(col)
+    categorical_cols = []
+    numerical_cols = []
+    for columns in df.columns:
+        if columns in table_domain and columns != y_col:
+            if table_domain[columns]["type"] == DomainDataType.DISCRETE.value:
+                categorical_cols.append(columns)
             else:
-                num_cols.append(col)
+                numerical_cols.append(columns)
 
-    df_info: dict[str, Any] = {}
-    df_info["cat_cols"] = cat_cols
-    df_info["num_cols"] = num_cols
-    df_info["y_col"] = y_col
-    df_info["n_classes"] = 0
-    df_info["task_type"] = TaskType.MULTICLASS.value
+    table_info: dict[str, Any] = {}
+    table_info["cat_cols"] = categorical_cols
+    table_info["num_cols"] = numerical_cols
+    table_info["y_col"] = y_col
+    table_info["n_classes"] = 0
+    table_info["task_type"] = TaskType.MULTICLASS.value
 
-    return df_info
+    return table_info
 
 
 def timestep_embedding(timesteps: Tensor, dim: int, max_period: int = 10000) -> Tensor:
@@ -263,7 +261,7 @@ class MLP(nn.Module):
         if isinstance(dropouts, float):
             dropouts = [dropouts] * len(d_layers)
         assert len(d_layers) == len(dropouts)
-        assert activation not in ["ReGLU", "GEGLU"]
+        assert activation not in [ModuleType.REGLU, ModuleType.GEGLU]
 
         self.blocks = nn.ModuleList(
             [
@@ -318,7 +316,7 @@ class MLP(nn.Module):
             d_in=d_in,
             d_layers=d_layers,
             dropouts=dropout,
-            activation="ReLU",
+            activation=ModuleType.RELU,
             d_out=d_out,
         )
 
@@ -565,8 +563,8 @@ class ResNet(nn.Module):
             d_hidden=d_hidden,
             dropout_first=dropout_first,
             dropout_second=dropout_second,
-            normalization="BatchNorm1d",
-            activation="ReLU",
+            normalization=ModuleType.BATCH_NORM_1D,
+            activation=ModuleType.RELU,
             d_out=d_out,
         )
 
@@ -645,11 +643,11 @@ class MLPDiffusion(nn.Module):
         Returns:
             The output tensor.
         """
-        emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
+        embeddings = self.time_embed(timestep_embedding(timesteps, self.dim_t))
         if self.is_target_conditioned == IsTargetCondioned.EMBEDDING and y is not None:
             y = y.squeeze() if self.num_classes > 0 else y.resize_(y.size(0), 1).float()
-            emb += F.silu(self.label_emb(y))
-        x = self.proj(x) + emb
+            embeddings += functional.silu(self.label_emb(y))
+        x = self.proj(x) + embeddings
         return self.mlp(x)
 
 
@@ -712,10 +710,10 @@ class ResNetDiffusion(nn.Module):
         Returns:
             The output tensor.
         """
-        emb = self.time_embed(timestep_embedding(timesteps, self.dim_t))
+        embeddings = self.time_embed(timestep_embedding(timesteps, self.dim_t))
         if y is not None and self.num_classes > 0:
-            emb += self.label_emb(y.squeeze())
-        return self.resnet(x, emb)
+            embeddings += self.label_emb(y.squeeze())
+        return self.resnet(x, embeddings)
 
 
 def reglu(x: Tensor) -> Tensor:
@@ -733,7 +731,7 @@ def reglu(x: Tensor) -> Tensor:
     """
     assert x.shape[-1] % 2 == 0
     a, b = x.chunk(2, dim=-1)
-    return a * F.relu(b)
+    return a * functional.relu(b)
 
 
 def geglu(x: Tensor) -> Tensor:
@@ -751,7 +749,7 @@ def geglu(x: Tensor) -> Tensor:
     """
     assert x.shape[-1] % 2 == 0
     a, b = x.chunk(2, dim=-1)
-    return a * F.gelu(b)
+    return a * functional.gelu(b)
 
 
 class ReGLU(nn.Module):
@@ -812,22 +810,27 @@ class GEGLU(nn.Module):
         return geglu(x)
 
 
-def _make_nn_module(module_type: ModuleType, *args: Any) -> nn.Module:
+def _make_nn_module(module_type: ModuleType | Callable[..., nn.Module], *args: Any) -> nn.Module:
     """
     Make a neural network module.
 
     Args:
-        module_type: The type of the module.
+        module_type: The type of the module. Can be one of the predefined modules types in
+            ModuleType or a callable function with a custom implementation of the module.
         args: The arguments for the module.
 
     Returns:
         The neural network module.
     """
-    return (
-        (ReGLU() if module_type == "ReGLU" else GEGLU() if module_type == "GEGLU" else getattr(nn, module_type)(*args))
-        if isinstance(module_type, str)
-        else module_type(*args)
-    )
+    if not isinstance(module_type, ModuleType):
+        return module_type(*args)
+
+    if module_type == ModuleType.REGLU:
+        return ReGLU()
+    if module_type == ModuleType.GEGLU:
+        return GEGLU()
+
+    return getattr(nn, module_type.value)(*args)
 
 
 class ModelType(Enum):

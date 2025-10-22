@@ -9,9 +9,9 @@ import faiss
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn.functional as F  # noqa: N812
 from scipy.spatial.distance import cdist
 from sklearn.preprocessing import LabelEncoder
+from torch.nn import functional
 from tqdm import tqdm
 
 from midst_toolkit.models.clavaddpm.dataset import Dataset
@@ -197,7 +197,7 @@ def conditional_sampling_by_group_size(  # noqa: PLR0915, PLR0912
             else:
                 x_in = features.detach().requires_grad_(True).float()
             logits = classifier(x_in, timestep)
-            log_probs = F.log_softmax(logits, dim=-1)
+            log_probs = functional.log_softmax(logits, dim=-1)
             selected = log_probs[range(len(logits)), y.view(-1)]
             return torch.autograd.grad(selected.sum(), x_in)[0] * classifier_scale
 
@@ -434,47 +434,71 @@ def match_tables(
 
 
 def round_columns(
-    x_real: np.ndarray,
-    x_synth: np.ndarray,
+    real_features: np.ndarray,
+    synthetic_features: np.ndarray,
     columns: list[int],
 ) -> np.ndarray:
     """
     Rounds the values in specified columns of the synthetic data to the nearest
     unique values found in the corresponding columns of the real data.
+
+    Args:
+        real_features: Numpy array representing the real data.
+        synthetic_features: Numpy array representing the synthetic data.
+        columns: List of columns to round.
+
+    Returns:
+        Numpy array representing the rounded synthetic data.
     """
-    for col in columns:
-        uniq = np.unique(x_real[:, col])
-        dist = cdist(
-            x_synth[:, col][:, np.newaxis].astype(float),
-            uniq[:, np.newaxis].astype(float),
+    for column in columns:
+        unique_features = np.unique(real_features[:, column])
+        distances = cdist(
+            synthetic_features[:, column][:, np.newaxis].astype(float),
+            unique_features[:, np.newaxis].astype(float),
         )
-        x_synth[:, col] = uniq[dist.argmin(axis=1)]
-    return x_synth
+        synthetic_features[:, column] = unique_features[distances.argmin(axis=1)]
+    return synthetic_features
 
 
-def sample_from_dict(probabilities: dict[int, float]) -> int | None:
-    """Samples a key from a dictionary based on the provided probabilities."""
+def sample_from_dict(probabilities: dict[int, float]) -> int:
+    """
+    Samples an integer key from a dictionary based on the provided probabilities.
+
+    Args:
+        probabilities: Dictionary of integer keys and their corresponding probabilities.
+            The sum of all probabilities must be 1.0.
+
+    Returns:
+        The sampled key.
+    """
+    assert sum(probabilities.values()) == 1.0, "The sum of all probabilities must be 1.0."
+
     # Generate a random number between 0 and 1
     random_number = random.random()
 
     # Initialize cumulative sum and the selected key
     cumulative_sum = 0.0
-    selected_key = None
 
     # Iterate through the dictionary
     for key, probability in probabilities.items():
         cumulative_sum += probability
         if cumulative_sum >= random_number:
-            selected_key = key
-            break
+            # return the key if the cumulative sum is greater than or equal to the random number
+            return key
 
-    return selected_key
+    raise Exception("Unable to sample from dictionary.")
 
 
 def convert_to_unique_indices(indices: list[int]) -> list[int]:
     """
     Converts a list of indices to ensure all indices are unique by replacing duplicates
     with the smallest available integers not already in the list.
+
+    Args:
+        indices: List of indices to convert.
+
+    Returns:
+        List of unique indices.
     """
     occurrence = set()
     max_index = len(indices)  # Assuming the range is the length of the list
@@ -506,6 +530,9 @@ def clava_synthesizing_matching_process(
         tables: Original tables containing dataframes and clustering information.
         relation_order: List of parent-child table relationships.
         configs: Configuration with matching settings.
+
+    Returns:
+        Dictionary containing the matched synthetic child tables.
     """
     final_tables: dict[str, pd.DataFrame] = {}
     for parent, child in relation_order:

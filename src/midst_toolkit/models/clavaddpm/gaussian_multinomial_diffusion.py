@@ -28,7 +28,7 @@ from midst_toolkit.models.clavaddpm.diffusion_utils import (
     log_categorical,
     mean_flat,
     normal_kl,
-    ohe_to_categories,
+    one_hot_encoding_to_categories,
     sliced_logsumexp,
     sum_except_batch,
 )
@@ -1298,7 +1298,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         z_ohe = torch.exp(log_z).round()
         z_cat = log_z
         if has_cat:
-            z_cat = ohe_to_categories(z_ohe, torch.from_numpy(self.num_classes))
+            z_cat = one_hot_encoding_to_categories(z_ohe, self.num_classes)
         sample = torch.cat([z_norm, z_cat], dim=1).cpu()
 
         return sample, out_dict
@@ -1350,7 +1350,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         z_ohe = torch.exp(log_z).round()
         z_cat = log_z
         if has_cat:
-            z_cat = ohe_to_categories(z_ohe, torch.from_numpy(self.num_classes))
+            z_cat = one_hot_encoding_to_categories(z_ohe, self.num_classes)
         sample = torch.cat([z_norm, z_cat], dim=1).cpu()
         return sample, out_dict
 
@@ -1407,7 +1407,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         z_ohe = torch.exp(log_z).round()
         z_cat = log_z
         if has_cat:
-            z_cat = ohe_to_categories(z_ohe, torch.from_numpy(self.num_classes))
+            z_cat = one_hot_encoding_to_categories(z_ohe, self.num_classes)
         sample = torch.cat([z_norm, z_cat], dim=1).cpu()
         return sample, out_dict
 
