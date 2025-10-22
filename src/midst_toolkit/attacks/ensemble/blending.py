@@ -25,10 +25,10 @@ class BlendingPlusPlus:
     def __init__(
         self,
         config: DictConfig,
-        attack_data_collection: list[dict],
-        target_data_collection: list[dict],
+        attack_data_collection: list[dict[str, list]],
+        target_data_collection: list[dict[str, list]],
         meta_classifier_type: MetaClassifierType = MetaClassifierType.XGB,
-        random_seed: int | None = None,
+        random_seed: int = 42,
     ) -> None:
         """
         Initializes the Blending++ attack with specified data configurations and meta-classifier type.
@@ -44,7 +44,13 @@ class BlendingPlusPlus:
         Args:
             config: Dictionary storing data configuration paths and parameters, used to load data properties.
             attack_data_collection: List of training data of the shadow models and their generated synthetic data.
+                Each list element is a dict with keys "fine_tuning_sets" and "fine_tuned_results".
+                Fine_tuning_sets is a list of dataframes used to fine-tune the shadow models, and fine_tuned_results
+                is a list of type TrainingResult containing model training information and generated synthetic data.
+                For more details, see the documentation of `train_three_sets_of_shadow_models` at
+                attacks/ensemble/rmia/shadow_model_training.py.
             target_data_collection: List of training data of the target model and its generated synthetic data.
+                The structure is the same as attack_data_collection.
             meta_classifier_type: Type of meta classifier model. Defaults to MetaClassifierType.XGB.
             random_seed: Random seed for reproducibility. Defaults to None.
 
@@ -90,6 +96,20 @@ class BlendingPlusPlus:
         """
         df_synthetic = df_synthetic.reset_index(drop=True)[df_input.columns]
 
+        # 3. Get RMIA signals
+
+        log(INFO, "Calculating RMIA signals...")
+
+        rmia_signals = calculate_rmia_signals(
+            df_input=df_input,
+            attack_data_collection=self.attack_data_collection,
+            target_data_collection=self.target_data_collection,
+            categorical_column_names=categorical_cols,
+            id_column_name=id_column_name,
+            id_column_data=id_column_data,
+            random_seed=self.random_seed,
+        )
+
         # 1. Get Gower distance features
 
         log(INFO, "Calculating gower features...")
@@ -104,19 +124,6 @@ class BlendingPlusPlus:
 
         domias_features = calculate_domias_score(
             df_input=df_input, df_synthetic=df_synthetic, df_reference=df_reference
-        )
-
-        # 3. Get RMIA signals
-
-        log(INFO, "Calculating RMIA signals...")
-
-        rmia_signals = calculate_rmia_signals(
-            df_input=df_input,
-            attack_data_collection=self.attack_data_collection,
-            target_data_collection=self.target_data_collection,
-            categorical_column_names=categorical_cols,
-            id_column_name=id_column_name,
-            id_column_data=id_column_data,
         )
 
         original_numerical_features = df_input[numerical_cols]  # Numerical features from original data
@@ -140,7 +147,7 @@ class BlendingPlusPlus:
         df_reference: pd.DataFrame,
         id_column_data: pd.Series,
         use_gpu: bool = True,
-        epochs: int = 0,
+        epochs: int | None = None,
     ) -> None:
         """
         Trains the Blending++ meta-classifier.
@@ -159,7 +166,7 @@ class BlendingPlusPlus:
             epochs: Number of training iterations. Defaults to None, in which case self.training_config.epochs is used.
 
         """
-        if epochs == 0:
+        if epochs is None:
             epochs = self.training_config.epochs
 
         meta_features = self._prepare_meta_features(
@@ -181,7 +188,6 @@ class BlendingPlusPlus:
             )
 
             # Run the tuning process
-            # TODO: Make num_optuna_trials and num_kfolds configurable parameters
             self.trained_model = tuner.tune_hyperparameters(
                 num_optuna_trials=self.training_config.num_optuna_trials,
                 num_kfolds=self.training_config.num_kfolds,
