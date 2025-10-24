@@ -275,7 +275,7 @@ def test_train_single_table(tmp_path: Path):
     )
     x_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
 
-    with open("tests/integration/assets/single_table/assertion_data/syntetic_data.json", "r") as f:
+    with open("tests/integration/assets/single_table/assertion_data/synthetic_data.json", "r") as f:
         expected_results = json.load(f)
 
     model_data = dict(models[key]["diffusion"].named_parameters())
