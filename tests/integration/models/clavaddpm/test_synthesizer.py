@@ -93,7 +93,8 @@ def test_clava_syntheesize_multi_table(tmp_path: Path):
         expected_cleaned_tables = pickle.loads(
             Path("tests/integration/assets/multi_table/assertion_data/cleaned_tables.pkl").read_bytes(),
         )
-        assert cleaned_tables.equals(expected_cleaned_tables)
+        assert cleaned_tables["account"].equals(expected_cleaned_tables["account"])
+        assert cleaned_tables["trans"].equals(expected_cleaned_tables["trans"])
 
     else:
         logging.warning("Not running on CI, skipping detailed assertions.")
