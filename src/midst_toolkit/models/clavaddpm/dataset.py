@@ -663,7 +663,7 @@ def transform_dataset(
     # implementation is not ideal in that sense.
     cache_path = None
     if cache_dir is not None:
-        # if cache_dir is not None, will save the cahce file path into the cache_path variable
+        # if cache_dir is not None, will save the cache file path into the cache_path variable
         # so the transformations can be saved in the cache dir
         transformations_md5 = hashlib.md5(str(transformations).encode("utf-8")).hexdigest()
         transformations_str = "__".join(map(str, astuple(transformations)))
