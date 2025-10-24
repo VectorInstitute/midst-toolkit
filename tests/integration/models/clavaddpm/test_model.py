@@ -337,10 +337,6 @@ def test_train_multi_table(tmp_path: Path):
 
     model_data = dict(models[1][key]["diffusion"].named_parameters())
 
-    pickle.dump(
-        model_data, open("tests/integration/assets/multi_table/assertion_data/diffusion_parameters_gh.pkl", "wb")
-    )
-
     expected_model_data = pickle.loads(
         Path("tests/integration/assets/multi_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
     )
@@ -350,47 +346,47 @@ def test_train_multi_table(tmp_path: Path):
     model_layers = list(model_data.keys())
     expected_model_layers = list(expected_model_data.keys())
 
-    # # Adding those asserts under an if condition because they only pass on github.
-    # # In the else block, we set a tolerance that would work across platforms
-    # # however, it is way too high of a tolerance.
-    # if torch.allclose(model_data[model_layers[0]], expected_model_data[expected_model_layers[0]]):
-    #     # if the first layer is equal with minimal tolerance, all others should be equal as well
-    #     assert all(torch.allclose(model_data[layer], expected_model_data[layer]) for layer in model_layers)
+    # Adding those asserts under an if condition because they only pass on github.
+    # In the else block, we set a tolerance that would work across platforms
+    # however, it is way too high of a tolerance.
+    if torch.allclose(model_data[model_layers[0]], expected_model_data[expected_model_layers[0]]):
+        # if the first layer is equal with minimal tolerance, all others should be equal as well
+        assert all(torch.allclose(model_data[layer], expected_model_data[layer]) for layer in model_layers)
 
-    #     # TODO: Figure out if there is a good way of testing the synthetic data results
-    #     # on multiple platforms. https://app.clickup.com/t/868f43wp0
-    #     assert np.allclose(x_gen, expected_results["X_gen"])
-    #     assert np.allclose(y_gen, expected_results["y_gen"])
+        # TODO: Figure out if there is a good way of testing the synthetic data results
+        # on multiple platforms. https://app.clickup.com/t/868f43wp0
+        assert np.allclose(x_gen, expected_results["X_gen"])
+        assert np.allclose(y_gen, expected_results["y_gen"])
 
-    # else:
-    #     # Otherwise, set a tolerance that would work across platforms
-    #     # TODO: Figure out a way to set a lower tolerance
-    #     # https://app.clickup.com/t/868f43wp0
-    #     assert all(torch.allclose(model_data[layer], expected_model_data[layer], atol=0.1) for layer in model_layers)
+    else:
+        # Otherwise, set a tolerance that would work across platforms
+        # TODO: Figure out a way to set a lower tolerance
+        # https://app.clickup.com/t/868f43wp0
+        assert all(torch.allclose(model_data[layer], expected_model_data[layer], atol=0.1) for layer in model_layers)
 
-    # classifier_scale = 1.0
-    # classifier_batch_size = 5
-    # # Generating some random data to test the classifier
-    # groups = list(all_group_lengths_prob_dicts[key].keys())
-    # ys = [[y] for y in random.choices(groups, k=classifier_batch_size)]
+    classifier_scale = 1.0
+    classifier_batch_size = 5
+    # Generating some random data to test the classifier
+    groups = list(all_group_lengths_prob_dicts[key].keys())
+    ys = [[y] for y in random.choices(groups, k=classifier_batch_size)]
 
-    # ys_tensor = torch.tensor(np.array(ys).reshape(-1, 1), requires_grad=False)
-    # conditional_sample, _ = models[1][key]["diffusion"].conditional_sample(
-    #     targets=ys_tensor,
-    #     model_kwargs={"y": ys_tensor},
-    #     conditioning_function=get_conditioning_function_for_diffusion(models[1][key]["classifier"], classifier_scale),
-    # )
+    ys_tensor = torch.tensor(np.array(ys).reshape(-1, 1), requires_grad=False)
+    conditional_sample, _ = models[1][key]["diffusion"].conditional_sample(
+        targets=ys_tensor,
+        model_kwargs={"y": ys_tensor},
+        cond_fn=get_conditioning_function_for_diffusion(models[1][key]["classifier"], classifier_scale),
+    )
 
-    # expected_conditional_sample = torch.load(
-    #     "tests/integration/assets/multi_table/assertion_data/conditional_samples.pt"
-    # ).to(DEVICE)
+    expected_conditional_sample = torch.load(
+        "tests/integration/assets/multi_table/assertion_data/conditional_samples.pt"
+    ).to(DEVICE)
 
-    # # Adding those asserts under an if condition because they only pass on github.
-    # # In the else block, we set a tolerance that would work across platforms
-    # # however, it is way too high of a tolerance.
-    # if torch.allclose(conditional_sample[0], expected_conditional_sample[0]):
-    #     # if the first values are equal with minimal tolerance, all others should be equal as well
-    #     assert torch.allclose(conditional_sample, expected_conditional_sample)
+    # Adding those asserts under an if condition because they only pass on github.
+    # In the else block, we set a tolerance that would work across platforms
+    # however, it is way too high of a tolerance.
+    if torch.allclose(conditional_sample[0], expected_conditional_sample[0]):
+        # if the first values are equal with minimal tolerance, all others should be equal as well
+        assert torch.allclose(conditional_sample, expected_conditional_sample)
 
     unset_all_random_seeds()
 

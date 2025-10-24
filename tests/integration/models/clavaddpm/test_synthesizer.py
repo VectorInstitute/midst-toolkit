@@ -1,3 +1,4 @@
+import pickle
 from copy import deepcopy
 from pathlib import Path
 
@@ -81,5 +82,12 @@ def test_clava_syntheesize_multi_table(tmp_path: Path):
         models[1],
         configs,
     )
+
+    expected_cleaned_tables = pickle.loads(
+        Path("tests/integration/assets/multi_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
+    )
+
+    print(cleaned_tables)
+    print(expected_cleaned_tables)
 
     unset_all_random_seeds()

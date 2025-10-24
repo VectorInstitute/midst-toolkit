@@ -61,10 +61,3 @@ jobs:
       - name: Install dependencies and check code
         run: |
           uv run pytest -m "integration_test"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: integration-tests-artifacts
-          path: tests/integration/assets/multi_table/assertion_data/diffusion_parameters_gh.pkl
-          retention-days: 1
