@@ -377,8 +377,10 @@ def test_train_multi_table(tmp_path: Path):
         cond_fn=get_conditioning_function_for_diffusion(models[1][key]["classifier"], classifier_scale),
     )
 
+    torch.save(conditional_sample, "tests/integration/assets/multi_table/assertion_data/conditional_samples_gh.pt")
+
     expected_conditional_sample = torch.load(
-        "tests/integration/assets/multi_table/assertion_data/conditional_samples.pt"
+        "tests/integration/assets/multi_table/assertion_data/conditional_samples_gh.pt"
     ).to(DEVICE)
 
     # Adding those asserts under an if condition because they only pass on github.
