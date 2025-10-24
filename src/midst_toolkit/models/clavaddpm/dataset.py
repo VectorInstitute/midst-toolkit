@@ -6,6 +6,7 @@ import pickle
 from collections import Counter
 from copy import deepcopy
 from dataclasses import astuple, dataclass, replace
+from logging import INFO
 from pathlib import Path
 from typing import Any, Self, cast
 
@@ -28,6 +29,7 @@ from sklearn.preprocessing import (
 )
 
 from midst_toolkit.common.enumerations import DataSplit, PredictionType, TaskType
+from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.enumerations import (
     ArrayDict,
     CategoricalEncoding,
@@ -39,9 +41,9 @@ from midst_toolkit.models.clavaddpm.enumerations import (
 )
 
 
-# TODO: Dunders are special case in python, rename these values to something else.
-CAT_MISSING_VALUE = "__nan__"
-CAT_RARE_VALUE = "__rare__"
+# Wildcard value to which all rare categorical variables are mapped
+CAT_RARE_VALUE = "_rare_"
+CAT_MISSING_VALUE = "_nan_"
 
 
 @dataclass(frozen=True)
@@ -661,7 +663,7 @@ def transform_dataset(
     # implementation is not ideal in that sense.
     cache_path = None
     if cache_dir is not None:
-        # if cache_dir is not None, will save the cahe file path into the cache_path variable
+        # if cache_dir is not None, will save the cache file path into the cache_path variable
         # so the transformations can be saved in the cache dir
         transformations_md5 = hashlib.md5(str(transformations).encode("utf-8")).hexdigest()
         transformations_str = "__".join(map(str, astuple(transformations)))
@@ -697,7 +699,7 @@ def transform_dataset(
             transformations.categorical_nan_policy,
         )
         if transformations.category_minimum_frequency is not None:
-            categorical_features = drop_rare_categories(
+            categorical_features = collapse_rare_categories(
                 categorical_features,
                 transformations.category_minimum_frequency,
             )
@@ -792,113 +794,165 @@ def normalize(
     return {k: normalizer.transform(v) for k, v in x.items()}, normalizer
 
 
-# TODO: is there any relationship between this function and the cat_process_nans function?
-# Can they be made a little more similar to each other (in terms of signature)?
 def process_nans_in_numerical_features(dataset: Dataset, policy: NumericalNaNPolicy | None) -> Dataset:
     """
-    Process the NaN values in the numerical features of the dataset.
+    Process the NaN values in the numerical features of the dataset. Note that the signature here is different from
+    that of ``process_nans_in_categorical_features``, because, if we are dropping rows with NaN values, we need to
+    also remove the corresponding categorical rows from the dataset.
 
     Args:
         dataset: The dataset to process.
-        policy: The policy to use to process the NaN values.
+        policy: The policy to use to process the NaN values for the numerical features.
 
     Returns:
         The processed dataset.
     """
-    assert dataset.x_num is not None
-    nan_masks = {k: np.isnan(v) for k, v in dataset.x_num.items()}
-    if not any(mask.any() for mask in nan_masks.values()):
-        assert policy is None
+    if policy is None:
+        log(INFO, "No NaN processing policy specified.")
         return dataset
 
-    assert policy is not None
+    assert dataset.x_num is not None, "No numerical features are present to process."
+
+    nan_masks = {k: np.isnan(v) for k, v in dataset.x_num.items()}
+    nan_values_exist = any(mask.any() for mask in nan_masks.values())
+    if not nan_values_exist:
+        log(INFO, "No NaN values to be processed.")
+        return dataset
 
     if policy == NumericalNaNPolicy.DROP_ROWS:
+        # mapping from datasplit key to 1D boolean array with entries corresponding to rows of an array. An entry of
+        # True indicates no columns of that row have a NaN entry. False implies at least 1 column entry does.
         valid_masks = {k: ~v.any(1) for k, v in nan_masks.items()}
+        # Test set should not have NaNs
         assert valid_masks[DataSplit.TEST.value].all(), (
             "Cannot drop test rows, since this will affect the final metrics."
         )
-        dataset.x_num = None if dataset.x_num is None else _apply_mask(dataset.x_num, valid_masks)
-        dataset.x_cat = None if dataset.x_cat is None else _apply_mask(dataset.x_cat, valid_masks)
-        dataset.y = _apply_mask(dataset.y, valid_masks)
+
+        dataset.x_num = None if dataset.x_num is None else drop_rows_according_to_mask(dataset.x_num, valid_masks)
+        dataset.x_cat = None if dataset.x_cat is None else drop_rows_according_to_mask(dataset.x_cat, valid_masks)
+        dataset.y = drop_rows_according_to_mask(dataset.y, valid_masks)
 
     elif policy == NumericalNaNPolicy.MEAN:
+        # Computes column means in the training dataset, ignoring NaN values.
         new_values = np.nanmean(dataset.x_num[DataSplit.TRAIN.value], axis=0)
-        numerical_features = deepcopy(dataset.x_num)
-        for feature_name, feature_value in numerical_features.items():
-            numerical_nan_indices = np.where(nan_masks[feature_name])
-            feature_value[numerical_nan_indices] = np.take(new_values, numerical_nan_indices[1])
-        dataset.x_num = numerical_features
 
+        # If any training column is all-NaN, np.nanmean returns NaN
+        bad_cols = np.isnan(new_values)
+        if bad_cols.any():
+            raise ValueError("At least one of the columns in the train split are all NaN")
+
+        numerical_features_per_split = deepcopy(dataset.x_num)
+        for data_split, numerical_features in numerical_features_per_split.items():
+            nan_indices = np.where(nan_masks[data_split])
+            numerical_features[nan_indices] = np.take(new_values, nan_indices[1])
+        dataset.x_num = numerical_features_per_split
     else:
         raise ValueError(f"Unsupported policy: {policy.value}")
+
     return dataset
 
 
-def _apply_mask(data: ArrayDict, valid_masks: dict[str, np.ndarray]) -> ArrayDict:
+def drop_rows_according_to_mask(data_split: ArrayDict, valid_masks: dict[str, np.ndarray]) -> ArrayDict:
     """
-    Apply the given masks to the given data.
+    Provided a dictionary of keys to numpy arrays, this function drops rows in each numpy array in the dictionary
+    according to the values in `valid_masks`. The keys of `valid_masks` must match the entries in data.
 
     Args:
-        data: The data to apply the mask to.
-        valid_masks: The valid masks to apply to the data.
+        data_split: The data to apply the mask to.
+        valid_masks: Mapping from datasplit key to 1D boolean array with entries corresponding to rows of an array.
+            An entry of True indicates that the row should be kept. False implies it should be dropped.
 
     Returns:
-        The data with the mask applied.
+        The data with the mask applied, dropping rows corresponding to False entries of the mask.
     """
-    return {k: v[valid_masks[k]] for k, v in data.items()}
+    if set(data_split.keys()) != set(valid_masks.keys()):
+        raise KeyError("Keys of data do not match the provided valid_masks")
+    # Dropping rows in each array that have a False entry in valid_masks
+    filtered_data_split: ArrayDict = {}
+    for split_name, data in data_split.items():
+        row_mask = valid_masks[split_name]
+        if row_mask.ndim != 1 or row_mask.shape[0] != data.shape[0]:
+            raise ValueError(f"Mask for split '{split_name}' has shape {row_mask.shape}; expected ({data.shape[0]},)")
+        filtered_data_split[split_name] = data[row_mask]
+    return filtered_data_split
 
 
-def process_nans_in_categorical_features(x: ArrayDict, policy: CategoricalNaNPolicy | None) -> ArrayDict:
+def process_nans_in_categorical_features(data_splits: ArrayDict, policy: CategoricalNaNPolicy | None) -> ArrayDict:
     """
-    Process the NaN values in the categorical features of the dataset.
+    Process the NaN values in the categorical features of the datasets provided. Supports only string or float arrays.
 
     Args:
-        x: The data to process.
+        data_splits: A dictionary containing data to process, split into different partitions. One of which must
+            be keys with DataSplit.TRAIN.value.
         policy: The policy to use to process the NaN values. If none, will no-op.
 
     Returns:
         The processed data.
     """
-    assert x is not None
-    nan_masks = {k: v == CAT_MISSING_VALUE for k, v in x.items()}
-    if any(mask.any() for mask in nan_masks.values()):
-        if policy is None:
-            x_new = x
-        elif policy == CategoricalNaNPolicy.MOST_FREQUENT:
-            imputer = SimpleImputer(missing_values=CAT_MISSING_VALUE, strategy=policy)
-            imputer.fit(x[DataSplit.TRAIN.value])
-            x_new = {k: cast(np.ndarray, imputer.transform(v)) for k, v in x.items()}
-        else:
-            raise ValueError(f"Unsupported cat_nan_policy: {policy.value}")
-    else:
-        assert policy is None
-        x_new = x
-    return x_new
+    if policy is None:
+        log(INFO, "No NaN processing policy specified.")
+        return data_splits
+
+    assert len(data_splits) > 0, "data_splits is empty, processing will fail."
+
+    # Determine whether the arrays are float or string typed. We assume all arrays in data_splits have the same type
+    train_data_split = data_splits[DataSplit.TRAIN.value]
+    is_float_array = np.issubdtype(train_data_split.dtype, np.floating)
+    # Value that we're looking for to replace
+    missing_values = float("nan") if is_float_array else CAT_MISSING_VALUE
+
+    # If there are any NaN values, try to apply a the policy.
+    nan_values = [
+        np.isnan(data).any() if is_float_array else (data == CAT_MISSING_VALUE).any() for data in data_splits.values()
+    ]
+    if any(nan_values):
+        if policy == CategoricalNaNPolicy.MOST_FREQUENT:
+            imputer = SimpleImputer(missing_values=missing_values, strategy=policy.value)
+            imputer.fit(data_splits[DataSplit.TRAIN.value])
+            return {k: imputer.transform(v) for k, v in data_splits.items()}
+        raise ValueError(f"Unsupported cat_nan_policy: {policy.value}")
+
+    # If no nan values are present. We do nothing.
+    return data_splits
 
 
-def drop_rare_categories(x: ArrayDict, min_frequency: float) -> ArrayDict:
+def collapse_rare_categories(data_splits: ArrayDict, min_frequency: float) -> ArrayDict:
     """
-    Drop the rare categories in the categorical data.
+    Collapses rare categories in each column of the datasets under ``data_splits`` into a single category encoded by
+    the global variable CAT_RARE_VALUE. Categories considered rare are those not satisfying the ``min_frequency``
+    threshold within the training split of ``data_splits``.
+
+    NOTE: Arrays must be of type string
 
     Args:
-        x: The data to drop the rare categories from.
+        data_splits: A dictionary containing data to process, split into different partitions. One of which must
+            be keys with DataSplit.TRAIN.value.
         min_frequency: The minimum frequency threshold of the categories to keep. Has to be between 0 and 1.
 
     Returns:
         The processed data.
     """
     assert 0.0 < min_frequency < 1.0, "min_frequency has to be between 0 and 1"
-    min_count = round(len(x[DataSplit.TRAIN.value]) * min_frequency)
-    x_new: dict[str, list[Any]] = {key: [] for key in x}
-    for column_idx in range(x[DataSplit.TRAIN.value].shape[1]):
-        counter = Counter(x[DataSplit.TRAIN.value][:, column_idx].tolist())
+
+    training_data = data_splits[DataSplit.TRAIN.value]
+    min_count = max(1, int(np.ceil(len(training_data) * min_frequency)))
+    # Creating a container to hold each of the edited columns of each data split. During transformation each column
+    # of the data becomes a list of entries (one for each row). The outer list holds all the columns in order.
+    new_data_split: dict[str, list[list[str]]] = {key: [] for key in data_splits}
+
+    # Run through each of the columns in the training data
+    for column_idx in range(training_data.shape[1]):
+        counter = Counter(training_data[:, column_idx].tolist())
         popular_categories = {k for k, v in counter.items() if v >= min_count}
-        for part, _ in x_new.items():
-            x_new[part].append(
-                [(cat if cat in popular_categories else CAT_RARE_VALUE) for cat in x[part][:, column_idx].tolist()]
-            )
-    return {k: np.array(v).T for k, v in x_new.items()}
+
+        for split, data_split in data_splits.items():
+            data_split_column: list[str] = data_split[:, column_idx].tolist()
+            collapsed_categories = [
+                (cat if cat in popular_categories else CAT_RARE_VALUE) for cat in data_split_column
+            ]
+            new_data_split[split].append(collapsed_categories)
+
+    return {k: np.array(v).T for k, v in new_data_split.items()}
 
 
 def encode_categorical_features(
