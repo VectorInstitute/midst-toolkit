@@ -807,16 +807,16 @@ def process_nans_in_numerical_features(dataset: Dataset, policy: NumericalNaNPol
     Returns:
         The processed dataset.
     """
+    if policy is None:
+        log(INFO, "No NaN processing policy specified.")
+        return dataset
+
     assert dataset.x_num is not None, "No numerical features are present to process."
 
     nan_masks = {k: np.isnan(v) for k, v in dataset.x_num.items()}
     nan_values_exist = any(mask.any() for mask in nan_masks.values())
     if not nan_values_exist:
         log(INFO, "No NaN values to be processed.")
-        return dataset
-
-    if policy is None:
-        log(INFO, "No NaN processing policy specified.")
         return dataset
 
     if policy == NumericalNaNPolicy.DROP_ROWS:
@@ -889,6 +889,10 @@ def process_nans_in_categorical_features(data_splits: ArrayDict, policy: Categor
     Returns:
         The processed data.
     """
+    if policy is None:
+        log(INFO, "No NaN processing policy specified.")
+        return data_splits
+
     assert len(data_splits) > 0, "data_splits is empty, processing will fail."
 
     # Determine whether the arrays are float or string typed. We assume all arrays in data_splits have the same type
@@ -897,16 +901,9 @@ def process_nans_in_categorical_features(data_splits: ArrayDict, policy: Categor
     # Value that we're looking for to replace
     missing_values = float("nan") if is_float_array else CAT_MISSING_VALUE
 
-    nan_masks = (
-        [np.isnan(data) for data in data_splits.values()]
-        if is_float_array
-        else [data == CAT_MISSING_VALUE for data in data_splits.values()]
-    )
-    nan_values_exist = any(mask.any() for mask in nan_masks)
     # If there are any NaN values, try to apply a the policy.
-    if nan_values_exist:
-        if policy is None:
-            return data_splits
+    nan_values = [np.isnan(data) if is_float_array else data == CAT_MISSING_VALUE for data in data_splits.values()]
+    if any(nan_values):
         if policy == CategoricalNaNPolicy.MOST_FREQUENT:
             imputer = SimpleImputer(missing_values=missing_values, strategy=policy.value)
             imputer.fit(data_splits[DataSplit.TRAIN.value])
@@ -937,6 +934,8 @@ def collapse_rare_categories(data_splits: ArrayDict, min_frequency: float) -> Ar
 
     training_data = data_splits[DataSplit.TRAIN.value]
     min_count = max(1, int(np.ceil(len(training_data) * min_frequency)))
+    # Creating a container to hold each of the edited columns of each data split. During transformation each column
+    # of the data becomes a list of entries (one for each row). The outer list holds all the columns in order.
     new_data_split: dict[str, list[list[str]]] = {key: [] for key in data_splits}
 
     # Run through each of the columns in the training data
