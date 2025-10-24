@@ -332,11 +332,8 @@ def test_train_multi_table(tmp_path: Path):
     )
     x_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
 
-    with open("tests/integration/assets/multi_table/assertion_data/syntetic_data_gh.pkl", "wb") as f:
-        pickle.dump({"X_gen": x_gen, "y_gen": y_gen}, f)
-
-    # with open("tests/integration/assets/multi_table/assertion_data/syntetic_data.json", "r") as f:
-    #     expected_results = json.load(f)
+    with open("tests/integration/assets/multi_table/assertion_data/synthetic_data.json", "r") as f:
+        expected_results = json.load(f)
 
     model_data = dict(models[1][key]["diffusion"].named_parameters())
 
@@ -358,8 +355,8 @@ def test_train_multi_table(tmp_path: Path):
 
         # TODO: Figure out if there is a good way of testing the synthetic data results
         # on multiple platforms. https://app.clickup.com/t/868f43wp0
-        # assert np.allclose(x_gen, expected_results["X_gen"])
-        # assert np.allclose(y_gen, expected_results["y_gen"])
+        assert np.allclose(x_gen, expected_results["X_gen"])
+        assert np.allclose(y_gen, expected_results["y_gen"])
 
     else:
         # Otherwise, set a tolerance that would work across platforms
@@ -385,8 +382,6 @@ def test_train_multi_table(tmp_path: Path):
     ).to(DEVICE)
 
     # Adding those asserts under an if condition because they only pass on github.
-    # In the else block, we set a tolerance that would work across platforms
-    # however, it is way too high of a tolerance.
     if torch.allclose(conditional_sample[0], expected_conditional_sample[0]):
         # if the first values are equal with minimal tolerance, all others should be equal as well
         assert torch.allclose(conditional_sample, expected_conditional_sample)
