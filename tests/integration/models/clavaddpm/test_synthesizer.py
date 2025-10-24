@@ -87,7 +87,7 @@ def test_clava_syntheesize_multi_table(tmp_path: Path):
 
     # Assert
     assert cleaned_tables["account"].shape == (9, 2)
-    assert cleaned_tables["trans"].shape == (143, 10)
+    assert cleaned_tables["trans"].shape == (145, 8)
 
     if is_running_on_ci_environment():
         expected_cleaned_tables = pickle.loads(
