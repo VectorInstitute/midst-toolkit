@@ -207,7 +207,13 @@ def calculate_rmia_signals(
         [len(data) for data in trained_attack_data["selected_sets"]],
     ]
 
+    # Validate lengths
+    if any(len(group) == 0 for group in all_lengths):
+        raise ValueError("attack_data_collection/target_data contain empty sets; cannot compute RMIA.")
+
     min_length = min(min(group) for group in all_lengths)
+    if not (1 <= k <= min_length):
+        raise ValueError(f"k={k} must be within [1, {min_length}]")
 
     shadow_model_gower_0 = get_rmia_gower(
         df_input=df_input,
@@ -304,6 +310,10 @@ def calculate_rmia_signals(
         ]
     )
 
+    assert mask_in_training.shape == mask_not_in_training.shape, (
+        "Inconsistent shapes between in-training and not-in-training masks."
+    )
+
     # Calculate signals based on membership status
     results_df["signal_shadows_in_k_1"] = conditional_average(nearest_shadow_distances, mask_in_training)
     results_df[f"signal_shadows_in_k_{k}"] = conditional_average(mean_dist_shadow, mask_in_training)
@@ -315,9 +325,29 @@ def calculate_rmia_signals(
     results_df[f"signal_target_k_{k}"] = signal_target
 
     # Calculate RMIA scores (ratios of target to shadow signals)
-    results_df["rmia_k_1"] = results_df["signal_target_k_1"] / results_df["signal_shadow_k_1"]
-    results_df[f"rmia_k_{k}"] = results_df[f"signal_target_k_{k}"] / results_df[f"signal_shadow_k_{k}"]
-    results_df["rmia_out_k_1"] = results_df["signal_target_k_1"] / results_df["signal_shadows_out_k_1"]
-    results_df[f"rmia_out_k_{k}"] = results_df[f"signal_target_k_{k}"] / results_df[f"signal_shadows_out_k_{k}"]
+    results_df["rmia_k_1"] = np.divide(
+        results_df["signal_target_k_1"],
+        results_df["signal_shadow_k_1"],
+        out=np.full_like(results_df["signal_target_k_1"], np.nan, dtype=float),
+        where=results_df["signal_shadow_k_1"] > 0,
+    )
+    results_df[f"rmia_k_{k}"] = np.divide(
+        results_df[f"signal_target_k_{k}"],
+        results_df[f"signal_shadow_k_{k}"],
+        out=np.full_like(results_df[f"signal_target_k_{k}"], np.nan, dtype=float),
+        where=results_df[f"signal_shadow_k_{k}"] > 0,
+    )
+    results_df["rmia_out_k_1"] = np.divide(
+        results_df["signal_target_k_1"],
+        results_df["signal_shadows_out_k_1"],
+        out=np.full_like(results_df["signal_target_k_1"], np.nan, dtype=float),
+        where=results_df["signal_shadows_out_k_1"] > 0,
+    )
+    results_df[f"rmia_out_k_{k}"] = np.divide(
+        results_df[f"signal_target_k_{k}"],
+        results_df[f"signal_shadows_out_k_{k}"],
+        out=np.full_like(results_df[f"signal_target_k_{k}"], np.nan, dtype=float),
+        where=results_df[f"signal_shadows_out_k_{k}"] > 0,
+    )
 
     return results_df

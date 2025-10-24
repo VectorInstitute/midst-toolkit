@@ -67,7 +67,9 @@ def run_metaclassifier_training(
     with open(target_data_path, "rb") as f:
         target_data_and_result = pickle.load(f)
 
-    df_synthetic = target_data_and_result["trained_results"][0].synthetic_data.copy()
+    synth = target_data_and_result["trained_results"][0].synthetic_data
+    assert synth is not None, "Target model pickle missing synthetic_data."
+    df_synthetic = synth.copy()
 
     df_reference = load_dataframe(
         Path(config.data_paths.population_path),
