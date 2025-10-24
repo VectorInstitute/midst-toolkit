@@ -1,3 +1,4 @@
+import logging
 import pickle
 from copy import deepcopy
 from pathlib import Path
@@ -10,6 +11,7 @@ from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 from midst_toolkit.models.clavaddpm.data_loaders import load_multi_table
 from midst_toolkit.models.clavaddpm.synthesizer import clava_synthesizing
 from midst_toolkit.models.clavaddpm.train import clava_training
+from tests.integration.utils import is_running_on_ci_environment
 
 
 CLUSTERING_CONFIG = {
@@ -83,6 +85,18 @@ def test_clava_syntheesize_multi_table(tmp_path: Path):
         configs,
     )
 
-    pickle.dump(cleaned_tables, open("tests/integration/assets/multi_table/assertion_data/cleaned_tables.pkl", "wb"))
+    # Assert
+    assert cleaned_tables["account"].shape == (9, 2)
+    assert cleaned_tables["trans"].shape == (145, 8)
+
+    if is_running_on_ci_environment():
+        expected_cleaned_tables = pickle.loads(
+            Path("tests/integration/assets/multi_table/assertion_data/cleaned_tables.pkl").read_bytes(),
+        )
+        assert cleaned_tables["account"].equals(expected_cleaned_tables["account"])
+        assert cleaned_tables["trans"].equals(expected_cleaned_tables["trans"])
+
+    else:
+        logging.warning("Not running on CI, skipping detailed assertions.")
 
     unset_all_random_seeds()

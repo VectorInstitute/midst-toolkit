@@ -58,6 +58,10 @@ jobs:
       - name: Install the project
         run: uv sync --all-extras --dev
 
+      - name: Is running on CI environment (GitHub Actions)?
+        run: |
+          python -c "import os; print('Result: ', os.getenv('GITHUB_ACTIONS', 'Not set'))"
+
       - name: Install dependencies and check code
         run: |
           uv run pytest -m "integration_test"
