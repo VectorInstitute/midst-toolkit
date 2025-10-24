@@ -5,10 +5,14 @@ https://github.com/CRCHUM-CITADEL/ensemble-mia.
 """
 
 from enum import Enum
+from logging import INFO
+from typing import Any
 
 import gower
 import numpy as np
 import pandas as pd
+
+from midst_toolkit.common.logger import log
 
 
 class Key(Enum):
@@ -18,12 +22,12 @@ class Key(Enum):
 
 def get_rmia_gower(
     df_input: pd.DataFrame,
-    model_data: dict[str, list],
+    model_data: dict[str, list[Any]],
     min_length: int,
     key: Key,
     categorical_column_names: list[str],
     id_column_name: str,
-    random_seed: int = 42,
+    random_seed: int | None = None,
 ) -> list[np.ndarray]:
     """
     Computes the Gower distance and mean of the k-nearest neighbors (sorted by Gower distances) between the challenge
@@ -49,6 +53,15 @@ def get_rmia_gower(
         datasets provided within `model_data`.
 
     """
+    # Check if any specified categorical columns are missing from the dataframe
+    missing_categorical_columns = set(categorical_column_names) - set(df_input.columns)
+    if missing_categorical_columns:
+        log(
+            INFO,
+            f"Warning: The following categorical columns are missing from the dataframe, but have been passed as categorical columns: {missing_categorical_columns}. "
+            "These columns will be ignored. Ensure that the specified categorical columns in your dataset's data_types.json file are in sync with the actual dataframe columns, unless it is intentional.",
+        )
+
     categorical_features = [column in categorical_column_names for column in df_input.columns]
 
     gower_matrices = []
@@ -100,13 +113,13 @@ def conditional_average(values: np.ndarray, condition_mask: np.ndarray) -> np.nd
 
 def calculate_rmia_signals(
     df_input: pd.DataFrame,
-    attack_data_collection: list[dict[str, list]],
-    target_data_collection: list[dict[str, list]],
+    attack_data_collection: list[dict[str, list[Any]]],
+    target_data: dict[str, list[Any]],
     categorical_column_names: list[str],
     id_column_name: str,
     id_column_data: pd.Series,
     k: int = 5,
-    random_seed: int = 42,
+    random_seed: int | None = None,
 ) -> pd.DataFrame:
     """
     Main orchestration function to compute Robust Membership Inference Attack (RMIA) signals
@@ -143,7 +156,10 @@ def calculate_rmia_signals(
             training information and generated synthetic data.
             For more details, see the documentation of `train_three_sets_of_shadow_models` at
             attacks/ensemble/rmia/shadow_model_training.py.
-        target_data_collection: List containing the target model and its synthetic data, used to compute RMIA signals.
+        target_data: A dictionary containing information about the target model. It includes:
+            - 'selected_sets': A list of DataFrames used to train the target model.
+            - 'trained_results': A list of TrainingResult objects, each containing details about the model's
+              training process and the synthetic data generated during training.
         categorical_column_names: A list of categorical column names.
         id_column_name: Name of the ID column.
         id_column_data: The data in the ID column, used to ensure correct alignment of results.
@@ -175,65 +191,69 @@ def calculate_rmia_signals(
             - rmia_out_k_{k}: RMIA score using 'k' neighbors, calibrated against the
               'OUT' shadow signals.
     """
-    shadow_gower_list = []
+    # Extract attack data collections. The first two elements are fine-tuned shadow models,
+    # and the third element is the trained shadow models.
+
+    fine_tuned_attack_data_0 = attack_data_collection[0]
+    fine_tuned_attack_data_1 = attack_data_collection[1]
+    trained_attack_data = attack_data_collection[2]
 
     all_lengths = [
-        [len(data.synthetic_data) for data in attack_data_collection[0]["fine_tuned_results"]],
-        [len(data.synthetic_data) for data in attack_data_collection[1]["fine_tuned_results"]],
-        [len(data.synthetic_data) for data in attack_data_collection[2]["trained_results"]],
-        [len(data) for data in attack_data_collection[2]["selected_sets"]],
-        [len(data) for data in attack_data_collection[0]["fine_tuning_sets"]],
-        [len(data) for data in attack_data_collection[1]["fine_tuning_sets"]],
+        [len(data.synthetic_data) for data in fine_tuned_attack_data_0["fine_tuned_results"]],
+        [len(data.synthetic_data) for data in fine_tuned_attack_data_1["fine_tuned_results"]],
+        [len(data.synthetic_data) for data in trained_attack_data["trained_results"]],
+        [len(data) for data in fine_tuned_attack_data_0["fine_tuning_sets"]],
+        [len(data) for data in fine_tuned_attack_data_1["fine_tuning_sets"]],
+        [len(data) for data in trained_attack_data["selected_sets"]],
     ]
 
     min_length = min(min(group) for group in all_lengths)
 
     shadow_model_gower_0 = get_rmia_gower(
         df_input=df_input,
-        model_data=attack_data_collection[0],
+        model_data=fine_tuned_attack_data_0,
         min_length=min_length,
         key=Key.FINE_TUNED_RESULTS,
         categorical_column_names=categorical_column_names,
         id_column_name=id_column_name,
         random_seed=random_seed,
     )
-    shadow_gower_list.append(np.array(shadow_model_gower_0))
 
     shadow_model_gower_1 = get_rmia_gower(
         df_input=df_input,
-        model_data=attack_data_collection[1],
+        model_data=fine_tuned_attack_data_1,
         min_length=min_length,
         key=Key.FINE_TUNED_RESULTS,
         categorical_column_names=categorical_column_names,
         id_column_name=id_column_name,
         random_seed=random_seed,
     )
-    shadow_gower_list.append(np.array(shadow_model_gower_1))
 
     shadow_model_gower_2 = get_rmia_gower(
         df_input=df_input,
-        model_data=attack_data_collection[2],
+        model_data=trained_attack_data,
         min_length=min_length,
         key=Key.TRAINED_RESULTS,
         categorical_column_names=categorical_column_names,
         id_column_name=id_column_name,
         random_seed=random_seed,
     )
-    shadow_gower_list.append(np.array(shadow_model_gower_2))
 
-    gower_shadows = np.vstack(shadow_gower_list)
+    gower_shadows = np.vstack(
+        [np.array(shadow_model_gower_0), np.array(shadow_model_gower_1), np.array(shadow_model_gower_2)]
+    )
 
     # TODO: ideally remove hard-copied keys
     shadow_training_sets = (
-        attack_data_collection[0]["fine_tuning_sets"]
-        + attack_data_collection[1]["fine_tuning_sets"]
-        + attack_data_collection[2]["selected_sets"]
+        fine_tuned_attack_data_0["fine_tuning_sets"]
+        + fine_tuned_attack_data_1["fine_tuning_sets"]
+        + trained_attack_data["selected_sets"]
     )
 
     # TODO: check key after we have the official target model
     target_model_gower = get_rmia_gower(
         df_input=df_input,
-        model_data=target_data_collection[0],
+        model_data=target_data,
         min_length=min_length,
         key=Key.TRAINED_RESULTS,
         categorical_column_names=categorical_column_names,

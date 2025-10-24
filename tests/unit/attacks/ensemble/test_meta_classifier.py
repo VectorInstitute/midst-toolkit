@@ -16,6 +16,11 @@ MOCK_COLUMN_TYPES_CONTENT = {
     "id_column_name": "id_col",
 }
 
+MOCK_TARGET_DATA = {
+    "selected_sets": [pd.DataFrame({"col1": [1, 2], "col2": [3, 4]})],
+    "trained_results": [{"model_info": "mock_model", "synthetic_data": [5, 6]}],
+}
+
 
 @pytest.fixture(scope="module")
 def cfg() -> DictConfig:
@@ -90,7 +95,7 @@ class TestBlendingPlusPlus:
         bpp_xgb = BlendingPlusPlus(
             config=mock_config_with_json_path,
             attack_data_collection=[],
-            target_data_collection=[],
+            target_data=MOCK_TARGET_DATA,
             meta_classifier_type=MetaClassifierType("xgb"),
         )
 
@@ -106,7 +111,7 @@ class TestBlendingPlusPlus:
         bpp_lr = BlendingPlusPlus(
             config=mock_config_with_json_path,
             attack_data_collection=[],
-            target_data_collection=[],
+            target_data=MOCK_TARGET_DATA,
             meta_classifier_type=MetaClassifierType("lr"),
         )
         assert bpp_lr.meta_classifier_type == MetaClassifierType.LR
@@ -124,7 +129,7 @@ class TestBlendingPlusPlus:
             BlendingPlusPlus(
                 config=mock_config_with_json_path,
                 attack_data_collection=[],
-                target_data_collection=[],
+                target_data=MOCK_TARGET_DATA,
                 meta_classifier_type=MetaClassifierType("svm"),
             )
 
@@ -143,7 +148,11 @@ class TestBlendingPlusPlus:
         mock_domias.return_value = pd.DataFrame({"domias": [0.9, 0.8, 0.7, 0.6]})
         mock_rmia.return_value = pd.DataFrame({"rmia": [1, 0, 1, 0]})
 
-        bpp = BlendingPlusPlus(config=mock_config_with_json_path, attack_data_collection=[], target_data_collection=[])
+        bpp = BlendingPlusPlus(
+            config=mock_config_with_json_path,
+            attack_data_collection=[],
+            target_data=MOCK_TARGET_DATA,
+        )
 
         categorical_cols = MOCK_COLUMN_TYPES_CONTENT["categorical"]
         numerical_cols = MOCK_COLUMN_TYPES_CONTENT["numerical"]
@@ -188,12 +197,11 @@ class TestBlendingPlusPlus:
         mock_rmia.return_value = pd.DataFrame({"rmia": [1] * 4})
 
         attack_collection = [{"name": "attack_model_1"}]
-        target_collection = [{"name": "target_model_1"}]
 
         bpp = BlendingPlusPlus(
             config=mock_config_with_json_path,
             attack_data_collection=attack_collection,
-            target_data_collection=target_collection,
+            target_data=MOCK_TARGET_DATA,
         )
 
         df_train = sample_dataframes["df_train"]
@@ -216,7 +224,6 @@ class TestBlendingPlusPlus:
         # Verify the arguments
         pd.testing.assert_frame_equal(call_kwargs["df_input"], df_train)
         assert call_kwargs["attack_data_collection"] == attack_collection
-        assert call_kwargs["target_data_collection"] == target_collection
         assert call_kwargs["categorical_column_names"] == MOCK_COLUMN_TYPES_CONTENT["categorical"]
         assert call_kwargs["id_column_name"] == id_col_name
         pd.testing.assert_series_equal(call_kwargs["id_column_data"], id_col_data)
@@ -238,7 +245,7 @@ class TestBlendingPlusPlus:
         bpp = BlendingPlusPlus(
             config=mock_config_with_json_path,
             attack_data_collection=[],
-            target_data_collection=[],
+            target_data=MOCK_TARGET_DATA,
             meta_classifier_type=MetaClassifierType("lr"),
         )
         bpp.fit(
@@ -272,7 +279,7 @@ class TestBlendingPlusPlus:
         bpp = BlendingPlusPlus(
             config=mock_config_with_json_path,
             attack_data_collection=[],
-            target_data_collection=[],
+            target_data=MOCK_TARGET_DATA,
             meta_classifier_type=MetaClassifierType("xgb"),
         )
         bpp.fit(
@@ -297,7 +304,9 @@ class TestBlendingPlusPlus:
         """Tests that calling .predict() before .fit() raises a RuntimeError."""
         mock_file.return_value.read.return_value = json.dumps(MOCK_COLUMN_TYPES_CONTENT)
 
-        bpp = BlendingPlusPlus(config=mock_config_with_json_path, attack_data_collection=[], target_data_collection=[])
+        bpp = BlendingPlusPlus(
+            config=mock_config_with_json_path, attack_data_collection=[], target_data=MOCK_TARGET_DATA
+        )
         with pytest.raises(AssertionError):
             bpp.predict(
                 df_test=sample_dataframes["df_test"],
@@ -321,7 +330,11 @@ class TestBlendingPlusPlus:
         mock_classifier.predict_proba.return_value = np.array([[0.9, 0.1], [0.2, 0.8], [0.6, 0.4], [0.05, 0.95]])
         mock_get_tpr.return_value = 0.99
 
-        bpp = BlendingPlusPlus(config=mock_config_with_json_path, attack_data_collection=[], target_data_collection=[])
+        bpp = BlendingPlusPlus(
+            config=mock_config_with_json_path,
+            attack_data_collection=[],
+            target_data=MOCK_TARGET_DATA,
+        )
         bpp.trained_model = mock_classifier
 
         probabilities, score = bpp.predict(

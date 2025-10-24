@@ -3,6 +3,7 @@
 import json
 from enum import Enum
 from logging import INFO
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -25,10 +26,10 @@ class BlendingPlusPlus:
     def __init__(
         self,
         config: DictConfig,
-        attack_data_collection: list[dict[str, list]],
-        target_data_collection: list[dict[str, list]],
+        attack_data_collection: list[dict[str, list[Any]]],
+        target_data: dict[str, list[Any]],
         meta_classifier_type: MetaClassifierType = MetaClassifierType.XGB,
-        random_seed: int = 42,
+        random_seed: int | None = None,
     ) -> None:
         """
         Initializes the Blending++ attack with specified data configurations and meta-classifier type.
@@ -49,8 +50,13 @@ class BlendingPlusPlus:
                 is a list of type TrainingResult containing model training information and generated synthetic data.
                 For more details, see the documentation of `train_three_sets_of_shadow_models` at
                 attacks/ensemble/rmia/shadow_model_training.py.
-            target_data_collection: List of training data of the target model and its generated synthetic data.
-                The structure is the same as attack_data_collection.
+            target_data: Dictionary containing the training data of the target model and its generated synthetic data.
+                The dictionary contains the keys "selected_sets" and "trained_results".
+                Selected_sets is a list of dataframes used to train the target model, and trained_results
+                is a list of type TrainingResult containing model training information and generated synthetic data.
+                For more details, see the documentation of `train_three_sets_of_shadow_models` at
+                attacks/ensemble/rmia/shadow_model_training.py.
+
             meta_classifier_type: Type of meta classifier model. Defaults to MetaClassifierType.XGB.
             random_seed: Random seed for reproducibility. Defaults to None.
 
@@ -60,7 +66,7 @@ class BlendingPlusPlus:
             self.column_types = json.load(f)
 
         self.attack_data_collection = attack_data_collection
-        self.target_data_collection = target_data_collection
+        self.target_data = target_data
         self.meta_classifier_type = meta_classifier_type
         self.trained_model = None
         self.random_seed = random_seed
@@ -96,21 +102,21 @@ class BlendingPlusPlus:
         """
         df_synthetic = df_synthetic.reset_index(drop=True)[df_input.columns]
 
-        # 3. Get RMIA signals
+        # 1. Get RMIA signals
 
         log(INFO, "Calculating RMIA signals...")
 
         rmia_signals = calculate_rmia_signals(
             df_input=df_input,
             attack_data_collection=self.attack_data_collection,
-            target_data_collection=self.target_data_collection,
+            target_data=self.target_data,
             categorical_column_names=categorical_cols,
             id_column_name=id_column_name,
             id_column_data=id_column_data,
             random_seed=self.random_seed,
         )
 
-        # 1. Get Gower distance features
+        # 2. Get Gower distance features
 
         log(INFO, "Calculating Gower features...")
 
@@ -118,7 +124,7 @@ class BlendingPlusPlus:
             df_input=df_input, df_synthetic=df_synthetic, categorical_column_names=categorical_cols
         )
 
-        # 2. Get DOMIAS predictions
+        # 3. Get DOMIAS predictions
 
         log(INFO, "Calculating DOMIAS scores...")
 

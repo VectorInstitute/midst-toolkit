@@ -60,6 +60,8 @@ shadow_training:
           "initial_model_rmia_2/shadow_workspace/pre_trained_model/rmia_shadows.pkl",
           "shadow_model_rmia_third_set/shadow_workspace/trained_model/rmia_shadows_third_set.pkl",
       ] # Paths to final shadow models used for metaclassifier training (relative to shadow_models_output_path)
+      # These paths are a result of running the shadow model training pipeline, specifically the
+      # train_three_sets_of_shadow_models in shadow_model_training.py
       # Each .pkl file contains the training data, trained model and training results for all shadow models in a list.
   final_target_model_path: "target_model/shadow_workspace/trained_target_model/target_model.pkl"
   # Path to final target model (relative to target_model_output_path)
@@ -83,4 +85,4 @@ metaclassifier:
 
 
 # General settings
-random_seed: 42
+random_seed: 42 # Set to null for no seed, or an integer for a fixed seed

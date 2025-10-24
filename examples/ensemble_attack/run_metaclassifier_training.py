@@ -49,7 +49,7 @@ def run_metaclassifier_training(
         "At this point of development, the attack_data_paths list must contain exactly three elements."
     )
 
-    attack_data_collection, target_data_collection = [], []
+    attack_data_collection = []
 
     for model_path in attack_data_paths:
         assert model_path.exists(), (
@@ -57,17 +57,17 @@ def run_metaclassifier_training(
         )
 
         with open(model_path, "rb") as f:
-            shadow_model = pickle.load(f)
-            attack_data_collection.append(shadow_model)
+            shadow_data_and_result = pickle.load(f)
+            attack_data_collection.append(shadow_data_and_result)
 
     assert target_data_path.exists(), (
         f"No file found at {target_data_path}. Make sure the path is correct and that you have trained the target model."
     )
-    with open(target_data_path, "rb") as f:
-        target_model = pickle.load(f)
-        target_data_collection.append(target_model)
 
-    df_synthetic = target_data_collection[0]["trained_results"][0].synthetic_data.copy()
+    with open(target_data_path, "rb") as f:
+        target_data_and_result = pickle.load(f)
+
+    df_synthetic = target_data_and_result["trained_results"][0].synthetic_data.copy()
 
     df_reference = load_dataframe(
         Path(config.data_paths.population_path),
@@ -91,7 +91,7 @@ def run_metaclassifier_training(
     blending_attacker = BlendingPlusPlus(
         config=config,
         attack_data_collection=attack_data_collection,
-        target_data_collection=target_data_collection,
+        target_data=target_data_and_result,
         meta_classifier_type=meta_classifier_enum,
         random_seed=config.random_seed,
     )

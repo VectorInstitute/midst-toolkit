@@ -40,19 +40,15 @@ def run_target_model_training(config: DictConfig) -> Path:
 
     # Right now, I'm assuming target model is trained only on real_train.
 
-    # Where the path is, we'll expect a .pkl file which is a dictionary with keys
-    #   "fine_tuning_sets" and "fine_tuned_results"
-    # TODO: Maybe change this to "selected_sets" and "trained_results" if target model is not fine-tuned.
-    # if you change this, also change it in run_metaclassifier_training.py
-
     target_model_output_path = Path(config.shadow_training.target_model_output_path)
     target_training_json_config_paths = config.shadow_training.training_json_config_paths
 
+    # TODO: Add this to config or .json files
     table_name = "trans"
     id_column_name = "trans_id"
 
     target_folder = target_model_output_path / "target_model"
-    # import pdb; pdb.set_trace()
+
     target_folder.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(
         target_training_json_config_paths.table_domain_file_path,
