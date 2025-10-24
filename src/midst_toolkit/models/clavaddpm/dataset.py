@@ -902,7 +902,9 @@ def process_nans_in_categorical_features(data_splits: ArrayDict, policy: Categor
     missing_values = float("nan") if is_float_array else CAT_MISSING_VALUE
 
     # If there are any NaN values, try to apply a the policy.
-    nan_values = [np.isnan(data) if is_float_array else data == CAT_MISSING_VALUE for data in data_splits.values()]
+    nan_values = [
+        np.isnan(data).any() if is_float_array else (data == CAT_MISSING_VALUE).any() for data in data_splits.values()
+    ]
     if any(nan_values):
         if policy == CategoricalNaNPolicy.MOST_FREQUENT:
             imputer = SimpleImputer(missing_values=missing_values, strategy=policy.value)
