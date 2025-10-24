@@ -1,4 +1,3 @@
-import logging
 import pickle
 from copy import deepcopy
 from pathlib import Path
@@ -63,7 +62,7 @@ SYNTHESIZING_CONFIG = {
 
 
 @pytest.mark.integration_test()
-def test_clava_syntheesize_multi_table(tmp_path: Path):
+def test_clava_synthesize_multi_table(tmp_path: Path):
     # Setup
     set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
@@ -97,6 +96,6 @@ def test_clava_syntheesize_multi_table(tmp_path: Path):
         assert cleaned_tables["trans"].equals(expected_cleaned_tables["trans"])
 
     else:
-        logging.warning("Not running on CI, skipping detailed assertions.")
+        pytest.warns(UserWarning, match="Not running on CI, skipping detailed assertions.")
 
     unset_all_random_seeds()

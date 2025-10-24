@@ -1,5 +1,4 @@
 import json
-import logging
 import pickle
 import random
 from collections.abc import Callable
@@ -303,7 +302,7 @@ def test_train_single_table(tmp_path: Path):
         # Otherwise, set a tolerance that would work across platforms
         # TODO: Figure out a way to set a lower tolerance
         # https://app.clickup.com/t/868f43wp0
-        logging.warning("Not running on CI, assertions are made with a higher tolerance.")
+        pytest.warns(UserWarning, match="Not running on CI, assertions are made with a higher tolerance.")
         assert all(torch.allclose(model_data[layer], expected_model_data[layer], atol=0.1) for layer in model_layers)
 
     unset_all_random_seeds()
@@ -361,7 +360,7 @@ def test_train_multi_table(tmp_path: Path):
         # Otherwise, set a tolerance that would work across platforms
         # TODO: Figure out a way to set a lower tolerance
         # https://app.clickup.com/t/868f43wp0
-        logging.warning("Not running on CI, assertions are made with a higher tolerance.")
+        pytest.warns(UserWarning, match="Not running on CI, assertions are made with a higher tolerance.")
         assert all(torch.allclose(model_data[layer], expected_model_data[layer], atol=0.1) for layer in model_layers)
 
     classifier_scale = 1.0
@@ -386,7 +385,7 @@ def test_train_multi_table(tmp_path: Path):
         # if the first values are equal with minimal tolerance, all others should be equal as well
         assert torch.allclose(conditional_sample, expected_conditional_sample)
     else:
-        logging.warning("Not running on CI, skipping detailed assertions.")
+        pytest.warns(UserWarning, match="Not running on CI, skipping detailed assertions.")
 
     unset_all_random_seeds()
 
