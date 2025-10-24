@@ -1,9 +1,11 @@
 import pickle
 from copy import deepcopy
+from logging import WARNING
 from pathlib import Path
 
 import pytest
 
+from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
@@ -96,6 +98,6 @@ def test_clava_synthesize_multi_table(tmp_path: Path):
         assert cleaned_tables["trans"].equals(expected_cleaned_tables["trans"])
 
     else:
-        pytest.warns(UserWarning, match="Not running on CI, skipping detailed assertions.")
+        log(WARNING, "Not running on CI, skipping detailed assertions.")
 
     unset_all_random_seeds()

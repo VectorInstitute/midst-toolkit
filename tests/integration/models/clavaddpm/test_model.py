@@ -2,6 +2,7 @@ import json
 import pickle
 import random
 from collections.abc import Callable
+from logging import WARNING
 from pathlib import Path
 
 import numpy as np
@@ -9,6 +10,7 @@ import pytest
 import torch
 from torch.nn import functional
 
+from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
@@ -302,7 +304,7 @@ def test_train_single_table(tmp_path: Path):
         # Otherwise, set a tolerance that would work across platforms
         # TODO: Figure out a way to set a lower tolerance
         # https://app.clickup.com/t/868f43wp0
-        pytest.warns(UserWarning, match="Not running on CI, assertions are made with a higher tolerance.")
+        log(WARNING, "Not running on CI, assertions are made with a higher tolerance.")
         assert all(torch.allclose(model_data[layer], expected_model_data[layer], atol=0.1) for layer in model_layers)
 
     unset_all_random_seeds()
@@ -360,7 +362,7 @@ def test_train_multi_table(tmp_path: Path):
         # Otherwise, set a tolerance that would work across platforms
         # TODO: Figure out a way to set a lower tolerance
         # https://app.clickup.com/t/868f43wp0
-        pytest.warns(UserWarning, match="Not running on CI, assertions are made with a higher tolerance.")
+        log(WARNING, "Not running on CI, assertions are made with a higher tolerance.")
         assert all(torch.allclose(model_data[layer], expected_model_data[layer], atol=0.1) for layer in model_layers)
 
     classifier_scale = 1.0
@@ -385,7 +387,7 @@ def test_train_multi_table(tmp_path: Path):
         # if the first values are equal with minimal tolerance, all others should be equal as well
         assert torch.allclose(conditional_sample, expected_conditional_sample)
     else:
-        pytest.warns(UserWarning, match="Not running on CI, skipping detailed assertions.")
+        log(WARNING, "Not running on CI, skipping detailed assertions.")
 
     unset_all_random_seeds()
 
