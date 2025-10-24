@@ -332,6 +332,9 @@ def test_train_multi_table(tmp_path: Path):
     )
     x_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
 
+    with open("tests/integration/assets/multi_table/assertion_data/syntetic_data_gh.pkl", "wb") as f:
+        pickle.dump({"X_gen": x_gen, "y_gen": y_gen}, f)
+
     with open("tests/integration/assets/multi_table/assertion_data/syntetic_data.json", "r") as f:
         expected_results = json.load(f)
 

@@ -61,3 +61,10 @@ jobs:
       - name: Install dependencies and check code
         run: |
           uv run pytest -m "integration_test" -s -vv
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-tests-artifacts
+          path: tests/integration/assets/multi_table/assertion_data/syntetic_data_gh.pkl
+          retention-days: 1
