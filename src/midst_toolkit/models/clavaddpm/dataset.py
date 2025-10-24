@@ -835,6 +835,12 @@ def process_nans_in_numerical_features(dataset: Dataset, policy: NumericalNaNPol
     elif policy == NumericalNaNPolicy.MEAN:
         # Computes column means in the training dataset, ignoring NaN values.
         new_values = np.nanmean(dataset.x_num[DataSplit.TRAIN.value], axis=0)
+
+        # If any training column is all-NaN, np.nanmean returns NaN
+        bad_cols = np.isnan(new_values)
+        if bad_cols.any():
+            raise ValueError("At least one of the columns in the train split are all NaN")
+
         numerical_features_per_split = deepcopy(dataset.x_num)
         for data_split, numerical_features in numerical_features_per_split.items():
             nan_indices = np.where(nan_masks[data_split])
@@ -846,22 +852,29 @@ def process_nans_in_numerical_features(dataset: Dataset, policy: NumericalNaNPol
     return dataset
 
 
-def drop_rows_according_to_mask(data: ArrayDict, valid_masks: dict[str, np.ndarray]) -> ArrayDict:
+def drop_rows_according_to_mask(data_split: ArrayDict, valid_masks: dict[str, np.ndarray]) -> ArrayDict:
     """
     Provided a dictionary of keys to numpy arrays, this function drops rows in each numpy array in the dictionary
     according to the values in `valid_masks`. The keys of `valid_masks` must match the entries in data.
 
     Args:
-        data: The data to apply the mask to.
+        data_split: The data to apply the mask to.
         valid_masks: Mapping from datasplit key to 1D boolean array with entries corresponding to rows of an array.
             An entry of True indicates that the row should be kept. False implies it should be dropped.
 
     Returns:
         The data with the mask applied, dropping rows corresponding to False entries of the mask.
     """
-    assert set(data.keys()) == set(valid_masks.keys()), "Keys of data do not match the provided valid_masks"
+    if set(data_split.keys()) != set(valid_masks.keys()):
+        raise KeyError("Keys of data do not match the provided valid_masks")
     # Dropping rows in each array that have a False entry in valid_masks
-    return {k: v[valid_masks[k]] for k, v in data.items()}
+    filtered_data_split: ArrayDict = {}
+    for split_name, data in data_split.items():
+        row_mask = valid_masks[split_name]
+        if row_mask.ndim != 1 or row_mask.shape[0] != data.shape[0]:
+            raise ValueError(f"Mask for split '{split_name}' has shape {row_mask.shape}; expected ({data.shape[0]},)")
+        filtered_data_split[split_name] = data[row_mask]
+    return filtered_data_split
 
 
 def process_nans_in_categorical_features(data_splits: ArrayDict, policy: CategoricalNaNPolicy | None) -> ArrayDict:
@@ -923,7 +936,7 @@ def collapse_rare_categories(data_splits: ArrayDict, min_frequency: float) -> Ar
     assert 0.0 < min_frequency < 1.0, "min_frequency has to be between 0 and 1"
 
     training_data = data_splits[DataSplit.TRAIN.value]
-    min_count = round(len(training_data) * min_frequency)
+    min_count = max(1, int(np.ceil(len(training_data) * min_frequency)))
     new_data_split: dict[str, list[list[str]]] = {key: [] for key in data_splits}
 
     # Run through each of the columns in the training data

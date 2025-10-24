@@ -201,4 +201,9 @@ def test_process_nans_in_numerical_features_mean() -> None:
     assert dataset.x_num["val"][1, 1] == 0
     assert dataset.x_num["val"][1, 2] == 1.0 / 3.0
 
+    # Make sure an error is raised if an entire column is NaN in Train
+    with pytest.raises(ValueError):
+        dataset.x_num["train"][:, 1] = np.NaN
+        dataset = process_nans_in_numerical_features(dataset=dataset, policy=NumericalNaNPolicy.MEAN)
+
     unset_all_random_seeds()
