@@ -83,11 +83,17 @@ def test_clava_syntheesize_multi_table(tmp_path: Path):
         configs,
     )
 
+    # Assert
     expected_cleaned_tables = pickle.loads(
-        Path("tests/integration/assets/multi_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
+        Path("tests/integration/assets/multi_table/assertion_data/cleaned_tables.pkl").read_bytes(),
     )
 
+    # import ipdb; ipdb.set_trace()
+
     print(cleaned_tables)
+
+    print("------------------------------------------------------------------------")
+
     print(expected_cleaned_tables)
 
     unset_all_random_seeds()
