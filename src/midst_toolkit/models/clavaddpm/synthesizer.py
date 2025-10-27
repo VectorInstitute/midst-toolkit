@@ -139,7 +139,7 @@ def conditional_sample_from_diffusion(
 
     targets, sampled_group_sizes = _sample_targets(group_labels, group_lengths_prob_dicts)
 
-    synthetic_features, synthetic_targets = _conditional_sample_from_diffusion(
+    synthetic_features, synthetic_targets = _get_synthetic_data_by_conditional_sample(
         targets,
         sample_batch_size,
         classifier,
@@ -379,7 +379,7 @@ def _sample_targets(
     return targets, sampled_group_sizes
 
 
-def _conditional_sample_from_diffusion(
+def _get_synthetic_data_by_conditional_sample(
     targets: list[int],
     sample_batch_size: int,
     classifier: Classifier,
