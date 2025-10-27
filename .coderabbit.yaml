@@ -2,6 +2,7 @@
 # Complete reference: https://docs.coderabbit.ai/reference/configuration
 reviews:
   # The configuration below will make the initial review comment smaller
+  review_status: false
   high_level_summary: false
   collapse_walkthrough: true
   changed_files_summary: false
