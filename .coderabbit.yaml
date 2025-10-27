@@ -1,0 +1,15 @@
+# CodeRabbit Configuration
+# Complete reference: https://docs.coderabbit.ai/reference/configuration
+reviews:
+  high_level_summary: false
+  collapse_walkthrough: true
+  changed_files_summary: false
+  sequence_diagrams: false
+  assess_linked_issues: false
+  related_issues: false
+  related_prs: false
+  suggested_reviewers: false
+  in_progress_fortune: false
+  poem: false
+  auto_review:
+    auto_incremental_review: false
