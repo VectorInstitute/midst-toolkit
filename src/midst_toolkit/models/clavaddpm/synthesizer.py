@@ -97,7 +97,7 @@ def sample_from_diffusion(
     return df_real_data, df_synthetic_data
 
 
-def conditional_sampling_by_group_size(
+def conditional_sample_from_diffusion(
     df: pd.DataFrame,
     df_info: dict[str, Any],
     dataset: Dataset,
@@ -111,7 +111,8 @@ def conditional_sampling_by_group_size(
     classifier_scale: float = 1.0,
 ) -> tuple[pd.DataFrame, pd.DataFrame, list[int]]:
     """
-    Samples synthetic data conditionally based on group labels and aligns it with the real data format.
+    Samples synthetic data conditionally based on group labels and a trained diffusion model,
+    and aligns it with the real data format.
 
     Args:
         df: Real data dataframe without id.
@@ -791,7 +792,7 @@ def clava_synthesizing(  # noqa: PLR0915, PLR0912
                 _,
                 child_generated,
                 child_sampled_group_sizes,
-            ) = conditional_sampling_by_group_size(
+            ) = conditional_sample_from_diffusion(
                 df=df_without_id,
                 df_info=child_result["df_info"],
                 dataset=child_result["dataset"],
