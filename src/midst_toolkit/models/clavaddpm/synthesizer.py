@@ -812,10 +812,7 @@ def clava_synthesizing(  # noqa: PLR0915, PLR0912
 
     cleaned_tables: dict[str, pd.DataFrame] = {}
     for table_key, table_val in final_tables.items():
-        column_names = []
-        for column_name in tables[table_key]["original_cols"]:
-            if "_id" not in column_name:
-                column_names.append(column_name)
+        column_names = [column_name for column_name in tables[table_key]["original_cols"] if "_id" not in column_name]
         cleaned_tables[table_key] = pd.DataFrame(table_val[column_names])
 
     for cleaned_key, cleaned_val in cleaned_tables.items():
