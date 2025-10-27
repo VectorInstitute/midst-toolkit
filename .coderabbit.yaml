@@ -1,6 +1,7 @@
 # CodeRabbit Configuration
 # Complete reference: https://docs.coderabbit.ai/reference/configuration
 reviews:
+  # The configuration below will make the initial review comment smaller
   high_level_summary: false
   collapse_walkthrough: true
   changed_files_summary: false
@@ -12,4 +13,4 @@ reviews:
   in_progress_fortune: false
   poem: false
   auto_review:
-    auto_incremental_review: false
+    auto_incremental_review: false  # this will stop triggering a review for every new commit
