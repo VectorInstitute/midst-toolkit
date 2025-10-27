@@ -2,6 +2,7 @@ import json
 import pickle
 import random
 from collections.abc import Callable
+from logging import WARNING
 from pathlib import Path
 
 import numpy as np
@@ -9,12 +10,14 @@ import pytest
 import torch
 from torch.nn import functional
 
+from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 from midst_toolkit.models.clavaddpm.data_loaders import load_multi_table
 from midst_toolkit.models.clavaddpm.model import Classifier
 from midst_toolkit.models.clavaddpm.train import clava_training
+from tests.integration.utils import is_running_on_ci_environment
 
 
 CLUSTERING_CONFIG = {
@@ -240,8 +243,8 @@ def test_load_multi_table():
         },
     }
 
-    assert relation_order == [["account", "trans"]]
-    assert dataset_meta["relation_order"] == [["account", "trans"]]
+    assert relation_order == [[None, "account"], ["account", "trans"]]
+    assert dataset_meta["relation_order"] == [[None, "account"], ["account", "trans"]]
     assert dataset_meta["tables"] == {
         "account": {"children": ["trans"], "parents": []},
         "trans": {"children": [], "parents": ["account"]},
@@ -273,7 +276,7 @@ def test_train_single_table(tmp_path: Path):
     )
     x_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
 
-    with open("tests/integration/assets/single_table/assertion_data/syntetic_data.json", "r") as f:
+    with open("tests/integration/assets/single_table/assertion_data/synthetic_data.json", "r") as f:
         expected_results = json.load(f)
 
     model_data = dict(models[key]["diffusion"].named_parameters())
@@ -285,12 +288,10 @@ def test_train_single_table(tmp_path: Path):
     expected_model_data = {layer: data.to(DEVICE) for layer, data in expected_model_data.items()}
 
     model_layers = list(model_data.keys())
-    expected_model_layers = list(expected_model_data.keys())
-
     # Adding those asserts under an if condition because they only pass on github.
     # In the else block, we set a tolerance that would work across platforms
     # however, it is way too high of a tolerance.
-    if torch.allclose(model_data[model_layers[0]], expected_model_data[expected_model_layers[0]]):
+    if is_running_on_ci_environment():
         # if the first layer is equal with minimal tolerance, all others should be equal as well
         assert all(torch.allclose(model_data[layer], expected_model_data[layer]) for layer in model_layers)
 
@@ -303,6 +304,7 @@ def test_train_single_table(tmp_path: Path):
         # Otherwise, set a tolerance that would work across platforms
         # TODO: Figure out a way to set a lower tolerance
         # https://app.clickup.com/t/868f43wp0
+        log(WARNING, "Not running on CI, assertions are made with a higher tolerance.")
         assert all(torch.allclose(model_data[layer], expected_model_data[layer], atol=0.1) for layer in model_layers)
 
     unset_all_random_seeds()
@@ -332,7 +334,7 @@ def test_train_multi_table(tmp_path: Path):
     )
     x_gen, y_gen = x_gen_tensor.numpy(), y_gen_tensor.numpy()
 
-    with open("tests/integration/assets/multi_table/assertion_data/syntetic_data.json", "r") as f:
+    with open("tests/integration/assets/multi_table/assertion_data/synthetic_data.json", "r") as f:
         expected_results = json.load(f)
 
     model_data = dict(models[1][key]["diffusion"].named_parameters())
@@ -343,13 +345,11 @@ def test_train_multi_table(tmp_path: Path):
     # Making sure the expected model data is loaded on the correct device
     expected_model_data = {layer: data.to(DEVICE) for layer, data in expected_model_data.items()}
 
-    model_layers = list(model_data.keys())
-    expected_model_layers = list(expected_model_data.keys())
-
     # Adding those asserts under an if condition because they only pass on github.
     # In the else block, we set a tolerance that would work across platforms
     # however, it is way too high of a tolerance.
-    if torch.allclose(model_data[model_layers[0]], expected_model_data[expected_model_layers[0]]):
+    model_layers = list(model_data.keys())
+    if is_running_on_ci_environment():
         # if the first layer is equal with minimal tolerance, all others should be equal as well
         assert all(torch.allclose(model_data[layer], expected_model_data[layer]) for layer in model_layers)
 
@@ -362,6 +362,7 @@ def test_train_multi_table(tmp_path: Path):
         # Otherwise, set a tolerance that would work across platforms
         # TODO: Figure out a way to set a lower tolerance
         # https://app.clickup.com/t/868f43wp0
+        log(WARNING, "Not running on CI, assertions are made with a higher tolerance.")
         assert all(torch.allclose(model_data[layer], expected_model_data[layer], atol=0.1) for layer in model_layers)
 
     classifier_scale = 1.0
@@ -382,11 +383,11 @@ def test_train_multi_table(tmp_path: Path):
     ).to(DEVICE)
 
     # Adding those asserts under an if condition because they only pass on github.
-    # In the else block, we set a tolerance that would work across platforms
-    # however, it is way too high of a tolerance.
-    if torch.allclose(conditional_sample[0], expected_conditional_sample[0]):
+    if is_running_on_ci_environment():
         # if the first values are equal with minimal tolerance, all others should be equal as well
         assert torch.allclose(conditional_sample, expected_conditional_sample)
+    else:
+        log(WARNING, "Not running on CI, skipping detailed assertions.")
 
     unset_all_random_seeds()
 
@@ -401,7 +402,7 @@ def test_clustering_reload(tmp_path: Path):
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
 
     # Assert
-    account_df_no_clustering = tables["account"]["df"].drop(columns=["account_trans_cluster"])
+    account_df_no_clustering = tables["account"]["df"].drop(columns=["account_trans_cluster", "placeholder"])
     account_original_df_as_float = tables["account"]["original_df"].astype(float)
     assert account_df_no_clustering.equals(account_original_df_as_float)
 
