@@ -372,7 +372,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             model_kwargs: The model kwargs. Optional, default is None.
 
         Returns:
-            A dictionary with the followingf keys:
+            A dictionary with the following keys:
              - "mean": the mean of the Gaussian prior distribution.
              - "variance": the variance of the Gaussian prior distribution.
              - "log_variance": the log variance of the Gaussian prior distribution.
@@ -673,7 +673,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             conditioning_function: The conditioning function. Optional, default is None.
 
         Returns:
-            A dictionary with teo tensors:
+            A dictionary with two tensors:
              - "sample": the sample from the Gaussian posterior distribution.
              - "pred_xstart": the predicted xstart.
         """

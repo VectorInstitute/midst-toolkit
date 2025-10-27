@@ -408,15 +408,16 @@ def _get_synthetic_data_by_conditional_sample(
     while curr_index < len(targets):
         end_index = min(curr_index + sample_batch_size, len(targets))
         curr_targets = torch.tensor(np.array(targets[curr_index:end_index]).reshape(-1, 1), requires_grad=False)
-        curr_model_kwargs = {}
-        curr_model_kwargs["y"] = curr_targets
+
         curr_sample, _ = diffusion.conditional_sample(
             targets=curr_targets,
-            model_kwargs=curr_model_kwargs,
+            model_kwargs={"y": curr_targets},
             conditioning_function=conditioning_function,
         )
-        all_rows.extend([sample.cpu().numpy() for sample in [curr_sample]])
-        all_clusters.extend([curr_ys.cpu().numpy() for curr_ys in [curr_targets]])
+
+        all_rows.append(curr_sample.cpu().numpy())
+        all_clusters.append(curr_targets.cpu().numpy())
+
         curr_index += sample_batch_size
 
     return np.concatenate(all_rows, axis=0), np.concatenate(all_clusters, axis=0)
