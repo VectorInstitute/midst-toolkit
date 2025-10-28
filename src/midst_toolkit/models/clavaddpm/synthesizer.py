@@ -20,7 +20,7 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
     Configs,
     GroupLengthsProbDicts,
-    IsTargetCondioned,
+    IsTargetConditioned,
     RelationOrder,
     Tables,
 )
@@ -107,7 +107,7 @@ def conditional_sample_from_diffusion(
     group_labels: list[int],
     sample_batch_size: int,
     group_lengths_prob_dicts: dict[int, dict[int, float]],
-    is_target_conditioned: IsTargetCondioned = IsTargetCondioned.NONE,
+    is_target_conditioned: IsTargetConditioned = IsTargetConditioned.NONE,
     classifier_scale: float = 1.0,
 ) -> tuple[pd.DataFrame, pd.DataFrame, list[int]]:
     """
@@ -124,7 +124,7 @@ def conditional_sample_from_diffusion(
         group_labels: List of group labels for conditional sampling.
         sample_batch_size: Batch size used in sampling.
         group_lengths_prob_dicts: Dictionary of group length probabilities for each group label.
-        is_target_conditioned: Conditioning method for the target variable. Defaults to IsTargetCondioned.NONE.
+        is_target_conditioned: Conditioning method for the target variable. Defaults to IsTargetConditioned.NONE.
         classifier_scale: Scale factor for the classifier. Defaults to 1.0.
 
     Returns:
@@ -167,7 +167,7 @@ def _post_process_synthetic_data(
     df: pd.DataFrame,
     df_info: dict[str, Any],
     num_features: int,
-    is_target_conditioned: IsTargetCondioned,
+    is_target_conditioned: IsTargetConditioned,
     dataset: Dataset,
     label_encoders: dict[int, LabelEncoder],
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -205,11 +205,12 @@ def _post_process_synthetic_data(
         numerical_features, encoded_categorical_features = _split_features(all_features, label_encoders)
 
         categorical_features = _decode_categorical_features(encoded_categorical_features, label_encoders)
-        numerical_features = _round_discrete_numerical_features(numerical_features, real_numerical_features)
 
-    if num_features != 0 and is_target_conditioned == IsTargetCondioned.CONCAT:
-        synthetic_target = numerical_features[:, 0]
-        numerical_features = numerical_features[:, 1:]
+        if is_target_conditioned == IsTargetConditioned.CONCAT:
+            synthetic_target = numerical_features[:, 0]
+            numerical_features = numerical_features[:, 1:]
+
+        numerical_features = _round_discrete_numerical_features(numerical_features, real_numerical_features)
 
     synthetic_target = synthetic_target.reshape(-1, 1)
 
@@ -248,7 +249,7 @@ def _post_process_synthetic_data(
 def _get_all_features_from_synthetic_features(
     synthetic_features: np.ndarray,
     dataset: Dataset,
-    is_target_conditioned: IsTargetCondioned,
+    is_target_conditioned: IsTargetConditioned,
 ) -> np.ndarray:
     """
     Produce a dataset with all features from the generated synthetic features.
@@ -265,7 +266,7 @@ def _get_all_features_from_synthetic_features(
 
     # In case it's a regression task and it's not target conditioned,
     # we need to add 1 to the number of numerical features to represent the target.
-    if dataset.is_regression and is_target_conditioned == IsTargetCondioned.NONE:
+    if dataset.is_regression and is_target_conditioned == IsTargetConditioned.NONE:
         num_features_sample = num_features + 1
     else:
         num_features_sample = num_features
@@ -415,8 +416,8 @@ def _get_synthetic_data_by_conditional_sample(
             conditioning_function=conditioning_function,
         )
 
-        all_rows.append(curr_sample.cpu().numpy())
-        all_clusters.append(curr_targets.cpu().numpy())
+        all_rows.append(curr_sample.cpu().clone().numpy())
+        all_clusters.append(curr_targets.cpu().clone().numpy())
 
         curr_index += sample_batch_size
 
@@ -806,7 +807,7 @@ def clava_synthesizing(  # noqa: PLR0915, PLR0912
                 .tolist(),
                 group_lengths_prob_dicts=all_group_lengths_prob_dicts[(parent, child)],
                 sample_batch_size=configs["sampling"]["batch_size"],
-                is_target_conditioned=IsTargetCondioned.NONE,
+                is_target_conditioned=IsTargetConditioned.NONE,
                 classifier_scale=configs["sampling"]["classifier_scale"],
             )
 
