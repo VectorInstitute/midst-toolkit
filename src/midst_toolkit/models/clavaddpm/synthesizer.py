@@ -700,7 +700,7 @@ def clava_synthesizing(
                 df_without_id,
                 training_results,
                 sample_scale,
-                configs,
+                configs["sampling"]["batch_size"],
             )
         else:
             # Finding previously synthesized data and training results for the parent
@@ -724,8 +724,9 @@ def clava_synthesizing(
                 parent_synthetic_data,
                 df_without_id,
                 all_group_lengths_prob_dicts[(parent, child)],
-                configs,
                 tables,
+                configs["sampling"]["batch_size"],
+                configs["sampling"]["classifier_scale"],
             )
 
         synthetic_tables[(parent, child)] = {
@@ -749,7 +750,7 @@ def clava_synthesizing(
     matching_end_time = time.time()
     matching_time_spent = matching_end_time - matching_start_time
 
-    cleaned_synthetic_data = _clean_synthetic_data(synthetic_data, tables, configs)
+    cleaned_synthetic_data = _clean_and_save_synthetic_data(synthetic_data, tables, configs)
     return cleaned_synthetic_data, synthesizing_time_spent, matching_time_spent
 
 
@@ -758,8 +759,24 @@ def _synthesize_single_table(
     data: pd.DataFrame,
     training_results: dict[str, Any],
     sample_scale: float,
-    configs: Configs,
+    sample_batch_size: int,
 ) -> tuple[pd.DataFrame, list[int]]:
+    """
+    Synthesizes data for single table using the trained diffusion model.
+
+    Args:
+        table_name: Name of the table to synthesize.
+        data: DataFrame containing the real data to be used for synthesizing.
+        training_results: Dictionary containing the training results, including the trained diffusion model.
+        sample_scale: Scale factor for the number of samples to generate. Will be used to determine the
+            number of samples to generate by multipling the ``data`` size by ``sample_scale``.
+        sample_batch_size: Batch size for sampling.
+
+    Returns:
+        Tuple containing two items:
+            - A DataFrame containing the synthesized data.
+            - The list of keys for the synthesized data.
+    """
     _, child_synthesized = sample_from_diffusion(
         df=data,
         df_info=training_results["df_info"],
@@ -769,7 +786,7 @@ def _synthesize_single_table(
         sample_size=int(sample_scale * len(data)),
         model_params=ModelParameters(**training_results["model_params"]),
         transformations=Transformations(**training_results["T_dict"]),
-        sample_batch_size=configs["sampling"]["batch_size"],
+        sample_batch_size=sample_batch_size,
     )
     child_keys = list(range(len(child_synthesized)))
     synthesized_final_data = np.concatenate(
@@ -797,9 +814,31 @@ def _synthesize_multi_table(
     parent_synthetic_data: dict[str, Any],
     data: pd.DataFrame,
     group_length_prob_dict: GroupLengthProbDict,
-    configs: Configs,
     tables: Tables,
+    sample_batch_size: int,
+    classifier_scale: float,
 ) -> tuple[pd.DataFrame, list[int]]:
+    """
+    Synthesizes data for multi-table using the trained diffusion model and classifier model.
+
+    Args:
+        parent_name: Name of the parent table.
+        child_name: Name of the child table.
+        parent_training_results: Dictionary containing the training results for the parent table.
+        child_training_results: Dictionary containing the training results for the child table,
+            including the trained diffusion model and the classifier model.
+        parent_synthetic_data: Dictionary containing the synthetic data for the parent table.
+        data: DataFrame containing the real data to be used for synthesizing.
+        group_length_prob_dict: Dictionary containing the group length probabilities for the child and parent tables.
+        tables: Tables containing the dataframes and clustering information.
+        sample_batch_size: Batch size for sampling.
+        classifier_scale: Scale factor for the classifier.
+
+    Returns:
+        Tuple containing two items:
+            - A DataFrame containing the synthesized data.
+            - The list of keys for the synthesized data.
+    """
     parent_synthetic_df = parent_synthetic_data["df"]
     parent_keys = parent_synthetic_data["keys"]
 
@@ -816,9 +855,9 @@ def _synthesize_multi_table(
         diffusion=child_training_results["diffusion"],
         group_labels=parent_synthetic_df_without_id.values[:, parent_label_index].astype(float).astype(int).tolist(),
         group_length_prob_dict=group_length_prob_dict,
-        sample_batch_size=configs["sampling"]["batch_size"],
+        sample_batch_size=sample_batch_size,
         is_y_cond="none",
-        classifier_scale=configs["sampling"]["classifier_scale"],
+        classifier_scale=classifier_scale,
     )
 
     child_foreign_keys = np.repeat(parent_keys, child_sampled_group_sizes, axis=0).reshape((-1, 1))
@@ -852,11 +891,22 @@ def _synthesize_multi_table(
     return child_final_df, child_primary_keys_arr.flatten().tolist()
 
 
-def _clean_synthetic_data(
+def _clean_and_save_synthetic_data(
     synthetic_data: dict[str, pd.DataFrame],
     tables: Tables,
     configs: Configs,
 ) -> dict[str, pd.DataFrame]:
+    """
+    Cleans the synthetic data by removing the id columns and saving the data to the workspace directory.
+
+    Args:
+        synthetic_data: Dictionary containing the synthetic data for each table.
+        tables: Dictionary with information about the tables, including the original column names for each table.
+        configs: Configuration settings for the workspace directory.
+
+    Returns:
+        Dictionary containing the cleaned synthetic data for each table.
+    """
     cleaned_synthetic_data: dict[str, pd.DataFrame] = {}
     for table_key, table_val in synthetic_data.items():
         column_names = [column_name for column_name in tables[table_key]["original_cols"] if "_id" not in column_name]
