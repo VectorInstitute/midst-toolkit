@@ -7,8 +7,10 @@ import numpy as np
 # TODO: Temporary, will switch to classes later
 Configs = dict[str, Any]
 Tables = dict[str, dict[str, Any]]
-RelationOrder = list[tuple[str, str]]
-GroupLengthsProbDicts = dict[tuple[str, str], dict[int, dict[int, float]]]
+Relation = tuple[str, str]
+RelationOrder = list[Relation]
+GroupLengthProbDict = dict[int, dict[int, float]]
+GroupLengthsProbDicts = dict[Relation, GroupLengthProbDict]
 ArrayDict = dict[str, np.ndarray]
 
 
