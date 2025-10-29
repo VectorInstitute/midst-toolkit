@@ -12,10 +12,11 @@ import torch
 from midst_toolkit.attacks.ensemble.clavaddpm_fine_tuning import clava_fine_tuning
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
-from midst_toolkit.models.clavaddpm.data_loaders import load_multi_table
+from midst_toolkit.models.clavaddpm.data_loaders import load_tables
 from midst_toolkit.models.clavaddpm.enumerations import (
     Configs,
     GroupLengthsProbDicts,
+    Relation,
     RelationOrder,
     Tables,
 )
@@ -30,7 +31,7 @@ class TrainingResult:
     tables: Tables
     relation_order: RelationOrder
     all_group_lengths_probabilities: GroupLengthsProbDicts
-    models: dict[tuple[str, str], dict[str, Any]]
+    models: dict[Relation, dict[str, Any]]
     synthetic_data: pd.DataFrame | None = None
 
 
@@ -108,7 +109,7 @@ def train_tabddpm_and_synthesize(
               otherwise, None.
     """
     # Load tables
-    tables, relation_order, dataset_meta = load_multi_table(
+    tables, relation_order, dataset_meta = load_tables(
         Path(configs["general"]["data_dir"]), train_data={"trans": train_set}
     )
 
@@ -157,7 +158,7 @@ def train_tabddpm_and_synthesize(
 
 
 def fine_tune_tabddpm_and_synthesize(
-    trained_models: dict[tuple[str, str], dict[str, Any]],
+    trained_models: dict[Relation, dict[str, Any]],
     fine_tune_set: pd.DataFrame,
     configs: Configs,
     save_dir: Path,
@@ -195,7 +196,7 @@ def fine_tune_tabddpm_and_synthesize(
               otherwise, None.
     """
     # Load tables
-    new_tables, relation_order, dataset_meta = load_multi_table(
+    new_tables, relation_order, dataset_meta = load_tables(
         Path(configs["general"]["data_dir"]),
         train_data={"trans": fine_tune_set},
     )

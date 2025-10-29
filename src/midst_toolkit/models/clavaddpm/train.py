@@ -21,6 +21,7 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     Configs,
     IsTargetConditioned,
     ReductionMethod,
+    Relation,
     RelationOrder,
     Tables,
     TargetType,
@@ -50,7 +51,7 @@ def clava_training(
     diffusion_config: Configs,
     classifier_config: Configs | None,
     device: str = "cuda",
-) -> tuple[Tables, dict[tuple[str, str], dict[str, Any]]]:
+) -> tuple[Tables, dict[Relation, dict[str, Any]]]:
     """
     Training function for the ClavaDDPM model.
 
@@ -536,8 +537,8 @@ def train_classifier(
 
 def save_table_info(
     tables: Tables,
-    relation_order: list[tuple[str, str]],
-    models: dict[tuple[str, str], dict[str, Any]],
+    relation_order: RelationOrder,
+    models: dict[Relation, dict[str, Any]],
     save_dir: Path,
 ) -> None:
     """

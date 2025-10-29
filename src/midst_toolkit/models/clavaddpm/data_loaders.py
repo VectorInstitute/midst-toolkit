@@ -12,15 +12,15 @@ import torch
 from midst_toolkit.common.enumerations import DataSplit, DomainDataType, InfoDataType, TaskType
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.dataset import Dataset
-from midst_toolkit.models.clavaddpm.enumerations import TargetType
+from midst_toolkit.models.clavaddpm.enumerations import RelationOrder, TargetType
 
 
-def load_multi_table(
+def load_tables(
     data_dir: Path,
     verbose: bool = True,
     training_data_ratio: float = 1,
     train_data: dict[str, pd.DataFrame] | None = None,
-) -> tuple[dict[str, Any], list[tuple[str, str]], dict[str, Any]]:
+) -> tuple[dict[str, Any], RelationOrder, dict[str, Any]]:
     """
     Load the multi-table dataset from the data directory.
 

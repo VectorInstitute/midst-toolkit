@@ -25,6 +25,7 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
     Configs,
     IsTargetConditioned,
+    Relation,
     RelationOrder,
     Tables,
     TargetType,
@@ -335,14 +336,14 @@ def child_fine_tuning(
 
 
 def clava_fine_tuning(
-    trained_models: dict[tuple[str, str], dict[str, Any]],
+    trained_models: dict[Relation, dict[str, Any]],
     new_tables: Tables,
     relation_order: RelationOrder,
     diffusion_config: Configs,
     classifier_config: Configs,
     fine_tuning_diffusion_iterations: int,
     fine_tuning_classifier_iterations: int,
-) -> dict[tuple[str, str], dict[str, Any]]:
+) -> dict[Relation, dict[str, Any]]:
     """
     Fine-tune the trained models on new tables data.
 
