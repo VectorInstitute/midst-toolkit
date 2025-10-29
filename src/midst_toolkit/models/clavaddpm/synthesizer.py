@@ -1,7 +1,7 @@
-import os
 import pickle
 import random
 import time
+from logging import INFO
 from pathlib import Path
 from typing import Any
 
@@ -15,12 +15,15 @@ from torch.nn import functional
 from tqdm import tqdm
 
 from midst_toolkit.common.enumerations import DataSplit
+from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.dataset import Dataset, Transformations
 from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
     Configs,
+    GroupLengthProbDict,
     GroupLengthsProbDicts,
     IsTargetConditioned,
+    Relation,
     RelationOrder,
     Tables,
 )
@@ -106,7 +109,7 @@ def conditional_sample_from_diffusion(
     diffusion: GaussianMultinomialDiffusion,
     group_labels: list[int],
     sample_batch_size: int,
-    group_lengths_prob_dicts: dict[int, dict[int, float]],
+    group_length_prob_dict: GroupLengthProbDict,
     is_target_conditioned: IsTargetConditioned = IsTargetConditioned.NONE,
     classifier_scale: float = 1.0,
 ) -> tuple[pd.DataFrame, pd.DataFrame, list[int]]:
@@ -123,7 +126,7 @@ def conditional_sample_from_diffusion(
         diffusion: The trained diffusion model used for sampling.
         group_labels: List of group labels for conditional sampling.
         sample_batch_size: Batch size used in sampling.
-        group_lengths_prob_dicts: Dictionary of group length probabilities for each group label.
+        group_length_prob_dict: Dictionary of group length probabilities for each group label.
         is_target_conditioned: Conditioning method for the target variable. Defaults to IsTargetConditioned.NONE.
         classifier_scale: Scale factor for the classifier. Defaults to 1.0.
 
@@ -137,7 +140,7 @@ def conditional_sample_from_diffusion(
     if dataset.x_num is not None:
         num_features = dataset.x_num[DataSplit.TRAIN.value].shape[1]
 
-    targets, sampled_group_sizes = _sample_targets(group_labels, group_lengths_prob_dicts)
+    targets, sampled_group_sizes = _sample_targets(group_labels, group_length_prob_dict)
 
     synthetic_features, synthetic_targets = _get_synthetic_data_by_conditional_sample(
         targets,
@@ -352,14 +355,14 @@ def _round_discrete_numerical_features(
 
 def _sample_targets(
     group_labels: list[int],
-    group_lengths_prob_dicts: dict[int, dict[int, float]],
+    group_length_prob_dict: GroupLengthProbDict,
 ) -> tuple[list[int], list[int]]:
     """
     Samples targets for the conditional sampling.
 
     Args:
         group_labels: List of group labels.
-        group_lengths_prob_dicts: Dictionary of group length probabilities for each group label.
+        group_length_prob_dict: Dictionary of group length probabilities for each group label.
 
     Returns:
         A tuple containing:
@@ -369,11 +372,11 @@ def _sample_targets(
     sampled_group_sizes = []
     targets = []
     for group_label in group_labels:
-        if group_label not in group_lengths_prob_dicts:
+        if group_label not in group_length_prob_dict:
             sampled_group_sizes.append(0)
             continue
 
-        sampled_group_size = sample_from_dict(group_lengths_prob_dicts[group_label])
+        sampled_group_size = sample_from_dict(group_length_prob_dict[group_label])
         sampled_group_sizes.append(sampled_group_size)
         targets.extend([group_label] * sampled_group_size)
 
@@ -452,7 +455,7 @@ def _get_conditioning_function(classifier: Classifier, classifier_scale: float) 
 def handle_multi_parent(
     child: str,
     parents: list[str],
-    synthetic_tables: dict[tuple[str, str], dict[str, Any]],
+    synthetic_tables: dict[Relation, dict[str, Any]],
     n_clusters: int,
     unique_matching: bool = True,
     batch_size: int = 100,
@@ -669,7 +672,7 @@ def convert_to_unique_indices(indices: list[int]) -> list[int]:
 
 
 def clava_synthesizing_matching_process(
-    synthetic_tables: dict[tuple[str, str], dict[str, Any]],
+    synthetic_tables: dict[Relation, dict[str, Any]],
     tables: Tables,
     relation_order: RelationOrder,
     configs: Configs,
@@ -704,13 +707,12 @@ def clava_synthesizing_matching_process(
     return final_tables
 
 
-# TODO: Too many statements and branches, refactor.
-def clava_synthesizing(  # noqa: PLR0915, PLR0912
+def clava_synthesizing(
     tables: Tables,
     relation_order: RelationOrder,
     save_dir: Path,
     all_group_lengths_prob_dicts: GroupLengthsProbDicts,
-    models: dict[tuple[str, str], dict[str, Any]],
+    models: dict[Relation, dict[str, Any]],
     configs: Configs,
     sample_scale: float = 1.0,
 ) -> tuple[dict[str, pd.DataFrame], float, float]:
@@ -731,117 +733,62 @@ def clava_synthesizing(  # noqa: PLR0915, PLR0912
 
     Returns:
         A tuple containing:
-            - cleaned_tables: Synthesized tables with original columns.
+            - synthetic_data: Synthesized data with original columns.
             - synthesizing_time_spent: Time taken for the synthesis process.
             - matching_time_spent: Time taken for the matching process.
     """
     synthesizing_start_time = time.time()
-    synthetic_tables: dict[tuple[str, str], dict[str, Any]] = {}
+    synthetic_tables: dict[Relation, dict[str, Any]] = {}
 
     # Synthesize
     for parent, child in relation_order:
-        print(f"Generating {parent} -> {child}")
-        result = models[(parent, child)]
+        log(INFO, f"Generating {parent} -> {child}")
+        training_results = models[(parent, child)]
         df_with_cluster = tables[child]["df"]
         df_without_id = get_df_without_id(df_with_cluster)
 
-        print("Sample size: {}".format(int(sample_scale * len(df_without_id))))
+        log(INFO, "Sample size: {}".format(int(sample_scale * len(df_without_id))))
 
         if parent is None:
-            _, child_generated = sample_from_diffusion(
-                df=df_without_id,
-                df_info=result["df_info"],
-                diffusion=result["diffusion"],
-                dataset=result["dataset"],
-                label_encoders=result["label_encoders"],
-                sample_size=int(sample_scale * len(df_without_id)),
-                model_params=ModelParameters(**result["model_params"]),
-                transformations=Transformations(**result["T_dict"]),
-                sample_batch_size=configs["sampling"]["batch_size"],
+            # synthesize data for single table or tables with no parent
+            synthesized_df, table_keys = _synthesize_single_table(
+                child,
+                df_without_id,
+                training_results,
+                sample_scale,
+                configs["sampling"]["batch_size"],
             )
-            child_keys = list(range(len(child_generated)))
-            generated_final_arr = np.concatenate(
-                [np.array(child_keys).reshape(-1, 1), child_generated.to_numpy()],
-                axis=1,
-            )
-            generated_final_df = pd.DataFrame(
-                generated_final_arr,
-                columns=[f"{child}_id"]
-                + result["df_info"]["num_cols"]
-                + result["df_info"]["cat_cols"]
-                + [result["df_info"]["y_col"]],
-            )
-            # generated_final_df = generated_final_df[tables[child]['df'].columns]
-            generated_final_df = generated_final_df[[f"{child}_id"] + df_without_id.columns.tolist()]
-            synthetic_tables[(parent, child)] = {
-                "df": generated_final_df,
-                "keys": child_keys,
-            }
         else:
+            # Finding previously synthesized data and training results for the parent
+            parent_synthetic_data = None
+            parent_training_results = None
             for key, val in synthetic_tables.items():
                 if key[1] == parent:
-                    parent_synthetic_df = val["df"]
-                    parent_keys = val["keys"]
-                    parent_result = models[key]
+                    parent_synthetic_data = val
+                    parent_training_results = models[key]
                     break
 
-            child_result = models[(parent, child)]
-            parent_label_index = parent_result["column_orders"].index(child_result["df_info"]["y_col"])
+            assert parent_synthetic_data is not None, f"Could not find synthetic data for parent table '{parent}'."
+            assert parent_training_results is not None, f"Could not find training results for parent table '{parent}'."
 
-            parent_synthetic_df_without_id = get_df_without_id(parent_synthetic_df)
-
-            (
-                _,
-                child_generated,
-                child_sampled_group_sizes,
-            ) = conditional_sample_from_diffusion(
-                df=df_without_id,
-                df_info=child_result["df_info"],
-                dataset=child_result["dataset"],
-                label_encoders=child_result["label_encoders"],
-                classifier=child_result["classifier"],
-                diffusion=child_result["diffusion"],
-                group_labels=parent_synthetic_df_without_id.values[:, parent_label_index]
-                .astype(float)
-                .astype(int)
-                .tolist(),
-                group_lengths_prob_dicts=all_group_lengths_prob_dicts[(parent, child)],
-                sample_batch_size=configs["sampling"]["batch_size"],
-                is_target_conditioned=IsTargetConditioned.NONE,
-                classifier_scale=configs["sampling"]["classifier_scale"],
+            # Synthesize data for tables with (parent, child) relationship
+            synthesized_df, table_keys = _synthesize_multi_table(
+                parent,
+                child,
+                parent_training_results,
+                training_results,
+                parent_synthetic_data,
+                df_without_id,
+                all_group_lengths_prob_dicts[(parent, child)],
+                tables,
+                configs["sampling"]["batch_size"],
+                configs["sampling"]["classifier_scale"],
             )
 
-            child_foreign_keys = np.repeat(parent_keys, child_sampled_group_sizes, axis=0).reshape((-1, 1))
-            child_foreign_keys_arr = np.array(child_foreign_keys).reshape(-1, 1)
-            child_primary_keys_arr = np.arange(len(child_generated)).reshape(-1, 1)
-
-            child_generated_final_arr = np.concatenate(
-                [
-                    child_primary_keys_arr,
-                    child_generated.to_numpy(),
-                    child_foreign_keys_arr,
-                ],
-                axis=1,
-            )
-
-            child_final_columns = (
-                [f"{child}_id"]
-                + result["df_info"]["num_cols"]
-                + result["df_info"]["cat_cols"]
-                + [result["df_info"]["y_col"]]
-                + [f"{parent}_id"]
-            )
-
-            child_final_df = pd.DataFrame(child_generated_final_arr, columns=child_final_columns)
-            original_columns = []
-            for col in tables[child]["df"].columns:
-                if col in child_final_df.columns:
-                    original_columns.append(col)
-            child_final_df = child_final_df[original_columns]
-            synthetic_tables[(parent, child)] = {
-                "df": child_final_df,
-                "keys": child_primary_keys_arr.flatten().tolist(),
-            }
+        synthetic_tables[(parent, child)] = {
+            "df": synthesized_df,
+            "keys": table_keys,
+        }
 
         before_matching_dir = save_dir / "before_matching"
         before_matching_dir.mkdir(parents=True, exist_ok=True)
@@ -851,32 +798,191 @@ def clava_synthesizing(  # noqa: PLR0915, PLR0912
     synthesizing_end_time = time.time()
     synthesizing_time_spent = synthesizing_end_time - synthesizing_start_time
 
-    matching_start_time = time.time()
     # Matching
-    final_tables = clava_synthesizing_matching_process(synthetic_tables, tables, relation_order, configs)
+    matching_start_time = time.time()
+
+    synthetic_data = clava_synthesizing_matching_process(synthetic_tables, tables, relation_order, configs)
+
     matching_end_time = time.time()
     matching_time_spent = matching_end_time - matching_start_time
 
-    cleaned_tables: dict[str, pd.DataFrame] = {}
-    for table_key, table_val in final_tables.items():
-        column_names = [column_name for column_name in tables[table_key]["original_cols"] if "_id" not in column_name]
-        cleaned_tables[table_key] = pd.DataFrame(table_val[column_names])
+    cleaned_synthetic_data = _clean_and_save_synthetic_data(synthetic_data, tables, configs)
+    return cleaned_synthetic_data, synthesizing_time_spent, matching_time_spent
 
-    for cleaned_key, cleaned_val in cleaned_tables.items():
-        table_dir = os.path.join(
-            configs["general"]["workspace_dir"],
-            configs["general"]["exp_name"],
-            cleaned_key,
-            f"{configs['general']['sample_prefix']}_final",
+
+def _synthesize_single_table(
+    table_name: str,
+    data: pd.DataFrame,
+    training_results: dict[str, Any],
+    sample_scale: float,
+    sample_batch_size: int,
+) -> tuple[pd.DataFrame, list[int]]:
+    """
+    Synthesizes data for single table using the trained diffusion model.
+
+    Args:
+        table_name: Name of the table to synthesize.
+        data: DataFrame containing the real data to be used for synthesizing.
+        training_results: Dictionary containing the training results, including the trained diffusion model.
+        sample_scale: Scale factor for the number of samples to generate. Will be used to determine the
+            number of samples to generate by multipling the ``data`` size by ``sample_scale``.
+        sample_batch_size: Batch size for sampling.
+
+    Returns:
+        Tuple containing two items:
+            - A DataFrame containing the synthesized data.
+            - The list of keys for the synthesized data.
+    """
+    _, child_synthesized = sample_from_diffusion(
+        df=data,
+        df_info=training_results["df_info"],
+        diffusion=training_results["diffusion"],
+        dataset=training_results["dataset"],
+        label_encoders=training_results["label_encoders"],
+        sample_size=int(sample_scale * len(data)),
+        model_params=ModelParameters(**training_results["model_params"]),
+        transformations=Transformations(**training_results["T_dict"]),
+        sample_batch_size=sample_batch_size,
+    )
+    child_keys = list(range(len(child_synthesized)))
+    synthesized_final_data = np.concatenate(
+        [np.array(child_keys).reshape(-1, 1), child_synthesized.to_numpy()],
+        axis=1,
+    )
+    synthesized_final_df = pd.DataFrame(
+        synthesized_final_data,
+        columns=[f"{table_name}_id"]
+        + training_results["df_info"]["num_cols"]
+        + training_results["df_info"]["cat_cols"]
+        + [training_results["df_info"]["y_col"]],
+    )
+
+    synthesized_final_df = synthesized_final_df[[f"{table_name}_id"] + data.columns.tolist()]
+
+    return synthesized_final_df, child_keys
+
+
+def _synthesize_multi_table(
+    parent_name: str,
+    child_name: str,
+    parent_training_results: dict[str, Any],
+    child_training_results: dict[str, Any],
+    parent_synthetic_data: dict[str, Any],
+    data: pd.DataFrame,
+    group_length_prob_dict: GroupLengthProbDict,
+    tables: Tables,
+    sample_batch_size: int,
+    classifier_scale: float,
+) -> tuple[pd.DataFrame, list[int]]:
+    """
+    Synthesizes data for multi-table using the trained diffusion model and classifier model.
+
+    Args:
+        parent_name: Name of the parent table.
+        child_name: Name of the child table.
+        parent_training_results: Dictionary containing the training results for the parent table.
+        child_training_results: Dictionary containing the training results for the child table,
+            including the trained diffusion model and the classifier model.
+        parent_synthetic_data: Dictionary containing the synthetic data for the parent table.
+        data: DataFrame containing the real data to be used for synthesizing.
+        group_length_prob_dict: Dictionary containing the group length probabilities for the child and parent tables.
+        tables: Tables containing the dataframes and clustering information.
+        sample_batch_size: Batch size for sampling.
+        classifier_scale: Scale factor for the classifier.
+
+    Returns:
+        Tuple containing two items:
+            - A DataFrame containing the synthesized data.
+            - The list of keys for the synthesized data.
+    """
+    parent_synthetic_df = parent_synthetic_data["df"]
+    parent_keys = parent_synthetic_data["keys"]
+
+    parent_label_index = parent_training_results["column_orders"].index(child_training_results["df_info"]["y_col"])
+
+    parent_synthetic_df_without_id = get_df_without_id(parent_synthetic_df)
+    group_labels = parent_synthetic_df_without_id.values[:, parent_label_index].astype(float).astype(int).tolist()
+
+    _, child_synthesized, child_sampled_group_sizes = conditional_sample_from_diffusion(
+        df=data,
+        df_info=child_training_results["df_info"],
+        dataset=child_training_results["dataset"],
+        label_encoders=child_training_results["label_encoders"],
+        classifier=child_training_results["classifier"],
+        diffusion=child_training_results["diffusion"],
+        group_labels=group_labels,
+        group_length_prob_dict=group_length_prob_dict,
+        sample_batch_size=sample_batch_size,
+        is_target_conditioned=IsTargetConditioned.NONE,
+        classifier_scale=classifier_scale,
+    )
+
+    child_foreign_keys = np.repeat(parent_keys, child_sampled_group_sizes, axis=0).reshape((-1, 1))
+    child_foreign_keys_arr = np.array(child_foreign_keys).reshape(-1, 1)
+    child_primary_keys_arr = np.arange(len(child_synthesized)).reshape(-1, 1)
+
+    child_synthesized_final_arr = np.concatenate(
+        [
+            child_primary_keys_arr,
+            child_synthesized.to_numpy(),
+            child_foreign_keys_arr,
+        ],
+        axis=1,
+    )
+
+    child_final_columns = (
+        [f"{child_name}_id"]
+        + child_training_results["df_info"]["num_cols"]
+        + child_training_results["df_info"]["cat_cols"]
+        + [child_training_results["df_info"]["y_col"]]
+        + [f"{parent_name}_id"]
+    )
+
+    child_final_df = pd.DataFrame(child_synthesized_final_arr, columns=child_final_columns)
+    original_columns = []
+    for col in tables[child_name]["df"].columns:
+        if col in child_final_df.columns:
+            original_columns.append(col)
+    child_final_df = child_final_df[original_columns]
+
+    return child_final_df, child_primary_keys_arr.flatten().tolist()
+
+
+def _clean_and_save_synthetic_data(
+    synthetic_data: dict[str, pd.DataFrame],
+    tables: Tables,
+    configs: Configs,
+) -> dict[str, pd.DataFrame]:
+    """
+    Cleans the synthetic data by removing the id columns and saving the data to the workspace directory.
+
+    Args:
+        synthetic_data: Dictionary containing the synthetic data for each table.
+        tables: Dictionary with information about the tables, including the original column names for each table.
+        configs: Configuration settings for the workspace directory.
+
+    Returns:
+        Dictionary containing the cleaned synthetic data for each table.
+    """
+    cleaned_synthetic_data: dict[str, pd.DataFrame] = {}
+    for table_key, table_val in synthetic_data.items():
+        column_names = [column_name for column_name in tables[table_key]["original_cols"] if "_id" not in column_name]
+        cleaned_synthetic_data[table_key] = pd.DataFrame(table_val[column_names])
+
+    for cleaned_key, cleaned_val in cleaned_synthetic_data.items():
+        table_dir = (
+            Path(configs["general"]["workspace_dir"])
+            / configs["general"]["exp_name"]
+            / cleaned_key
+            / f"{configs['general']['sample_prefix']}_final"
         )
-        os.makedirs(table_dir, exist_ok=True)
+        table_dir.mkdir(parents=True, exist_ok=True)
         if f"{cleaned_key}_id" in cleaned_val.columns:
-            cleaned_val.to_csv(
-                os.path.join(table_dir, f"{cleaned_key}_synthetic_with_id.csv"),
-                index=False,
-            )
+            cleaned_val.to_csv(table_dir / f"{cleaned_key}_synthetic_with_id.csv", index=False)
+
             val_no_id = cleaned_val.drop(columns=[f"{cleaned_key}_id"])
-            val_no_id.to_csv(os.path.join(table_dir, f"{cleaned_key}_synthetic.csv"), index=False)
+            val_no_id.to_csv(table_dir / f"{cleaned_key}_synthetic.csv", index=False)
         else:
-            cleaned_val.to_csv(os.path.join(table_dir, f"{cleaned_key}_synthetic.csv"), index=False)
-    return cleaned_tables, synthesizing_time_spent, matching_time_spent
+            cleaned_val.to_csv(table_dir / f"{cleaned_key}_synthetic.csv", index=False)
+
+    return cleaned_synthetic_data
