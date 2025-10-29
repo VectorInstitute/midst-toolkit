@@ -19,7 +19,7 @@ from midst_toolkit.models.clavaddpm.dataset import Dataset, Transformations, mak
 from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
     Configs,
-    IsTargetCondioned,
+    IsTargetConditioned,
     ReductionMethod,
     RelationOrder,
     Tables,
@@ -346,7 +346,7 @@ def train_model(
     )
     trainer.train()
 
-    if model_params.is_target_conditioned == IsTargetCondioned.CONCAT:
+    if model_params.is_target_conditioned == IsTargetConditioned.CONCAT:
         column_orders = column_orders[1:] + [column_orders[0]]
     else:
         column_orders = column_orders + [data_frame_info["y_col"]]
@@ -447,7 +447,7 @@ def train_classifier(
     else:
         num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1]
 
-    if model_params.is_target_conditioned == IsTargetCondioned.CONCAT:
+    if model_params.is_target_conditioned == IsTargetConditioned.CONCAT:
         num_numerical_features -= 1
 
     classifier = Classifier(
@@ -521,7 +521,7 @@ def train_classifier(
         test_y = test_y.long().to(device)
         test_x = (
             test_x[:, 1:].to(device)
-            if model_params.is_target_conditioned == IsTargetCondioned.CONCAT
+            if model_params.is_target_conditioned == IsTargetConditioned.CONCAT
             else test_x.to(device)
         )
         with torch.no_grad():

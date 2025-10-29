@@ -14,7 +14,7 @@ from torch.nn import functional
 
 from midst_toolkit.common.enumerations import DomainDataType, TaskType
 from midst_toolkit.common.logger import log
-from midst_toolkit.models.clavaddpm.enumerations import IsTargetCondioned, ModuleType
+from midst_toolkit.models.clavaddpm.enumerations import IsTargetConditioned, ModuleType
 
 
 @dataclass
@@ -40,7 +40,7 @@ class ModelParameters:
     diffusion_parameters: DiffusionParameters
     d_in: int = 0
     num_classes: int = 0
-    is_target_conditioned: IsTargetCondioned = IsTargetCondioned.NONE
+    is_target_conditioned: IsTargetConditioned = IsTargetConditioned.NONE
 
 
 class Classifier(nn.Module):
@@ -592,7 +592,7 @@ class MLPDiffusion(nn.Module):
         self,
         d_in: int,
         num_classes: int,
-        is_target_conditioned: IsTargetCondioned,
+        is_target_conditioned: IsTargetConditioned,
         diffusion_parameters: DiffusionParameters,
         dim_t: int = 128,
     ):
@@ -623,9 +623,9 @@ class MLPDiffusion(nn.Module):
         )
 
         self.label_emb: nn.Embedding | nn.Linear
-        if self.num_classes > 0 and is_target_conditioned == IsTargetCondioned.EMBEDDING:
+        if self.num_classes > 0 and is_target_conditioned == IsTargetConditioned.EMBEDDING:
             self.label_emb = nn.Embedding(self.num_classes, dim_t)
-        elif self.num_classes == 0 and is_target_conditioned == IsTargetCondioned.EMBEDDING:
+        elif self.num_classes == 0 and is_target_conditioned == IsTargetConditioned.EMBEDDING:
             self.label_emb = nn.Linear(1, dim_t)
 
         self.proj = nn.Linear(d_in, dim_t)
@@ -644,7 +644,7 @@ class MLPDiffusion(nn.Module):
             The output tensor.
         """
         embeddings = self.time_embed(timestep_embedding(timesteps, self.dim_t))
-        if self.is_target_conditioned == IsTargetCondioned.EMBEDDING and y is not None:
+        if self.is_target_conditioned == IsTargetConditioned.EMBEDDING and y is not None:
             y = y.squeeze() if self.num_classes > 0 else y.resize_(y.size(0), 1).float()
             embeddings += functional.silu(self.label_emb(y))
         x = self.proj(x) + embeddings
@@ -658,7 +658,7 @@ class ResNetDiffusion(nn.Module):
         num_classes: int,
         diffusion_parameters: DiffusionParameters,
         dim_t: int = 256,
-        is_target_conditioned: IsTargetCondioned | None = None,
+        is_target_conditioned: IsTargetConditioned | None = None,
     ):
         """
         Initialize the ResNet diffusion model.
@@ -691,9 +691,9 @@ class ResNetDiffusion(nn.Module):
         )
 
         self.label_emb: nn.Embedding | nn.Linear
-        if self.num_classes > 0 and is_target_conditioned == IsTargetCondioned.EMBEDDING:
+        if self.num_classes > 0 and is_target_conditioned == IsTargetConditioned.EMBEDDING:
             self.label_emb = nn.Embedding(self.num_classes, dim_t)
-        elif self.num_classes == 0 and is_target_conditioned == IsTargetCondioned.EMBEDDING:
+        elif self.num_classes == 0 and is_target_conditioned == IsTargetConditioned.EMBEDDING:
             self.label_emb = nn.Linear(1, dim_t)
 
         self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))

@@ -3,7 +3,7 @@ import random
 import time
 from logging import INFO
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import faiss
 import numpy as np
@@ -22,12 +22,13 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     Configs,
     GroupLengthProbDict,
     GroupLengthsProbDicts,
-    IsTargetCondioned,
+    IsTargetConditioned,
     Relation,
     RelationOrder,
     Tables,
 )
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
+    ConditioningFunction,
     GaussianMultinomialDiffusion,
 )
 from midst_toolkit.models.clavaddpm.model import Classifier, ModelParameters
@@ -85,6 +86,112 @@ def sample_from_diffusion(
 
     synthetic_features, synthetic_target = synthetic_data[0].numpy(), synthetic_data[1].numpy()
 
+    df_real_data, df_synthetic_data = _post_process_synthetic_data(
+        synthetic_features,
+        synthetic_target,
+        df,
+        df_info,
+        num_features,
+        model_params.is_target_conditioned,
+        dataset,
+        label_encoders,
+    )
+
+    return df_real_data, df_synthetic_data
+
+
+def conditional_sample_from_diffusion(
+    df: pd.DataFrame,
+    df_info: dict[str, Any],
+    dataset: Dataset,
+    label_encoders: dict[int, LabelEncoder],
+    classifier: Classifier,
+    diffusion: GaussianMultinomialDiffusion,
+    group_labels: list[int],
+    sample_batch_size: int,
+    group_length_prob_dict: GroupLengthProbDict,
+    is_target_conditioned: IsTargetConditioned = IsTargetConditioned.NONE,
+    classifier_scale: float = 1.0,
+) -> tuple[pd.DataFrame, pd.DataFrame, list[int]]:
+    """
+    Samples synthetic data conditionally based on group labels and a trained diffusion model,
+    and aligns it with the real data format.
+
+    Args:
+        df: Real data dataframe without id.
+        df_info: Information about the real data table.
+        dataset: The dataset object containing training data and transformations.
+        label_encoders: Label encoders for categorical features.
+        classifier: The trained classifier model.
+        diffusion: The trained diffusion model used for sampling.
+        group_labels: List of group labels for conditional sampling.
+        sample_batch_size: Batch size used in sampling.
+        group_length_prob_dict: Dictionary of group length probabilities for each group label.
+        is_target_conditioned: Conditioning method for the target variable. Defaults to IsTargetConditioned.NONE.
+        classifier_scale: Scale factor for the classifier. Defaults to 1.0.
+
+    Returns:
+        A tuple containing:
+            - df_real_data: DataFrame of the real data.
+            - df_synthetic_data: DataFrame of the generated synthetic data.
+            - sampled_group_sizes: List of the sampled group sizes.
+    """
+    num_features = 0
+    if dataset.x_num is not None:
+        num_features = dataset.x_num[DataSplit.TRAIN.value].shape[1]
+
+    targets, sampled_group_sizes = _sample_targets(group_labels, group_length_prob_dict)
+
+    synthetic_features, synthetic_targets = _get_synthetic_data_by_conditional_sample(
+        targets,
+        sample_batch_size,
+        classifier,
+        classifier_scale,
+        diffusion,
+    )
+
+    df_real_data, df_synthetic_data = _post_process_synthetic_data(
+        synthetic_features,
+        synthetic_targets,
+        df,
+        df_info,
+        num_features,
+        is_target_conditioned,
+        dataset,
+        label_encoders,
+    )
+
+    return df_real_data, df_synthetic_data, sampled_group_sizes
+
+
+def _post_process_synthetic_data(
+    synthetic_features: np.ndarray,
+    synthetic_target: np.ndarray,
+    df: pd.DataFrame,
+    df_info: dict[str, Any],
+    num_features: int,
+    is_target_conditioned: IsTargetConditioned,
+    dataset: Dataset,
+    label_encoders: dict[int, LabelEncoder],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Post-processes the synthetic data to align it with the real data format.
+
+    Args:
+        synthetic_features: The synthetic features.
+        synthetic_target: The synthetic targets.
+        df: The dataframe containing the real data.
+        df_info: The info dictionary of the real data table.
+        num_features: The number of features.
+        is_target_conditioned: The condition on the y column.
+        dataset: The dataset object containing the numerical transformations.
+        label_encoders: The label encoders used to encode the categorical features.
+
+    Returns:
+        A tuple containing:
+            - df_real_data: DataFrame of the real data.
+            - df_synthetic_data: DataFrame of the generated synthetic data.
+    """
     real_numerical_features = df[df_info["num_cols"]].to_numpy().astype(float)
     real_categorical_features = df[df_info["cat_cols"]].to_numpy().astype(str)
     real_target = np.round(df[df_info["y_col"]].to_numpy().astype(float)).astype(int).reshape(-1, 1)
@@ -96,16 +203,17 @@ def sample_from_diffusion(
         all_features = _get_all_features_from_synthetic_features(
             synthetic_features,
             dataset,
-            model_params.is_target_conditioned,
+            is_target_conditioned,
         )
         numerical_features, encoded_categorical_features = _split_features(all_features, label_encoders)
 
         categorical_features = _decode_categorical_features(encoded_categorical_features, label_encoders)
-        numerical_features = _round_discrete_numerical_features(numerical_features, real_numerical_features)
 
-    if num_features != 0 and model_params.is_target_conditioned == IsTargetCondioned.CONCAT:
-        synthetic_target = numerical_features[:, 0]
-        numerical_features = numerical_features[:, 1:]
+        if is_target_conditioned == IsTargetConditioned.CONCAT:
+            synthetic_target = numerical_features[:, 0]
+            numerical_features = numerical_features[:, 1:]
+
+        numerical_features = _round_discrete_numerical_features(numerical_features, real_numerical_features)
 
     synthetic_target = synthetic_target.reshape(-1, 1)
 
@@ -144,7 +252,7 @@ def sample_from_diffusion(
 def _get_all_features_from_synthetic_features(
     synthetic_features: np.ndarray,
     dataset: Dataset,
-    is_target_conditioned: IsTargetCondioned,
+    is_target_conditioned: IsTargetConditioned,
 ) -> np.ndarray:
     """
     Produce a dataset with all features from the generated synthetic features.
@@ -161,7 +269,7 @@ def _get_all_features_from_synthetic_features(
 
     # In case it's a regression task and it's not target conditioned,
     # we need to add 1 to the number of numerical features to represent the target.
-    if dataset.is_regression and is_target_conditioned == IsTargetCondioned.NONE:
+    if dataset.is_regression and is_target_conditioned == IsTargetConditioned.NONE:
         num_features_sample = num_features + 1
     else:
         num_features_sample = num_features
@@ -245,41 +353,82 @@ def _round_discrete_numerical_features(
     return numerical_features
 
 
-# TODO: Too many statements and branches, refactor.
-def conditional_sampling_by_group_size(  # noqa: PLR0915, PLR0912
-    df: pd.DataFrame,
-    df_info: dict[str, Any],
-    dataset: Dataset,
-    label_encoders: dict[int, LabelEncoder],
-    classifier: Classifier,
-    diffusion: GaussianMultinomialDiffusion,
+def _sample_targets(
     group_labels: list[int],
-    sample_batch_size: int,
     group_length_prob_dict: GroupLengthProbDict,
-    is_y_cond: Literal["concat", "embedding", "none"] | None = None,
-    classifier_scale: float = 1.0,
-) -> tuple[pd.DataFrame, pd.DataFrame, list[int]]:
+) -> tuple[list[int], list[int]]:
     """
-    Samples synthetic data conditionally based on group labels and aligns it with the real data format.
+    Samples targets for the conditional sampling.
 
     Args:
-        df: Real data dataframe without id.
-        df_info: Information about the real data table.
-        dataset: The dataset object containing training data and transformations.
-        label_encoders: Label encoders for categorical features.
-        classifier: The trained classifier model.
-        diffusion: The trained diffusion model used for sampling.
-        group_labels: List of group labels for conditional sampling.
-        sample_batch_size: Batch size used in sampling.
+        group_labels: List of group labels.
         group_length_prob_dict: Dictionary of group length probabilities for each group label.
-        is_y_cond: Conditioning method for the target variable. Can be "concat", "embedding", or "none".
-        classifier_scale: Scale factor for the classifier. Defaults to 1.0.
 
     Returns:
-        _description_
+        A tuple containing:
+            - targets: List of targets.
+            - sampled_group_sizes: List of sampled group sizes.
     """
+    sampled_group_sizes = []
+    targets = []
+    for group_label in group_labels:
+        if group_label not in group_length_prob_dict:
+            sampled_group_sizes.append(0)
+            continue
 
-    def cond_fn(
+        sampled_group_size = sample_from_dict(group_length_prob_dict[group_label])
+        sampled_group_sizes.append(sampled_group_size)
+        targets.extend([group_label] * sampled_group_size)
+
+    return targets, sampled_group_sizes
+
+
+def _get_synthetic_data_by_conditional_sample(
+    targets: list[int],
+    sample_batch_size: int,
+    classifier: Classifier,
+    classifier_scale: float,
+    diffusion: GaussianMultinomialDiffusion,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Generates features and targets using the classifier and diffusion model with conditional sampling.
+
+    Args:
+        targets: List of targets.
+        sample_batch_size: Batch size used in sampling.
+        classifier: The classifier model.
+        classifier_scale: Scale factor for the classifier.
+        diffusion: The diffusion model.
+
+    Returns:
+        A tuple containing:
+            - The synthetic features from the diffusion model's conditional sampling.
+            - The synthetic targets from the diffusion model's conditional sampling.
+    """
+    all_rows = []
+    all_clusters = []
+    curr_index = 0
+    conditioning_function = _get_conditioning_function(classifier, classifier_scale)
+    while curr_index < len(targets):
+        end_index = min(curr_index + sample_batch_size, len(targets))
+        curr_targets = torch.tensor(np.array(targets[curr_index:end_index]).reshape(-1, 1), requires_grad=False)
+
+        curr_sample, _ = diffusion.conditional_sample(
+            targets=curr_targets,
+            model_kwargs={"y": curr_targets},
+            conditioning_function=conditioning_function,
+        )
+
+        all_rows.append(curr_sample.cpu().clone().numpy())
+        all_clusters.append(curr_targets.cpu().clone().numpy())
+
+        curr_index += sample_batch_size
+
+    return np.concatenate(all_rows, axis=0), np.concatenate(all_clusters, axis=0)
+
+
+def _get_conditioning_function(classifier: Classifier, classifier_scale: float) -> ConditioningFunction:
+    def conditioning_function(
         features: torch.Tensor,
         timestep: torch.Tensor,
         **kwargs: Any,
@@ -300,100 +449,7 @@ def conditional_sampling_by_group_size(  # noqa: PLR0915, PLR0912
             selected = log_probs[range(len(logits)), y.view(-1)]
             return torch.autograd.grad(selected.sum(), x_in)[0] * classifier_scale
 
-    sampled_group_sizes = []
-    ys = []
-    for group_label in group_labels:
-        if group_label not in group_length_prob_dict:
-            sampled_group_sizes.append(0)
-            continue
-        sampled_group_size = sample_from_dict(group_length_prob_dict[group_label])
-        assert sampled_group_size is not None
-        sampled_group_sizes.append(sampled_group_size)
-        ys.extend([group_label] * sampled_group_size)
-
-    all_rows = []
-    all_clusters = []
-    curr_index = 0
-    while curr_index < len(ys):
-        end_index = min(curr_index + sample_batch_size, len(ys))
-        curr_ys = torch.tensor(np.array(ys[curr_index:end_index]).reshape(-1, 1), requires_grad=False)
-        curr_model_kwargs = {}
-        curr_model_kwargs["y"] = curr_ys
-        curr_sample, _ = diffusion.conditional_sample(targets=curr_ys, model_kwargs=curr_model_kwargs, cond_fn=cond_fn)
-        all_rows.extend([sample.cpu().numpy() for sample in [curr_sample]])
-        all_clusters.extend([curr_ys.cpu().numpy() for curr_ys in [curr_ys]])
-        curr_index += sample_batch_size
-
-    arr = np.concatenate(all_rows, axis=0)
-    cluster_arr = np.concatenate(all_clusters, axis=0)
-
-    num_numerical_features = dataset.x_num["train"].shape[1] if dataset.x_num is not None else 0
-
-    x_gen, y_gen = arr, cluster_arr
-    num_numerical_features_sample = num_numerical_features + int(dataset.is_regression and not is_y_cond)
-
-    x_num_real = df[df_info["num_cols"]].to_numpy().astype(float)
-    x_cat_real = df[df_info["cat_cols"]].to_numpy().astype(str)
-    y_real = np.round(df[df_info["y_col"]].to_numpy().astype(float)).astype(int).reshape(-1, 1)
-
-    x_num_ = x_gen
-
-    if num_numerical_features != 0:
-        assert dataset.numerical_transform is not None
-        x_num_ = dataset.numerical_transform.inverse_transform(x_gen[:, :num_numerical_features_sample])
-        actual_num_numerical_features = num_numerical_features - len(label_encoders)
-        x_num = x_num_[:, :actual_num_numerical_features]
-        if len(label_encoders) > 0:
-            x_cat = x_num_[:, actual_num_numerical_features:]
-            x_cat = np.round(x_cat).astype(int)
-            decoded_x_cat = []
-            for col in range(x_cat.shape[1]):
-                decoded_x_cat.append(label_encoders[col].inverse_transform(x_cat[:, col]))
-            x_cat = np.column_stack(decoded_x_cat)
-
-        disc_cols = []
-        for col in range(x_num_real.shape[1]):
-            uniq_vals = np.unique(x_num_real[:, col])
-            if len(uniq_vals) <= 32 and ((uniq_vals - np.round(uniq_vals)) == 0).all():
-                disc_cols.append(col)
-        # print("Discrete cols:", disc_cols)
-        if is_y_cond == "concat":
-            y_gen = x_num[:, 0]
-            x_num = x_num[:, 1:]
-        if disc_cols:
-            x_num = round_columns(x_num_real, x_num, disc_cols)
-
-    y_gen = y_gen.reshape(-1, 1)
-
-    if x_cat_real is not None and x_cat_real.shape[1] > 0:
-        total_real = np.concatenate((x_num_real, x_cat_real, y_real), axis=1)
-        gen_real = np.concatenate((x_num, x_cat, np.round(y_gen).astype(int)), axis=1)
-
-    else:
-        total_real = np.concatenate((x_num_real, y_real), axis=1)
-        gen_real = np.concatenate((x_num, np.round(y_gen).astype(int)), axis=1)
-
-    df_total = pd.DataFrame(total_real)
-    df_gen = pd.DataFrame(gen_real)
-    columns = [str(x) for x in list(df_total.columns)]
-
-    df_total.columns = columns
-    df_gen.columns = columns
-
-    for column in df_total.columns:
-        col_str: str = str(column)
-        col_int: int = int(column)
-        if col_int < x_num_real.shape[1]:
-            df_total[col_str] = df_total[col_str].astype(float)
-            df_gen[col_str] = df_gen[col_str].astype(float)
-        elif x_cat_real is not None and col_int < x_num_real.shape[1] + x_cat_real.shape[1]:
-            df_total[col_str] = df_total[col_str].astype(str)
-            df_gen[col_str] = df_gen[col_str].astype(str)
-        else:
-            df_total[col_str] = df_total[col_str].astype(float)
-            df_gen[col_str] = df_gen[col_str].astype(float)
-
-    return df_total, df_gen, sampled_group_sizes
+    return conditioning_function
 
 
 def handle_multi_parent(
@@ -845,18 +901,19 @@ def _synthesize_multi_table(
     parent_label_index = parent_training_results["column_orders"].index(child_training_results["df_info"]["y_col"])
 
     parent_synthetic_df_without_id = get_df_without_id(parent_synthetic_df)
+    group_labels = parent_synthetic_df_without_id.values[:, parent_label_index].astype(float).astype(int).tolist()
 
-    _, child_synthesized, child_sampled_group_sizes = conditional_sampling_by_group_size(
+    _, child_synthesized, child_sampled_group_sizes = conditional_sample_from_diffusion(
         df=data,
         df_info=child_training_results["df_info"],
         dataset=child_training_results["dataset"],
         label_encoders=child_training_results["label_encoders"],
         classifier=child_training_results["classifier"],
         diffusion=child_training_results["diffusion"],
-        group_labels=parent_synthetic_df_without_id.values[:, parent_label_index].astype(float).astype(int).tolist(),
+        group_labels=group_labels,
         group_length_prob_dict=group_length_prob_dict,
         sample_batch_size=sample_batch_size,
-        is_y_cond="none",
+        is_target_conditioned=IsTargetConditioned.NONE,
         classifier_scale=classifier_scale,
     )
 
