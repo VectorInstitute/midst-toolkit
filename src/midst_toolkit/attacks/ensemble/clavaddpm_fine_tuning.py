@@ -24,7 +24,7 @@ from midst_toolkit.models.clavaddpm.dataset import (
 from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
     Configs,
-    IsTargetCondioned,
+    IsTargetConditioned,
     RelationOrder,
     Tables,
     TargetType,
@@ -115,7 +115,7 @@ def fine_tune_model(
     )
     trainer.train()
 
-    if model_params.is_target_conditioned == IsTargetCondioned.CONCAT:
+    if model_params.is_target_conditioned == IsTargetConditioned.CONCAT:
         column_orders = column_orders[1:] + [column_orders[0]]
     else:
         column_orders = column_orders + [fine_tuning_data_info["y_col"]]
@@ -197,7 +197,7 @@ def fine_tune_classifier(
     else:
         num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1]
 
-    if model_params.is_target_conditioned == IsTargetCondioned.CONCAT:
+    if model_params.is_target_conditioned == IsTargetConditioned.CONCAT:
         num_numerical_features -= 1
 
     classifier = pre_trained_classifier.to(device)

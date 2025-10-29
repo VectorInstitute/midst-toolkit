@@ -94,7 +94,7 @@ def test_train_shadow_on_half_challenge_data(cfg: DictConfig, tmp_path: Path) ->
     result_path = train_shadow_on_half_challenge_data(
         n_models=2,
         n_reps=1,
-        master_challenge_data=POPULATION_DATA[0:40],  # Limiting the data to 20 samples for faster test execution
+        master_challenge_data=POPULATION_DATA[0:40],  # Limiting the data to 40 samples for faster test execution
         shadow_models_output_path=shadow_models_output_path,
         training_json_config_paths=cfg.shadow_training.training_json_config_paths,
         table_name="trans",
