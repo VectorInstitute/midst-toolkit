@@ -94,18 +94,6 @@ def test_load_single_table():
             "categorizes": [0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
         },
         "train_num": 99,
-        "idx_mapping": {0: 0, 1: 4, 2: 5, 3: 1, 4: 2, 5: 6, 6: 7, 7: 3},
-        "inverse_idx_mapping": {0: 0, 1: 3, 2: 4, 3: 7, 4: 1, 5: 2, 6: 5, 7: 6},
-        "idx_name_mapping": {
-            0: "trans_date",
-            1: "trans_type",
-            2: "operation",
-            3: "amount",
-            4: "balance",
-            5: "k_symbol",
-            6: "bank",
-            7: "account",
-        },
         "metadata": {
             "columns": {
                 0: {"sdtype": "numerical", "computer_representation": "Float"},
@@ -154,9 +142,6 @@ def test_load_tables():
             "categorizes": [0, 1],
         },
         "train_num": 9,
-        "idx_mapping": {0: 1, 1: 0},
-        "inverse_idx_mapping": {1: 0, 0: 1},
-        "idx_name_mapping": {0: "frequency", 1: "account_date"},
         "metadata": {
             "columns": {
                 0: {"sdtype": "categorical"},
@@ -217,18 +202,6 @@ def test_load_tables():
             "categorizes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
         },
         "train_num": 143,
-        "idx_mapping": {0: 0, 1: 4, 2: 5, 3: 1, 4: 2, 5: 6, 6: 7, 7: 3},
-        "inverse_idx_mapping": {0: 0, 1: 3, 2: 4, 3: 7, 4: 1, 5: 2, 6: 5, 7: 6},
-        "idx_name_mapping": {
-            0: "trans_date",
-            1: "trans_type",
-            2: "operation",
-            3: "amount",
-            4: "balance",
-            5: "k_symbol",
-            6: "bank",
-            7: "account",
-        },
         "metadata": {
             "columns": {
                 0: {"sdtype": "numerical", "computer_representation": "Float"},

@@ -602,7 +602,7 @@ def get_df_without_id(df: pd.DataFrame) -> pd.DataFrame:
 def _numerical_forward_backward_log(
     classifier: Classifier,
     optimizer: torch.optim.Optimizer,
-    data_loader: Generator[tuple[Tensor, ...]],
+    data_loader: Generator[list[Tensor]],
     dataset: Dataset,
     schedule_sampler: ScheduleSampler,
     diffusion: GaussianMultinomialDiffusion,

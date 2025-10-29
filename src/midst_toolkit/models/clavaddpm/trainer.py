@@ -15,7 +15,7 @@ class ClavaDDPMTrainer:
     def __init__(
         self,
         diffusion_model: GaussianMultinomialDiffusion,
-        train_iter: Generator[tuple[Tensor, ...]],
+        train_iter: Generator[list[Tensor]],
         lr: float,
         weight_decay: float,
         steps: int,

@@ -8,11 +8,12 @@ from typing import Any, Self
 import numpy as np
 import pandas as pd
 import torch
+from torch import Tensor
 
 from midst_toolkit.common.enumerations import DataSplit, DomainDataType, InfoDataType, TaskType
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.dataset import Dataset
-from midst_toolkit.models.clavaddpm.enumerations import RelationOrder, TargetType
+from midst_toolkit.models.clavaddpm.enumerations import RelationOrder, Tables, TargetType
 
 
 def load_tables(
@@ -20,7 +21,7 @@ def load_tables(
     verbose: bool = True,
     training_data_ratio: float = 1,
     train_data: dict[str, pd.DataFrame] | None = None,
-) -> tuple[dict[str, Any], RelationOrder, dict[str, Any]]:
+) -> tuple[Tables, RelationOrder, dict[str, Any]]:
     """
     Load the multi-table dataset from the data directory.
 
@@ -225,74 +226,6 @@ def process_pipeline_data(
     return output_data, info
 
 
-# TODO: this might not be needed at all now.
-def get_column_name_mapping(
-    data: pd.DataFrame,
-    numerical_columns_indices: list[int],
-    categorical_column_indices: list[int],
-    column_names: list[str] | None = None,
-) -> tuple[dict[int, int], dict[int, int], dict[int, str]]:
-    """
-    Get the column name mappings.
-
-    Will produce 3 mappings:
-        - The mapping of the categorical and numerical columns from their original indices
-            in the dataframe to their indices in the numerical_columns_indices and
-            categorical_column_indices lists.
-        - The inverse mapping of the above, i.e. the mapping from their indices in the
-            numerical_columns_indices and categorical_column_indices lists to their original
-            indices in the dataframe.
-        - The mapping of the indices in the original dataframe to the column names for all columns.
-
-    Args:
-        data: The dataframe containing the data.
-        numerical_columns_indices: The indices of the numerical columns.
-        categorical_column_indices: The indices of the categorical columns.
-        column_names: The names of the columns. Optional, default is None. If None,
-            it will use the columns of the dataframe.
-
-    Returns:
-        A tuple with 3 values:
-            - The mapping of the categorical and numerical columns from their original indices
-            in the dataframe to their indices in the numerical_columns_indices and
-            categorical_column_indices lists.
-            - The inverse mapping of the above, i.e. the mapping from their indices in the
-            numerical_columns_indices and categorical_column_indices lists to their original
-            indices in the dataframe.
-            - The mapping of the indices in the original dataframe to the column names for all columns.
-    """
-    if not column_names:
-        column_names = data.columns.tolist()
-
-    index_mapping = {}
-
-    curr_num_idx = 0
-    curr_cat_idx = len(numerical_columns_indices)
-    curr_target_idx = curr_cat_idx + len(categorical_column_indices)
-
-    for idx in range(len(column_names)):
-        if idx in numerical_columns_indices:
-            index_mapping[idx] = curr_num_idx
-            curr_num_idx += 1
-        elif idx in categorical_column_indices:
-            index_mapping[idx] = curr_cat_idx
-            curr_cat_idx += 1
-        else:
-            index_mapping[idx] = curr_target_idx
-            curr_target_idx += 1
-
-    inverse_index_mapping = {}
-    for k, v in index_mapping.items():
-        inverse_index_mapping[v] = k
-
-    index_to_name_mapping = {}
-
-    for i in range(len(column_names)):
-        index_to_name_mapping[i] = column_names[i]
-
-    return index_mapping, inverse_index_mapping, index_to_name_mapping
-
-
 def _get_columns_info(
     train_data: pd.DataFrame,
     numerical_column_indices: list[int],
@@ -373,12 +306,6 @@ def _split_data_and_generate_info(
                 training_data_ratio is 1.
             - The info dictionary as retrieved from the get_info_from_domain function with updated metadata, namely:
                 - column_info: The columns info dictionary, as returned by the _get_columns_info function.
-                - idx_mapping: The mapping of the indices in the original dataframe to the column names
-                    for all columns, as returned by the get_column_name_mapping function.
-                - inverse_idx_mapping: The inverse mapping of the indices in the original dataframe to
-                    the column names for all columns, as returned by the get_column_name_mapping function.
-                - idx_name_mapping: The mapping of the indices in the original dataframe to the column names
-                    for all columns, as returned by the get_column_name_mapping function.
                 - train_num: The number of samples in the training set.
                 - test_num: The number of samples in the test set. It will be absent if the training_data_ratio is 1.
                 - column_names: The names of the columns.
@@ -392,13 +319,6 @@ def _split_data_and_generate_info(
     numerical_column_names = [column_names[i] for i in numerical_column_indices]
     categorical_column_names = [column_names[i] for i in categorical_column_indices]
     target_column_names = [column_names[i] for i in target_columns_indices]
-
-    index_mapping, inverse_index_mapping, index_to_name_mapping = get_column_name_mapping(
-        data,
-        numerical_column_indices,
-        categorical_column_indices,
-        column_names,
-    )
 
     # Splitting the data into training and test sets
     data_splits = train_test_split(data, categorical_column_names, training_data_ratio)
@@ -460,10 +380,6 @@ def _split_data_and_generate_info(
 
     if data_splits.test_data is not None:
         info["test_num"] = data_splits.test_data.data.shape[0]
-
-    info["idx_mapping"] = index_mapping
-    info["inverse_idx_mapping"] = inverse_index_mapping
-    info["idx_name_mapping"] = index_to_name_mapping
 
     return data_splits, info
 
@@ -537,7 +453,7 @@ def train_test_split(
 
 
 class FastTensorDataLoader:
-    def __init__(self, tensors: list[torch.Tensor], batch_size: int = 32, shuffle: bool = False):
+    def __init__(self, tensors: list[Tensor], batch_size: int = 32, shuffle: bool = False):
         """
         Initialize a FastTensorDataLoader.
 
@@ -581,15 +497,15 @@ class FastTensorDataLoader:
         self.i = 0
         return self
 
-    def __next__(self) -> tuple[torch.Tensor, ...]:
+    def __next__(self) -> list[Tensor]:
         """Get the next batch of data from the dataset.
 
         Returns:
-            A tuple of tensors, one for each tensor in the FastTensorDataLoader.
+            A list of tensors, one for each tensor in the FastTensorDataLoader.
         """
         if self.i >= self.dataset_len:
             raise StopIteration
-        batch = tuple(t[self.i : self.i + self.batch_size] for t in self.tensors)
+        batch = [t[self.i : self.i + self.batch_size] for t in self.tensors]
         self.i += self.batch_size
         return batch
 
@@ -608,7 +524,7 @@ def prepare_fast_dataloader(
     split: DataSplit,
     batch_size: int,
     target_type: TargetType = TargetType.FLOAT,
-) -> Generator[tuple[torch.Tensor, ...]]:
+) -> Generator[list[Tensor]]:
     """
     Prepare a fast dataloader for the dataset.
 
