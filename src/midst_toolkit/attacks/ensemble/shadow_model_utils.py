@@ -109,9 +109,7 @@ def train_tabddpm_and_synthesize(
               otherwise, None.
     """
     # Load tables
-    tables, relation_order, dataset_meta = load_tables(
-        Path(configs["general"]["data_dir"]), train_data={"trans": train_set}
-    )
+    tables, relation_order, _ = load_tables(Path(configs["general"]["data_dir"]), train_data={"trans": train_set})
 
     # Clustering on the multi-table dataset
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, save_dir, configs)
@@ -142,7 +140,7 @@ def train_tabddpm_and_synthesize(
         # of the training data size.
         # Sample scale is later multiplied by the size of training data (no id) to determine
         # the size of synthetic data.
-        cleaned_tables, synthesizing_time_spent, matching_time_spent = clava_synthesizing(
+        cleaned_tables, _, _ = clava_synthesizing(
             tables,
             relation_order,
             save_dir,
@@ -196,7 +194,7 @@ def fine_tune_tabddpm_and_synthesize(
               otherwise, None.
     """
     # Load tables
-    new_tables, relation_order, dataset_meta = load_tables(
+    new_tables, relation_order, _ = load_tables(
         Path(configs["general"]["data_dir"]),
         train_data={"trans": fine_tune_set},
     )
@@ -231,7 +229,7 @@ def fine_tune_tabddpm_and_synthesize(
         # Ensemble Attack's default sample_scale is ``20000 / len(tables["trans"]["df"])`` to generate 20,000 samples
         # regardless of the train data size.
         # Sample scale is later multiplied by the size of training data to determine the size of synthetic data.
-        cleaned_tables, synthesizing_time_spent, matching_time_spent = clava_synthesizing(
+        cleaned_tables, _, _ = clava_synthesizing(
             new_tables,
             relation_order,
             save_dir,
