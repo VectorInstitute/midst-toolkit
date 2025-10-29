@@ -1,7 +1,9 @@
 # CodeRabbit Configuration
 # Complete reference: https://docs.coderabbit.ai/reference/configuration
 reviews:
-  # The configuration below will make the initial review comment smaller
+  # The configuration below will reduce the amount of messages and
+  # make the review comment more concise
+  review_status: false
   high_level_summary: false
   collapse_walkthrough: true
   changed_files_summary: false
