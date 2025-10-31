@@ -61,6 +61,7 @@ def get_predicted_labels_and_probs(
         raise ValueError(f"Unsupported prediction_type: {prediction_type.value}")
 
     assert prediction_probabilities is not None
+    assert prediction_probabilities.ndim == 1 or prediction_probabilities.shape[1] == 1
     predicted_labels = (
         np.round(prediction_probabilities)
         if task_type == TaskType.BINCLASS
@@ -135,5 +136,6 @@ def calculate_metrics(
     result = classification_report(y_true, labels, output_dict=True)
     assert isinstance(result, dict)
     if task_type == TaskType.BINCLASS:
+        assert probs is not None, "Probabilities need to be defined to compute roc_acu"
         result["roc_auc"] = roc_auc_score(y_true, probs)
     return result

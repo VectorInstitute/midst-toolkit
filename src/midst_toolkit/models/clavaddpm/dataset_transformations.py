@@ -56,9 +56,12 @@ def normalize(
     elif normalization == Normalization.MINMAX:
         normalizer = MinMaxScaler()
     elif normalization == Normalization.QUANTILE:
+        n_samples = train_split.shape[0]
+        n_quantiles = max(min(n_samples // 30, 1000), 10)
+        n_quantiles = min(n_quantiles, n_samples)
         normalizer = QuantileTransformer(
             output_distribution="normal",
-            n_quantiles=max(min(train_split.shape[0] // 30, 1000), 10),
+            n_quantiles=n_quantiles,
             subsample=int(1e9),
             random_state=seed,
         )
