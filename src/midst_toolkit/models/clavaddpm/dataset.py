@@ -8,7 +8,7 @@ from copy import deepcopy
 from dataclasses import astuple, dataclass, replace
 from logging import INFO
 from pathlib import Path
-from typing import Any, Self
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -76,7 +76,7 @@ class Dataset:
     numerical_transform: StandardScaler | None = None
 
     @classmethod
-    def from_dir(cls, directory: Path) -> Self:
+    def from_dir(cls, directory: Path) -> Dataset:
         """
         Load a dataset from a directory.
 
