@@ -85,6 +85,7 @@ def fine_tune_model(
         fine_tuning_data,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
+        # TODO change data_split_ratios to percentage in other parts of the code.
         data_split_percentages=data_split_ratios,
         info=fine_tuning_data_info,
         noise_scale=0,

@@ -101,10 +101,8 @@ class Dataset:
     @classmethod
     def _load_datasets(cls, directory: Path, dataset_name: str) -> ArrayDict:
         """
-        Load all the dataset splits from a directory.
-
-        Will check which of the splits exist in the directory for the
-        given dataset_name and load all of them.
+        Load all the dataset splits from a directory. Will check which of the splits exist in the directory for the
+        given ``dataset_name`` and load all of them.
 
         Args:
             directory: The directory to load the dataset from.
@@ -114,6 +112,8 @@ class Dataset:
             The loaded datasets with all the splits.
         """
         splits = [k.value for k in list(DataSplit) if directory.joinpath(f"y_{k.value}.npy").exists()]
+        if not len(splits) > 0:
+            raise ValueError("Splits to be loaded is empty!")
         datasets: ArrayDict = {}
         for split in splits:
             dataset = np.load(directory / f"{dataset_name}_{split}.npy", allow_pickle=True)
@@ -370,9 +370,9 @@ class Dataset:
         assert isinstance(info["n_classes"], int)
 
         dataset = Dataset(
-            features,
-            None,
-            target,
+            x_num=features,
+            x_cat=None,
+            y=target,
             y_info={},
             task_type=TaskType(info["task_type"]),
             n_classes=info["n_classes"],
@@ -388,11 +388,12 @@ def setup_cache_path(transformations: Transformations, cache_dir: Path | None) -
 
     Args:
         transformations: Set of transformations to be cached.
-        cache_dir: Directory to look for the cached transformations and datasets pickle. This will be used as the
-            stub and the path will be determined by the specified transformations
+        cache_dir: Directory to look for the tuple of cached transformations and dataset pickle. This will be used as
+            the stub and the path will be determined by the specified transformations
 
     Returns:
-        _description_
+        A path to the cache file based on the hash of the transformations and their names. It may exist already
+        (will be loaded from there if so) or represent the name of the cache to be saved.
     """
     if cache_dir is None:
         log(INFO, "No cache_dir provided. Will not attempt to load or save transformed dataset from/to cache")
