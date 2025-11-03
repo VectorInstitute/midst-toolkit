@@ -10,7 +10,7 @@ import pandas as pd
 import torch
 
 from midst_toolkit.attacks.ensemble.clavaddpm_fine_tuning import clava_fine_tuning
-from midst_toolkit.common.config import Configs
+from midst_toolkit.common.config import TrainingConfig
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 from midst_toolkit.models.clavaddpm.data_loaders import load_multi_table
@@ -26,7 +26,7 @@ from midst_toolkit.models.clavaddpm.train import clava_training
 @dataclass
 class TrainingResult:
     save_dir: Path
-    configs: Configs
+    configs: TrainingConfig
     tables: Tables
     relation_order: RelationOrder
     all_group_lengths_probabilities: GroupLengthsProbDicts
@@ -40,7 +40,7 @@ def save_additional_tabddpm_config(
     final_config_json_path: Path,
     experiment_name: str = "attack_experiment",
     workspace_name: str = "shadow_workspace",
-) -> tuple[Configs, Path]:
+) -> tuple[TrainingConfig, Path]:
     """
     Modifies a TabDDPM configuration JSON file with the specified data directory, experiment name and workspace name,
     and loads the resulting configuration.
@@ -58,7 +58,7 @@ def save_additional_tabddpm_config(
     """
     # Modify the config file to give the correct training data and saving directory
     with open(training_config_json_path, "r") as file:
-        configs = Configs(**json.load(file))
+        configs = TrainingConfig(**json.load(file))
 
     configs.general.data_dir = data_dir
     # Save dir is set by joining the workspace_dir and exp_name
@@ -80,7 +80,7 @@ def save_additional_tabddpm_config(
 # TODO: This and the next function should be unified later.
 def train_tabddpm_and_synthesize(
     train_set: pd.DataFrame,
-    configs: Configs,
+    configs: TrainingConfig,
     save_dir: Path,
     synthesize: bool = True,
     sample_scale: float = 1.0,
@@ -162,7 +162,7 @@ def train_tabddpm_and_synthesize(
 def fine_tune_tabddpm_and_synthesize(
     trained_models: dict[tuple[str, str], dict[str, Any]],
     fine_tune_set: pd.DataFrame,
-    configs: Configs,
+    configs: TrainingConfig,
     save_dir: Path,
     fine_tuning_diffusion_iterations: int = 100,
     fine_tuning_classifier_iterations: int = 10,
@@ -255,7 +255,7 @@ def fine_tune_tabddpm_and_synthesize(
 # TODO: The following function is directly copied from the midst reference code since
 # I need it to run the attack code, but, it should probably be moved to somewhere else
 # as it is an essential part of a working TabDDPM training pipeline.
-def setup_save_dir(configs: Configs) -> Path:
+def setup_save_dir(configs: TrainingConfig) -> Path:
     """
     Set up the directories where the models and intermediate results will be saved.
 

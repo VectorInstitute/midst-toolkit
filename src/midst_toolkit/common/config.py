@@ -83,7 +83,7 @@ class MatchingConfig(BaseModel):
     no_matching: bool
 
 
-class Configs(BaseModel):
+class TrainingConfig(BaseModel):
     """All configuration settings for training, synthesizing, and fine tuning."""
 
     general: GeneralConfig
