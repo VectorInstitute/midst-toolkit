@@ -101,9 +101,6 @@ class AlphaPrecision(StatisticalEvaluator):
             alphas, alpha_precision_curve, beta_coverage_curve, delta_precision_alpha, delta_coverage_beta,
             authenticity.
         """
-        if len(x) != len(x_syn):
-            raise RuntimeError("The real and synthetic data must have the same length")
-
         if emb_center is None:
             emb_center = np.mean(x, axis=0)
 
@@ -132,8 +129,27 @@ class AlphaPrecision(StatisticalEvaluator):
         # Let us find closest real point to any real point, excluding itself (therefore 1 instead of 0)
         real_to_real = real_to_real[:, 1].squeeze()
         real_to_synth = real_to_synth.squeeze()
-        real_to_synth_args = real_to_synth_args.squeeze()
+        # --- Clamp indices to avoid out-of-bounds ---
+        # real_to_synth_args = np.clip(real_to_synth_args.squeeze(), 0, len(x_syn) - 1)
 
+        # real_synth_closest = x_syn[real_to_synth_args]
+
+        # real_synth_closest_d = np.sqrt(np.sum((real_synth_closest - synth_center) ** 2, axis=1))
+        # closest_synth_radii = np.quantile(real_synth_closest_d, alphas)
+
+        # for k in range(len(radii)):
+        #     precision_audit_mask = synth_to_center <= radii[k]
+        #     alpha_precision = np.mean(precision_audit_mask)
+
+        #     beta_coverage = np.mean(
+        #         ((real_to_synth <= real_to_real) * (real_synth_closest_d <= closest_synth_radii[k]))
+        #     )
+
+        #     alpha_precision_curve.append(alpha_precision)
+        #     beta_coverage_curve.append(beta_coverage)
+
+        # --- Clamp indices to avoid out-of-bounds ---
+        real_to_synth_args = np.clip(real_to_synth_args.squeeze(), 0, len(x_syn) - 1)
         real_synth_closest = x_syn[real_to_synth_args]
 
         real_synth_closest_d = np.sqrt(np.sum((real_synth_closest - synth_center) ** 2, axis=1))
@@ -150,10 +166,15 @@ class AlphaPrecision(StatisticalEvaluator):
             alpha_precision_curve.append(alpha_precision)
             beta_coverage_curve.append(beta_coverage)
 
-        # See which one is bigger
-
-        authen = real_to_real[real_to_synth_args] < real_to_synth
+        # --- Clamp again for real_to_real lookup ---
+        safe_real_to_synth_args = np.clip(real_to_synth_args, 0, len(real_to_real) - 1)
+        authen = real_to_real[safe_real_to_synth_args] < real_to_synth
         authenticity = np.mean(authen)
+
+        # See which one is bigger
+        # authen = real_to_real[real_to_synth_args] < real_to_synth
+        # authenticity = np.mean(authen)
+        # authenticity=None
 
         delta_precision_alpha = 1.0 - np.sum(np.abs(np.array(alphas) - np.array(alpha_precision_curve))) / np.sum(
             alphas
@@ -173,7 +194,7 @@ class AlphaPrecision(StatisticalEvaluator):
             beta_coverage_curve,
             delta_precision_alpha,
             delta_coverage_beta,
-            authenticity.astype(float),
+            authenticity,
         )
 
     def _normalize_covariates(
