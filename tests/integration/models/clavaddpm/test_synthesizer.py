@@ -54,7 +54,9 @@ CLASSIFIER_CONFIG = ClassifierConfig(
     data_split_ratios=[0.99, 0.005, 0.005],
 )
 
-SYNTHESIZING_CONFIG = GeneralConfig(
+GENERAL_CONFIG = GeneralConfig(
+    data_dir=Path("tests/integration/assets/multi_table/"),
+    test_data_dir=Path("tests/integration/assets/multi_table/"),
     exp_name="ensemble_attack",
     workspace_dir=Path("temp/workspace/dir"),
     sample_prefix="",
@@ -83,7 +85,7 @@ def test_clava_synthesize_multi_table(tmp_path: Path):
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
     models = clava_training(tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device=DEVICE)
 
-    synthesizing_config = SYNTHESIZING_CONFIG.model_copy()
+    synthesizing_config = GENERAL_CONFIG.model_copy()
     synthesizing_config.workspace_dir = tmp_path
 
     cleaned_tables, _, _ = clava_synthesizing(

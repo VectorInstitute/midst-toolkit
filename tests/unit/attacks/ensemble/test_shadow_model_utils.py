@@ -42,13 +42,13 @@ def test_save_additional_tabddpm_config(cfg: DictConfig, tmp_path: Path) -> None
     )
 
     assert save_dir == new_data_dir / new_workspace_name / new_experiment_name
-    assert configs["general"]["data_dir"] == str(new_data_dir)
-    assert configs["general"]["workspace_dir"] == str(new_data_dir / new_workspace_name)
-    assert configs["general"]["exp_name"] == new_experiment_name
+    assert configs.general.data_dir == new_data_dir
+    assert configs.general.workspace_dir == new_data_dir / new_workspace_name
+    assert configs.general.exp_name == new_experiment_name
     # Ensure original parameters are different from new ones
-    assert old_data_dir != configs["general"]["data_dir"]
-    assert old_workspace_dir != configs["general"]["workspace_dir"]
-    assert old_exp_name != configs["general"]["exp_name"]
+    assert old_data_dir != configs.general.data_dir
+    assert old_workspace_dir != configs.general.workspace_dir
+    assert old_exp_name != configs.general.exp_name
     # Ensure required directories are created
     assert (save_dir / "models").exists()
     assert (save_dir / "before_matching").exists()

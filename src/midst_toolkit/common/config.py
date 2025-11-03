@@ -9,15 +9,17 @@ from midst_toolkit.models.clavaddpm.model import ModelType
 
 
 class GeneralConfig(BaseModel):
-    """General configuration settings for training and synthesizing."""
+    """General configuration settings."""
 
+    data_dir: Path
+    test_data_dir: Path
     exp_name: str
     workspace_dir: Path
     sample_prefix: str
 
 
 class ClusteringConfig(BaseModel):
-    """Configuration for the clustering model."""
+    """Configuration for the trainer's clustering model."""
 
     num_clusters: int | dict[str, int]
     clustering_method: ClusteringMethod
@@ -25,7 +27,7 @@ class ClusteringConfig(BaseModel):
 
 
 class DiffusionConfig(BaseModel):
-    """Configuration for the diffusion model."""
+    """Configuration for the trainer's diffusion model."""
 
     d_layers: list[int]
     dropout: float
@@ -48,7 +50,7 @@ class DiffusionConfig(BaseModel):
 
 
 class ClassifierConfig(BaseModel):
-    """Configuration for the classifier model."""
+    """Configuration for the trainer's classifier model."""
 
     d_layers: list[int]
     lr: float
@@ -66,16 +68,27 @@ class ClassifierConfig(BaseModel):
 
 
 class SamplingConfig(BaseModel):
-    """Configuration for the sampling model."""
+    """Configuration for the synthesizer's sampling process."""
 
     batch_size: int
     classifier_scale: float
 
 
 class MatchingConfig(BaseModel):
-    """Configuration for the matching model."""
+    """Configuration for the synthesizer's matching process."""
 
     num_matching_clusters: int
     matching_batch_size: int
     unique_matching: bool
     no_matching: bool
+
+
+class Configs(BaseModel):
+    """All configuration settings for training, synthesizing, and fine tuning."""
+
+    general: GeneralConfig
+    clustering: ClusteringConfig
+    diffusion: DiffusionConfig
+    classifier: ClassifierConfig
+    sampling: SamplingConfig
+    matching: MatchingConfig

@@ -182,7 +182,7 @@ def child_training(
             )
             child_result["classifier"] = child_classifier
         else:
-            log(WARNING, "Skipping classifier training since classifier_config['iterations'] <= 0")
+            log(WARNING, "Skipping classifier training since classifier_config.iterations <= 0")
 
     child_result["df_info"] = child_info
     child_result["model_params"] = asdict(child_model_params)

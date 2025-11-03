@@ -10,19 +10,11 @@ import pandas as pd
 import torch
 
 from midst_toolkit.attacks.ensemble.clavaddpm_fine_tuning import clava_fine_tuning
-from midst_toolkit.common.config import (
-    ClassifierConfig,
-    ClusteringConfig,
-    DiffusionConfig,
-    GeneralConfig,
-    MatchingConfig,
-    SamplingConfig,
-)
+from midst_toolkit.common.config import Configs
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 from midst_toolkit.models.clavaddpm.data_loaders import load_multi_table
 from midst_toolkit.models.clavaddpm.enumerations import (
-    Configs,
     GroupLengthsProbDicts,
     RelationOrder,
     Tables,
@@ -66,23 +58,23 @@ def save_additional_tabddpm_config(
     """
     # Modify the config file to give the correct training data and saving directory
     with open(training_config_json_path, "r") as file:
-        config_data = json.load(file)
+        configs = Configs(**json.load(file))
 
-    config_data["general"]["data_dir"] = str(data_dir)
+    configs.general.data_dir = data_dir
     # Save dir is set by joining the workspace_dir and exp_name
-    config_data["general"]["workspace_dir"] = str(data_dir / workspace_name)
-    config_data["general"]["exp_name"] = experiment_name
+    configs.general.workspace_dir = data_dir / workspace_name
+    configs.general.exp_name = experiment_name
 
     # save the changed to the new json file
     with open(final_config_json_path, "w") as file:
-        json.dump(config_data, file, indent=4)
+        json.dump(configs.model_dump(mode="json"), file, indent=4)
 
     log(INFO, f"Config saved to {final_config_json_path}")
 
     # Set up the config
-    configs, save_dir = load_configs(str(final_config_json_path))
+    save_dir = setup_save_dir(configs)
 
-    return configs, Path(save_dir)
+    return configs, save_dir
 
 
 # TODO: This and the next function should be unified later.
@@ -117,21 +109,20 @@ def train_tabddpm_and_synthesize(
     """
     # Load tables
     tables, relation_order, dataset_meta = load_multi_table(
-        Path(configs["general"]["data_dir"]), train_data={"trans": train_set}
+        configs.general.data_dir,
+        train_data={"trans": train_set},
     )
 
     # Clustering on the multi-table dataset
-    tables, all_group_lengths_prob_dicts = clava_clustering(
-        tables, relation_order, save_dir, ClusteringConfig(**configs["clustering"])
-    )
+    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, save_dir, configs.clustering)
 
     # Train models
     tables, models = clava_training(
         tables,
         relation_order,
         save_dir,
-        diffusion_config=DiffusionConfig(**configs["diffusion"]),
-        classifier_config=ClassifierConfig(**configs["classifier"]),
+        diffusion_config=configs.diffusion,
+        classifier_config=configs.classifier,
         device="cuda" if torch.cuda.is_available() else "cpu",
     )
     result = TrainingResult(
@@ -157,9 +148,9 @@ def train_tabddpm_and_synthesize(
             save_dir,
             all_group_lengths_prob_dicts,
             models,
-            GeneralConfig(**configs["general"]),
-            SamplingConfig(**configs["sampling"]),
-            MatchingConfig(**configs["matching"]),
+            configs.general,
+            configs.sampling,
+            configs.matching,
             sample_scale=sample_scale,
         )
 
@@ -208,14 +199,14 @@ def fine_tune_tabddpm_and_synthesize(
     """
     # Load tables
     new_tables, relation_order, dataset_meta = load_multi_table(
-        Path(configs["general"]["data_dir"]),
+        configs.general.data_dir,
         train_data={"trans": fine_tune_set},
     )
 
     # Clustering on the multi-table dataset
     # Original submission uses 'force_tables=True' to run the clustering even if checkpoint is found.
     new_tables, all_group_lengths_prob_dicts = clava_clustering(
-        new_tables, relation_order, save_dir, ClusteringConfig(**configs["clustering"])
+        new_tables, relation_order, save_dir, configs.clustering
     )
 
     # Train models
@@ -224,8 +215,8 @@ def fine_tune_tabddpm_and_synthesize(
         copied_models,
         new_tables,
         relation_order,
-        diffusion_config=configs["diffusion"],
-        classifier_config=configs["classifier"],
+        diffusion_config=configs.diffusion,
+        classifier_config=configs.classifier,
         fine_tuning_diffusion_iterations=fine_tuning_diffusion_iterations,
         fine_tuning_classifier_iterations=fine_tuning_classifier_iterations,
     )
@@ -250,9 +241,9 @@ def fine_tune_tabddpm_and_synthesize(
             save_dir,
             all_group_lengths_prob_dicts,
             new_models,
-            GeneralConfig(**configs["general"]),
-            SamplingConfig(**configs["sampling"]),
-            MatchingConfig(**configs["matching"]),
+            configs.general,
+            configs.sampling,
+            configs.matching,
             sample_scale=sample_scale,
         )
 
@@ -264,31 +255,30 @@ def fine_tune_tabddpm_and_synthesize(
 # TODO: The following function is directly copied from the midst reference code since
 # I need it to run the attack code, but, it should probably be moved to somewhere else
 # as it is an essential part of a working TabDDPM training pipeline.
-def load_configs(config_path: str) -> tuple[Configs, Path]:
+def setup_save_dir(configs: Configs) -> Path:
     """
-    Load configuration from a JSON file and set up necessary directories.
+    Set up the directories where the models and intermediate results will be saved.
 
-    The following directories are created to save the models and intermediate results.
-        - save_dir -> configs["general"]["workspace_dir"]/configs["general"]["exp_name"]
+    The following directories are created:
+        - save_dir -> configs.general.workspace_dir/configs.general.exp_name
         - save_dir/models
         - save_dir/before_matching
 
+    Additionally, a json file with the configuration settings is saved to ``save_dir/args``.
+
     Args:
-        config_path: Path to the configuration JSON file.
+        configs: Configuration settings.
 
     Returns:
-        configs: Loaded configuration dictionary.
         save_dir: Directory path where results will be saved.
     """
-    with open(config_path, "r") as file:
-        configs = json.load(file)
     # Following directories are created to save the models and intermediate results.
-    save_dir = os.path.join(configs["general"]["workspace_dir"], configs["general"]["exp_name"])
+    save_dir = configs.general.workspace_dir / configs.general.exp_name
     os.makedirs(save_dir, exist_ok=True)
-    os.makedirs(os.path.join(save_dir, "models"), exist_ok=True)
-    os.makedirs(os.path.join(save_dir, "before_matching"), exist_ok=True)
+    os.makedirs(save_dir / "models", exist_ok=True)
+    os.makedirs(save_dir / "before_matching", exist_ok=True)
 
-    with open(os.path.join(save_dir, "args"), "w") as file:
-        json.dump(configs, file, indent=4)
+    with open(save_dir / "args", "w") as file:
+        json.dump(configs.model_dump(mode="json"), file, indent=4)
 
-    return configs, Path(save_dir)
+    return save_dir
