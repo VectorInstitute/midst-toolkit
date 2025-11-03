@@ -501,7 +501,7 @@ def _prepare_cluster_data(
     elif data_and_key_normalization == DataAndKeyNormalizationType.QUANTILE:
         key_normalized = _quantile_normalize_sklearn(reshaped_parent_primary_key_data)
     else:
-        raise ValueError(f"Unsupported data and key scaling type: {data_and_key_normalization}")
+        raise ValueError(f"Unsupported data and key normalization type: {data_and_key_normalization}")
 
     key_scaled = key_scale * key_normalized
 
@@ -741,8 +741,6 @@ def _quantile_normalize_sklearn(matrix: np.ndarray) -> np.ndarray:
     """
     Quantile normalize the input matrix using Sklearn's QuantileTransformer.
 
-    NOTE: Each column in normalized INDIVIDUALLY
-
     Args:
         matrix: Numpy array of the matrix data.
 
@@ -760,8 +758,6 @@ def _quantile_normalize_sklearn(matrix: np.ndarray) -> np.ndarray:
 def _min_max_normalize_sklearn(matrix: np.ndarray) -> np.ndarray:
     """
     Min-max normalize the input matrix using Sklearn's MinMaxScaler.
-
-    NOTE: Each column in normalized INDIVIDUALLY
 
     Args:
         matrix: Numpy array of the matrix data.
