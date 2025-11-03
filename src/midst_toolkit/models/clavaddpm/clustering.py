@@ -18,8 +18,8 @@ from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.enumerations import (
     ClusteringMethod,
     Configs,
+    DataAndKeyNormalizationType,
     GroupLengthsProbDicts,
-    KeyScalingType,
     RelationOrder,
     Tables,
 )
@@ -166,6 +166,7 @@ def _pair_clustering(
     num_clusters: int,
     parent_scale: float,
     key_scale: float,
+    data_and_key_normalization: DataAndKeyNormalizationType = DataAndKeyNormalizationType.MINMAX,
     clustering_method: ClusteringMethod = ClusteringMethod.KMEANS,
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict[int, dict[int, float]]]:
     """
@@ -178,11 +179,12 @@ def _pair_clustering(
         parent_name: Name of the parent table.
         child_name: Name of the child table.
         num_clusters: Number of clusters.
-        parent_scale: Scaling factor applied to the parent table, provided by the config.
-            It will be applied to the features to weight their importance during clustering.
-        key_scale: Scaling factor applied to the foreign key values that link
-            the child table to the parent table. This will weight how much influence
-            the parent-child relationship has in the clustering algorithm.
+        parent_scale: Scaling factor applied to the parent table, provided by the config. It will be applied to the
+            features to weight their importance during clustering.
+        key_scale: Scaling factor applied to the foreign key values that link the child table to the parent table.
+            This will weight how much influence the parent-child relationship has in the clustering algorithm.
+        data_and_key_normalization: Type of normalization for the child and parent data and keys. Default is
+            ``DataAndKeyNormalizationType.MINMAX.``
         clustering_method: Method of clustering. Default is ClusteringMethod.KMEANS.
 
     Returns:
@@ -229,6 +231,7 @@ def _pair_clustering(
         parent_primary_key,
         parent_scale,
         key_scale,
+        data_and_key_normalization,
     )
 
     cluster_labels = _get_cluster_labels(cluster_data, clustering_method, num_clusters)
@@ -335,35 +338,42 @@ def _merge_parent_data_with_child_data(
     return merged_parent_data
 
 
-def _get_min_max_and_quantile_for_numerical_columns(
+def get_normalized_numerical_columns(
     child_numerical_data: np.ndarray,
     parent_numerical_data: np.ndarray,
     parent_scale: float,
-) -> tuple[np.ndarray, np.ndarray]:
+    normalization_method: DataAndKeyNormalizationType = DataAndKeyNormalizationType.MINMAX,
+) -> np.ndarray:
     """
-    Get the min-max and quantile values for the numerical columns in both the
-    child and parent data.
+    The child and parent table numerical data are merged and then normalized together according to the normalization
+    scheme specified by ``normalization_method``. After normalization, data in the parent numerical data is scaled
+    by the ``parent_scale`` float.
 
     Args:
-        child_numerical_data: Numpy array of the child numerical data.
-        parent_numerical_data: Numpy array of the parent numerical data.
-        parent_scale: Scaling factor applied to the parent data.
+        child_numerical_data: Numpy array of the child table numerical data.
+        parent_numerical_data: Numpy array of the parent table numerical data.
+        parent_scale: Scaling factor applied to the parent data AFTER normalization.
+        normalization_method: The approach to be used to normalized the combined data. Defaults to
+            DataAndKeyNormalizationType.MINMAX.
 
     Returns:
-        A tuple with two numpy arrays, one with the min-max values and one with the quantile
-        values for the numerical columns.
+        A numpy array containing the merged child and parent table (in that order) numerical data, normalized using
+        the specified strategy and while child data scaled by the provided ``parent_scale``
     """
     joint_matrix = np.concatenate([child_numerical_data, parent_numerical_data], axis=1)
-    matrix_p_index = child_numerical_data.shape[1]
+    parent_start_index = child_numerical_data.shape[1]
 
-    # Perform quantile normalization using QuantileTransformer
-    numerical_quantile = _quantile_normalize_sklearn(joint_matrix)
-    numerical_min_max = _min_max_normalize_sklearn(joint_matrix)
+    if normalization_method == DataAndKeyNormalizationType.MINMAX:
+        normalized_data = _min_max_normalize_sklearn(joint_matrix)
+    elif normalization_method == DataAndKeyNormalizationType.QUANTILE:
+        normalized_data = _quantile_normalize_sklearn(joint_matrix)
+    else:
+        raise ValueError(f"Unrecognized Normalization Method: {normalization_method}")
 
-    numerical_quantile[:, matrix_p_index:] = parent_scale * numerical_quantile[:, matrix_p_index:]
-    numerical_min_max[:, matrix_p_index:] = parent_scale * numerical_min_max[:, matrix_p_index:]
+    # Scale the parent data using the parent scale value
+    normalized_data[:, parent_start_index:] = parent_scale * normalized_data[:, parent_start_index:]
 
-    return numerical_min_max, numerical_quantile
+    return normalized_data
 
 
 def _one_hot_encode_categorical_columns(
@@ -424,28 +434,28 @@ def _prepare_cluster_data(
     parent_primary_key: str,
     parent_scale: float,
     key_scale: float,
-    key_scaling_type: KeyScalingType = KeyScalingType.MINMAX,
+    data_and_key_normalization: DataAndKeyNormalizationType = DataAndKeyNormalizationType.MINMAX,
 ) -> np.ndarray:
     """
-    Prepare the data for the clustering algorithm, which comprises of merging the parent
-    and child data, splitting the data into categorical and numerical columns, and
-    normalizing the data.
+    Prepare the data for the clustering algorithm, which comprises of merging the parent and child data, splitting
+    the data into categorical and numerical columns, and normalizing the data.
 
     Args:
         child_data: Numpy array of the child data.
         parent_data: Numpy array of the parent data.
-        child_domain: Dictionary of the domain of the child table. The domain dictionary
-            holds metadata about the columns of each one of the tables.
-        parent_domain: Dictionary of the domain of the parent table. The domain dictionary
-            holds metadata about the columns of each one of the tables.
+        child_domain: Dictionary of the domain of the child table. The domain dictionary holds metadata about the
+            columns of each one of the tables.
+        parent_domain: Dictionary of the domain of the parent table. The domain dictionary holds metadata about the
+            columns of each one of the tables.
         all_child_columns: List of all child columns.
         all_parent_columns: List of all parent columns.
         parent_primary_key: Name of the parent primary key.
-        parent_scale: Scaling factor applied to the parent table, provided by the config.
-            It will be applied to the features to weight their importance during clustering.
-        key_scale: Scaling factor applied to the tables' keys. This will weight how much influence
-            the parent-child relationship has in the clustering algorithm.
-        key_scaling_type: Type of scaling for the tables' keys. Default is KeyScalingType.MINMAX.
+        parent_scale: Scaling factor applied to the parent table, provided by the config. It will be applied to the
+            features to weight their importance during clustering.
+        key_scale: Scaling factor applied to the tables' keys. This will weight how much influence the parent-child
+            relationship has in the clustering algorithm.
+        data_and_key_normalization: Type of normalization for the child and parent data and keys. Default is
+            ``DataAndKeyNormalizationType.MINMAX.``
 
     Returns:
         Numpy array of the data prepared for the clustering algorithm.
@@ -477,21 +487,21 @@ def _prepare_cluster_data(
     parent_numerical_data = merged_data[:, parent_numerical_columns]
     parent_categorical_data = merged_data[:, parent_categorical_columns]
 
-    numerical_min_max, numerical_quantile = _get_min_max_and_quantile_for_numerical_columns(
+    numerical_normalized = get_normalized_numerical_columns(
         child_numerical_data,
         parent_numerical_data,
         parent_scale,
+        data_and_key_normalization,
     )
 
-    reshaped_parent_data = merged_data[:, parent_primary_key_index].reshape(-1, 1)
-    if key_scaling_type == KeyScalingType.MINMAX:
-        key_normalized = _min_max_normalize_sklearn(reshaped_parent_data)
-        numerical_normalized = numerical_min_max
-    elif key_scaling_type == KeyScalingType.QUANTILE:
-        key_normalized = _quantile_normalize_sklearn(reshaped_parent_data)
-        numerical_normalized = numerical_quantile
+    # Normalizing the parent table primary key data.
+    reshaped_parent_primary_key_data = merged_data[:, parent_primary_key_index].reshape(-1, 1)
+    if data_and_key_normalization == DataAndKeyNormalizationType.MINMAX:
+        key_normalized = _min_max_normalize_sklearn(reshaped_parent_primary_key_data)
+    elif data_and_key_normalization == DataAndKeyNormalizationType.QUANTILE:
+        key_normalized = _quantile_normalize_sklearn(reshaped_parent_primary_key_data)
     else:
-        raise ValueError(f"Unsupported foreign key scaling type: {key_scaling_type}")
+        raise ValueError(f"Unsupported data and key scaling type: {data_and_key_normalization}")
 
     key_scaled = key_scale * key_normalized
 
@@ -727,12 +737,11 @@ def _get_group_data(
     return np.array(group_data_list, dtype=object)
 
 
-# TODO: Refactor the functions below to be a single one with a "method" parameter.
-
-
 def _quantile_normalize_sklearn(matrix: np.ndarray) -> np.ndarray:
     """
     Quantile normalize the input matrix using Sklearn's QuantileTransformer.
+
+    NOTE: Each column in normalized INDIVIDUALLY
 
     Args:
         matrix: Numpy array of the matrix data.
@@ -745,20 +754,14 @@ def _quantile_normalize_sklearn(matrix: np.ndarray) -> np.ndarray:
         random_state=42,  # TODO: do we really need to hardcode the random state?
     )  # Change output_distribution as needed
 
-    normalized_data = np.empty((matrix.shape[0], 0))
-
-    # Apply QuantileTransformer to each column and concatenate the results
-    for col in range(matrix.shape[1]):
-        column = matrix[:, col].reshape(-1, 1)
-        transformed_column = transformer.fit_transform(column)
-        normalized_data = np.concatenate((normalized_data, transformed_column), axis=1)
-
-    return normalized_data
+    return transformer.fit_transform(matrix)
 
 
 def _min_max_normalize_sklearn(matrix: np.ndarray) -> np.ndarray:
     """
     Min-max normalize the input matrix using Sklearn's MinMaxScaler.
+
+    NOTE: Each column in normalized INDIVIDUALLY
 
     Args:
         matrix: Numpy array of the matrix data.
@@ -767,16 +770,7 @@ def _min_max_normalize_sklearn(matrix: np.ndarray) -> np.ndarray:
         Numpy array of the normalized data.
     """
     scaler = MinMaxScaler(feature_range=(-1, 1))
-
-    normalized_data = np.empty((matrix.shape[0], 0))
-
-    # Apply MinMaxScaler to each column and concatenate the results
-    for col in range(matrix.shape[1]):
-        column = matrix[:, col].reshape(-1, 1)
-        transformed_column = scaler.fit_transform(column)
-        normalized_data = np.concatenate((normalized_data, transformed_column), axis=1)
-
-    return normalized_data
+    return scaler.fit_transform(matrix)
 
 
 def _aggregate_and_sample(
