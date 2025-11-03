@@ -4,7 +4,6 @@ import os
 from dataclasses import dataclass
 from logging import INFO
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 import torch
@@ -16,6 +15,7 @@ from midst_toolkit.models.clavaddpm.data_loaders import load_tables
 from midst_toolkit.models.clavaddpm.enumerations import (
     Configs,
     GroupLengthsProbDicts,
+    ModelArtifacts,
     Relation,
     RelationOrder,
     Tables,
@@ -31,7 +31,7 @@ class TrainingResult:
     tables: Tables
     relation_order: RelationOrder
     all_group_lengths_probabilities: GroupLengthsProbDicts
-    models: dict[Relation, dict[str, Any]]
+    models: dict[Relation, ModelArtifacts]
     synthetic_data: pd.DataFrame | None = None
 
 
@@ -156,7 +156,7 @@ def train_tabddpm_and_synthesize(
 
 
 def fine_tune_tabddpm_and_synthesize(
-    trained_models: dict[Relation, dict[str, Any]],
+    trained_models: dict[Relation, ModelArtifacts],
     fine_tune_set: pd.DataFrame,
     configs: Configs,
     save_dir: Path,

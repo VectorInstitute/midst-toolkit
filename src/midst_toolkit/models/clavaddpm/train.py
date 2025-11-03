@@ -20,6 +20,7 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
     Configs,
     IsTargetConditioned,
+    ModelArtifacts,
     ReductionMethod,
     Relation,
     RelationOrder,
@@ -538,7 +539,7 @@ def train_classifier(
 def save_table_info(
     tables: Tables,
     relation_order: RelationOrder,
-    models: dict[Relation, dict[str, Any]],
+    models: dict[Relation, ModelArtifacts],
     save_dir: Path,
 ) -> None:
     """
