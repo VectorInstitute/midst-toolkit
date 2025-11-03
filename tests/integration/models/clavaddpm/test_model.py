@@ -10,44 +10,47 @@ import pytest
 import torch
 from torch.nn import functional
 
+from midst_toolkit.common.config import ClassifierConfig, ClusteringConfig, DiffusionConfig
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 from midst_toolkit.models.clavaddpm.data_loaders import load_multi_table
-from midst_toolkit.models.clavaddpm.model import Classifier
+from midst_toolkit.models.clavaddpm.enumerations import ClusteringMethod
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianLossType, SchedulerType
+from midst_toolkit.models.clavaddpm.model import Classifier, ModelType
 from midst_toolkit.models.clavaddpm.train import clava_training
 from tests.integration.utils import is_running_on_ci_environment
 
 
-CLUSTERING_CONFIG = {
-    "parent_scale": 1.0,
-    "num_clusters": 3,
-    "clustering_method": "kmeans_and_gmm",
-}
+CLUSTERING_CONFIG = ClusteringConfig(
+    parent_scale=1.0,
+    num_clusters=3,
+    clustering_method=ClusteringMethod.KMEANS_AND_GMM,
+)
 
-DIFFUSION_CONFIG = {
-    "d_layers": [512, 1024, 1024, 1024, 1024, 512],
-    "dropout": 0.0,
-    "num_timesteps": 100,
-    "model_type": "mlp",
-    "iterations": 1000,
-    "batch_size": 24,
-    "lr": 0.0006,
-    "gaussian_loss_type": "mse",
-    "weight_decay": 1e-05,
-    "scheduler": "cosine",
-    "data_split_ratios": [0.99, 0.005, 0.005],
-}
+DIFFUSION_CONFIG = DiffusionConfig(
+    d_layers=[512, 1024, 1024, 1024, 1024, 512],
+    dropout=0.0,
+    num_timesteps=100,
+    model_type=ModelType.MLP,
+    iterations=1000,
+    batch_size=24,
+    lr=0.0006,
+    gaussian_loss_type=GaussianLossType.MSE,
+    weight_decay=1e-05,
+    scheduler=SchedulerType.COSINE,
+    data_split_ratios=[0.99, 0.005, 0.005],
+)
 
-CLASSIFIER_CONFIG = {
-    "d_layers": [128, 256, 512, 1024, 512, 256, 128],
-    "lr": 0.0001,
-    "dim_t": 128,
-    "batch_size": 24,
-    "iterations": 1000,
-    "data_split_ratios": [0.99, 0.005, 0.005],
-}
+CLASSIFIER_CONFIG = ClassifierConfig(
+    d_layers=[128, 256, 512, 1024, 512, 256, 128],
+    lr=0.0001,
+    dim_t=128,
+    batch_size=24,
+    iterations=1000,
+    data_split_ratios=[0.99, 0.005, 0.005],
+)
 
 
 @pytest.mark.integration_test()
@@ -270,7 +273,7 @@ def test_train_single_table(tmp_path: Path):
     key = (None, "trans")
     x_gen_tensor, y_gen_tensor = models[key]["diffusion"].sample_all(
         sample_size,
-        DIFFUSION_CONFIG["batch_size"],
+        DIFFUSION_CONFIG.batch_size,
         table_info[key]["empirical_class_dist"].float(),
         ddim=False,
     )
@@ -328,7 +331,7 @@ def test_train_multi_table(tmp_path: Path):
     key = ("account", "trans")
     x_gen_tensor, y_gen_tensor = models[1][key]["diffusion"].sample_all(
         sample_size,
-        DIFFUSION_CONFIG["batch_size"],
+        DIFFUSION_CONFIG.batch_size,
         table_info[key]["empirical_class_dist"].float(),
         ddim=False,
     )

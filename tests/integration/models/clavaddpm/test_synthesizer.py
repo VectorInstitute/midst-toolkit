@@ -1,66 +1,76 @@
 import pickle
-from copy import deepcopy
 from logging import WARNING
 from pathlib import Path
 
 import pytest
 
+from midst_toolkit.common.config import (
+    ClassifierConfig,
+    ClusteringConfig,
+    DiffusionConfig,
+    GeneralConfig,
+    MatchingConfig,
+    SamplingConfig,
+)
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 from midst_toolkit.models.clavaddpm.data_loaders import load_multi_table
+from midst_toolkit.models.clavaddpm.enumerations import ClusteringMethod
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianLossType, SchedulerType
+from midst_toolkit.models.clavaddpm.model import ModelType
 from midst_toolkit.models.clavaddpm.synthesizer import clava_synthesizing
 from midst_toolkit.models.clavaddpm.train import clava_training
 from tests.integration.utils import is_running_on_ci_environment
 
 
-CLUSTERING_CONFIG = {
-    "parent_scale": 1.0,
-    "num_clusters": 3,
-    "clustering_method": "kmeans_and_gmm",
-}
+CLUSTERING_CONFIG = ClusteringConfig(
+    parent_scale=1.0,
+    num_clusters=3,
+    clustering_method=ClusteringMethod.KMEANS_AND_GMM,
+)
 
-DIFFUSION_CONFIG = {
-    "d_layers": [512, 1024, 1024, 1024, 1024, 512],
-    "dropout": 0.0,
-    "num_timesteps": 100,
-    "model_type": "mlp",
-    "iterations": 1000,
-    "batch_size": 24,
-    "lr": 0.0006,
-    "gaussian_loss_type": "mse",
-    "weight_decay": 1e-05,
-    "scheduler": "cosine",
-    "data_split_ratios": [0.99, 0.005, 0.005],
-}
+DIFFUSION_CONFIG = DiffusionConfig(
+    d_layers=[512, 1024, 1024, 1024, 1024, 512],
+    dropout=0.0,
+    num_timesteps=100,
+    model_type=ModelType.MLP,
+    iterations=1000,
+    batch_size=24,
+    lr=0.0006,
+    gaussian_loss_type=GaussianLossType.MSE,
+    weight_decay=1e-05,
+    scheduler=SchedulerType.COSINE,
+    data_split_ratios=[0.99, 0.005, 0.005],
+)
 
-CLASSIFIER_CONFIG = {
-    "d_layers": [128, 256, 512, 1024, 512, 256, 128],
-    "lr": 0.0001,
-    "dim_t": 128,
-    "batch_size": 24,
-    "iterations": 1000,
-    "data_split_ratios": [0.99, 0.005, 0.005],
-}
+CLASSIFIER_CONFIG = ClassifierConfig(
+    d_layers=[128, 256, 512, 1024, 512, 256, 128],
+    lr=0.0001,
+    dim_t=128,
+    batch_size=24,
+    iterations=1000,
+    data_split_ratios=[0.99, 0.005, 0.005],
+)
 
-SYNTHESIZING_CONFIG = {
-    "general": {
-        "exp_name": "ensemble_attack",
-        "workspace_dir": None,
-        "sample_prefix": "",
-    },
-    "sampling": {
-        "batch_size": 2,
-        "classifier_scale": 1.0,
-    },
-    "matching": {
-        "num_matching_clusters": 1,
-        "matching_batch_size": 1,
-        "unique_matching": True,
-        "no_matching": False,
-    },
-}
+SYNTHESIZING_CONFIG = GeneralConfig(
+    exp_name="ensemble_attack",
+    workspace_dir=Path("temp/workspace/dir"),
+    sample_prefix="",
+)
+
+SAMPLING_CONFIG = SamplingConfig(
+    batch_size=2,
+    classifier_scale=1.0,
+)
+
+MATCHING_CONFIG = MatchingConfig(
+    num_matching_clusters=1,
+    matching_batch_size=1,
+    unique_matching=True,
+    no_matching=False,
+)
 
 
 @pytest.mark.integration_test()
@@ -73,9 +83,8 @@ def test_clava_synthesize_multi_table(tmp_path: Path):
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
     models = clava_training(tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device=DEVICE)
 
-    # TODO: Temporary, we should refactor those configs
-    configs = deepcopy(SYNTHESIZING_CONFIG)
-    configs["general"]["workspace_dir"] = str(tmp_path)
+    synthesizing_config = SYNTHESIZING_CONFIG.model_copy()
+    synthesizing_config.workspace_dir = tmp_path
 
     cleaned_tables, _, _ = clava_synthesizing(
         tables,
@@ -83,7 +92,9 @@ def test_clava_synthesize_multi_table(tmp_path: Path):
         tmp_path,
         all_group_lengths_prob_dicts,
         models[1],
-        configs,
+        synthesizing_config,
+        SAMPLING_CONFIG,
+        MATCHING_CONFIG,
     )
 
     # Assert

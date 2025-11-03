@@ -10,6 +10,14 @@ import pandas as pd
 import torch
 
 from midst_toolkit.attacks.ensemble.clavaddpm_fine_tuning import clava_fine_tuning
+from midst_toolkit.common.config import (
+    ClassifierConfig,
+    ClusteringConfig,
+    DiffusionConfig,
+    GeneralConfig,
+    MatchingConfig,
+    SamplingConfig,
+)
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 from midst_toolkit.models.clavaddpm.data_loaders import load_multi_table
@@ -113,15 +121,17 @@ def train_tabddpm_and_synthesize(
     )
 
     # Clustering on the multi-table dataset
-    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, save_dir, configs)
+    tables, all_group_lengths_prob_dicts = clava_clustering(
+        tables, relation_order, save_dir, ClusteringConfig(**configs["clustering"])
+    )
 
     # Train models
     tables, models = clava_training(
         tables,
         relation_order,
         save_dir,
-        diffusion_config=configs["diffusion"],
-        classifier_config=configs["classifier"],
+        diffusion_config=DiffusionConfig(**configs["diffusion"]),
+        classifier_config=ClassifierConfig(**configs["classifier"]),
         device="cuda" if torch.cuda.is_available() else "cpu",
     )
     result = TrainingResult(
@@ -147,7 +157,9 @@ def train_tabddpm_and_synthesize(
             save_dir,
             all_group_lengths_prob_dicts,
             models,
-            configs,
+            GeneralConfig(**configs["general"]),
+            SamplingConfig(**configs["sampling"]),
+            MatchingConfig(**configs["matching"]),
             sample_scale=sample_scale,
         )
 
@@ -202,7 +214,9 @@ def fine_tune_tabddpm_and_synthesize(
 
     # Clustering on the multi-table dataset
     # Original submission uses 'force_tables=True' to run the clustering even if checkpoint is found.
-    new_tables, all_group_lengths_prob_dicts = clava_clustering(new_tables, relation_order, save_dir, configs)
+    new_tables, all_group_lengths_prob_dicts = clava_clustering(
+        new_tables, relation_order, save_dir, ClusteringConfig(**configs["clustering"])
+    )
 
     # Train models
     copied_models = copy.deepcopy(trained_models)
@@ -236,7 +250,9 @@ def fine_tune_tabddpm_and_synthesize(
             save_dir,
             all_group_lengths_prob_dicts,
             new_models,
-            configs,
+            GeneralConfig(**configs["general"]),
+            SamplingConfig(**configs["sampling"]),
+            MatchingConfig(**configs["matching"]),
             sample_scale=sample_scale,
         )
 
