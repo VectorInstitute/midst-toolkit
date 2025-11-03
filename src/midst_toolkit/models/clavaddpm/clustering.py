@@ -316,7 +316,7 @@ def _merge_parent_data_with_child_data(
         child_data: Numpy array of the child data. Should be sorted by the foreign key.
         parent_data: Numpy array of the parent data. Should be sorted by the parent primary key.
         parent_primary_key_index: Index of the parent primary key.
-        foreign_key_index: Index of the foreign key to the child data.
+        foreign_key_index: Index of the foreign key in the child data.
 
     Returns:
         Numpy array of the parent data merged for each group of the child group data.
@@ -672,69 +672,89 @@ def _get_categorical_and_numerical_columns(
 
 
 def _get_group_data_dict(
-    np_data: np.ndarray,
-    group_id_attrs: list[int] | None = None,
+    data_to_be_grouped: np.ndarray,
+    column_indices_to_group_by: list[int] | None = None,
 ) -> dict[tuple[Any, ...], list[np.ndarray]]:
     """
     Group rows in a numpy array by their values in specified grouping columns into a dictionary.
-    Returns a dict where keys are tuples of grouping values and values are lists of corresponding rows.
+    Returns a dict where keys are tuples of grouping values and values are lists of corresponding rows (groups).
 
     Args:
-        np_data: Numpy array of the data.
-        group_id_attrs: List of attributes to group by.
+        data_to_be_grouped: Numpy array of the data to be grouped.
+        column_indices_to_group_by: List of column indices by which to group the data.
 
     Returns:
-        Dictionary of group data.
+        Dictionary of group data where the keys are tuples of unique entries in the specified columns and the values
+        are a list of ROWS from the ``data_to_be_grouped`` where the specified columns are shared values
     """
-    if group_id_attrs is None:
-        group_id_attrs = [0]
+    # If no columns to group by are given, we use the first column
+    if column_indices_to_group_by is None:
+        column_indices_to_group_by = [0]
 
-    group_data_dict: dict[tuple[Any, ...], list[np.ndarray]] = {}
-    data_len = len(np_data)
-    for i in range(data_len):
-        row_id = tuple(np_data[i, group_id_attrs])
-        if row_id not in group_data_dict:
-            group_data_dict[row_id] = []
-        group_data_dict[row_id].append(np_data[i])
+    grouped_data_dict: defaultdict[tuple[str, str], list[np.ndarray]] = defaultdict(list)
+    num_rows = len(data_to_be_grouped)
+    for row in range(num_rows):
+        row_id = tuple(data_to_be_grouped[row, column_indices_to_group_by])
+        grouped_data_dict[row_id].append(data_to_be_grouped[row])
 
-    return group_data_dict
+    return grouped_data_dict
 
 
 def _get_group_data(
-    np_data: np.ndarray,
-    group_id_attrs: list[int] | None = None,
+    data_to_be_grouped: np.ndarray,
+    column_indices_to_group_by: list[int] | None = None,
 ) -> np.ndarray:
     """
-    Group consecutive rows in a numpy array based on specified grouping attributes.
-    Returns an array of arrays where each sub-array contains rows with identical
-    values in the grouping columns.
+    Group CONSECUTIVE rows in a numpy array that share entries across the columns specified in
+    ``column_indices_to_group_by``. Returns an array of arrays where each sub-array contains full rows sharing
+    identical values in the grouping columns.
 
     Args:
-        np_data: Numpy array of the data.
-        group_id_attrs: List of attributes to group by.
+        data_to_be_grouped: Numpy array of the data to be grouped.
+        column_indices_to_group_by: List of column indices by which to group the data.
 
     Returns:
         Numpy array of the group data.
     """
-    if group_id_attrs is None:
-        group_id_attrs = [0]
+    # If no columns to group by are given, we use the first column
+    if column_indices_to_group_by is None:
+        column_indices_to_group_by = [0]
 
-    group_data_list = []
-    data_len = len(np_data)
-    i = 0
-    while i < data_len:
+    grouped_data_list = []
+    number_of_rows = len(data_to_be_grouped)
+    row_index = 0
+    while row_index < number_of_rows:
         group = []
-        row_id = np_data[i, group_id_attrs]
+        row_id = data_to_be_grouped[row_index, column_indices_to_group_by]
 
-        # TODO refactor this condition to be more readable/understandable.
-        while (np_data[i, group_id_attrs] == row_id).all():
-            group.append(np_data[i])
-            i += 1
-            if i >= data_len:
-                break
-        group_data_list.append(np.array(group))
+        while row_index < number_of_rows and _current_id_matches_reference_id(
+            data_to_be_grouped, row_index, column_indices_to_group_by, row_id
+        ):
+            # If this is a consecutive row with the same ID as defined by column_indices_to_group_by, add the full
+            # row to the grouping.
+            group.append(data_to_be_grouped[row_index])
+            row_index += 1
+        grouped_data_list.append(np.array(group))
+    return np.array(grouped_data_list, dtype=object)
 
-    return np.array(group_data_list, dtype=object)
+
+def _current_id_matches_reference_id(
+    data: np.ndarray, row_index: int, column_indices_to_group_by: list[int], reference_id: np.ndarray
+) -> bool:
+    """
+    Determines whether the ``reference_id`` matches the id constructed by extracting the values from data at the
+    provided column indices in ``column_indices_to_group_by`` and row index in ``row_index``.
+
+    Args:
+        data: Data from which to extract ID to be compared to ``reference_id``
+        row_index: Row from which to extract the data.
+        column_indices_to_group_by: collection of column indices from which to extract data
+        reference_id: reference id to be compared to.
+
+    Returns:
+        Boolean as to whether the extracted data matches the reference ID
+    """
+    return (data[row_index, column_indices_to_group_by] == reference_id).all()
 
 
 def _quantile_normalize_sklearn(matrix: np.ndarray) -> np.ndarray:
