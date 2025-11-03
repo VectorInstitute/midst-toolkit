@@ -102,8 +102,8 @@ def process_nans_in_categorical_features(data_splits: ArrayDict, policy: Categor
     Process the NaN values in the categorical features of the datasets provided. Supports only string or float arrays.
 
     Args:
-        data_splits: A dictionary containing data to process, split into different partitions. One of which must
-            be keys with DataSplit.TRAIN.value.
+        data_splits: A dictionary containing data to process, split into different partitions. One of the keys must
+            be DataSplit.TRAIN.value.
         policy: The policy to use to process the NaN values. If none, will no-op.
 
     Returns:
@@ -121,7 +121,7 @@ def process_nans_in_categorical_features(data_splits: ArrayDict, policy: Categor
     # Value that we're looking for to replace
     missing_values = float("nan") if is_float_array else CAT_MISSING_VALUE
 
-    # If there are any NaN values, try to apply a the policy.
+    # If there are any NaN values, try to apply the policy.
     nan_values = [
         np.isnan(data).any() if is_float_array else (data == CAT_MISSING_VALUE).any() for data in data_splits.values()
     ]
@@ -145,8 +145,8 @@ def collapse_rare_categories(data_splits: ArrayDict, min_frequency: float) -> Ar
     NOTE: Arrays must be of type string
 
     Args:
-        data_splits: A dictionary containing data to process, split into different partitions. One of which must
-            be keys with DataSplit.TRAIN.value.
+        data_splits: A dictionary containing data to process, split into different partitions. One of the keys must be
+            DataSplit.TRAIN.value..
         min_frequency: The minimum frequency threshold of the categories to keep. Has to be between 0 and 1.
 
     Returns:
