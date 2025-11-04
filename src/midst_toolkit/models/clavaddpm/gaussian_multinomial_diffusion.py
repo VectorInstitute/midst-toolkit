@@ -1065,7 +1065,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         timestep: Tensor,
         eta: float = 0.0,
         model_kwargs: dict[str, Any] | None = None,
-        cond_fn: ConditioningFunction | None = None,
+        conditioning_function: ConditioningFunction | None = None,
     ) -> Tensor:
         """
         Calculate the Gaussian DDIM step.
@@ -1076,7 +1076,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             timestep: The timestep.
             eta: The DDIM stochasticity coefficient. Optional, default is 0.0.
             model_kwargs: The model kwargs. Optional, default is None.
-            cond_fn: The conditioning function. Optional, default is None.
+            conditioning_function: The conditioning function. Optional, default is None.
 
         Returns:
             The predicted features.
@@ -1091,8 +1091,8 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             model_kwargs=None,
         )
 
-        if cond_fn is not None:
-            out = self.condition_score(cond_fn, out, features, timestep, model_kwargs=model_kwargs)
+        if conditioning_function is not None:
+            out = self.condition_score(conditioning_function, out, features, timestep, model_kwargs=model_kwargs)
 
         eps = self._predict_eps_from_xstart(features, timestep, out["pred_xstart"])
 
@@ -1113,7 +1113,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         out_dict: dict[str, Tensor],
         eta: float = 0.0,
         model_kwargs: Any | None = None,
-        cond_fn: ConditioningFunction | None = None,
+        conditioning_function: ConditioningFunction | None = None,
     ) -> Tensor:
         """
         Produce the Gaussian DDIM sample.
@@ -1124,7 +1124,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             out_dict: The output dictionary.
             eta: The DDIM stochasticity coefficient. Optional, default is 0.0.
             model_kwargs: The model kwargs. Optional, default is None.
-            cond_fn: The conditioning function. Optional, default is None.
+            conditioning_function: The conditioning function. Optional, default is None.
 
         Returns:
             The predicted features.
@@ -1141,7 +1141,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
                 t_array,
                 eta=eta,
                 model_kwargs=model_kwargs,
-                cond_fn=cond_fn,
+                conditioning_function=conditioning_function,
             )
 
         return features
@@ -1253,7 +1253,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         batch_size: int,
         target_dist: Tensor,
         model_kwargs: dict[str, Any] | None = None,
-        cond_fn: ConditioningFunction | None = None,
+        conditioning_function: ConditioningFunction | None = None,
     ) -> tuple[Tensor, dict[str, Tensor]]:
         """
         Sample using DDIM.
@@ -1262,7 +1262,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             batch_size: The batch size.
             target_dist: Class distribution to sample labels from.
             model_kwargs: The model kwargs. Optional, default is None.
-            cond_fn: The conditioning function. Optional, default is None.
+            conditioning_function: The conditioning function. Optional, default is None.
 
         Returns:
             The samples and the output dictionary.
@@ -1292,7 +1292,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
                 z_norm,
                 t,
                 model_kwargs=model_kwargs,
-                cond_fn=cond_fn,
+                conditioning_function=conditioning_function,
             )
             if has_cat:
                 log_z = self.multinomial_ddim_step(model_out_cat, log_z, t)
@@ -1362,7 +1362,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         batch_size: int,
         target_dist: Tensor,
         model_kwargs: dict[str, Any] | None = None,
-        cond_fn: ConditioningFunction | None = None,
+        conditioning_function: ConditioningFunction | None = None,
     ) -> tuple[Tensor, dict[str, Tensor]]:
         """
         Sample using ancestral (DDPM-style) sampling.
@@ -1371,7 +1371,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             batch_size: The batch size.
             target_dist: Class distribution to sample labels from.
             model_kwargs: The model kwargs. Optional, default is None.
-            cond_fn: The conditioning function. Optional, default is None.
+            conditioning_function: The conditioning function. Optional, default is None.
 
         Returns:
             The samples and the output dictionary.
@@ -1401,7 +1401,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
                 z_norm,
                 t,
                 model_kwargs=model_kwargs,
-                conditioning_function=cond_fn,
+                conditioning_function=conditioning_function,
             )["sample"]
             if has_cat:
                 log_z = self.p_sample(model_out_cat, log_z, t)
@@ -1420,7 +1420,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         target_dist: Tensor,
         ddim: bool = False,
         model_kwargs: dict[str, Any] | None = None,
-        cond_fn: ConditioningFunction | None = None,
+        conditioning_function: ConditioningFunction | None = None,
     ) -> tuple[Tensor, Tensor]:
         """
         Generate samples in batches of ``batch_size`` until ``num_samples`` are produced.
@@ -1432,7 +1432,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             target_dist: Class distribution to sample labels from.
             ddim: Whether to use DDIM. Optional, default is False.
             model_kwargs: The model kwargs. Optional, default is None.
-            cond_fn: The conditioning function. Optional, default is None.
+            conditioning_function: The conditioning function. Optional, default is None.
 
         Returns:
             A tuple with the generated features and corresponding targets.
@@ -1447,7 +1447,12 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         all_samples = []
         num_generated = 0
         while num_generated < num_samples:
-            sample, out_dict = sample_fn(batch_size, target_dist, model_kwargs=model_kwargs, cond_fn=cond_fn)
+            sample, out_dict = sample_fn(
+                batch_size,
+                target_dist,
+                model_kwargs=model_kwargs,
+                conditioning_function=conditioning_function,
+            )
             mask_nan = torch.any(sample.isnan(), dim=1)
             sample = sample[~mask_nan]
             out_dict["y"] = out_dict["y"][~mask_nan]

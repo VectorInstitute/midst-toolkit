@@ -20,7 +20,9 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
     Configs,
     IsTargetConditioned,
+    ModelArtifacts,
     ReductionMethod,
+    Relation,
     RelationOrder,
     Tables,
     TargetType,
@@ -50,7 +52,7 @@ def clava_training(
     diffusion_config: Configs,
     classifier_config: Configs | None,
     device: str = "cuda",
-) -> tuple[Tables, dict[tuple[str, str], dict[str, Any]]]:
+) -> tuple[Tables, dict[Relation, dict[str, Any]]]:
     """
     Training function for the ClavaDDPM model.
 
@@ -536,8 +538,8 @@ def train_classifier(
 
 def save_table_info(
     tables: Tables,
-    relation_order: list[tuple[str, str]],
-    models: dict[tuple[str, str], dict[str, Any]],
+    relation_order: RelationOrder,
+    models: dict[Relation, ModelArtifacts],
     save_dir: Path,
 ) -> None:
     """
@@ -601,7 +603,7 @@ def get_df_without_id(df: pd.DataFrame) -> pd.DataFrame:
 def _numerical_forward_backward_log(
     classifier: Classifier,
     optimizer: torch.optim.Optimizer,
-    data_loader: Generator[tuple[Tensor, ...]],
+    data_loader: Generator[list[Tensor]],
     dataset: Dataset,
     schedule_sampler: ScheduleSampler,
     diffusion: GaussianMultinomialDiffusion,
