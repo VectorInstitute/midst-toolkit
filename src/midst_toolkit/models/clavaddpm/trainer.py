@@ -75,6 +75,7 @@ class ClavaDDPMTrainer:
                 - The multi-class loss.
                 - The Gaussian loss.
         """
+        input_tensor = input_tensor.to(self.device)
         outputs = {"target": target}
         for key, value in outputs.items():
             outputs[key] = value.long().to(self.device)
