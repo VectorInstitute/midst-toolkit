@@ -6,11 +6,11 @@ from logging import INFO
 from pathlib import Path
 
 import pandas as pd
-import torch
 
 from midst_toolkit.attacks.ensemble.clavaddpm_fine_tuning import clava_fine_tuning
 from midst_toolkit.common.config import TrainingConfig
 from midst_toolkit.common.logger import log
+from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 from midst_toolkit.models.clavaddpm.data_loaders import load_tables
 from midst_toolkit.models.clavaddpm.enumerations import (
@@ -121,7 +121,7 @@ def train_tabddpm_and_synthesize(
         save_dir,
         diffusion_config=configs.diffusion,
         classifier_config=configs.classifier,
-        device="cuda" if torch.cuda.is_available() else "cpu",
+        device=DEVICE,
     )
     result = TrainingResult(
         save_dir=save_dir,

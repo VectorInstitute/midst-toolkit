@@ -234,9 +234,7 @@ def test_train_single_table(tmp_path: Path):
 
     # Act
     tables, relation_order, _ = load_tables(Path("tests/integration/assets/single_table/"))
-    tables, models = clava_training(
-        tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device=DEVICE
-    )
+    tables, models = clava_training(tables, relation_order, tmp_path, DIFFUSION_CONFIG, device=DEVICE)
 
     # Assert
     with open(tmp_path / "models" / "None_trans_ckpt.pkl", "rb") as f:

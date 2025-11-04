@@ -15,6 +15,7 @@ from torch import Tensor, optim
 from midst_toolkit.common.config import ClassifierConfig, DiffusionConfig
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import KeyValueLogger, log
+from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
 from midst_toolkit.models.clavaddpm.dataset import Dataset, Transformations, make_dataset_from_df
 from midst_toolkit.models.clavaddpm.enumerations import (
@@ -43,8 +44,8 @@ def clava_training(
     relation_order: RelationOrder,
     save_dir: Path,
     diffusion_config: DiffusionConfig,
-    classifier_config: ClassifierConfig | None,
-    device: str = "cuda",
+    classifier_config: ClassifierConfig | None = None,
+    device: torch.device = DEVICE,
 ) -> tuple[Tables, dict[Relation, dict[str, Any]]]:
     """
     Training function for the ClavaDDPM model.
@@ -65,8 +66,9 @@ def clava_training(
             [("table1", "table2"), ("table1", "table3")]
         save_dir: Directory to save the ClavaDDPM models.
         diffusion_config: Configurations for the diffusion model.
-        classifier_config: Configurations for the classifier model. Not required for single table training.
-        device: Device to use for training. Default is `"cuda"`.
+        classifier_config: Configurations for the classifier model. Defaults to None.
+            Required for multi-table training, but not for single-table training.
+        device: Device to use for training. Default is midst_toolkit.common.variables.DEVICE.
 
     Returns:
         A tuple with 2 values:
@@ -117,8 +119,8 @@ def child_training(
     parent_name: str | None,
     child_name: str,
     diffusion_config: DiffusionConfig,
-    classifier_config: ClassifierConfig | None,
-    device: str = "cuda",
+    classifier_config: ClassifierConfig | None = None,
+    device: torch.device = DEVICE,
 ) -> dict[str, Any]:
     """
     Training function for a single child table.
@@ -134,8 +136,9 @@ def child_training(
         parent_name: Name of the parent table, or None if there is no parent.
         child_name: Name of the child table.
         diffusion_config: Configurations for the diffusion model.
-        classifier_config: Configurations for the classifier model. Not required for single table training.
-        device: Device to use for training. Default is `"cuda"`.
+        classifier_config: Configurations for the classifier model. Defaults to None.
+            Required for multi-table training, but not for single-table training.
+        device: Device to use for training. Default is midst_toolkit.common.variables.DEVICE.
 
     Returns:
         Dictionary of the training results.
@@ -198,7 +201,7 @@ def train_model(
     model_params: ModelParameters,
     transformations: Transformations,
     diffusion_config: DiffusionConfig,
-    device: str = "cuda",
+    device: torch.device = DEVICE,
 ) -> dict[str, Any]:
     """
     Training function for the diffusion model.
@@ -209,7 +212,7 @@ def train_model(
         model_params: The model parameters.
         transformations: The transformations to apply to the dataset.
         diffusion_config: Configurations for the diffusion model.
-        device: Device to use for training. Default is `"cuda"`.
+        device: Device to use for training. Default is midst_toolkit.common.variables.DEVICE.
 
     Returns:
         Dictionary of the training results. It will contain the following keys:
@@ -250,7 +253,7 @@ def train_model(
         gaussian_loss_type=diffusion_config.gaussian_loss_type,
         num_timesteps=diffusion_config.num_timesteps,
         scheduler_type=diffusion_config.scheduler,
-        device=torch.device(device),
+        device=device,
     )
     diffusion.to(device)
     diffusion.train()
@@ -294,7 +297,7 @@ def train_classifier(
     transformations: Transformations,
     diffusion_config: DiffusionConfig,
     classifier_config: ClassifierConfig,
-    device: str = "cuda",
+    device: torch.device = DEVICE,
     cluster_col: str = "cluster",
     classifier_evaluation_interval: int = 5,
     logger_interval: int = 10,
@@ -309,7 +312,7 @@ def train_classifier(
         transformations: The transformations to apply to the dataset.
         diffusion_config: Configurations for the diffusion model.
         classifier_config: Configurations for the classifier model.
-        device: Device to use for training. Default is `"cuda"`.
+        device: Device to use for training. Default is midst_toolkit.common.variables.DEVICE.
         cluster_col: Name of the cluster column. Default is `"cluster"`.
         classifier_evaluation_interval: The number of classifier training steps to wait
             until the next evaluation of the classifier. Default is 5.
@@ -382,7 +385,7 @@ def train_classifier(
         gaussian_loss_type=diffusion_config.gaussian_loss_type,
         num_timesteps=diffusion_config.num_timesteps,
         scheduler_type=diffusion_config.scheduler,
-        device=torch.device(device),
+        device=device,
     )
     diffusion_model.to(device)
 
@@ -519,7 +522,7 @@ def _numerical_forward_backward_log(
     diffusion: GaussianMultinomialDiffusion,
     prefix: str = DataSplit.TRAIN.value,
     remove_first_col: bool = False,
-    device: str = "cuda",  # TODO: type should be changed to torch.device.
+    device: torch.device = DEVICE,
     key_value_logger: KeyValueLogger | None = None,
 ) -> None:
     """
@@ -534,7 +537,7 @@ def _numerical_forward_backward_log(
         diffusion: The diffusion object.
         prefix: The prefix for the loss. Defaults to DataSplit.TRAIN.value.
         remove_first_col: Whether to remove the first column of the batch. Defaults to False.
-        device: The device to use. Defaults to "cuda".
+        device: The device to use. Defaults to midst_toolkit.common.variables.DEVICE.
         key_value_logger: The key-value logger to log the losses. If None, the losses are not logged.
     """
     batch, labels = next(data_loader)

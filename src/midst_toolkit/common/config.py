@@ -33,7 +33,7 @@ class DiffusionConfig(BaseModel):
     dropout: float
     num_timesteps: int
     model_type: ModelType
-    iterations: int
+    iterations: int  # This will determine the amount of steps of the diffusion model.
     batch_size: int
     lr: float
     gaussian_loss_type: GaussianLossType
@@ -56,7 +56,7 @@ class ClassifierConfig(BaseModel):
     lr: float
     dim_t: int
     batch_size: int
-    iterations: int
+    iterations: int  # This will determine the amount of steps of the classifier model.
     data_split_ratios: list[float] = [0.7, 0.2, 0.1]
 
     @model_validator(mode="after")

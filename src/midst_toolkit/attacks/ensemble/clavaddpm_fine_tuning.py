@@ -113,7 +113,7 @@ def fine_tune_model(
         lr=lr,
         weight_decay=weight_decay,
         steps=steps,
-        device=str(device),
+        device=device,
     )
     trainer.train()
 
@@ -213,7 +213,7 @@ def fine_tune_classifier(
         gaussian_loss_type=gaussian_loss_type,
         num_timesteps=num_timesteps,
         scheduler_type=scheduler_type,
-        device=torch.device(device),
+        device=device,
     )
     diffusion.to(device)
 
@@ -231,7 +231,7 @@ def fine_tune_classifier(
             schedule_sampler,
             diffusion,
             prefix=DataSplit.TRAIN.value,
-            device=str(device),
+            device=device,
             key_value_logger=key_value_logger,
         )
         # Dump the contents of the key value logger before returning.
