@@ -233,7 +233,7 @@ def _pair_clustering(
 
     cluster_labels = _get_cluster_labels(cluster_data, clustering_method, num_clusters)
 
-    child_group_data = get_group_data_by_id(sorted_child_data, foreign_key_index)
+    child_group_data = group_data_by_id(sorted_child_data, foreign_key_index, sort_by_column_value=True)
     child_group_lengths = np.array([len(group) for group in child_group_data], dtype=int)
 
     if clustering_method == ClusteringMethod.VARIATIONAL:
@@ -682,8 +682,8 @@ def group_data_by_group_id_as_dict(
         column_index_to_group_by: List of column indices by which to group the data.
 
     Returns:
-        Dictionary of group data where the keys are are values from the column to group by and the values
-        are a list of full ROWS from the ``data_to_be_grouped`` where the specified columns are shared values
+        Dictionary of group data where the keys are values from the column to group by and the values
+        are a list of full ROWS from the ``data_to_be_grouped`` where the specified column value is shared.
     """
     grouped_data_dict: defaultdict[int, list[np.ndarray]] = defaultdict(list)
     num_rows = len(data_to_be_grouped)
@@ -694,7 +694,9 @@ def group_data_by_group_id_as_dict(
     return grouped_data_dict
 
 
-def get_group_data_by_id(data_to_be_grouped: np.ndarray, column_index_to_group_by: int) -> np.ndarray:
+def group_data_by_id(
+    data_to_be_grouped: np.ndarray, column_index_to_group_by: int, sort_by_column_value: bool = False
+) -> np.ndarray:
     """
     Group rows in a numpy array that share entries in the column specified by ``column_index_to_group_by``.
     Returns an array of arrays where each sub-array contains full rows sharing identical values in the grouping column.
@@ -702,12 +704,18 @@ def get_group_data_by_id(data_to_be_grouped: np.ndarray, column_index_to_group_b
     Args:
         data_to_be_grouped: Numpy array of the data to be grouped.
         column_index_to_group_by: List of column indices by which to group the data.
+        sort_by_column_value: Whether or not the returned groups are sorted by the entries in the column of
+            ``column_index_to_group_by``. Defaults to False.
 
     Returns:
-        Numpy array of the data ordered by group id.
+        Numpy array of the data grouped by entries in column with index ``column_index_to_group_by``.
     """
     grouped_data_by_group_id = group_data_by_group_id_as_dict(data_to_be_grouped, column_index_to_group_by)
-    grouped_data_list = [np.array(group_data) for group_data in grouped_data_by_group_id.values()]
+    if sort_by_column_value:
+        grouped_data = [(key, np.array(group_data)) for key, group_data in grouped_data_by_group_id.items()]
+        grouped_data_list = [data for _, data in sorted(grouped_data)]
+    else:
+        grouped_data_list = [np.array(group_data) for group_data in grouped_data_by_group_id.values()]
     return np.array(grouped_data_list, dtype=object)
 
 
