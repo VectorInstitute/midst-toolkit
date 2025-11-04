@@ -4,6 +4,7 @@ provided resources and data.
 """
 from logging import INFO
 from pathlib import Path
+import json
 
 import hydra
 from omegaconf import DictConfig
@@ -48,30 +49,44 @@ def attribute_prediction_train_and_extract(config: DictConfig) -> None:
                 entry.name for entry in current_path.iterdir() if entry.is_dir()
             ]
             for model_folder in model_folders:
-                # Load the "trans_synthetic.csv" file as a dataframe
-                input_data_path = current_path / model_folder
+                # Load the data files as dataframes
+                input_data_path = Path(current_path / model_folder)
 
-                df_syntehtic_data = load_dataframe(input_data_path, "trans_synthetic.csv")
+                df_synthetic_data = load_dataframe(input_data_path, "trans_synthetic.csv")
                 df_challenge_data = load_dataframe(input_data_path, "challenge_with_id.csv")
                 df_challenge_labels = load_dataframe(input_data_path, "challenge_label.csv")
+
+                # Load column types specific to the competition dataset
+                with open(config.data_paths.data_types_file_path, "r") as f:
+                    column_types = json.load(f)
                 
+                # Drop columns in df_syntehtic_data that end with '_id'
+                df_synthetic_data = df_synthetic_data.drop(columns=[col for col in df_synthetic_data.columns if col.endswith('_id')])
+                df_challenge_data = df_challenge_data.drop(columns=[col for col in df_challenge_data.columns if col.endswith('_id')])
+
                 # Run feature extraction
                 df_extracted_features = run_feature_extraction.main(
-                    synthetic_data=df_syntehtic_data,
+                    synthetic_data=df_synthetic_data,
                     challenge_data=df_challenge_data,
                     challenge_labels=df_challenge_labels,
+                    column_types=column_types,
+                    random_seed=config.random_seed,
                 )
 
                 final_output_dir = Path(
-                    output_features_path / f"{model_name}_black_box" / mode / 
-                    f"{model_folder}"
+                    output_features_path / f"{model_name}_black_box"
                 )
+
                 final_output_dir.mkdir(parents=True, exist_ok=True)
+
+                # Extract the number at the end of model_folder
+                model_folder_number = int(model_folder.split('_')[-1])
+                file_name = f"attribute_prediction_features_{model_folder_number}.csv"
 
                 save_dataframe(
                     df=df_extracted_features,
                     file_path=final_output_dir,
-                    file_name="attribute_prediction_features.csv",
+                    file_name=file_name
                 )
 
 
