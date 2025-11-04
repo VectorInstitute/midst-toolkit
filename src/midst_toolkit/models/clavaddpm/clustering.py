@@ -679,7 +679,7 @@ def group_data_by_group_id_as_dict(
 
     Args:
         data_to_be_grouped: Numpy array of the data to be grouped.
-        column_index_to_group_by: List of column indices by which to group the data.
+        column_index_to_group_by: Column index by which the data should be grouped.
 
     Returns:
         Dictionary of group data where the keys are values from the column to group by and the values
@@ -698,17 +698,17 @@ def group_data_by_id(
     data_to_be_grouped: np.ndarray, column_index_to_group_by: int, sort_by_column_value: bool = False
 ) -> np.ndarray:
     """
-    Group rows in a numpy array that share entries in the column specified by ``column_index_to_group_by``.
+    Group rows in a numpy array that share values in the column specified by ``column_index_to_group_by``.
     Returns an array of arrays where each sub-array contains full rows sharing identical values in the grouping column.
 
     Args:
         data_to_be_grouped: Numpy array of the data to be grouped.
-        column_index_to_group_by: List of column indices by which to group the data.
-        sort_by_column_value: Whether or not the returned groups are sorted by the entries in the column of
+        column_index_to_group_by: Column index by which the data should be grouped.
+        sort_by_column_value: Whether or not the returned groups are sorted by the values in the column the index
             ``column_index_to_group_by``. Defaults to False.
 
     Returns:
-        Numpy array of the data grouped by entries in column with index ``column_index_to_group_by``.
+        Numpy array of the data grouped by values in the column with index ``column_index_to_group_by``.
     """
     grouped_data_by_group_id = group_data_by_group_id_as_dict(data_to_be_grouped, column_index_to_group_by)
     if sort_by_column_value:
