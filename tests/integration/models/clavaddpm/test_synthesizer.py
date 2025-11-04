@@ -9,7 +9,7 @@ from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
-from midst_toolkit.models.clavaddpm.data_loaders import load_multi_table
+from midst_toolkit.models.clavaddpm.data_loaders import load_tables
 from midst_toolkit.models.clavaddpm.synthesizer import clava_synthesizing
 from midst_toolkit.models.clavaddpm.train import clava_training
 from tests.integration.utils import is_running_on_ci_environment
@@ -69,7 +69,7 @@ def test_clava_synthesize_multi_table(tmp_path: Path):
     set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
     # Act
-    tables, relation_order, _ = load_multi_table(Path("tests/integration/assets/multi_table/"))
+    tables, relation_order, _ = load_tables(Path("tests/integration/assets/multi_table/"))
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
     models = clava_training(tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device=DEVICE)
 

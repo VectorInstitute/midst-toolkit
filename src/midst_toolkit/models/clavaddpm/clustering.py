@@ -2,7 +2,7 @@
 
 import os
 import pickle
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from logging import INFO, WARNING
 from pathlib import Path
 from typing import Any
@@ -139,11 +139,8 @@ def _run_clustering(
                 num_clusters = configs["num_clusters"][child]
             else:
                 num_clusters = configs["num_clusters"]
-            (
-                parent_df_with_cluster,
-                child_df_with_cluster,
-                group_lengths_prob_dicts,
-            ) = _pair_clustering(
+
+            parent_df_with_cluster, child_df_with_cluster, group_lengths_prob_dicts = _pair_clustering(
                 tables,
                 child,
                 parent,
@@ -233,7 +230,7 @@ def _pair_clustering(
 
     cluster_labels = _get_cluster_labels(cluster_data, clustering_method, num_clusters)
 
-    child_group_data = _get_group_data(sorted_child_data, [foreign_key_index])
+    child_group_data = _get_group_data(sorted_child_data, foreign_key_index)
     child_group_lengths = np.array([len(group) for group in child_group_data], dtype=int)
 
     if clustering_method == ClusteringMethod.VARIATIONAL:
@@ -318,16 +315,17 @@ def _merge_parent_data_with_child_data(
     Returns:
         Numpy array of the parent data merged for each group of the child group data.
     """
-    child_group_data_dict = _get_group_data_dict(child_data, [foreign_key_index])
+    child_group_data_dict = _group_data_by_group_id(child_data, foreign_key_index)
 
     group_lengths = []
     unique_group_ids = parent_data[:, parent_primary_key_index]
-    for group_id in unique_group_ids:
-        group_id_tuple = (group_id,)
-        if group_id_tuple not in child_group_data_dict:
+    for gid in unique_group_ids:
+        group_id = _parse_numpy_number_as_int(gid)
+        if group_id not in child_group_data_dict:
             group_lengths.append(0)
         else:
-            group_lengths.append(len(child_group_data_dict[group_id_tuple]))
+            group_lengths.append(len(child_group_data_dict[group_id]))
+
     group_lengths_np = np.array(group_lengths, dtype=int)
     merged_parent_data = np.repeat(parent_data, group_lengths_np, axis=0)
     assert (merged_parent_data[:, parent_primary_key_index] == child_data[:, foreign_key_index]).all()
@@ -661,70 +659,72 @@ def _get_categorical_and_numerical_columns(
     return numerical_columns, categorical_columns
 
 
-def _get_group_data_dict(
+def _group_data_by_group_id(
     np_data: np.ndarray,
-    group_id_attrs: list[int] | None = None,
-) -> dict[tuple[Any, ...], list[np.ndarray]]:
+    group_id_index: int,
+) -> dict[int, list[np.ndarray]]:
     """
-    Group rows in a numpy array by their values in specified grouping columns into a dictionary.
-    Returns a dict where keys are tuples of grouping values and values are lists of corresponding rows.
+    Collects the data in each group by group id and returns it as a dictionary.
 
     Args:
         np_data: Numpy array of the data.
-        group_id_attrs: List of attributes to group by.
+        group_id_index: The index of the data that contains the group id.
 
     Returns:
-        Dictionary of group data.
+        Dictionary of group data by group id.
     """
-    if group_id_attrs is None:
-        group_id_attrs = [0]
+    group_data_by_group_id = OrderedDict[int, list[np.ndarray]]()
 
-    group_data_dict: dict[tuple[Any, ...], list[np.ndarray]] = {}
-    data_len = len(np_data)
-    for i in range(data_len):
-        row_id = tuple(np_data[i, group_id_attrs])
-        if row_id not in group_data_dict:
-            group_data_dict[row_id] = []
-        group_data_dict[row_id].append(np_data[i])
+    for i in range(len(np_data)):
+        group_id = _parse_numpy_number_as_int(np_data[i, group_id_index])
 
-    return group_data_dict
+        if group_id not in group_data_by_group_id:
+            group_data_by_group_id[group_id] = []
+
+        group_data_by_group_id[group_id].append(np_data[i])
+
+    return group_data_by_group_id
 
 
-def _get_group_data(
-    np_data: np.ndarray,
-    group_id_attrs: list[int] | None = None,
-) -> np.ndarray:
+def _get_group_data(np_data: np.ndarray, group_id_index: int) -> np.ndarray:
     """
-    Group consecutive rows in a numpy array based on specified grouping attributes.
-    Returns an array of arrays where each sub-array contains rows with identical
-    values in the grouping columns.
+    Collects the data in each group by group id and returns it as a numpy array.
 
     Args:
         np_data: Numpy array of the data.
-        group_id_attrs: List of attributes to group by.
+        group_id_index: The index of the data that contains the group id.
 
     Returns:
-        Numpy array of the group data.
+        Numpy array of the data ordered by group id.
     """
-    if group_id_attrs is None:
-        group_id_attrs = [0]
-
-    group_data_list = []
-    data_len = len(np_data)
-    i = 0
-    while i < data_len:
-        group = []
-        row_id = np_data[i, group_id_attrs]
-
-        # TODO refactor this condition to be more readable/understandable.
-        while (np_data[i, group_id_attrs] == row_id).all():
-            group.append(np_data[i])
-            i += 1
-            if i >= data_len:
-                break
-        group_data_list.append(np.array(group))
-
+    group_data_by_group_id = _group_data_by_group_id(np_data, group_id_index)
+    group_data_list = [np.array(group_data) for group_data in group_data_by_group_id.values()]
     return np.array(group_data_list, dtype=object)
+
+
+def _parse_numpy_number_as_int(number: np.number) -> int:
+    """
+    Parse a numpy number into an integer. If the number is a float, will check if
+    it is an integer (i.e. has no decimal part) before converting it to an integer.
+
+    Will fail if the number is not an integer.
+
+    Args:
+        number: A numpy number.
+
+    Returns:
+        The number as an integer.
+    """
+    item = number.item()
+
+    if isinstance(item, int):
+        return item
+
+    if isinstance(item, float):
+        assert item.is_integer(), f"Number is not an integer: {item}"
+        return int(item)
+
+    raise ValueError(f"Number is not a number: {item}")
 
 
 # TODO: Refactor the functions below to be a single one with a "method" parameter.

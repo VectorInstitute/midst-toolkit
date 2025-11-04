@@ -4,7 +4,6 @@ import os
 from dataclasses import dataclass
 from logging import INFO
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 import torch
@@ -12,10 +11,12 @@ import torch
 from midst_toolkit.attacks.ensemble.clavaddpm_fine_tuning import clava_fine_tuning
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
-from midst_toolkit.models.clavaddpm.data_loaders import load_multi_table
+from midst_toolkit.models.clavaddpm.data_loaders import load_tables
 from midst_toolkit.models.clavaddpm.enumerations import (
     Configs,
     GroupLengthsProbDicts,
+    ModelArtifacts,
+    Relation,
     RelationOrder,
     Tables,
 )
@@ -30,7 +31,7 @@ class TrainingResult:
     tables: Tables
     relation_order: RelationOrder
     all_group_lengths_probabilities: GroupLengthsProbDicts
-    models: dict[tuple[str, str], dict[str, Any]]
+    models: dict[Relation, ModelArtifacts]
     synthetic_data: pd.DataFrame | None = None
 
 
@@ -108,9 +109,7 @@ def train_tabddpm_and_synthesize(
               otherwise, None.
     """
     # Load tables
-    tables, relation_order, dataset_meta = load_multi_table(
-        Path(configs["general"]["data_dir"]), train_data={"trans": train_set}
-    )
+    tables, relation_order, _ = load_tables(Path(configs["general"]["data_dir"]), train_data={"trans": train_set})
 
     # Clustering on the multi-table dataset
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, save_dir, configs)
@@ -141,7 +140,7 @@ def train_tabddpm_and_synthesize(
         # of the training data size.
         # Sample scale is later multiplied by the size of training data (no id) to determine
         # the size of synthetic data.
-        cleaned_tables, synthesizing_time_spent, matching_time_spent = clava_synthesizing(
+        cleaned_tables, _, _ = clava_synthesizing(
             tables,
             relation_order,
             save_dir,
@@ -157,7 +156,7 @@ def train_tabddpm_and_synthesize(
 
 
 def fine_tune_tabddpm_and_synthesize(
-    trained_models: dict[tuple[str, str], dict[str, Any]],
+    trained_models: dict[Relation, ModelArtifacts],
     fine_tune_set: pd.DataFrame,
     configs: Configs,
     save_dir: Path,
@@ -195,7 +194,7 @@ def fine_tune_tabddpm_and_synthesize(
               otherwise, None.
     """
     # Load tables
-    new_tables, relation_order, dataset_meta = load_multi_table(
+    new_tables, relation_order, _ = load_tables(
         Path(configs["general"]["data_dir"]),
         train_data={"trans": fine_tune_set},
     )
@@ -230,7 +229,7 @@ def fine_tune_tabddpm_and_synthesize(
         # Ensemble Attack's default sample_scale is ``20000 / len(tables["trans"]["df"])`` to generate 20,000 samples
         # regardless of the train data size.
         # Sample scale is later multiplied by the size of training data to determine the size of synthetic data.
-        cleaned_tables, synthesizing_time_spent, matching_time_spent = clava_synthesizing(
+        cleaned_tables, _, _ = clava_synthesizing(
             new_tables,
             relation_order,
             save_dir,
