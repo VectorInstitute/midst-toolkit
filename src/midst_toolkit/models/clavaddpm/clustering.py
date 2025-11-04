@@ -139,11 +139,8 @@ def _run_clustering(
                 num_clusters = configs["num_clusters"][child]
             else:
                 num_clusters = configs["num_clusters"]
-            (
-                parent_df_with_cluster,
-                child_df_with_cluster,
-                group_lengths_prob_dicts,
-            ) = _pair_clustering(
+
+            parent_df_with_cluster, child_df_with_cluster, group_lengths_prob_dicts = _pair_clustering(
                 tables,
                 child,
                 parent,
@@ -236,7 +233,7 @@ def _pair_clustering(
 
     cluster_labels = _get_cluster_labels(cluster_data, clustering_method, num_clusters)
 
-    child_group_data = _get_group_data(sorted_child_data, [foreign_key_index])
+    child_group_data = get_group_data_by_id(sorted_child_data, foreign_key_index)
     child_group_lengths = np.array([len(group) for group in child_group_data], dtype=int)
 
     if clustering_method == ClusteringMethod.VARIATIONAL:
@@ -321,16 +318,17 @@ def _merge_parent_data_with_child_data(
     Returns:
         Numpy array of the parent data merged for each group of the child group data.
     """
-    child_group_data_dict = _get_group_data_dict(child_data, [foreign_key_index])
+    child_group_data_dict = group_data_by_group_id_as_dict(child_data, foreign_key_index)
 
     group_lengths = []
     unique_group_ids = parent_data[:, parent_primary_key_index]
-    for group_id in unique_group_ids:
-        group_id_tuple = (group_id,)
-        if group_id_tuple not in child_group_data_dict:
+    for gid in unique_group_ids:
+        group_id = _parse_numpy_number_as_int(gid)
+        if group_id not in child_group_data_dict:
             group_lengths.append(0)
         else:
-            group_lengths.append(len(child_group_data_dict[group_id_tuple]))
+            group_lengths.append(len(child_group_data_dict[group_id]))
+
     group_lengths_np = np.array(group_lengths, dtype=int)
     merged_parent_data = np.repeat(parent_data, group_lengths_np, axis=0)
     assert (merged_parent_data[:, parent_primary_key_index] == child_data[:, foreign_key_index]).all()
@@ -671,90 +669,71 @@ def _get_categorical_and_numerical_columns(
     return numerical_columns, categorical_columns
 
 
-def _get_group_data_dict(
-    data_to_be_grouped: np.ndarray,
-    column_indices_to_group_by: list[int] | None = None,
-) -> dict[tuple[Any, ...], list[np.ndarray]]:
+def group_data_by_group_id_as_dict(
+    data_to_be_grouped: np.ndarray, column_index_to_group_by: int
+) -> dict[int, list[np.ndarray]]:
     """
-    Group rows in a numpy array by their values in specified grouping columns into a dictionary.
-    Returns a dict where keys are tuples of grouping values and values are lists of corresponding rows (groups).
+    Group rows in a numpy array by their values in the column specified by ``column_index_to_group_by`` into a
+    dictionary. Returns a dict where keys are values from the column to group by and values are lists of
+    corresponding rows (groups).
 
     Args:
         data_to_be_grouped: Numpy array of the data to be grouped.
-        column_indices_to_group_by: List of column indices by which to group the data.
+        column_index_to_group_by: List of column indices by which to group the data.
 
     Returns:
-        Dictionary of group data where the keys are tuples of unique entries in the specified columns and the values
-        are a list of ROWS from the ``data_to_be_grouped`` where the specified columns are shared values
+        Dictionary of group data where the keys are are values from the column to group by and the values
+        are a list of full ROWS from the ``data_to_be_grouped`` where the specified columns are shared values
     """
-    # If no columns to group by are given, we use the first column
-    if column_indices_to_group_by is None:
-        column_indices_to_group_by = [0]
-
-    grouped_data_dict: defaultdict[tuple[str, str], list[np.ndarray]] = defaultdict(list)
+    grouped_data_dict: defaultdict[int, list[np.ndarray]] = defaultdict(list)
     num_rows = len(data_to_be_grouped)
     for row in range(num_rows):
-        row_id = tuple(data_to_be_grouped[row, column_indices_to_group_by])
+        row_id = _parse_numpy_number_as_int(data_to_be_grouped[row, column_index_to_group_by])
         grouped_data_dict[row_id].append(data_to_be_grouped[row])
 
     return grouped_data_dict
 
 
-def _get_group_data(
-    data_to_be_grouped: np.ndarray,
-    column_indices_to_group_by: list[int] | None = None,
-) -> np.ndarray:
+def get_group_data_by_id(data_to_be_grouped: np.ndarray, column_index_to_group_by: int) -> np.ndarray:
     """
-    Group CONSECUTIVE rows in a numpy array that share entries across the columns specified in
-    ``column_indices_to_group_by``. Returns an array of arrays where each sub-array contains full rows sharing
-    identical values in the grouping columns.
+    Group rows in a numpy array that share entries in the column specified by ``column_index_to_group_by``.
+    Returns an array of arrays where each sub-array contains full rows sharing identical values in the grouping column.
 
     Args:
         data_to_be_grouped: Numpy array of the data to be grouped.
-        column_indices_to_group_by: List of column indices by which to group the data.
+        column_index_to_group_by: List of column indices by which to group the data.
 
     Returns:
-        Numpy array of the group data.
+        Numpy array of the data ordered by group id.
     """
-    # If no columns to group by are given, we use the first column
-    if column_indices_to_group_by is None:
-        column_indices_to_group_by = [0]
-
-    grouped_data_list = []
-    number_of_rows = len(data_to_be_grouped)
-    row_index = 0
-    while row_index < number_of_rows:
-        group = []
-        row_id = data_to_be_grouped[row_index, column_indices_to_group_by]
-
-        while row_index < number_of_rows and _current_id_matches_reference_id(
-            data_to_be_grouped, row_index, column_indices_to_group_by, row_id
-        ):
-            # If this is a consecutive row with the same ID as defined by column_indices_to_group_by, add the full
-            # row to the grouping.
-            group.append(data_to_be_grouped[row_index])
-            row_index += 1
-        grouped_data_list.append(np.array(group))
+    grouped_data_by_group_id = group_data_by_group_id_as_dict(data_to_be_grouped, column_index_to_group_by)
+    grouped_data_list = [np.array(group_data) for group_data in grouped_data_by_group_id.values()]
     return np.array(grouped_data_list, dtype=object)
 
 
-def _current_id_matches_reference_id(
-    data: np.ndarray, row_index: int, column_indices_to_group_by: list[int], reference_id: np.ndarray
-) -> bool:
+def _parse_numpy_number_as_int(number: np.number) -> int:
     """
-    Determines whether the ``reference_id`` matches the id constructed by extracting the values from data at the
-    provided column indices in ``column_indices_to_group_by`` and row index in ``row_index``.
+    Parse a numpy number into an integer. If the number is a float, will check if
+    it is an integer (i.e. has no decimal part) before converting it to an integer.
+
+    Will fail if the number is not an integer.
 
     Args:
-        data: Data from which to extract ID to be compared to ``reference_id``
-        row_index: Row from which to extract the data.
-        column_indices_to_group_by: collection of column indices from which to extract data
-        reference_id: reference id to be compared to.
+        number: A numpy number.
 
     Returns:
-        Boolean as to whether the extracted data matches the reference ID
+        The number as an integer.
     """
-    return (data[row_index, column_indices_to_group_by] == reference_id).all()
+    item = number.item()
+
+    if isinstance(item, int):
+        return item
+
+    if isinstance(item, float):
+        assert item.is_integer(), f"Number is not an integer: {item}"
+        return int(item)
+
+    raise ValueError(f"Number is not a number: {item}")
 
 
 def _quantile_normalize_sklearn(matrix: np.ndarray) -> np.ndarray:
