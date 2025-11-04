@@ -23,6 +23,7 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     GroupLengthProbDict,
     GroupLengthsProbDicts,
     IsTargetConditioned,
+    ModelArtifacts,
     Relation,
     RelationOrder,
     Tables,
@@ -712,7 +713,7 @@ def clava_synthesizing(
     relation_order: RelationOrder,
     save_dir: Path,
     all_group_lengths_prob_dicts: GroupLengthsProbDicts,
-    models: dict[Relation, dict[str, Any]],
+    models: dict[Relation, ModelArtifacts],
     general_config: GeneralConfig,
     sampling_config: SamplingConfig,
     matching_config: MatchingConfig,
@@ -817,7 +818,7 @@ def clava_synthesizing(
 def _synthesize_single_table(
     table_name: str,
     data: pd.DataFrame,
-    training_results: dict[str, Any],
+    training_results: ModelArtifacts,
     sample_scale: float,
     sample_batch_size: int,
 ) -> tuple[pd.DataFrame, list[int]]:
@@ -869,9 +870,9 @@ def _synthesize_single_table(
 def _synthesize_multi_table(
     parent_name: str,
     child_name: str,
-    parent_training_results: dict[str, Any],
-    child_training_results: dict[str, Any],
-    parent_synthetic_data: dict[str, Any],
+    parent_training_results: ModelArtifacts,
+    child_training_results: ModelArtifacts,
+    parent_synthetic_data: ModelArtifacts,
     data: pd.DataFrame,
     group_length_prob_dict: GroupLengthProbDict,
     tables: Tables,

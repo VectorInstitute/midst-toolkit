@@ -15,7 +15,7 @@ from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
-from midst_toolkit.models.clavaddpm.data_loaders import load_multi_table
+from midst_toolkit.models.clavaddpm.data_loaders import load_tables
 from midst_toolkit.models.clavaddpm.enumerations import ClusteringMethod
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianLossType, SchedulerType
 from midst_toolkit.models.clavaddpm.model import Classifier, ModelType
@@ -55,7 +55,7 @@ CLASSIFIER_CONFIG = ClassifierConfig(
 
 @pytest.mark.integration_test()
 def test_load_single_table():
-    tables, relation_order, dataset_meta = load_multi_table(Path("tests/integration/assets/single_table/"))
+    tables, relation_order, dataset_meta = load_tables(Path("tests/integration/assets/single_table/"))
 
     assert list(tables.keys()) == ["trans"]
 
@@ -97,18 +97,6 @@ def test_load_single_table():
             "categorizes": [0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
         },
         "train_num": 99,
-        "idx_mapping": {0: 0, 1: 4, 2: 5, 3: 1, 4: 2, 5: 6, 6: 7, 7: 3},
-        "inverse_idx_mapping": {0: 0, 1: 3, 2: 4, 3: 7, 4: 1, 5: 2, 6: 5, 7: 6},
-        "idx_name_mapping": {
-            0: "trans_date",
-            1: "trans_type",
-            2: "operation",
-            3: "amount",
-            4: "balance",
-            5: "k_symbol",
-            6: "bank",
-            7: "account",
-        },
         "metadata": {
             "columns": {
                 0: {"sdtype": "numerical", "computer_representation": "Float"},
@@ -129,8 +117,8 @@ def test_load_single_table():
 
 
 @pytest.mark.integration_test()
-def test_load_multi_table():
-    tables, relation_order, dataset_meta = load_multi_table(Path("tests/integration/assets/multi_table/"))
+def test_load_tables():
+    tables, relation_order, dataset_meta = load_tables(Path("tests/integration/assets/multi_table/"))
 
     assert list(tables.keys()) == ["account", "trans"]
 
@@ -157,9 +145,6 @@ def test_load_multi_table():
             "categorizes": [0, 1],
         },
         "train_num": 9,
-        "idx_mapping": {0: 1, 1: 0},
-        "inverse_idx_mapping": {1: 0, 0: 1},
-        "idx_name_mapping": {0: "frequency", 1: "account_date"},
         "metadata": {
             "columns": {
                 0: {"sdtype": "categorical"},
@@ -220,18 +205,6 @@ def test_load_multi_table():
             "categorizes": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
         },
         "train_num": 143,
-        "idx_mapping": {0: 0, 1: 4, 2: 5, 3: 1, 4: 2, 5: 6, 6: 7, 7: 3},
-        "inverse_idx_mapping": {0: 0, 1: 3, 2: 4, 3: 7, 4: 1, 5: 2, 6: 5, 7: 6},
-        "idx_name_mapping": {
-            0: "trans_date",
-            1: "trans_type",
-            2: "operation",
-            3: "amount",
-            4: "balance",
-            5: "k_symbol",
-            6: "bank",
-            7: "account",
-        },
         "metadata": {
             "columns": {
                 0: {"sdtype": "numerical", "computer_representation": "Float"},
@@ -260,7 +233,7 @@ def test_train_single_table(tmp_path: Path):
     set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
     # Act
-    tables, relation_order, _ = load_multi_table(Path("tests/integration/assets/single_table/"))
+    tables, relation_order, _ = load_tables(Path("tests/integration/assets/single_table/"))
     tables, models = clava_training(
         tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device=DEVICE
     )
@@ -319,7 +292,7 @@ def test_train_multi_table(tmp_path: Path):
     set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
     # Act
-    tables, relation_order, _ = load_multi_table(Path("tests/integration/assets/multi_table/"))
+    tables, relation_order, _ = load_tables(Path("tests/integration/assets/multi_table/"))
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
     models = clava_training(tables, relation_order, tmp_path, DIFFUSION_CONFIG, CLASSIFIER_CONFIG, device=DEVICE)
 
@@ -401,7 +374,7 @@ def test_clustering_reload(tmp_path: Path):
     set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
     # Act
-    tables, relation_order, _ = load_multi_table(Path("tests/integration/assets/multi_table/"))
+    tables, relation_order, _ = load_tables(Path("tests/integration/assets/multi_table/"))
     tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, tmp_path, CLUSTERING_CONFIG)
 
     # Assert
@@ -449,7 +422,7 @@ def test_clustering_reload(tmp_path: Path):
 
 
 def get_conditioning_function_for_diffusion(classifier: Classifier, classifier_scale: float) -> Callable:
-    def cond_fn(
+    def conditioning_function(
         x: torch.Tensor,
         t: torch.Tensor,
         y: torch.Tensor | None = None,
@@ -466,4 +439,4 @@ def get_conditioning_function_for_diffusion(classifier: Classifier, classifier_s
             selected = log_probs[range(len(logits)), y.view(-1)]
             return torch.autograd.grad(selected.sum(), x_in)[0] * classifier_scale
 
-    return cond_fn
+    return conditioning_function
