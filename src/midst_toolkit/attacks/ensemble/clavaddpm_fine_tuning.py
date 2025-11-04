@@ -22,6 +22,8 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
     Configs,
     IsTargetConditioned,
+    ModelArtifacts,
+    Relation,
     RelationOrder,
     Tables,
     TargetType,
@@ -237,7 +239,7 @@ def fine_tune_classifier(
 
 
 def child_fine_tuning(
-    pre_trained_model: dict[str, Any],
+    pre_trained_model: ModelArtifacts,
     child_df_with_cluster: pd.DataFrame,
     child_domain_dict: dict[str, Any],
     parent_name: str | None,
@@ -247,7 +249,7 @@ def child_fine_tuning(
     fine_tuning_diffusion_iterations: int,
     fine_tuning_classifier_iterations: int,
     device: torch.device = DEVICE,
-) -> dict[str, Any]:
+) -> ModelArtifacts:
     """
     Fine-tune a child model based on the parent model.
 
@@ -333,14 +335,14 @@ def child_fine_tuning(
 
 
 def clava_fine_tuning(
-    trained_models: dict[tuple[str, str], dict[str, Any]],
+    trained_models: dict[Relation, ModelArtifacts],
     new_tables: Tables,
     relation_order: RelationOrder,
     diffusion_config: Configs,
     classifier_config: Configs,
     fine_tuning_diffusion_iterations: int,
     fine_tuning_classifier_iterations: int,
-) -> dict[tuple[str, str], dict[str, Any]]:
+) -> dict[Relation, ModelArtifacts]:
     """
     Fine-tune the trained models on new tables data.
 
