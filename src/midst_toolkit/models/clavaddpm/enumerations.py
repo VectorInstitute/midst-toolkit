@@ -12,6 +12,7 @@ RelationOrder = list[Relation]
 GroupLengthProbDict = dict[int, dict[int, float]]
 GroupLengthsProbDicts = dict[Relation, GroupLengthProbDict]
 ArrayDict = dict[str, np.ndarray]
+ModelArtifacts = dict[str, Any]
 
 
 class ClusteringMethod(Enum):
