@@ -72,7 +72,9 @@ class Classifier(nn.Module):
         self.proj = nn.Linear(input_dimension, timestep_dimension)
 
         self.transformer_layer = nn.Transformer(
-            d_model=timestep_dimension, nhead=num_heads, num_encoder_layers=num_layers
+            d_model=timestep_dimension,
+            nhead=num_heads,
+            num_encoder_layers=num_layers,
         )
 
         self.time_embed = nn.Sequential(
@@ -422,17 +424,18 @@ class ResNet(nn.Module):
             Returns:
                 The output tensor.
             """
-            output_tensor = self.normalization(input_tensor)
-            output_tensor = self.linear_first(output_tensor)
-            output_tensor = self.activation(output_tensor)
-            output_tensor = self.dropout_first(output_tensor)
-            output_tensor = self.linear_second(output_tensor)
-            output_tensor = self.dropout_second(output_tensor)
+            initial_input_tensor = input_tensor
+            input_tensor = self.normalization(input_tensor)
+            input_tensor = self.linear_first(input_tensor)
+            input_tensor = self.activation(input_tensor)
+            input_tensor = self.dropout_first(input_tensor)
+            input_tensor = self.linear_second(input_tensor)
+            input_tensor = self.dropout_second(input_tensor)
 
             if self.skip_connection:
-                output_tensor = input_tensor + output_tensor
+                input_tensor = initial_input_tensor + input_tensor
 
-            return output_tensor
+            return input_tensor
 
     class Head(nn.Module):
         """The final module of `ResNet`."""
@@ -471,12 +474,11 @@ class ResNet(nn.Module):
             Returns:
                 The output tensor.
             """
-            output_tensor = input_tensor
             if self.normalization is not None:
-                output_tensor = self.normalization(output_tensor)
+                input_tensor = self.normalization(input_tensor)
 
-            output_tensor = self.activation(output_tensor)
-            return self.linear(output_tensor)
+            input_tensor = self.activation(input_tensor)
+            return self.linear(input_tensor)
 
     def __init__(
         self,
@@ -586,10 +588,10 @@ class ResNet(nn.Module):
         Returns:
             The output tensor.
         """
-        output_tensor = input_tensor.float()
-        output_tensor = self.first_layer(output_tensor)
-        output_tensor = self.blocks(output_tensor)
-        return self.head(output_tensor)
+        input_tensor = input_tensor.float()
+        input_tensor = self.first_layer(input_tensor)
+        input_tensor = self.blocks(input_tensor)
+        return self.head(input_tensor)
 
 
 #### For diffusion
@@ -658,11 +660,11 @@ class MLPDiffusion(nn.Module):
         embeddings = self.timestep_embedding(timestep_embedding(timesteps, self.timestep_dimension))
 
         if self.is_target_conditioned == IsTargetConditioned.EMBEDDING and target is not None:
-            resized_target = target.squeeze() if self.num_classes > 0 else target.resize_(target.size(0), 1).float()
-            embeddings += functional.silu(self.label_embedding(resized_target))
+            target = target.squeeze() if self.num_classes > 0 else target.resize_(target.size(0), 1).float()
+            embeddings += functional.silu(self.label_embedding(target))
 
-        output_tensor = self.proj(input_tensor) + embeddings
-        return self.mlp(output_tensor)
+        input_tensor = self.proj(input_tensor) + embeddings
+        return self.mlp(input_tensor)
 
 
 class ResNetDiffusion(nn.Module):

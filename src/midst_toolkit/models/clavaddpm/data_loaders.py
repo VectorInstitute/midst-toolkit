@@ -542,20 +542,20 @@ def prepare_fast_dataloader(
             concatenated_features = np.concatenate(
                 [dataset.numerical_features[split.value], dataset.categorical_features[split.value]], axis=1
             )
-            x = torch.from_numpy(concatenated_features).float()
+            features = torch.from_numpy(concatenated_features).float()
         else:
-            x = torch.from_numpy(dataset.categorical_features[split.value]).float()
+            features = torch.from_numpy(dataset.categorical_features[split.value]).float()
     else:
         assert dataset.numerical_features is not None
-        x = torch.from_numpy(dataset.numerical_features[split.value]).float()
+        features = torch.from_numpy(dataset.numerical_features[split.value]).float()
 
     if target_type == TargetType.FLOAT:
-        y = torch.from_numpy(dataset.target[split.value]).float()
+        target = torch.from_numpy(dataset.target[split.value]).float()
     elif target_type == TargetType.LONG:
-        y = torch.from_numpy(dataset.target[split.value]).long()
+        target = torch.from_numpy(dataset.target[split.value]).long()
     else:
         raise ValueError(f"Unsupported target type: {target_type}")
 
-    dataloader = FastTensorDataLoader([x, y], batch_size=batch_size, shuffle=(split == DataSplit.TRAIN))
+    dataloader = FastTensorDataLoader([features, target], batch_size=batch_size, shuffle=(split == DataSplit.TRAIN))
     while True:
         yield from dataloader

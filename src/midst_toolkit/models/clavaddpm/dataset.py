@@ -783,7 +783,6 @@ def normalize(
     Returns:
         The normalized data and the normalizer.
     """
-    x_train = data[DataSplit.TRAIN.value]
     if normalization == Normalization.STANDARD:
         normalizer = StandardScaler()
     elif normalization == Normalization.MINMAX:
@@ -797,7 +796,9 @@ def normalize(
         )
     else:
         raise ValueError(f"Unsupported normalization: {normalization.value}")
-    normalizer.fit(x_train)
+
+    train_features = data[DataSplit.TRAIN.value]
+    normalizer.fit(train_features)
 
     return {k: normalizer.transform(v) for k, v in data.items()}, normalizer
 
@@ -1051,7 +1052,9 @@ def encode_categorical_features(
 
 
 def build_target(
-    target: ArrayDict, policy: TargetPolicy | None, task_type: TaskType
+    target: ArrayDict,
+    policy: TargetPolicy | None,
+    task_type: TaskType,
 ) -> tuple[ArrayDict, dict[str, Any]]:
     """
     Build the target and return the target values metadata.
