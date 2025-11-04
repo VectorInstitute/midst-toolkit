@@ -1,9 +1,9 @@
 import json
 import pickle
 import random
-from collections.abc import Callable
 from logging import WARNING
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -15,6 +15,7 @@ from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_s
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 from midst_toolkit.models.clavaddpm.data_loaders import load_tables
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import ConditioningFunction
 from midst_toolkit.models.clavaddpm.model import Classifier
 from midst_toolkit.models.clavaddpm.train import clava_training
 from tests.integration.utils import is_running_on_ci_environment
@@ -424,22 +425,20 @@ def test_clustering_reload(tmp_path: Path):
     unset_all_random_seeds()
 
 
-def get_conditioning_function_for_diffusion(classifier: Classifier, classifier_scale: float) -> Callable:
+def get_conditioning_function_for_diffusion(classifier: Classifier, classifier_scale: float) -> ConditioningFunction:
     def conditioning_function(
-        x: torch.Tensor,
-        t: torch.Tensor,
-        y: torch.Tensor | None = None,
-        remove_first_col: bool = False,
+        features: torch.Tensor,
+        timestep: torch.Tensor,
+        **kwargs: Any,
     ) -> torch.Tensor:
-        assert y is not None
         with torch.enable_grad():
-            if remove_first_col:
-                x_in = x[:, 1:].detach().requires_grad_(True).float()
+            if "remove_first_col" in kwargs and kwargs["remove_first_col"] is True:
+                input_features = features[:, 1:].detach().requires_grad_(True).float()
             else:
-                x_in = x.detach().requires_grad_(True).float()
-            logits = classifier(x_in, t)
+                input_features = features.detach().requires_grad_(True).float()
+            logits = classifier(input_features, timestep)
             log_probs = functional.log_softmax(logits, dim=-1)
-            selected = log_probs[range(len(logits)), y.view(-1)]
-            return torch.autograd.grad(selected.sum(), x_in)[0] * classifier_scale
+            selected = log_probs[range(len(logits)), kwargs["target"].view(-1)]
+            return torch.autograd.grad(selected.sum(), input_features)[0] * classifier_scale
 
     return conditioning_function
