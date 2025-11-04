@@ -15,8 +15,8 @@ class ClavaDDPMTrainer:
     def __init__(
         self,
         diffusion_model: GaussianMultinomialDiffusion,
-        train_iter: Generator[list[Tensor]],
-        lr: float,
+        training_iterator: Generator[list[Tensor]],
+        learning_rate: float,
         weight_decay: float,
         steps: int,
         device: str = "cuda",
@@ -26,9 +26,9 @@ class ClavaDDPMTrainer:
 
         Args:
             diffusion_model: The diffusion model.
-            train_iter: The training iterator. It should yield a list of tensors. The first tensor is the input
+            training_iterator: The training iterator. It should yield a list of tensors. The first tensor is the input
                 tensor and the second tensor is the output tensor.
-            lr: The learning rate.
+            learning_rate: The learning rate.
             weight_decay: The weight decay.
             steps: The number of steps to train.
             device: The device to use. Default is `"cuda"`.
@@ -38,17 +38,19 @@ class ClavaDDPMTrainer:
         for param in self.ema_model.parameters():
             param.detach_()
 
-        self.train_iter = train_iter
+        self.training_iterator = training_iterator
         self.steps = steps
-        self.init_lr = lr
-        self.optimizer = torch.optim.AdamW(self.diffusion_model.parameters(), lr=lr, weight_decay=weight_decay)
+        self.initial_learning_rate = learning_rate
+        self.optimizer = torch.optim.AdamW(
+            self.diffusion_model.parameters(), lr=learning_rate, weight_decay=weight_decay
+        )
         self.device = device
         self.loss_history = pd.DataFrame(columns=["step", "mloss", "gloss", "loss"])
         self.log_every = 100
         self.print_every = 500
         self.ema_every = 1000
 
-    def _anneal_lr(self, step: int) -> None:
+    def _anneal_learning_rate(self, step: int) -> None:
         """
         Anneal the learning rate.
 
@@ -56,29 +58,29 @@ class ClavaDDPMTrainer:
             step: The current step.
         """
         frac_done = step / self.steps
-        lr = self.init_lr * (1 - frac_done)
+        lr = self.initial_learning_rate * (1 - frac_done)
         for param_group in self.optimizer.param_groups:
             param_group["lr"] = lr
 
-    def _train_step(self, x: Tensor, y: Tensor) -> tuple[Tensor, Tensor]:
+    def _train_step(self, input_tensor: Tensor, target: Tensor) -> tuple[Tensor, Tensor]:
         """
         Run a single step of the training loop.
 
         Args:
-            x: The input tensor.
-            y: The output tensor.
+            input_tensor: The input tensor.
+            target: The target tensor.
 
         Returns:
             A tuple with 2 values:
                 - The multi-class loss.
                 - The Gaussian loss.
         """
-        x = x.to(self.device)
-        target = {"y": y}
-        for k, v in target.items():
-            target[k] = v.long().to(self.device)
+        outputs = {"target": target}
+        for key, value in outputs.items():
+            outputs[key] = value.long().to(self.device)
+
         self.optimizer.zero_grad()
-        loss_multi, loss_gauss = self.diffusion_model.mixed_loss(x, target)
+        loss_multi, loss_gauss = self.diffusion_model.mixed_loss(input_tensor.to(self.device), outputs)
         loss = loss_multi + loss_gauss
         loss.backward()
         self.optimizer.step()
@@ -95,14 +97,14 @@ class ClavaDDPMTrainer:
         while step < self.steps:
             # TODO: improve this design. If self.steps is larger than self.train_iter,
             # it will lead to a StopIteration error.
-            x, out = next(self.train_iter)
-            batch_loss_multi, batch_loss_gauss = self._train_step(x, out)
+            input_tensor, output = next(self.training_iterator)
+            batch_loss_multi, batch_loss_gauss = self._train_step(input_tensor, output)
 
-            self._anneal_lr(step)
+            self._anneal_learning_rate(step)
 
-            curr_count += len(x)
-            curr_loss_multi += batch_loss_multi.item() * len(x)
-            curr_loss_gauss += batch_loss_gauss.item() * len(x)
+            curr_count += len(input_tensor)
+            curr_loss_multi += batch_loss_multi.item() * len(input_tensor)
+            curr_loss_gauss += batch_loss_gauss.item() * len(input_tensor)
 
             # TODO: improve this code, starting by moving it into a function for better readability and modularity.
             if (step + 1) % self.log_every == 0:

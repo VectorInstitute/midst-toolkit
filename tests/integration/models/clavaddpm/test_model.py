@@ -347,7 +347,7 @@ def test_train_multi_table(tmp_path: Path):
     ys_tensor = torch.tensor(np.array(ys).reshape(-1, 1), requires_grad=False)
     conditional_sample, _ = models[1][key]["diffusion"].conditional_sample(
         targets=ys_tensor,
-        model_kwargs={"y": ys_tensor},
+        model_kwargs={"target": ys_tensor},
         conditioning_function=get_conditioning_function_for_diffusion(models[1][key]["classifier"], classifier_scale),
     )
 
