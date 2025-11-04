@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Self
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from midst_toolkit.models.clavaddpm.enumerations import ClusteringMethod
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianLossType, SchedulerType
@@ -85,6 +85,8 @@ class MatchingConfig(BaseModel):
 
 class TrainingConfig(BaseModel):
     """All configuration settings for training, synthesizing, and fine tuning."""
+
+    model_config = ConfigDict(extra="forbid")  # disallow extra fields from config files
 
     general: GeneralConfig
     clustering: ClusteringConfig
