@@ -69,17 +69,11 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: integration-tests-artifacts
-          path: tests/integration/assets/single_table/assertion_data/diffusion_parameters.pkl
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v5
-        with:
-          name: integration-tests-artifacts
+          name: integration-tests-artifacts-2
           path: tests/integration/assets/multi_table/assertion_data/diffusion_parameters.pkl
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: integration-tests-artifacts
+          name: integration-tests-artifacts-3
           path: tests/integration/assets/multi_table/assertion_data/conditional_samples.pt
