@@ -316,11 +316,12 @@ def train_model(
 
     _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.target[DataSplit.TRAIN.value]), return_counts=True)
 
-    num_numerical_features = (
-        dataset.numerical_features[DataSplit.TRAIN.value].shape[1] if dataset.numerical_features is not None else 0
-    )
-    d_in = np.sum(category_sizes) + num_numerical_features
-    model_params.input_dimension = d_in
+    num_numerical_features = 0
+    if dataset.numerical_features is not None:
+        num_numerical_features = dataset.numerical_features[DataSplit.TRAIN.value].shape[1]
+
+    input_dimension = np.sum(category_sizes) + num_numerical_features
+    model_params.input_dimension = input_dimension
 
     print("Model params: {}".format(model_params))
     model = model_type.get_model(model_params)
