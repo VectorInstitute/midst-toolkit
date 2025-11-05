@@ -94,7 +94,7 @@ class TestBlendingPlusPlus:
 
         bpp_xgb = BlendingPlusPlus(
             config=mock_config_with_json_path,
-            attack_data_collection=[],
+            shadow_data_collection=[],
             target_data=MOCK_TARGET_DATA,
             meta_classifier_type=MetaClassifierType("xgb"),
         )
@@ -110,7 +110,7 @@ class TestBlendingPlusPlus:
 
         bpp_lr = BlendingPlusPlus(
             config=mock_config_with_json_path,
-            attack_data_collection=[],
+            shadow_data_collection=[],
             target_data=MOCK_TARGET_DATA,
             meta_classifier_type=MetaClassifierType("lr"),
         )
@@ -128,7 +128,7 @@ class TestBlendingPlusPlus:
         with pytest.raises(ValueError):
             BlendingPlusPlus(
                 config=mock_config_with_json_path,
-                attack_data_collection=[],
+                shadow_data_collection=[],
                 target_data=MOCK_TARGET_DATA,
                 meta_classifier_type=MetaClassifierType("svm"),
             )
@@ -150,7 +150,7 @@ class TestBlendingPlusPlus:
 
         bpp = BlendingPlusPlus(
             config=mock_config_with_json_path,
-            attack_data_collection=[],
+            shadow_data_collection=[],
             target_data=MOCK_TARGET_DATA,
         )
 
@@ -200,7 +200,7 @@ class TestBlendingPlusPlus:
 
         bpp = BlendingPlusPlus(
             config=mock_config_with_json_path,
-            attack_data_collection=attack_collection,
+            shadow_data_collection=attack_collection,
             target_data=MOCK_TARGET_DATA,
         )
 
@@ -223,7 +223,7 @@ class TestBlendingPlusPlus:
 
         # Verify the arguments
         pd.testing.assert_frame_equal(call_kwargs["df_input"], df_train)
-        assert call_kwargs["attack_data_collection"] == attack_collection
+        assert call_kwargs["shadow_data_collection"] == attack_collection
         assert call_kwargs["categorical_column_names"] == MOCK_COLUMN_TYPES_CONTENT["categorical"]
         assert call_kwargs["id_column_name"] == id_col_name
         pd.testing.assert_series_equal(call_kwargs["id_column_data"], id_col_data)
@@ -244,14 +244,14 @@ class TestBlendingPlusPlus:
 
         bpp = BlendingPlusPlus(
             config=mock_config_with_json_path,
-            attack_data_collection=[],
+            shadow_data_collection=[],
             target_data=MOCK_TARGET_DATA,
             meta_classifier_type=MetaClassifierType("lr"),
         )
         bpp.fit(
             df_train=sample_dataframes["df_train"],
             y_train=sample_dataframes["y_train"],
-            df_synthetic=sample_dataframes["df_synth"],
+            df_target_synthetic=sample_dataframes["df_synth"],
             df_reference=sample_dataframes["df_ref"],
             id_column_data=sample_dataframes["df_train"]["id_col"],
         )
@@ -278,14 +278,14 @@ class TestBlendingPlusPlus:
 
         bpp = BlendingPlusPlus(
             config=mock_config_with_json_path,
-            attack_data_collection=[],
+            shadow_data_collection=[],
             target_data=MOCK_TARGET_DATA,
             meta_classifier_type=MetaClassifierType("xgb"),
         )
         bpp.fit(
             df_train=sample_dataframes["df_train"],
             y_train=sample_dataframes["y_train"],
-            df_synthetic=sample_dataframes["df_synth"],
+            df_target_synthetic=sample_dataframes["df_synth"],
             df_reference=sample_dataframes["df_ref"],
             id_column_data=sample_dataframes["df_train"]["id_col"],
         )
@@ -305,12 +305,12 @@ class TestBlendingPlusPlus:
         mock_file.return_value.read.return_value = json.dumps(MOCK_COLUMN_TYPES_CONTENT)
 
         bpp = BlendingPlusPlus(
-            config=mock_config_with_json_path, attack_data_collection=[], target_data=MOCK_TARGET_DATA
+            config=mock_config_with_json_path, shadow_data_collection=[], target_data=MOCK_TARGET_DATA
         )
         with pytest.raises(AssertionError):
             bpp.predict(
                 df_test=sample_dataframes["df_test"],
-                df_synthetic=sample_dataframes["df_synth"],
+                df_original_synthetic=sample_dataframes["df_synth"],
                 df_reference=sample_dataframes["df_ref"],
                 id_column_data=sample_dataframes["df_test"]["id_col"],
                 y_test=sample_dataframes["y_test"],
@@ -332,14 +332,14 @@ class TestBlendingPlusPlus:
 
         bpp = BlendingPlusPlus(
             config=mock_config_with_json_path,
-            attack_data_collection=[],
+            shadow_data_collection=[],
             target_data=MOCK_TARGET_DATA,
         )
         bpp.trained_model = mock_classifier
 
         probabilities, score = bpp.predict(
             df_test=sample_dataframes["df_test"],
-            df_synthetic=sample_dataframes["df_synth"],
+            df_original_synthetic=sample_dataframes["df_synth"],
             df_reference=sample_dataframes["df_ref"],
             id_column_data=sample_dataframes["df_test"]["id_col"],
             y_test=sample_dataframes["y_test"],

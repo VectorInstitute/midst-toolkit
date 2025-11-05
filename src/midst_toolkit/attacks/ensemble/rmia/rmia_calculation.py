@@ -320,18 +320,12 @@ def calculate_rmia_signals(
     # Create masks for records in/out of training sets. We're creating masks for all the samples in train_df,
     # as opposed to the original implementation which only creates masks a sample of 200 records.
 
-    mask_in_training = np.array( [
-            [results_df[id_column_name][j] in shadow_training_data[i] for j in range(len(results_df))]
-            for i in range(len(shadow_training_data))
-        ]
-    )
+    shadow_training_sets = [set(df[id_column_name].values) for df in shadow_training_data]
 
-    # shadow_training_sets = [set(df[id_column_name].values) for df in shadow_training_data]
-
-    # mask_in_training = np.array([
-    #     [results_df[id_column_name].iloc[j] in shadow_training_sets[i] for j in range(len(results_df))]
-    #     for i in range(len(shadow_training_sets))
-    # ])
+    mask_in_training = np.array([
+        [results_df[id_column_name].iloc[j] in shadow_training_sets[i] for j in range(len(results_df))]
+        for i in range(len(shadow_training_sets))
+    ])
 
     mask_not_in_training = ~mask_in_training
 
