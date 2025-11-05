@@ -778,13 +778,13 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             log_pred[:, ix] = functional.log_softmax(model_out[:, ix], dim=1)
         return log_pred
 
-    def q_posterior(self, log_x_start: Tensor, log_x_t: Tensor, timestep: Tensor) -> Tensor:
+    def q_posterior(self, log_features_start: Tensor, log_features_timestep: Tensor, timestep: Tensor) -> Tensor:
         """
         Calculate the posterior probability for one timestep.
 
         Args:
-            log_x_start: The log sample of the initial input.
-            log_x_t: The log sample of the features at the given timestep.
+            log_features_start: The log sample of the initial input.
+            log_features_timestep: The log sample of the features at the given timestep.
             timestep: The timestep.
 
         Returns:
@@ -793,38 +793,40 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         t_minus_1 = timestep - 1
         # Remove negative values, will not be used anyway for final decoder
         t_minus_1 = torch.where(t_minus_1 < 0, torch.zeros_like(t_minus_1), t_minus_1)
-        log_ev_qxtmin_x0 = self.q_pred(log_x_start, t_minus_1)
+        log_ev_qxtmin_x0 = self.q_pred(log_features_start, t_minus_1)
 
-        num_axes = (1,) * (len(log_x_start.size()) - 1)
-        t_broadcast = timestep.to(log_x_start.device).view(-1, *num_axes) * torch.ones_like(log_x_start)
-        log_ev_qxtmin_x0 = torch.where(t_broadcast == 0, log_x_start, log_ev_qxtmin_x0.to(torch.float32))
+        num_axes = (1,) * (len(log_features_start.size()) - 1)
+        t_broadcast = timestep.to(log_features_start.device).view(-1, *num_axes) * torch.ones_like(log_features_start)
+        log_ev_qxtmin_x0 = torch.where(t_broadcast == 0, log_features_start, log_ev_qxtmin_x0.to(torch.float32))
 
         # unnormed_logprobs = log_EV_qxtmin_x0 +
         #                     log q_pred_one_timestep(x_t, t)
         # Note: _NOT_ x_tmin1, which is how the formula is typically used!!!
         # Not very easy to see why this is true. But it is :)
-        unnormed_logprobs = log_ev_qxtmin_x0 + self.q_pred_one_timestep(log_x_t, timestep)
+        unnormed_logprobs = log_ev_qxtmin_x0 + self.q_pred_one_timestep(log_features_timestep, timestep)
 
         return unnormed_logprobs - sliced_logsumexp(unnormed_logprobs, self.offsets)
 
-    def p_pred(self, model_out: Tensor, log_x: Tensor, timestep: Tensor) -> Tensor:
+    def p_pred(self, model_output: Tensor, log_features: Tensor, timestep: Tensor) -> Tensor:
         """
         Predict the start from the model output based on the parametrization set in ``self.parametrization``.
 
         Args:
-            model_out: The model output.
-            log_x: The log sample of the features.
+            model_output: The model output.
+            log_features: The log sample of the features.
             timestep: The timestep.
 
         Returns:
             The predicted start from the model output.
         """
         if self.parametrization == Parametrization.X0:
-            log_x_recon = self.predict_start(model_out, log_x)
-            log_model_pred = self.q_posterior(log_x_start=log_x_recon, log_x_t=log_x, timestep=timestep)
+            log_x_recon = self.predict_start(model_output, log_features)
+            log_model_pred = self.q_posterior(
+                log_features_start=log_x_recon, log_features_timestep=log_features, timestep=timestep
+            )
 
         elif self.parametrization == Parametrization.DIRECT:
-            log_model_pred = self.predict_start(model_out, log_x)
+            log_model_pred = self.predict_start(model_output, log_features)
 
         else:
             raise ValueError(f"Unsupported parametrization: {self.parametrization}")
@@ -832,19 +834,19 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         return log_model_pred
 
     @torch.no_grad()
-    def p_sample(self, model_out: Tensor, log_x: Tensor, timestep: Tensor) -> Tensor:
+    def p_sample(self, model_output: Tensor, log_features: Tensor, timestep: Tensor) -> Tensor:
         """
         Sample from the model output.
 
         Args:
-            model_out: The model output.
-            log_x: The log sample of the features.
+            model_output: The model output.
+            log_features: The log sample of the features.
             timestep: The timestep.
 
         Returns:
             The sample from the model output.
         """
-        model_log_prob = self.p_pred(model_out, log_x=log_x, timestep=timestep)
+        model_log_prob = self.p_pred(model_output, log_features=log_features, timestep=timestep)
         return self.log_sample_categorical(model_log_prob)
 
     def log_sample_categorical(self, logits: Tensor) -> Tensor:
@@ -868,35 +870,35 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         full_sample_tensor = torch.cat(full_sample, dim=1)
         return index_to_log_onehot(full_sample_tensor, torch.from_numpy(self.num_classes))
 
-    def q_sample(self, log_x_start: Tensor, timestep: Tensor) -> Tensor:
+    def q_sample(self, log_features_start: Tensor, timestep: Tensor) -> Tensor:
         """
         Sample from the log of the initial input for one timestep.
 
         Args:
-            log_x_start: The log of the initial input.
+            log_features_start: The log of the initial input.
             timestep: The timestep.
 
         Returns:
             The sample from the categorical logits.
         """
-        log_ev_qxt_x0 = self.q_pred(log_x_start, timestep)
+        log_ev_qxt_x0 = self.q_pred(log_features_start, timestep)
         return self.log_sample_categorical(log_ev_qxt_x0)
 
-    def kl_prior(self, log_x_start: Tensor) -> Tensor:
+    def kl_prior(self, log_features_start: Tensor) -> Tensor:
         """
         Calculate the KL divergence between the prior and the posterior.
 
         Args:
-            log_x_start: The log sample of the initial input.
+            log_features_start: The log sample of the initial input.
 
         Returns:
             The KL divergence between the prior and the posterior.
         """
-        batch_size = log_x_start.size(0)
-        device = log_x_start.device
+        batch_size = log_features_start.size(0)
+        device = log_features_start.device
         ones = torch.ones(batch_size, device=device).long()
 
-        log_qxt_prob = self.q_pred(log_x_start, timestep=(self.num_timesteps - 1) * ones)
+        log_qxt_prob = self.q_pred(log_features_start, timestep=(self.num_timesteps - 1) * ones)
         log_half_prob = -torch.log(self.num_classes_expanded * torch.ones_like(log_qxt_prob))
 
         kl_prior = self.multinomial_kl(log_qxt_prob, log_half_prob)
@@ -904,9 +906,9 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
 
     def compute_lt(
         self,
-        model_out: Tensor,
-        log_x_start: Tensor,
-        log_x_t: Tensor,
+        model_output: Tensor,
+        log_features_start: Tensor,
+        log_features_timestep: Tensor,
         timestep: Tensor,
         detach_mean: bool = False,
     ) -> Tensor:
@@ -914,17 +916,19 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         Calculate the KL divergence between the true and the model probability.
 
         Args:
-            model_out: The model output.
-            log_x_start: The log sample of the initial input.
-            log_x_t: The log samples of the features at the given timestep.
+            model_output: The model output.
+            log_features_start: The log sample of the initial input.
+            log_features_timestep: The log samples of the features at the given timestep.
             timestep: The timestep.
             detach_mean: Whether to detach the mean.
 
         Returns:
             The KL divergence between the true and the model probability.
         """
-        log_true_prob = self.q_posterior(log_x_start=log_x_start, log_x_t=log_x_t, timestep=timestep)
-        log_model_prob = self.p_pred(model_out, log_x=log_x_t, timestep=timestep)
+        log_true_prob = self.q_posterior(
+            log_features_start=log_features_start, log_features_timestep=log_features_timestep, timestep=timestep
+        )
+        log_model_prob = self.p_pred(model_output, log_features=log_features_timestep, timestep=timestep)
 
         if detach_mean:
             log_model_prob = log_model_prob.detach()
@@ -932,7 +936,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         kl = self.multinomial_kl(log_true_prob, log_model_prob)
         kl = sum_except_batch(kl)
 
-        decoder_nll = -log_categorical(log_x_start, log_model_prob)
+        decoder_nll = -log_categorical(log_features_start, log_model_prob)
         decoder_nll = sum_except_batch(decoder_nll)
 
         mask = (timestep == torch.zeros_like(timestep)).float()
@@ -1031,7 +1035,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         log_categorical_features_ts = categorical_features
         if categorical_features.shape[1] > 0:
             log_x_cat = index_to_log_onehot(categorical_features.long(), torch.from_numpy(self.num_classes))
-            log_categorical_features_ts = self.q_sample(log_x_start=log_x_cat, timestep=timestep)
+            log_categorical_features_ts = self.q_sample(log_features_start=log_x_cat, timestep=timestep)
 
         input_features = torch.cat([numerical_features_ts, log_categorical_features_ts], dim=1)
 
