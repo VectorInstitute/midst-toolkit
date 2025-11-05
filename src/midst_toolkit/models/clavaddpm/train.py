@@ -203,7 +203,7 @@ def child_training(
     child_info = get_table_info(child_df_with_cluster, child_domain, y_col)
     child_model_params = ModelParameters(
         diffusion_parameters=DiffusionParameters(
-            d_layers=diffusion_config["d_layers"],
+            layers_dimensions=diffusion_config["d_layers"],
             dropout=diffusion_config["dropout"],
         ),
     )
@@ -320,7 +320,7 @@ def train_model(
         dataset.numerical_features[DataSplit.TRAIN.value].shape[1] if dataset.numerical_features is not None else 0
     )
     d_in = np.sum(category_sizes) + num_numerical_features
-    model_params.d_in = d_in
+    model_params.input_dimension = d_in
 
     print("Model params: {}".format(model_params))
     model = model_type.get_model(model_params)
@@ -455,9 +455,9 @@ def train_classifier(
         num_numerical_features -= 1
 
     classifier = Classifier(
-        d_in=num_numerical_features,
-        d_out=int(max(data_frame[cluster_col].values) + 1),  # TODO: add a comment why we need to add 1
-        dim_t=dim_t,
+        input_dimension=num_numerical_features,
+        output_dimension=int(max(data_frame[cluster_col].values) + 1),  # TODO: add a comment why we need to add 1
+        timestep_dimension=dim_t,
         hidden_sizes=d_layers,
     ).to(device)
 

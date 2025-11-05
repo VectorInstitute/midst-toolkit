@@ -281,7 +281,7 @@ def child_fine_tuning(
     child_info = get_table_info(child_df_with_cluster, child_domain_dict, target_col)
     child_model_params = ModelParameters(
         diffusion_parameters=DiffusionParameters(
-            d_layers=diffusion_config["d_layers"],
+            layers_dimensions=diffusion_config["d_layers"],
             dropout=diffusion_config["dropout"],
         ),
     )

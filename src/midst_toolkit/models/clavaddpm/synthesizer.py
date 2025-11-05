@@ -75,7 +75,7 @@ def sample_from_diffusion(
     if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = [0]
 
-    model_params.d_in = np.sum(category_sizes) + num_features
+    model_params.input_dimension = np.sum(category_sizes) + num_features
 
     _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.target[DataSplit.TRAIN.value]), return_counts=True)
     synthetic_data = diffusion.sample_all(

@@ -21,14 +21,14 @@ from midst_toolkit.models.clavaddpm.enumerations import IsTargetConditioned, Mod
 class DiffusionParameters:
     """Parameters for the diffusion model."""
 
-    d_layers: list[int]
+    layers_dimensions: list[int]
     dropout: float
-    d_in: int = 0
-    d_out: int = 0
-    emb_d: int = 0
+    input_dimension: int = 0
+    output_dimension: int = 0
+    embedding_dimension: int = 0
     n_blocks: int = 0
-    d_main: int = 0
-    d_hidden: int = 0
+    block_dimension: int = 0
+    hidden_dimension: int = 0
     dropout_first: float = 0
     dropout_second: float = 0
 
@@ -38,7 +38,7 @@ class ModelParameters:
     """Parameters for the ClavaDDPM model."""
 
     diffusion_parameters: DiffusionParameters
-    d_in: int = 0
+    input_dimension: int = 0
     num_classes: int = 0
     is_target_conditioned: IsTargetConditioned = IsTargetConditioned.NONE
 
@@ -46,9 +46,9 @@ class ModelParameters:
 class Classifier(nn.Module):
     def __init__(
         self,
-        d_in: int,
-        d_out: int,
-        dim_t: int,
+        input_dimension: int,
+        output_dimension: int,
+        timestep_dimension: int,
         hidden_sizes: list[int],
         dropout_prob: float = 0.5,
         num_heads: int = 2,
@@ -58,9 +58,9 @@ class Classifier(nn.Module):
         Initialize the classifier model.
 
         Args:
-            d_in: The input dimension size.
-            d_out: The output dimension size.
-            dim_t: The dimension size of the timestep.
+            input_dimension: The input dimension size.
+            output_dimension: The output dimension size.
+            timestep_dimension: The dimension size of the timestep.
             hidden_sizes: The list of sizes for the hidden layers.
             dropout_prob: The dropout probability. Optional, default is 0.5.
             num_heads: The number of heads for the transformer layer. Optional, default is 2.
@@ -68,18 +68,26 @@ class Classifier(nn.Module):
         """
         super(Classifier, self).__init__()
 
-        self.dim_t = dim_t
-        self.proj = nn.Linear(d_in, dim_t)
+        self.timestep_dimension = timestep_dimension
+        self.proj = nn.Linear(input_dimension, timestep_dimension)
 
-        self.transformer_layer = nn.Transformer(d_model=dim_t, nhead=num_heads, num_encoder_layers=num_layers)
+        self.transformer_layer = nn.Transformer(
+            d_model=timestep_dimension,
+            nhead=num_heads,
+            num_encoder_layers=num_layers,
+        )
 
-        self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
+        self.timestep_embedding = nn.Sequential(
+            nn.Linear(timestep_dimension, timestep_dimension),
+            nn.SiLU(),
+            nn.Linear(timestep_dimension, timestep_dimension),
+        )
 
         # Create a list to hold the layers
         layers: list[nn.Module] = []
 
         # Add input layer
-        layers.append(nn.Linear(dim_t, hidden_sizes[0]))
+        layers.append(nn.Linear(timestep_dimension, hidden_sizes[0]))
         layers.append(nn.ReLU())
         layers.append(nn.BatchNorm1d(hidden_sizes[0]))  # Batch Normalization
         layers.append(nn.Dropout(p=dropout_prob))
@@ -92,35 +100,35 @@ class Classifier(nn.Module):
             layers.append(nn.Dropout(p=dropout_prob))
 
         # Add output layer
-        layers.append(nn.Linear(hidden_sizes[-1], d_out))
+        layers.append(nn.Linear(hidden_sizes[-1], output_dimension))
 
         # Create a Sequential model from the list of layers
         self.model = nn.Sequential(*layers)
 
-    def forward(self, x: Tensor, timesteps: Tensor) -> Tensor:
+    def forward(self, input_tensor: Tensor, timesteps: Tensor) -> Tensor:
         """
         Forward pass of the classifier model.
 
         Args:
-            x: The input tensor.
+            input_tensor: The input tensor.
             timesteps: The timesteps tensor.
 
         Returns:
             The output tensor.
         """
-        embeddings = self.time_embed(timestep_embedding(timesteps, self.dim_t))
-        x = self.proj(x) + embeddings
-        return self.model(x)
+        embeddings = self.timestep_embedding(timestep_embedding(timesteps, self.timestep_dimension))
+        output_tensor = self.proj(input_tensor) + embeddings
+        return self.model(output_tensor)
 
 
-def get_table_info(df: pd.DataFrame, table_domain: dict[str, Any], y_col: str) -> dict[str, Any]:
+def get_table_info(df: pd.DataFrame, table_domain: dict[str, Any], target_column_name: str) -> dict[str, Any]:
     """
     Get the dictionary of table information.
 
     Args:
         df: The dataframe containing the data.
         table_domain: The table's domain dictionary containing metadata about the data columns.
-        y_col: The name of the target column.
+        target_column_name: The name of the target column.
 
     Returns:
         The table information in the following format:
@@ -134,43 +142,44 @@ def get_table_info(df: pd.DataFrame, table_domain: dict[str, Any], y_col: str) -
     """
     categorical_cols = []
     numerical_cols = []
-    for columns in df.columns:
-        if columns in table_domain and columns != y_col:
-            if table_domain[columns]["type"] == DomainDataType.DISCRETE.value:
-                categorical_cols.append(columns)
+    for column in df.columns:
+        if column in table_domain and column != target_column_name:
+            if table_domain[column]["type"] == DomainDataType.DISCRETE.value:
+                categorical_cols.append(column)
             else:
-                numerical_cols.append(columns)
+                numerical_cols.append(column)
 
     table_info: dict[str, Any] = {}
     table_info["cat_cols"] = categorical_cols
     table_info["num_cols"] = numerical_cols
-    table_info["y_col"] = y_col
+    table_info["y_col"] = target_column_name
     table_info["n_classes"] = 0
     table_info["task_type"] = TaskType.MULTICLASS_CLASSIFICATION.value
 
     return table_info
 
 
-def timestep_embedding(timesteps: Tensor, dim: int, max_period: int = 10000) -> Tensor:
+def timestep_embedding(timesteps: Tensor, output_dimension: int, max_period: int = 10000) -> Tensor:
     """
     Create sinusoidal timestep embeddings.
 
     Args:
         timesteps: a 1-D Tensor of N indices, one per batch element. These may be fractional.
-        dim: the dimension of the output.
+        output_dimension: the dimension of the output.
         max_period: controls the minimum frequency of the embeddings.
 
     Returns:
-        An [N x dim] Tensor of positional embeddings.
+        An [N x output_dimension] Tensor of positional embeddings.
     """
-    half = dim // 2
-    freqs = torch.exp(-math.log(max_period) * torch.arange(start=0, end=half, dtype=torch.float32) / half).to(
-        device=timesteps.device
-    )
+    half = output_dimension // 2
+    freqs = torch.exp(-math.log(max_period) * torch.arange(start=0, end=half, dtype=torch.float32) / half)
+    freqs = freqs.to(device=timesteps.device)
+
     args = timesteps[:, None].float() * freqs[None]
     embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
-    if dim % 2:
+    if output_dimension % 2:
         embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
+
     return embedding
 
 
@@ -612,14 +621,14 @@ class MLPDiffusion(nn.Module):
         self.is_target_conditioned = is_target_conditioned
 
         self.diffusion_parameters = diffusion_parameters
-        self.diffusion_parameters.d_in = dim_t
-        self.diffusion_parameters.d_out = d_in
+        self.diffusion_parameters.input_dimension = dim_t
+        self.diffusion_parameters.output_dimension = d_in
 
         self.mlp = MLP.make_baseline(
-            d_in=self.diffusion_parameters.d_in,
-            d_layers=self.diffusion_parameters.d_layers,
+            d_in=self.diffusion_parameters.input_dimension,
+            d_layers=self.diffusion_parameters.layers_dimensions,
             dropout=self.diffusion_parameters.dropout,
-            d_out=self.diffusion_parameters.d_out,
+            d_out=self.diffusion_parameters.output_dimension,
         )
 
         self.label_emb: nn.Embedding | nn.Linear
@@ -676,18 +685,18 @@ class ResNetDiffusion(nn.Module):
         self.is_target_conditioned = is_target_conditioned
 
         self.diffusion_parameters = diffusion_parameters
-        self.diffusion_parameters.d_in = d_in
-        self.diffusion_parameters.d_out = d_in
-        self.diffusion_parameters.emb_d = dim_t
+        self.diffusion_parameters.input_dimension = d_in
+        self.diffusion_parameters.output_dimension = d_in
+        self.diffusion_parameters.embedding_dimension = dim_t
 
         self.resnet = ResNet.make_baseline(
-            d_in=self.diffusion_parameters.d_in,
+            d_in=self.diffusion_parameters.input_dimension,
             n_blocks=self.diffusion_parameters.n_blocks,
-            d_main=self.diffusion_parameters.d_main,
-            d_hidden=self.diffusion_parameters.d_hidden,
+            d_main=self.diffusion_parameters.block_dimension,
+            d_hidden=self.diffusion_parameters.hidden_dimension,
             dropout_first=self.diffusion_parameters.dropout_first,
             dropout_second=self.diffusion_parameters.dropout_second,
-            d_out=self.diffusion_parameters.d_out,
+            d_out=self.diffusion_parameters.output_dimension,
         )
 
         self.label_emb: nn.Embedding | nn.Linear
@@ -716,42 +725,6 @@ class ResNetDiffusion(nn.Module):
         return self.resnet(x, embeddings)
 
 
-def reglu(x: Tensor) -> Tensor:
-    """
-    The ReGLU activation function from [1].
-
-    References:
-        [1] Noam Shazeer, "GLU Variants Improve Transformer", 2020
-
-    Args:
-        x: The input tensor.
-
-    Returns:
-        The output tensor.
-    """
-    assert x.shape[-1] % 2 == 0
-    a, b = x.chunk(2, dim=-1)
-    return a * functional.relu(b)
-
-
-def geglu(x: Tensor) -> Tensor:
-    """
-    The GEGLU activation function from [1].
-
-    References:
-        [1] Noam Shazeer, "GLU Variants Improve Transformer", 2020
-
-    Args:
-        x: The input tensor.
-
-    Returns:
-        The output tensor.
-    """
-    assert x.shape[-1] % 2 == 0
-    a, b = x.chunk(2, dim=-1)
-    return a * functional.gelu(b)
-
-
 class ReGLU(nn.Module):
     """
     The ReGLU activation function from [shazeer2020glu].
@@ -765,23 +738,28 @@ class ReGLU(nn.Module):
         * [shazeer2020glu] Noam Shazeer, "GLU Variants Improve Transformer", 2020
 
     Args:
-        x: The input tensor.
+        input_tensor: The input tensor.
 
     Returns:
         The output tensor.
     """
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, input_tensor: Tensor) -> Tensor:
         """
-        Forward pass of the ReGLU activation function.
+        Forward pass of the ReGLU activation function from [1].
+
+        References:
+            [1] Noam Shazeer, "GLU Variants Improve Transformer", 2020.
 
         Args:
-            x: The input tensor.
+            input_tensor: The input tensor.
 
         Returns:
             The output tensor.
         """
-        return reglu(x)
+        assert input_tensor.shape[-1] % 2 == 0
+        a, b = input_tensor.chunk(2, dim=-1)
+        return a * functional.relu(b)
 
 
 class GEGLU(nn.Module):
@@ -797,17 +775,22 @@ class GEGLU(nn.Module):
         * [shazeer2020glu] Noam Shazeer, "GLU Variants Improve Transformer", 2020
     """
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, input_tensor: Tensor) -> Tensor:
         """
-        Forward pass of the GEGLU activation function.
+        Forward pass of the GEGLU activation function from [1].
+
+        References:
+            [1] Noam Shazeer, "GLU Variants Improve Transformer", 2020.
 
         Args:
-            x: The input tensor.
+            input_tensor: The input tensor.
 
         Returns:
             The output tensor.
         """
-        return geglu(x)
+        assert input_tensor.shape[-1] % 2 == 0
+        a, b = input_tensor.chunk(2, dim=-1)
+        return a * functional.gelu(b)
 
 
 def _make_nn_module(module_type: ModuleType | Callable[..., nn.Module], *args: Any) -> nn.Module:
@@ -852,14 +835,14 @@ class ModelType(Enum):
         log(INFO, f"Getting model: {self.value}")
         if self == ModelType.MLP:
             return MLPDiffusion(
-                d_in=model_parameters.d_in,
+                d_in=model_parameters.input_dimension,
                 num_classes=model_parameters.num_classes,
                 is_target_conditioned=model_parameters.is_target_conditioned,
                 diffusion_parameters=model_parameters.diffusion_parameters,
             )
         if self == ModelType.RESNET:
             return ResNetDiffusion(
-                d_in=model_parameters.d_in,
+                d_in=model_parameters.input_dimension,
                 num_classes=model_parameters.num_classes,
                 diffusion_parameters=model_parameters.diffusion_parameters,
             )
