@@ -442,7 +442,7 @@ def transform_dataset(
         dataset: The dataset to transform.
         transformations: The transformations to apply to the dataset.
         cache_dir: The directory to cache the transformed dataset. Optional, default is None. If not None, will check
-            if the transformations and dataset exist in the cache directory. If they do, will returned the cached
+            if the transformations and dataset exist in the cache directory. If they do, will return the cached
             transformed dataset. If not, will transform the dataset and cache it.
 
     Returns:
