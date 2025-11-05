@@ -64,4 +64,4 @@ jobs:
 
       - name: Install dependencies and check code
         run: |
-          uv run pytest -m "integration_test" --log-cli-level=WARNING
+          uv run pytest -m "integration_test" --log-cli-level=WARNING -s -vv

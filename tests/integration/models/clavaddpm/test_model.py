@@ -341,6 +341,10 @@ def test_train_multi_table(tmp_path: Path):
 
     classifier_scale = 1.0
     classifier_batch_size = 5
+
+    print("========================all_group_lengths_prob_dicts================================")
+    print(all_group_lengths_prob_dicts[key])
+
     # Generating some random data to test the classifier
     groups = list(all_group_lengths_prob_dicts[key].keys())
     ys = [[y] for y in random.choices(groups, k=classifier_batch_size)]
