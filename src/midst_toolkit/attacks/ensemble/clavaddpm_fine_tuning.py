@@ -112,7 +112,7 @@ def fine_tune_model(
     trainer = ClavaDDPMTrainer(
         diffusion,
         train_loader,
-        lr=lr,
+        learning_rate=lr,
         weight_decay=weight_decay,
         steps=steps,
         device=str(device),

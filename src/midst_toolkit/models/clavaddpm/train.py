@@ -343,7 +343,7 @@ def train_model(
     trainer = ClavaDDPMTrainer(
         diffusion,
         train_loader,
-        lr=learning_rate,
+        learning_rate=learning_rate,
         weight_decay=weight_decay,
         steps=steps,
         device=device,
