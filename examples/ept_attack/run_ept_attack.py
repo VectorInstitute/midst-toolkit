@@ -2,9 +2,10 @@
 This file is an uncompleted example script for running the EPT-MIA Attack on MIDST challenge
 provided resources and data.
 """
+
+import json
 from logging import INFO
 from pathlib import Path
-import json
 
 import hydra
 from omegaconf import DictConfig
@@ -12,7 +13,6 @@ from omegaconf import DictConfig
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
 from midst_toolkit.attacks.ept import run_feature_extraction
 from midst_toolkit.common.logger import log
-
 
 
 # Step 2 and 3: Attribute prediction model training and feature extraction
@@ -26,16 +26,9 @@ def attribute_prediction_train_and_extract(config: DictConfig) -> None:
     Args:
         config: Configuration object set in config.yaml.
     """
-
     log(INFO, "Running attribute prediction model training.")
 
-    if config.attack_settings.single_table:
-        diffusion_model_names = [
-            "tabddpm",
-            "tabsyn",]
-    else:
-        diffusion_model_names = [
-            "clavaddpm",]
+    diffusion_model_names = ["tabddpm", "tabsyn"] if config.attack_settings.single_table else ["clavaddpm"]
     modes = ["train", "dev", "final"]
     input_data_path = Path(config.data_paths.input_data_path)
     output_features_path = Path(config.data_paths.output_data_path, "attribute_prediction_features")
@@ -45,9 +38,7 @@ def attribute_prediction_train_and_extract(config: DictConfig) -> None:
         model_path = Path(input_data_path / f"{model_name}_black_box")
         for mode in modes:
             current_path = Path(model_path / mode)
-            model_folders = [
-                entry.name for entry in current_path.iterdir() if entry.is_dir()
-            ]
+            model_folders = [entry.name for entry in current_path.iterdir() if entry.is_dir()]
             for model_folder in model_folders:
                 # Load the data files as dataframes
                 input_data_path = Path(current_path / model_folder)
@@ -59,36 +50,32 @@ def attribute_prediction_train_and_extract(config: DictConfig) -> None:
                 # Load column types specific to the competition dataset
                 with open(config.data_paths.data_types_file_path, "r") as f:
                     column_types = json.load(f)
-                
+
                 # Drop columns in df_syntehtic_data that end with '_id'
-                df_synthetic_data = df_synthetic_data.drop(columns=[col for col in df_synthetic_data.columns if col.endswith('_id')])
-                df_challenge_data = df_challenge_data.drop(columns=[col for col in df_challenge_data.columns if col.endswith('_id')])
+                df_synthetic_data = df_synthetic_data.drop(
+                    columns=[col for col in df_synthetic_data.columns if col.endswith("_id")]
+                )
+                df_challenge_data = df_challenge_data.drop(
+                    columns=[col for col in df_challenge_data.columns if col.endswith("_id")]
+                )
 
                 # Run feature extraction
                 df_extracted_features = run_feature_extraction.main(
                     synthetic_data=df_synthetic_data,
                     challenge_data=df_challenge_data,
-                    challenge_labels=df_challenge_labels,
                     column_types=column_types,
                     random_seed=config.random_seed,
                 )
 
-                final_output_dir = Path(
-                    output_features_path / f"{model_name}_black_box"
-                )
+                final_output_dir = Path(output_features_path / f"{model_name}_black_box")
 
                 final_output_dir.mkdir(parents=True, exist_ok=True)
 
                 # Extract the number at the end of model_folder
-                model_folder_number = int(model_folder.split('_')[-1])
+                model_folder_number = int(model_folder.split("_")[-1])
                 file_name = f"attribute_prediction_features_{model_folder_number}.csv"
 
-                save_dataframe(
-                    df=df_extracted_features,
-                    file_path=final_output_dir,
-                    file_name=file_name
-                )
-
+                save_dataframe(df=df_extracted_features, file_path=final_output_dir, file_name=file_name)
 
 
 @hydra.main(config_path=".", config_name="config", version_base=None)
@@ -101,18 +88,18 @@ def main(config: DictConfig) -> None:
     Args:
         config: Attack configuration as an OmegaConf DictConfig object.
     """
-
     log(INFO, "Running EPT-MIA Attack Example Pipeline.")
-    
+
     if config.attack_settings.single_table:
         log(INFO, "Data: Single-table.")
     else:
         log(INFO, "Data: Multi-table.")
 
-    #TODO: Implement shadow model training step.
+    # TODO: Implement shadow model training step.
 
     if config.pipeline.run_attribute_prediction_model_training:
         attribute_prediction_train_and_extract(config)
+
 
 if __name__ == "__main__":
     main()
