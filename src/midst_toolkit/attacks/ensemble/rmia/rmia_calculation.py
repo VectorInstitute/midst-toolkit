@@ -322,10 +322,12 @@ def calculate_rmia_signals(
 
     shadow_training_sets = [set(df[id_column_name].values) for df in shadow_training_data]
 
-    mask_in_training = np.array([
-        [results_df[id_column_name].iloc[j] in shadow_training_sets[i] for j in range(len(results_df))]
-        for i in range(len(shadow_training_sets))
-    ])
+    mask_in_training = np.array(
+        [
+            [results_df[id_column_name].iloc[j] in shadow_training_sets[i] for j in range(len(results_df))]
+            for i in range(len(shadow_training_sets))
+        ]
+    )
 
     mask_not_in_training = ~mask_in_training
 
