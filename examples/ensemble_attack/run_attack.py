@@ -68,20 +68,16 @@ def main(config: DictConfig) -> None:
     if config.pipeline.run_metaclassifier_training:
         if not config.pipeline.run_shadow_model_training:
             # If shadow model training is skipped, we need to provide the previous shadow model and target model paths.
-            attack_data_paths = [
-                Path(Path(config.shadow_training.shadow_models_output_path) / path)
-                for path in config.shadow_training.final_shadow_models_path
-            ]
 
-            target_data_path = Path(config.shadow_training.target_model_output_path) / Path(
-                config.shadow_training.final_target_model_path
-            )
+            shadow_data_paths = [Path(path) for path in config.shadow_training.final_shadow_models_path]
 
-        assert len(attack_data_paths) == 3, "The attack_data_paths list must contain exactly three elements."
+            target_data_path = Path(config.shadow_training.final_target_model_path)
+
+        assert len(shadow_data_paths) == 3, "The attack_data_paths list must contain exactly three elements."
         assert target_data_path is not None, "The target_data_path must be provided for metaclassifier training."
 
         meta_pipeline = importlib.import_module("examples.ensemble_attack.run_metaclassifier_training")
-        meta_pipeline.run_metaclassifier_training(config, attack_data_paths, target_data_path=target_data_path)
+        meta_pipeline.run_metaclassifier_training(config, shadow_data_paths, target_data_path)
 
 
 if __name__ == "__main__":

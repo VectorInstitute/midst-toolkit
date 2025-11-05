@@ -13,7 +13,7 @@ from midst_toolkit.common.logger import log
 
 def run_metaclassifier_training(
     config: DictConfig,
-    attack_data_paths: list[Path],
+    shadow_data_paths: list[Path],
     target_data_path: Path,
 ) -> None:
     """
@@ -21,7 +21,7 @@ def run_metaclassifier_training(
 
     Args:
         config: Configuration object set in config.yaml.
-        attack_data_paths: List of paths to the trained shadow models and all their attributes and synthetic data.
+        shadow_data_paths: List of paths to the trained shadow models and all their attributes and synthetic data.
             The list should contain three paths, one for each set of shadow models.
         target_data_path: Path to the target model and all its attributes and synthetic data.
     """
@@ -32,6 +32,9 @@ def run_metaclassifier_training(
         Path(config.data_paths.processed_attack_data_path),
         "master_challenge_train.csv",
     )
+
+    # y_meta_train consists of binary labels (0s and 1s) indicating whether each row in df_meta_train
+    # belongs to the target model's training set.
     y_meta_train = np.load(
         Path(config.data_paths.processed_attack_data_path) / "master_challenge_train_labels.npy",
     )
@@ -45,20 +48,20 @@ def run_metaclassifier_training(
 
     # Three sets of shadow models are trained separately and their paths are provided here.
 
-    assert len(attack_data_paths) == 3, (
-        "At this point of development, the attack_data_paths list must contain exactly three elements."
+    assert len(shadow_data_paths) == 3, (
+        "At this point of development, the shadow_data_paths list must contain exactly three elements."
     )
 
-    attack_data_collection = []
+    shadow_data_collection = []
 
-    for model_path in attack_data_paths:
+    for model_path in shadow_data_paths:
         assert model_path.exists(), (
             f"No file found at {model_path}. Make sure the path is correct, or run shadow model training first."
         )
 
         with open(model_path, "rb") as f:
             shadow_data_and_result = pickle.load(f)
-            attack_data_collection.append(shadow_data_and_result)
+            shadow_data_collection.append(shadow_data_and_result)
 
     assert target_data_path.exists(), (
         f"No file found at {target_data_path}. Make sure the path is correct and that you have trained the target model."
@@ -67,9 +70,9 @@ def run_metaclassifier_training(
     with open(target_data_path, "rb") as f:
         target_data_and_result = pickle.load(f)
 
-    synth = target_data_and_result["trained_results"][0].synthetic_data
-    assert synth is not None, "Target model pickle missing synthetic_data."
-    df_synthetic = synth.copy()
+    target_synthetic = target_data_and_result["trained_results"][0].synthetic_data
+    assert target_synthetic is not None, "Target model pickle missing synthetic_data."
+    target_synthetic = target_synthetic.copy()
 
     df_reference = load_dataframe(
         Path(config.data_paths.population_path),
@@ -92,7 +95,7 @@ def run_metaclassifier_training(
     # 1. Initialize the attacker
     blending_attacker = BlendingPlusPlus(
         config=config,
-        attack_data_collection=attack_data_collection,
+        shadow_data_collection=shadow_data_collection,
         target_data=target_data_and_result,
         meta_classifier_type=meta_classifier_enum,
         random_seed=config.random_seed,
@@ -105,7 +108,7 @@ def run_metaclassifier_training(
     blending_attacker.fit(
         df_train=df_meta_train,
         y_train=y_meta_train,
-        df_synthetic=df_synthetic,
+        df_target_synthetic=target_synthetic,
         df_reference=df_reference,
         id_column_data=train_trans_ids,
         use_gpu=config.metaclassifier.use_gpu,
@@ -129,7 +132,7 @@ def run_metaclassifier_training(
     # 3. Get predictions on the test set
     probabilities, pred_score = blending_attacker.predict(
         df_test=df_meta_test,
-        df_synthetic=df_synthetic_original,
+        df_original_synthetic=df_synthetic_original,
         df_reference=df_reference,
         id_column_data=test_trans_ids,
         y_test=y_meta_test,

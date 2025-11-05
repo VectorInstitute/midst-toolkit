@@ -35,10 +35,7 @@ def run_target_model_training(config: DictConfig) -> Path:
         "real_train.csv",
     )
 
-    # TODO: Figure out if the target model should be trained on real_train only or
-    # be trained on a subset of population and then fine-tuned on real_train.
-
-    # Right now, I'm assuming target model is trained only on real_train.
+    # TODO: Test when pipeline is complete to make sure real_data is correct.
 
     target_model_output_path = Path(config.shadow_training.target_model_output_path)
     target_training_json_config_paths = config.shadow_training.training_json_config_paths
