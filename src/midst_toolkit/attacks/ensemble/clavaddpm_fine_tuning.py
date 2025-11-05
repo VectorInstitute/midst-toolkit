@@ -99,9 +99,9 @@ def fine_tune_model(
     if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = np.array([0])
 
-    num_numerical_features = (
-        dataset.numerical_features[DataSplit.TRAIN.value].shape[1] if dataset.numerical_features is not None else 0
-    )
+    num_numerical_features = 0
+    if dataset.numerical_features is not None:
+        num_numerical_features = dataset.numerical_features[DataSplit.TRAIN.value].shape[1]
 
     train_loader = prepare_fast_dataloader(dataset, split=DataSplit.TRAIN, batch_size=batch_size)
 
