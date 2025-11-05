@@ -68,8 +68,8 @@ def sample_from_diffusion(
 
     """
     num_features = 0
-    if dataset.x_num is not None:
-        num_features = dataset.x_num[DataSplit.TRAIN.value].shape[1]
+    if dataset.numerical_features is not None:
+        num_features = dataset.numerical_features[DataSplit.TRAIN.value].shape[1]
 
     category_sizes = dataset.get_category_sizes(DataSplit.TRAIN)
     if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
@@ -77,7 +77,7 @@ def sample_from_diffusion(
 
     model_params.d_in = np.sum(category_sizes) + num_features
 
-    _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.y[DataSplit.TRAIN.value]), return_counts=True)
+    _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.target[DataSplit.TRAIN.value]), return_counts=True)
     synthetic_data = diffusion.sample_all(
         sample_size,
         sample_batch_size,
@@ -138,8 +138,8 @@ def conditional_sample_from_diffusion(
             - sampled_group_sizes: List of the sampled group sizes.
     """
     num_features = 0
-    if dataset.x_num is not None:
-        num_features = dataset.x_num[DataSplit.TRAIN.value].shape[1]
+    if dataset.numerical_features is not None:
+        num_features = dataset.numerical_features[DataSplit.TRAIN.value].shape[1]
 
     targets, sampled_group_sizes = _sample_targets(group_labels, group_length_prob_dict)
 

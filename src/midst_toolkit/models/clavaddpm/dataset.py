@@ -64,10 +64,10 @@ class Transformations:
 
 @dataclass(frozen=False)
 class Dataset:
-    x_num: ArrayDict | None
-    x_cat: ArrayDict | None
-    y: ArrayDict
-    y_info: dict[str, Any]
+    numerical_features: ArrayDict | None
+    categorical_features: ArrayDict | None
+    target: ArrayDict
+    target_info: dict[str, Any]
     task_type: TaskType
     n_classes: int | None
     categorical_transform: OneHotEncoder | None = None
@@ -116,24 +116,24 @@ class Dataset:
         return {x: cast(np.ndarray, np.load(directory / f"{dataset_name}_{x}.npy", allow_pickle=True)) for x in splits}
 
     @property
-    def is_binclass(self) -> bool:
+    def is_binary_classification(self) -> bool:
         """
         Check if the dataset is a binary classification dataset.
 
         Returns:
             True if the dataset is a binary classification dataset, False otherwise.
         """
-        return self.task_type == TaskType.BINCLASS
+        return self.task_type == TaskType.BINARY_CLASSIFICATION
 
     @property
-    def is_multiclass(self) -> bool:
+    def is_multiclass_classification(self) -> bool:
         """
         Check if the dataset is a multiclass classification dataset.
 
         Returns:
             True if the dataset is a multiclass classification dataset, False otherwise.
         """
-        return self.task_type == TaskType.MULTICLASS
+        return self.task_type == TaskType.MULTICLASS_CLASSIFICATION
 
     @property
     def is_regression(self) -> bool:
@@ -146,7 +146,7 @@ class Dataset:
         return self.task_type == TaskType.REGRESSION
 
     @property
-    def n_num_features(self) -> int:
+    def n_numerical_features(self) -> int:
         """
         Get the number of numerical features in the dataset.
 
@@ -155,10 +155,10 @@ class Dataset:
         Returns:
             The number of numerical features in the dataset.
         """
-        return 0 if self.x_num is None else self.x_num[DataSplit.TRAIN.value].shape[1]
+        return 0 if self.numerical_features is None else self.numerical_features[DataSplit.TRAIN.value].shape[1]
 
     @property
-    def n_cat_features(self) -> int:
+    def n_categorical_features(self) -> int:
         """
         Get the number of categorical features in the dataset.
 
@@ -167,7 +167,7 @@ class Dataset:
         Returns:
             The number of categorical features in the dataset.
         """
-        return 0 if self.x_cat is None else self.x_cat[DataSplit.TRAIN.value].shape[1]
+        return 0 if self.categorical_features is None else self.categorical_features[DataSplit.TRAIN.value].shape[1]
 
     @property
     def n_features(self) -> int:
@@ -177,7 +177,7 @@ class Dataset:
         Returns:
             The total number of features in the dataset.
         """
-        return self.n_num_features + self.n_cat_features
+        return self.n_numerical_features + self.n_categorical_features
 
     def size(self, split: DataSplit | None) -> int:
         """
@@ -191,7 +191,7 @@ class Dataset:
         Returns:
             The size of the dataset.
         """
-        return sum(map(len, self.y.values())) if split is None else len(self.y[split.value])
+        return sum(map(len, self.target.values())) if split is None else len(self.target[split.value])
 
     @property
     def output_dimension(self) -> int:
@@ -205,7 +205,7 @@ class Dataset:
         Returns:
             The output dimension of the model.
         """
-        if self.is_multiclass:
+        if self.is_multiclass_classification:
             assert self.n_classes is not None
             return self.n_classes
         return 1
@@ -220,7 +220,7 @@ class Dataset:
         Returns:
             The size of the categories in the specified split of the dataset.
         """
-        return [] if self.x_cat is None else get_category_sizes(self.x_cat[split.value])
+        return [] if self.categorical_features is None else get_category_sizes(self.categorical_features[split.value])
 
     def calculate_metrics(
         self,
@@ -238,7 +238,7 @@ class Dataset:
             The metrics of the predictions.
         """
         metrics = {
-            x: calculate_metrics(self.y[x], predictions[x], self.task_type, prediction_type, self.y_info)
+            x: calculate_metrics(self.target[x], predictions[x], self.task_type, prediction_type, self.target_info)
             for x in predictions
         }
         if self.task_type == TaskType.REGRESSION:
@@ -264,16 +264,16 @@ def get_category_sizes(features: torch.Tensor | np.ndarray) -> list[int]:
     Returns:
         A list with the category sizes in the data.
     """
-    x_t = features.T.cpu().tolist() if isinstance(features, torch.Tensor) else features.T.tolist()
-    return [len(set(xt)) for xt in x_t]
+    features_transposed = features.T.cpu().tolist() if isinstance(features, torch.Tensor) else features.T.tolist()
+    return [len(set(xt)) for xt in features_transposed]
 
 
 def calculate_metrics(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
+    true_target: np.ndarray,
+    predicted_target: np.ndarray,
     task_type: TaskType,
     prediction_type: PredictionType | None,
-    y_info: dict[str, Any],
+    target_info: dict[str, Any],
 ) -> dict[str, Any]:
     """
     Calculate the metrics of the predictions.
@@ -281,11 +281,11 @@ def calculate_metrics(
     Usage: calculate_metrics(y_true, y_pred, TaskType.BINCLASS, PredictionType.LOGITS, {})
 
     Args:
-        y_true: The true labels as a numpy array.
-        y_pred: The predicted labels as a numpy array.
+        true_target: The true labels as a numpy array.
+        predicted_target: The predicted labels as a numpy array.
         task_type: The type of the task.
         prediction_type: The type of the predictions.
-        y_info: A dictionary with metadata about the labels.
+        target_info: A dictionary with metadata about the labels.
 
     Returns:
         The metrics of the predictions as a dictionary with the following keys:
@@ -295,20 +295,20 @@ def calculate_metrics(
                     "r2": The R^2 score.
                 }
 
-            If the task type is TaskType.MULTICLASS, it will have a key for each label
+            If the task type is TaskType.MULTICLASS_CLASSIFICATION, it will have a key for each label
             with the following metrics (result of sklearn.metrics.classification_report):
                 {
                     "label-1": {
                         "precision": The precision of the label.
                         "recall": The recall of the label.
                         "f1-score": The F1 score of the label.
-                        "support": The number of occurrences of this label in y_true.
+                        "support": The number of occurrences of this label in true_target.
                     },
                     "label-2": {...}
                     ...
                 }
 
-            If the task type is TaskType.BINCLASS, it will have a key for each label
+            If the task type is TaskType.BINARY_CLASSIFICATION, it will have a key for each label
             with the following metrics ((result of sklearn.metrics.classification_report),
             and an additional ROC AUC metric:
                 {
@@ -316,7 +316,7 @@ def calculate_metrics(
                         "precision": The precision of the label.
                         "recall": The recall of the label.
                         "f1-score": The F1 score of the label.
-                        "support": The number of occurrences of this label in y_true.
+                        "support": The number of occurrences of this label in true_target.
                     },
                     "label-2": {...}
                     ...
@@ -325,40 +325,48 @@ def calculate_metrics(
     """
     if task_type == TaskType.REGRESSION:
         assert prediction_type is None
-        assert "std" in y_info
-        rmse = calculate_rmse(y_true, y_pred, y_info["std"])
-        r2 = r2_score(y_true, y_pred)
-        result = {"rmse": rmse, "r2": r2}
+        assert "std" in target_info
+        rmse = calculate_rmse(true_target, predicted_target, target_info["std"])
+        r2 = r2_score(true_target, predicted_target)
+        result = {
+            "rmse": rmse,
+            "r2": r2,
+        }
+
     else:
-        labels, probs = _get_predicted_labels_and_probs(y_pred, task_type, prediction_type)
+        labels, probs = _get_predicted_labels_and_probs(predicted_target, task_type, prediction_type)
         # TODO: figure out if there is a way of getting rid of the cast
-        result = cast(dict[str, Any], classification_report(y_true, labels, output_dict=True))
-        if task_type == TaskType.BINCLASS:
-            result["roc_auc"] = roc_auc_score(y_true, probs)
+        result = cast(dict[str, Any], classification_report(true_target, labels, output_dict=True))
+        if task_type == TaskType.BINARY_CLASSIFICATION:
+            result["roc_auc"] = roc_auc_score(true_target, probs)
+
     return result
 
 
-def calculate_rmse(y_true: np.ndarray, y_pred: np.ndarray, std: float | None) -> float:
+def calculate_rmse(true_target: np.ndarray, predicted_target: np.ndarray, std: float | None) -> float:
     """
     Calculate the root mean squared error (RMSE) of the predictions.
 
     Args:
-        y_true: The true labels as a numpy array.
-        y_pred: The predicted labels as a numpy array.
+        true_target: The true labels as a numpy array.
+        predicted_target: The predicted labels as a numpy array.
         std: The standard deviation of the labels. If None, the RMSE is calculated
             without the standard deviation.
 
     Returns:
         The RMSE of the predictions.
     """
-    rmse = mean_squared_error(y_true, y_pred) ** 0.5
+    rmse = mean_squared_error(true_target, predicted_target) ** 0.5
     if std is not None:
         rmse *= std
+
     return rmse
 
 
 def _get_predicted_labels_and_probs(
-    y_pred: np.ndarray, task_type: TaskType, prediction_type: PredictionType | None
+    predicted_target: np.ndarray,
+    task_type: TaskType,
+    prediction_type: PredictionType | None,
 ) -> tuple[np.ndarray, np.ndarray | None]:
     """
     Get the labels and probabilities from the predictions.
@@ -366,8 +374,8 @@ def _get_predicted_labels_and_probs(
     and the probabilities as None.
 
     Args:
-        y_pred: The predicted labels as a numpy array.
-        task_type: The type of the task. Can be TaskType.BINCLASS or TaskType.MULTICLASS.
+        predicted_target: The predicted labels as a numpy array.
+        task_type: The type of the task. Can be TaskType.BINARY_CLASSIFICATION or TaskType.MULTICLASS_CLASSIFICATION.
             Other task types are not supported.
         prediction_type: The type of the predictions. If None, will return the predictions as labels
             and probabilities as None.
@@ -376,21 +384,29 @@ def _get_predicted_labels_and_probs(
         A tuple with the labels and probabilities. The probabilities are None
             if the prediction_type is None.
     """
-    assert task_type in (TaskType.BINCLASS, TaskType.MULTICLASS), f"Unsupported task type: {task_type.value}"
+    assert task_type in (TaskType.BINARY_CLASSIFICATION, TaskType.MULTICLASS_CLASSIFICATION), (
+        f"Unsupported task type: {task_type.value}"
+    )
 
     if prediction_type is None:
-        return y_pred, None
+        return predicted_target, None
 
     if prediction_type == PredictionType.LOGITS:
-        probs = expit(y_pred) if task_type == TaskType.BINCLASS else softmax(y_pred, axis=1)
+        if task_type == TaskType.BINARY_CLASSIFICATION:
+            probabilities = expit(predicted_target)
+        else:
+            probabilities = softmax(predicted_target, axis=1)
+
     elif prediction_type == PredictionType.PROBS:
-        probs = y_pred
+        probabilities = predicted_target
+
     else:
         raise ValueError(f"Unsupported prediction_type: {prediction_type.value}")
 
-    assert probs is not None
-    labels = np.round(probs) if task_type == TaskType.BINCLASS else probs.argmax(axis=1)
-    return labels.astype("int64"), probs
+    assert probabilities is not None
+    labels = np.round(probabilities) if task_type == TaskType.BINARY_CLASSIFICATION else probabilities.argmax(axis=1)
+
+    return labels.astype("int64"), probabilities
 
 
 def make_dataset_from_df(
@@ -516,7 +532,7 @@ def make_dataset_from_df(
         numerical_features,
         None,
         target,
-        y_info={},
+        target_info={},
         task_type=TaskType(info["task_type"]),
         n_classes=info["n_classes"],
     )
@@ -675,13 +691,13 @@ def transform_dataset(
                 return value
             raise RuntimeError(f"Hash collision for {cache_path}")
 
-    if dataset.x_num is not None:
+    if dataset.numerical_features is not None:
         dataset = process_nans_in_numerical_features(dataset, transformations.numerical_nan_policy)
 
     numerical_transform = None
     categorical_transform = None
-    numerical_features = dataset.x_num
-    categorical_features = dataset.x_cat
+    numerical_features = dataset.numerical_features
+    categorical_features = dataset.categorical_features
 
     if numerical_features is not None and transformations.normalization is not None:
         numerical_features, numerical_transform = normalize(
@@ -707,7 +723,7 @@ def transform_dataset(
         categorical_features, is_numerical, categorical_transform = encode_categorical_features(
             categorical_features,
             transformations.categorical_encoding,
-            dataset.y[DataSplit.TRAIN.value],
+            dataset.target[DataSplit.TRAIN.value],
             transformations.seed,
             return_encoder=True,
         )
@@ -720,9 +736,15 @@ def transform_dataset(
                 }
             categorical_features = None
 
-    target, target_info = build_target(dataset.y, transformations.target_policy, dataset.task_type)
+    target, target_info = build_target(dataset.target, transformations.target_policy, dataset.task_type)
 
-    dataset = replace(dataset, x_num=numerical_features, x_cat=categorical_features, y=target, y_info=target_info)
+    dataset = replace(
+        dataset,
+        numerical_features=numerical_features,
+        categorical_features=categorical_features,
+        target=target,
+        target_info=target_info,
+    )
     dataset.numerical_transform = numerical_transform
     dataset.categorical_transform = categorical_transform
 
@@ -760,7 +782,7 @@ def dump_pickle(x: Any, path: Path | str, **kwargs: Any) -> None:
 
 # Inspired by: https://github.com/yandex-research/rtdl/blob/a4c93a32b334ef55d2a0559a4407c8306ffeeaee/lib/data.py#L20
 def normalize(
-    x: ArrayDict,
+    data: ArrayDict,
     normalization: Normalization,
     seed: int | None,
 ) -> tuple[ArrayDict, StandardScaler | MinMaxScaler | QuantileTransformer]:
@@ -768,14 +790,13 @@ def normalize(
     Normalize the input data.
 
     Args:
-        x: The data to normalize.
+        data: The data to normalize.
         normalization: The normalization to use.
         seed: The seed to use for the random state. Optional, default is None.
 
     Returns:
         The normalized data and the normalizer.
     """
-    x_train = x[DataSplit.TRAIN.value]
     if normalization == Normalization.STANDARD:
         normalizer = StandardScaler()
     elif normalization == Normalization.MINMAX:
@@ -783,15 +804,17 @@ def normalize(
     elif normalization == Normalization.QUANTILE:
         normalizer = QuantileTransformer(
             output_distribution="normal",
-            n_quantiles=max(min(x[DataSplit.TRAIN.value].shape[0] // 30, 1000), 10),
+            n_quantiles=max(min(data[DataSplit.TRAIN.value].shape[0] // 30, 1000), 10),
             subsample=int(1e9),
             random_state=seed,
         )
     else:
         raise ValueError(f"Unsupported normalization: {normalization.value}")
-    normalizer.fit(x_train)
 
-    return {k: normalizer.transform(v) for k, v in x.items()}, normalizer
+    train_features = data[DataSplit.TRAIN.value]
+    normalizer.fit(train_features)
+
+    return {k: normalizer.transform(v) for k, v in data.items()}, normalizer
 
 
 def process_nans_in_numerical_features(dataset: Dataset, policy: NumericalNaNPolicy | None) -> Dataset:
@@ -811,9 +834,9 @@ def process_nans_in_numerical_features(dataset: Dataset, policy: NumericalNaNPol
         log(INFO, "No NaN processing policy specified.")
         return dataset
 
-    assert dataset.x_num is not None, "No numerical features are present to process."
+    assert dataset.numerical_features is not None, "No numerical features are present to process."
 
-    nan_masks = {k: np.isnan(v) for k, v in dataset.x_num.items()}
+    nan_masks = {k: np.isnan(v) for k, v in dataset.numerical_features.items()}
     nan_values_exist = any(mask.any() for mask in nan_masks.values())
     if not nan_values_exist:
         log(INFO, "No NaN values to be processed.")
@@ -828,24 +851,32 @@ def process_nans_in_numerical_features(dataset: Dataset, policy: NumericalNaNPol
             "Cannot drop test rows, since this will affect the final metrics."
         )
 
-        dataset.x_num = None if dataset.x_num is None else drop_rows_according_to_mask(dataset.x_num, valid_masks)
-        dataset.x_cat = None if dataset.x_cat is None else drop_rows_according_to_mask(dataset.x_cat, valid_masks)
-        dataset.y = drop_rows_according_to_mask(dataset.y, valid_masks)
+        dataset.numerical_features = (
+            None
+            if dataset.numerical_features is None
+            else drop_rows_according_to_mask(dataset.numerical_features, valid_masks)
+        )
+        dataset.categorical_features = (
+            None
+            if dataset.categorical_features is None
+            else drop_rows_according_to_mask(dataset.categorical_features, valid_masks)
+        )
+        dataset.target = drop_rows_according_to_mask(dataset.target, valid_masks)
 
     elif policy == NumericalNaNPolicy.MEAN:
         # Computes column means in the training dataset, ignoring NaN values.
-        new_values = np.nanmean(dataset.x_num[DataSplit.TRAIN.value], axis=0)
+        new_values = np.nanmean(dataset.numerical_features[DataSplit.TRAIN.value], axis=0)
 
         # If any training column is all-NaN, np.nanmean returns NaN
         bad_cols = np.isnan(new_values)
         if bad_cols.any():
             raise ValueError("At least one of the columns in the train split are all NaN")
 
-        numerical_features_per_split = deepcopy(dataset.x_num)
+        numerical_features_per_split = deepcopy(dataset.numerical_features)
         for data_split, numerical_features in numerical_features_per_split.items():
             nan_indices = np.where(nan_masks[data_split])
             numerical_features[nan_indices] = np.take(new_values, nan_indices[1])
-        dataset.x_num = numerical_features_per_split
+        dataset.numerical_features = numerical_features_per_split
     else:
         raise ValueError(f"Unsupported policy: {policy.value}")
 
@@ -956,9 +987,9 @@ def collapse_rare_categories(data_splits: ArrayDict, min_frequency: float) -> Ar
 
 
 def encode_categorical_features(
-    x: ArrayDict,
+    categorical_features: ArrayDict,
     encoding: CategoricalEncoding | None,
-    y_train: np.ndarray | None,
+    target_train: np.ndarray | None,
     seed: int | None,
     return_encoder: bool = False,
 ) -> tuple[ArrayDict, bool, Any | None]:
@@ -966,9 +997,9 @@ def encode_categorical_features(
     Encode the categorical features of the dataset.
 
     Args:
-        x: The data to encode.
+        categorical_features: The categorical features to encode.
         encoding: The encoding to use. If None, will use CatEncoding.ORDINAL.
-        y_train: The target values. Optional, default is None. Will only be used for the "counter" encoding.
+        target_train: The target values. Optional, default is None. Will only be used for the "counter" encoding.
         seed: The seed to use for the random state. Optional, default is None.
         return_encoder: Whether to return the encoder. Optional, default is False.
 
@@ -979,7 +1010,7 @@ def encode_categorical_features(
             - The encoder, if return_encoder is True. None otherwise.
     """
     if encoding != CategoricalEncoding.COUNTER:
-        y_train = None
+        target_train = None
 
     # Step 1. Map strings to 0-based ranges
 
@@ -989,19 +1020,24 @@ def encode_categorical_features(
             handle_unknown="use_encoded_value",
             unknown_value=unknown_value,
             dtype="int64",
-        ).fit(x[DataSplit.TRAIN.value])
+        ).fit(categorical_features[DataSplit.TRAIN.value])
+
         encoder = make_pipeline(oe)
-        encoder.fit(x[DataSplit.TRAIN.value])
-        x = {k: encoder.transform(v) for k, v in x.items()}
-        max_values = x[DataSplit.TRAIN.value].max(axis=0)
-        for part in x:
-            if part == DataSplit.TRAIN.value:
+        encoder.fit(categorical_features[DataSplit.TRAIN.value])
+        categorical_features = {k: encoder.transform(v) for k, v in categorical_features.items()}
+        max_values = categorical_features[DataSplit.TRAIN.value].max(axis=0)
+
+        for split in categorical_features:
+            if split == DataSplit.TRAIN.value:
                 continue
-            for column_idx in range(x[part].shape[1]):
-                x[part][x[part][:, column_idx] == unknown_value, column_idx] = max_values[column_idx] + 1
+            for column_idx in range(categorical_features[split].shape[1]):
+                selector = categorical_features[split][:, column_idx] == unknown_value, column_idx
+                categorical_features[split][selector] = max_values[column_idx] + 1
+
         if return_encoder:
-            return x, False, encoder
-        return x, False, None
+            return categorical_features, False, encoder
+
+        return categorical_features, False, None
 
     # Step 2. Encode.
 
@@ -1012,32 +1048,39 @@ def encode_categorical_features(
             dtype=np.float32,
         )
         encoder = make_pipeline(ohe)
-        encoder.fit(x[DataSplit.TRAIN.value])
-        x = {k: encoder.transform(v) for k, v in x.items()}
+        encoder.fit(categorical_features[DataSplit.TRAIN.value])
+        categorical_features = {k: encoder.transform(v) for k, v in categorical_features.items()}
 
     elif encoding == CategoricalEncoding.COUNTER:
-        assert y_train is not None
+        assert target_train is not None
         assert seed is not None
         loe = LeaveOneOutEncoder(sigma=0.1, random_state=seed, return_df=False)
         encoder.steps.append(("loe", loe))
-        encoder.fit(x[DataSplit.TRAIN.value], y_train)
-        x = {k: encoder.transform(v).astype("float32") for k, v in x.items()}
-        if not isinstance(x[DataSplit.TRAIN.value], pd.DataFrame):
-            x = {k: v.value if hasattr(v, "value") else v for k, v in x.items()}
+        encoder.fit(categorical_features[DataSplit.TRAIN.value], target_train)
+        categorical_features = {k: encoder.transform(v).astype("float32") for k, v in categorical_features.items()}
+
+        if not isinstance(categorical_features[DataSplit.TRAIN.value], pd.DataFrame):
+            categorical_features = {k: v.value if hasattr(v, "value") else v for k, v in categorical_features.items()}
+
     else:
         raise ValueError(f"Unsupported encoding: {encoding.value}")
 
     if return_encoder:
-        return x, True, encoder
-    return x, True, None
+        return categorical_features, True, encoder
+
+    return categorical_features, True, None
 
 
-def build_target(y: ArrayDict, policy: TargetPolicy | None, task_type: TaskType) -> tuple[ArrayDict, dict[str, Any]]:
+def build_target(
+    target: ArrayDict,
+    policy: TargetPolicy | None,
+    task_type: TaskType,
+) -> tuple[ArrayDict, dict[str, Any]]:
     """
     Build the target and return the target values metadata.
 
     Args:
-        y: The target values.
+        target: The target values.
         policy: The policy to use to build the target. Can be YPolicy.DEFAULT. If none, it will no-op.
         task_type: The type of the task.
 
@@ -1047,14 +1090,16 @@ def build_target(y: ArrayDict, policy: TargetPolicy | None, task_type: TaskType)
     info: dict[str, Any] = {"policy": policy}
     if policy is None:
         pass
+
     elif policy == TargetPolicy.DEFAULT:
         if task_type == TaskType.REGRESSION:
-            mean = float(y[DataSplit.TRAIN.value].mean())
-            std = float(y[DataSplit.TRAIN.value].std())
-            y = {k: (v - mean) / std for k, v in y.items()}
+            mean = float(target[DataSplit.TRAIN.value].mean())
+            std = float(target[DataSplit.TRAIN.value].std())
+            target = {k: (v - mean) / std for k, v in target.items()}
             info["mean"] = mean
             info["std"] = std
+
     else:
         raise ValueError(f"Unsupported policy: {policy.value}")
 
-    return y, info
+    return target, info

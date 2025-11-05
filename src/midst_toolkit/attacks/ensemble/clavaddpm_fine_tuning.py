@@ -99,7 +99,9 @@ def fine_tune_model(
     if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = np.array([0])
 
-    num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1] if dataset.x_num is not None else 0
+    num_numerical_features = (
+        dataset.numerical_features[DataSplit.TRAIN.value].shape[1] if dataset.numerical_features is not None else 0
+    )
 
     train_loader = prepare_fast_dataloader(dataset, split=DataSplit.TRAIN, batch_size=batch_size)
 
@@ -193,11 +195,11 @@ def fine_tune_classifier(
     if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = np.array([0])
 
-    if dataset.x_num is None:
+    if dataset.numerical_features is None:
         log(WARNING, "dataset.x_num is None. num_numerical_features will be set to 0")
         num_numerical_features = 0
     else:
-        num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1]
+        num_numerical_features = dataset.numerical_features[DataSplit.TRAIN.value].shape[1]
 
     if model_params.is_target_conditioned == IsTargetConditioned.CONCAT:
         num_numerical_features -= 1

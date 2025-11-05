@@ -146,7 +146,7 @@ def get_table_info(df: pd.DataFrame, table_domain: dict[str, Any], y_col: str) -
     table_info["num_cols"] = numerical_cols
     table_info["y_col"] = y_col
     table_info["n_classes"] = 0
-    table_info["task_type"] = TaskType.MULTICLASS.value
+    table_info["task_type"] = TaskType.MULTICLASS_CLASSIFICATION.value
 
     return table_info
 
