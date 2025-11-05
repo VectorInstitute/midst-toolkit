@@ -409,7 +409,7 @@ def train_classifier(
             It must have exactly 3 values and their sum must amount to 1 (with a tolerance of 0.01).
         device: Device to use for training. Default is `"cuda"`.
         cluster_col: Name of the cluster column. Default is `"cluster"`.
-        dim_t: Dimension of the timestamp. Default is 128.
+        dim_t: Dimension of the timestep. Default is 128.
         learning_rate: Learning rate to use for the optimizer in the classifier. Default is 0.0001.
         classifier_evaluation_interval: The number of classifier training steps to wait
             until the next evaluation of the classifier. Default is 5.
