@@ -437,18 +437,18 @@ def _get_conditioning_function(classifier: Classifier, classifier_scale: float) 
         assert "y" in kwargs and kwargs["y"] is not None, "The kwargs parameter `y` must be provided."
         assert isinstance(kwargs["y"], torch.Tensor), "The kwargs parameter `y` must be a Tensor."
 
-        y = kwargs["y"]
+        target = kwargs["y"]
         remove_first_col = kwargs.get("remove_first_col", False)
 
         with torch.enable_grad():
             if remove_first_col:
-                x_in = features[:, 1:].detach().requires_grad_(True).float()
+                input_features = features[:, 1:].detach().requires_grad_(True).float()
             else:
-                x_in = features.detach().requires_grad_(True).float()
-            logits = classifier(x_in, timestep)
+                input_features = features.detach().requires_grad_(True).float()
+            logits = classifier(input_features, timestep)
             log_probs = functional.log_softmax(logits, dim=-1)
-            selected = log_probs[range(len(logits)), y.view(-1)]
-            return torch.autograd.grad(selected.sum(), x_in)[0] * classifier_scale
+            selected = log_probs[range(len(logits)), target.view(-1)]
+            return torch.autograd.grad(selected.sum(), input_features)[0] * classifier_scale
 
     return conditioning_function
 
