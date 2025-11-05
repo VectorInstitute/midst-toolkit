@@ -211,8 +211,8 @@ class MLP(nn.Module):
         def __init__(
             self,
             *,
-            d_in: int,
-            d_out: int,
+            input_dimension: int,
+            output_dimension: int,
             bias: bool,
             activation: ModuleType,
             dropout: float,
@@ -221,37 +221,37 @@ class MLP(nn.Module):
             Initialize the MLP block.
 
             Args:
-                d_in: The input dimension size.
-                d_out: The output dimension size.
+                input_dimension: The input dimension size.
+                output_dimension: The output dimension size.
                 bias: Whether to use bias.
                 activation: The activation function.
                 dropout: The dropout probability.
             """
             super().__init__()
-            self.linear = nn.Linear(d_in, d_out, bias)
+            self.linear = nn.Linear(input_dimension, output_dimension, bias)
             self.activation = _make_nn_module(activation)
             self.dropout = nn.Dropout(dropout)
 
-        def forward(self, x: Tensor) -> Tensor:
+        def forward(self, input_tensor: Tensor) -> Tensor:
             """
             Forward pass of the MLP block.
 
             Args:
-                x: The input tensor.
+                input_tensor: The input tensor.
 
             Returns:
                 The output tensor.
             """
-            return self.dropout(self.activation(self.linear(x)))
+            return self.dropout(self.activation(self.linear(input_tensor)))
 
     def __init__(
         self,
         *,
-        d_in: int,
-        d_layers: list[int],
+        input_dimension: int,
+        layers_dimensions: list[int],
         dropouts: float | list[float],
         activation: ModuleType,
-        d_out: int,
+        output_dimension: int,
     ):
         """
         Initialize the MLP model.
@@ -260,39 +260,41 @@ class MLP(nn.Module):
             `make_baseline` is the recommended constructor.
 
         Args:
-            d_in: The input dimension size.
-            d_layers: The list of sizes for the hidden layers.
+            input_dimension: The input dimension size.
+            layers_dimensions: The list of sizes for the hidden layers.
             dropouts: Can be either a single value for the dropout rate or a list of dropout rates.
             activation: The activation function.
-            d_out: The output dimension size.
+            output_dimension: The output dimension size.
         """
         super().__init__()
+
         if isinstance(dropouts, float):
-            dropouts = [dropouts] * len(d_layers)
-        assert len(d_layers) == len(dropouts)
+            dropouts = [dropouts] * len(layers_dimensions)
+
+        assert len(layers_dimensions) == len(dropouts)
         assert activation not in [ModuleType.REGLU, ModuleType.GEGLU]
 
         self.blocks = nn.ModuleList(
             [
                 MLP.Block(
-                    d_in=d_layers[i - 1] if i else d_in,
-                    d_out=d,
+                    input_dimension=layers_dimensions[i - 1] if i else input_dimension,
+                    output_dimension=d,
                     bias=True,
                     activation=activation,
                     dropout=dropout,
                 )
-                for i, (d, dropout) in enumerate(zip(d_layers, dropouts))
+                for i, (d, dropout) in enumerate(zip(layers_dimensions, dropouts))
             ]
         )
-        self.head = nn.Linear(d_layers[-1] if d_layers else d_in, d_out)
+        self.head = nn.Linear(layers_dimensions[-1] if layers_dimensions else input_dimension, output_dimension)
 
     @classmethod
     def make_baseline(
         cls,
-        d_in: int,
-        d_layers: list[int],
+        input_dimension: int,
+        layers_dimensions: list[int],
         dropout: float,
-        d_out: int,
+        output_dimension: int,
     ) -> Self:
         """Create a "baseline" `MLP`.
 
@@ -302,12 +304,12 @@ class MLP(nn.Module):
         * the dropout rate is the same for all dropout layers
 
         Args:
-            d_in: the input size
-            d_layers: the dimensions of the linear layers. If there are more than two
+            input_dimension: the input size
+            layers_dimensions: the dimensions of the linear layers. If there are more than two
                 layers, then all of them except for the first and the last ones must
                 have the same dimension.
             dropout: the dropout rate for all hidden layers
-            d_out: the output size
+            output_dimension: the output size
         Returns:
             MLP
 
@@ -316,33 +318,35 @@ class MLP(nn.Module):
             Artem Babenko, "Revisiting Deep Learning Models for Tabular Data", 2021
         """
         assert isinstance(dropout, float)
-        if len(d_layers) > 2:
-            assert len(set(d_layers[1:-1])) == 1, (
+        if len(layers_dimensions) > 2:
+            assert len(set(layers_dimensions[1:-1])) == 1, (
                 "if d_layers contains more than two elements, then"
                 " all elements except for the first and the last ones must be equal."
             )
         return cls(
-            d_in=d_in,
-            d_layers=d_layers,
+            input_dimension=input_dimension,
+            layers_dimensions=layers_dimensions,
             dropouts=dropout,
             activation=ModuleType.RELU,
-            d_out=d_out,
+            output_dimension=output_dimension,
         )
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, input_tensor: Tensor) -> Tensor:
         """
         Forward pass of the MLP model.
 
         Args:
-            x: The input tensor.
+            input_tensor: The input tensor.
 
         Returns:
             The output tensor.
         """
-        x = x.float()
+        input_tensor = input_tensor.float()
+
         for block in self.blocks:
-            x = block(x)
-        return self.head(x)
+            input_tensor = block(input_tensor)
+
+        return self.head(input_tensor)
 
 
 class ResNet(nn.Module):
@@ -361,13 +365,13 @@ class ResNet(nn.Module):
         .. testcode::
             x = torch.randn(4, 2)
             module = ResNet.make_baseline(
-                d_in=x.shape[1],
+                input_dimension=x.shape[1],
                 n_blocks=2,
-                d_main=3,
-                d_hidden=4,
+                block_dimension=3,
+                hidden_dimension=4,
                 dropout_first=0.25,
                 dropout_second=0.0,
-                d_out=1
+                output_dimension=1
             )
             assert module(x).shape == (len(x), 1)
 
@@ -382,8 +386,8 @@ class ResNet(nn.Module):
         def __init__(
             self,
             *,
-            d_main: int,
-            d_hidden: int,
+            block_dimension: int,
+            hidden_dimension: int,
             bias_first: bool,
             bias_second: bool,
             dropout_first: float,
@@ -396,8 +400,8 @@ class ResNet(nn.Module):
             Initialize the ResNet block.
 
             Args:
-                d_main: The input dimension size.
-                d_hidden: The output dimension size.
+                block_dimension: The input dimension size.
+                hidden_dimension: The output dimension size.
                 bias_first: Whether to use bias for the first linear layer.
                 bias_second: Whether to use bias for the second linear layer.
                 dropout_first: The dropout probability for the first dropout layer.
@@ -407,34 +411,36 @@ class ResNet(nn.Module):
                 skip_connection: Whether to use skip connection.
             """
             super().__init__()
-            self.normalization = _make_nn_module(normalization, d_main)
-            self.linear_first = nn.Linear(d_main, d_hidden, bias_first)
+            self.normalization = _make_nn_module(normalization, block_dimension)
+            self.linear_first = nn.Linear(block_dimension, hidden_dimension, bias_first)
             self.activation = _make_nn_module(activation)
             self.dropout_first = nn.Dropout(dropout_first)
-            self.linear_second = nn.Linear(d_hidden, d_main, bias_second)
+            self.linear_second = nn.Linear(hidden_dimension, block_dimension, bias_second)
             self.dropout_second = nn.Dropout(dropout_second)
             self.skip_connection = skip_connection
 
-        def forward(self, x: Tensor) -> Tensor:
+        def forward(self, input_tensor: Tensor) -> Tensor:
             """
             Forward pass of the ResNet block.
 
             Args:
-                x: The input tensor.
+                input_tensor: The input tensor.
 
             Returns:
                 The output tensor.
             """
-            x_input = x
-            x = self.normalization(x)
-            x = self.linear_first(x)
-            x = self.activation(x)
-            x = self.dropout_first(x)
-            x = self.linear_second(x)
-            x = self.dropout_second(x)
+            x_input = input_tensor
+            input_tensor = self.normalization(input_tensor)
+            input_tensor = self.linear_first(input_tensor)
+            input_tensor = self.activation(input_tensor)
+            input_tensor = self.dropout_first(input_tensor)
+            input_tensor = self.linear_second(input_tensor)
+            input_tensor = self.dropout_second(input_tensor)
+
             if self.skip_connection:
-                x = x_input + x
-            return x
+                input_tensor = x_input + input_tensor
+
+            return input_tensor
 
     class Head(nn.Module):
         """The final module of `ResNet`."""
@@ -442,8 +448,8 @@ class ResNet(nn.Module):
         def __init__(
             self,
             *,
-            d_in: int,
-            d_out: int,
+            input_dimension: int,
+            output_dimension: int,
             bias: bool,
             normalization: ModuleType,
             activation: ModuleType,
@@ -452,44 +458,45 @@ class ResNet(nn.Module):
             Initialize the ResNet head.
 
             Args:
-                d_in: The input dimension size.
-                d_out: The output dimension size.
+                input_dimension: The input dimension size.
+                output_dimension: The output dimension size.
                 bias: Whether to use bias.
                 normalization: The normalization function.
                 activation: The activation function.
             """
             super().__init__()
-            self.normalization = _make_nn_module(normalization, d_in)
+            self.normalization = _make_nn_module(normalization, input_dimension)
             self.activation = _make_nn_module(activation)
-            self.linear = nn.Linear(d_in, d_out, bias)
+            self.linear = nn.Linear(input_dimension, output_dimension, bias)
 
-        def forward(self, x: Tensor) -> Tensor:
+        def forward(self, input_tensor: Tensor) -> Tensor:
             """
             Forward pass of the ResNet head.
 
             Args:
-                x: The input tensor.
+                input_tensor: The input tensor.
 
             Returns:
                 The output tensor.
             """
             if self.normalization is not None:
-                x = self.normalization(x)
-            x = self.activation(x)
-            return self.linear(x)
+                input_tensor = self.normalization(input_tensor)
+
+            input_tensor = self.activation(input_tensor)
+            return self.linear(input_tensor)
 
     def __init__(
         self,
         *,
-        d_in: int,
+        input_dimension: int,
         n_blocks: int,
-        d_main: int,
-        d_hidden: int,
+        block_dimension: int,
+        hidden_dimension: int,
         dropout_first: float,
         dropout_second: float,
         normalization: ModuleType,
         activation: ModuleType,
-        d_out: int,
+        output_dimension: int,
     ):
         """
         Initialize the ResNet model.
@@ -498,26 +505,28 @@ class ResNet(nn.Module):
             `make_baseline` is the recommended constructor.
 
         Args:
-            d_in: The input dimension size.
+            input_dimension: The input dimension size.
             n_blocks: The number of blocks.
-            d_main: The input dimension size.
-            d_hidden: The output dimension size.
+            block_dimension: The input dimension size.
+            hidden_dimension: The output dimension size.
             dropout_first: The dropout probability for the first dropout layer.
             dropout_second: The dropout probability for the second dropout layer.
             normalization: The normalization function.
             activation: The activation function.
-            d_out: The output dimension size.
+            output_dimension: The output dimension size.
         """
         super().__init__()
 
-        self.first_layer = nn.Linear(d_in, d_main)
-        if d_main is None:
-            d_main = d_in
+        self.first_layer = nn.Linear(input_dimension, block_dimension)
+
+        if block_dimension is None:
+            block_dimension = input_dimension
+
         self.blocks = nn.Sequential(
             *[
                 ResNet.Block(
-                    d_main=d_main,
-                    d_hidden=d_hidden,
+                    block_dimension=block_dimension,
+                    hidden_dimension=hidden_dimension,
                     bias_first=True,
                     bias_second=True,
                     dropout_first=dropout_first,
@@ -530,8 +539,8 @@ class ResNet(nn.Module):
             ]
         )
         self.head = ResNet.Head(
-            d_in=d_main,
-            d_out=d_out,
+            input_dimension=block_dimension,
+            output_dimension=output_dimension,
             bias=True,
             normalization=normalization,
             activation=activation,
@@ -541,56 +550,56 @@ class ResNet(nn.Module):
     def make_baseline(
         cls,
         *,
-        d_in: int,
+        input_dimension: int,
         n_blocks: int,
-        d_main: int,
-        d_hidden: int,
+        block_dimension: int,
+        hidden_dimension: int,
         dropout_first: float,
         dropout_second: float,
-        d_out: int,
+        output_dimension: int,
     ) -> Self:
         """
         Create a "baseline" `ResNet`. This variation of ResNet was used in [gorishniy2021revisiting].
 
         Args:
-            d_in: the input size
+            input_dimension: the input size
             n_blocks: the number of Blocks
-            d_main: the input size (or, equivalently, the output size) of each Block
-            d_hidden: the output size of the first linear layer in each Block
+            block_dimension: the input size (or, equivalently, the output size) of each Block
+            hidden_dimension: the output size of the first linear layer in each Block
             dropout_first: the dropout rate of the first dropout layer in each Block.
             dropout_second: the dropout rate of the second dropout layer in each Block.
-            d_out: Output dimension.
+            output_dimension: Output dimension.
 
         References:
             * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov,
             Artem Babenko, "Revisiting Deep Learning Models for Tabular Data", 2021
         """
         return cls(
-            d_in=d_in,
+            input_dimension=input_dimension,
             n_blocks=n_blocks,
-            d_main=d_main,
-            d_hidden=d_hidden,
+            block_dimension=block_dimension,
+            hidden_dimension=hidden_dimension,
             dropout_first=dropout_first,
             dropout_second=dropout_second,
             normalization=ModuleType.BATCH_NORM_1D,
             activation=ModuleType.RELU,
-            d_out=d_out,
+            output_dimension=output_dimension,
         )
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, input_tensor: Tensor) -> Tensor:
         """
         Forward pass of the ResNet model.
 
         Args:
-            x: The input tensor.
+            input_tensor: The input tensor.
 
         Returns:
             The output tensor.
         """
-        x = x.float()
-        x = self.first_layer(x)
-        x = self.blocks(x)
-        return self.head(x)
+        input_tensor = input_tensor.float()
+        input_tensor = self.first_layer(input_tensor)
+        input_tensor = self.blocks(input_tensor)
+        return self.head(input_tensor)
 
 
 #### For diffusion
@@ -599,130 +608,142 @@ class ResNet(nn.Module):
 class MLPDiffusion(nn.Module):
     def __init__(
         self,
-        d_in: int,
+        input_dimension: int,
         num_classes: int,
         is_target_conditioned: IsTargetConditioned,
         diffusion_parameters: DiffusionParameters,
-        dim_t: int = 128,
+        timestep_dimension: int = 128,
     ):
         """
         Initialize the MLP diffusion model.
 
         Args:
-            d_in: The input dimension size.
+            input_dimension: The input dimension size.
             num_classes: The number of classes.
             is_target_conditioned: The condition on the model target.
             diffusion_parameters: The parameters for the MLP.
-            dim_t: The dimension size of the timestep.
+            timestep_dimension: The dimension size of the timestep.
         """
         super().__init__()
-        self.dim_t = dim_t
+        self.timestep_dimension = timestep_dimension
         self.num_classes = num_classes
         self.is_target_conditioned = is_target_conditioned
 
         self.diffusion_parameters = diffusion_parameters
-        self.diffusion_parameters.input_dimension = dim_t
-        self.diffusion_parameters.output_dimension = d_in
+        self.diffusion_parameters.input_dimension = timestep_dimension
+        self.diffusion_parameters.output_dimension = input_dimension
 
         self.mlp = MLP.make_baseline(
-            d_in=self.diffusion_parameters.input_dimension,
-            d_layers=self.diffusion_parameters.layers_dimensions,
+            input_dimension=self.diffusion_parameters.input_dimension,
+            layers_dimensions=self.diffusion_parameters.layers_dimensions,
             dropout=self.diffusion_parameters.dropout,
-            d_out=self.diffusion_parameters.output_dimension,
+            output_dimension=self.diffusion_parameters.output_dimension,
         )
 
-        self.label_emb: nn.Embedding | nn.Linear
+        self.label_embedding: nn.Embedding | nn.Linear
         if self.num_classes > 0 and is_target_conditioned == IsTargetConditioned.EMBEDDING:
-            self.label_emb = nn.Embedding(self.num_classes, dim_t)
+            self.label_embedding = nn.Embedding(self.num_classes, timestep_dimension)
         elif self.num_classes == 0 and is_target_conditioned == IsTargetConditioned.EMBEDDING:
-            self.label_emb = nn.Linear(1, dim_t)
+            self.label_embedding = nn.Linear(1, timestep_dimension)
 
-        self.proj = nn.Linear(d_in, dim_t)
-        self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
+        self.proj = nn.Linear(input_dimension, timestep_dimension)
+        self.timestep_embedding = nn.Sequential(
+            nn.Linear(timestep_dimension, timestep_dimension),
+            nn.SiLU(),
+            nn.Linear(timestep_dimension, timestep_dimension),
+        )
 
-    def forward(self, x: Tensor, timesteps: Tensor, y: Tensor | None = None) -> Tensor:
+    def forward(self, input_tensor: Tensor, timesteps: Tensor, y: Tensor | None = None) -> Tensor:
         """
         Forward pass of the MLP diffusion model.
 
         Args:
-            x: The input tensor.
+            input_tensor: The input tensor.
             timesteps: The timesteps tensor.
             y: The y tensor. Optional, default is None.
 
         Returns:
             The output tensor.
         """
-        embeddings = self.time_embed(timestep_embedding(timesteps, self.dim_t))
+        embeddings = self.timestep_embedding(timestep_embedding(timesteps, self.timestep_dimension))
+
         if self.is_target_conditioned == IsTargetConditioned.EMBEDDING and y is not None:
             y = y.squeeze() if self.num_classes > 0 else y.resize_(y.size(0), 1).float()
-            embeddings += functional.silu(self.label_emb(y))
-        x = self.proj(x) + embeddings
-        return self.mlp(x)
+            embeddings += functional.silu(self.label_embedding(y))
+
+        input_tensor = self.proj(input_tensor) + embeddings
+        return self.mlp(input_tensor)
 
 
 class ResNetDiffusion(nn.Module):
     def __init__(
         self,
-        d_in: int,
+        input_dimension: int,
         num_classes: int,
         diffusion_parameters: DiffusionParameters,
-        dim_t: int = 256,
+        timestep_dimension: int = 256,
         is_target_conditioned: IsTargetConditioned | None = None,
     ):
         """
         Initialize the ResNet diffusion model.
 
         Args:
-            d_in: The input dimension size.
+            input_dimension: The input dimension size.
             num_classes: The number of classes.
             diffusion_parameters: The parameters for the ResNet.
-            dim_t: The dimension size of the timestep.
+            timestep_dimension: The dimension size of the timestep.
             is_target_conditioned: The condition on the model target. Optional, default is None.
         """
         super().__init__()
-        self.dim_t = dim_t
+        self.timestep_dimension = timestep_dimension
         self.num_classes = num_classes
         self.is_target_conditioned = is_target_conditioned
 
         self.diffusion_parameters = diffusion_parameters
-        self.diffusion_parameters.input_dimension = d_in
-        self.diffusion_parameters.output_dimension = d_in
-        self.diffusion_parameters.embedding_dimension = dim_t
+        self.diffusion_parameters.input_dimension = input_dimension
+        self.diffusion_parameters.output_dimension = input_dimension
+        self.diffusion_parameters.embedding_dimension = timestep_dimension
 
         self.resnet = ResNet.make_baseline(
-            d_in=self.diffusion_parameters.input_dimension,
+            input_dimension=self.diffusion_parameters.input_dimension,
             n_blocks=self.diffusion_parameters.n_blocks,
-            d_main=self.diffusion_parameters.block_dimension,
-            d_hidden=self.diffusion_parameters.hidden_dimension,
+            block_dimension=self.diffusion_parameters.block_dimension,
+            hidden_dimension=self.diffusion_parameters.hidden_dimension,
             dropout_first=self.diffusion_parameters.dropout_first,
             dropout_second=self.diffusion_parameters.dropout_second,
-            d_out=self.diffusion_parameters.output_dimension,
+            output_dimension=self.diffusion_parameters.output_dimension,
         )
 
-        self.label_emb: nn.Embedding | nn.Linear
+        self.label_embedding: nn.Embedding | nn.Linear
         if self.num_classes > 0 and is_target_conditioned == IsTargetConditioned.EMBEDDING:
-            self.label_emb = nn.Embedding(self.num_classes, dim_t)
+            self.label_embedding = nn.Embedding(self.num_classes, timestep_dimension)
         elif self.num_classes == 0 and is_target_conditioned == IsTargetConditioned.EMBEDDING:
-            self.label_emb = nn.Linear(1, dim_t)
+            self.label_embedding = nn.Linear(1, timestep_dimension)
 
-        self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
+        self.timestep_embedding = nn.Sequential(
+            nn.Linear(timestep_dimension, timestep_dimension),
+            nn.SiLU(),
+            nn.Linear(timestep_dimension, timestep_dimension),
+        )
 
-    def forward(self, x: Tensor, timesteps: Tensor, y: Tensor | None = None) -> Tensor:
+    def forward(self, input_tensor: Tensor, timesteps: Tensor, y: Tensor | None = None) -> Tensor:
         """
         Forward pass of the ResNet diffusion model.
 
         Args:
-            x: The input tensor.
+            input_tensor: The input tensor.
             timesteps: The timesteps tensor.
             y: The y tensor. Optional, default is None.
 
         Returns:
             The output tensor.
         """
-        embeddings = self.time_embed(timestep_embedding(timesteps, self.dim_t))
+        embeddings = self.timestep_embedding(timestep_embedding(timesteps, self.timestep_dimension))
+
         if y is not None and self.num_classes > 0:
-            embeddings += self.label_emb(y.squeeze())
-        return self.resnet(x, embeddings)
+            embeddings += self.label_embedding(y.squeeze())
+
+        return self.resnet(input_tensor, embeddings)
 
 
 class ReGLU(nn.Module):
@@ -835,14 +856,14 @@ class ModelType(Enum):
         log(INFO, f"Getting model: {self.value}")
         if self == ModelType.MLP:
             return MLPDiffusion(
-                d_in=model_parameters.input_dimension,
+                input_dimension=model_parameters.input_dimension,
                 num_classes=model_parameters.num_classes,
                 is_target_conditioned=model_parameters.is_target_conditioned,
                 diffusion_parameters=model_parameters.diffusion_parameters,
             )
         if self == ModelType.RESNET:
             return ResNetDiffusion(
-                d_in=model_parameters.input_dimension,
+                input_dimension=model_parameters.input_dimension,
                 num_classes=model_parameters.num_classes,
                 diffusion_parameters=model_parameters.diffusion_parameters,
             )
