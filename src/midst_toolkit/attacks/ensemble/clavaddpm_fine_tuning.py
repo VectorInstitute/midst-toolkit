@@ -83,7 +83,7 @@ def fine_tune_model(
             - dataset: The dataset.
             - column_orders: The column orders.
     """
-    dataset, label_encoders, column_orders = Dataset.make_dataset_from_df(
+    dataset, label_encoders, column_orders = Dataset.from_df(
         fine_tuning_data,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
@@ -173,7 +173,7 @@ def fine_tune_classifier(
     Returns:
         The fine-tuned classifier model.
     """
-    dataset, _, _ = Dataset.make_dataset_from_df(
+    dataset, _, _ = Dataset.from_df(
         fine_tuning_data,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,

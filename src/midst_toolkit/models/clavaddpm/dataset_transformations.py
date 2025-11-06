@@ -87,13 +87,16 @@ def drop_rows_according_to_mask(data_split: ArrayDict, valid_masks: dict[str, np
     """
     if set(data_split.keys()) != set(valid_masks.keys()):
         raise KeyError("Keys of data do not match the provided valid_masks")
+
     # Dropping rows in each array that have a False entry in valid_masks
     filtered_data_split: ArrayDict = {}
     for split_name, data in data_split.items():
         row_mask = valid_masks[split_name]
         if row_mask.ndim != 1 or row_mask.shape[0] != data.shape[0]:
             raise ValueError(f"Mask for split '{split_name}' has shape {row_mask.shape}; expected ({data.shape[0]},)")
+
         filtered_data_split[split_name] = data[row_mask]
+
     return filtered_data_split
 
 

@@ -114,11 +114,13 @@ class Dataset:
         splits = [k.value for k in list(DataSplit) if directory.joinpath(f"y_{k.value}.npy").exists()]
         if not len(splits) > 0:
             raise ValueError("Splits to be loaded is empty!")
+
         datasets: ArrayDict = {}
         for split in splits:
             dataset = np.load(directory / f"{dataset_name}_{split}.npy", allow_pickle=True)
             assert isinstance(dataset, np.ndarray), "Dataset must be of type Numpy Array"
             datasets[split] = dataset
+
         return datasets
 
     @property
@@ -258,13 +260,14 @@ class Dataset:
         return metrics
 
     @staticmethod
-    def make_dataset_from_df(
+    def from_df(
         data: pd.DataFrame,
         transformations: Transformations,
         is_target_conditioned: IsTargetConditioned,
         info: dict[str, Any],
         data_split_percentages: list[float] | None = None,
         noise_scale: float = 0,
+        # TODO: Find places in code that have this kind of hardcoded random default and remove (with TESTING)
         data_split_random_state: int = 42,
     ) -> tuple[Dataset, dict[int, LabelEncoder], list[str]]:
         """
@@ -424,6 +427,7 @@ def get_cached_dataset(cache_path: Path, transformations: Transformations) -> Da
     if transformations == cache_transformations:
         log(INFO, f"Using cached features: {cache_path}")
         return transformed_dataset
+
     raise RuntimeError(f"Hash collision for {cache_path}")
 
 

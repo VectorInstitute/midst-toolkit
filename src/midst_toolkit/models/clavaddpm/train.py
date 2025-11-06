@@ -301,7 +301,7 @@ def train_model(
             - dataset: The dataset.
             - column_orders: The column orders.
     """
-    dataset, label_encoders, column_orders = Dataset.make_dataset_from_df(
+    dataset, label_encoders, column_orders = Dataset.from_df(
         data_frame,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
@@ -417,7 +417,7 @@ def train_classifier(
     Returns:
         The trained classifier model.
     """
-    dataset, _, _ = Dataset.make_dataset_from_df(
+    dataset, _, _ = Dataset.from_df(
         data_frame,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
