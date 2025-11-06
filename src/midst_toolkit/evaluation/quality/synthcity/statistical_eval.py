@@ -101,8 +101,6 @@ class AlphaPrecision(StatisticalEvaluator):
             alphas, alpha_precision_curve, beta_coverage_curve, delta_precision_alpha, delta_coverage_beta,
             authenticity.
         """
-        if len(x) != len(x_syn):
-            raise RuntimeError("The real and synthetic data must have the same length")
         if emb_center is None:
             emb_center = np.mean(x, axis=0)
         n_steps = 30
