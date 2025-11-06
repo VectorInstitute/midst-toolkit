@@ -708,7 +708,8 @@ def group_data_by_id(
             ``column_index_to_group_by``. Defaults to False.
 
     Returns:
-        Numpy array of the data grouped by values in the column with index ``column_index_to_group_by``.
+        Numpy array of the data grouped by values in the column with index ``column_index_to_group_by``. The returned
+        array has dtype=object since groups may have different lengths.
     """
     grouped_data_by_group_id = group_data_by_group_id_as_dict(data_to_be_grouped, column_index_to_group_by)
     if sort_by_column_value:
