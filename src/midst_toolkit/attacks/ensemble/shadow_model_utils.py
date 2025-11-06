@@ -15,13 +15,12 @@ from midst_toolkit.models.clavaddpm.data_loaders import load_tables
 from midst_toolkit.models.clavaddpm.enumerations import (
     Configs,
     GroupLengthsProbDicts,
-    ModelArtifacts,
     Relation,
     RelationOrder,
     Tables,
 )
 from midst_toolkit.models.clavaddpm.synthesizer import clava_synthesizing
-from midst_toolkit.models.clavaddpm.train import clava_training
+from midst_toolkit.models.clavaddpm.train import ModelArtifacts, clava_training
 
 
 @dataclass

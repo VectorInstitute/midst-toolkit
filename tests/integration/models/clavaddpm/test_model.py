@@ -237,11 +237,11 @@ def test_train_single_table(tmp_path: Path):
 
     # Assert
     with open(tmp_path / "models" / "None_trans_ckpt.pkl", "rb") as f:
-        table_info = pickle.load(f)["table_info"]
+        table_info = pickle.load(f).table_info
 
     sample_size = 5
     key = (None, "trans")
-    x_gen_tensor, y_gen_tensor = models[key]["diffusion"].sample_all(
+    x_gen_tensor, y_gen_tensor = models[key].diffusion.sample_all(
         sample_size,
         DIFFUSION_CONFIG["batch_size"],
         table_info[key]["empirical_class_dist"].float(),
@@ -252,7 +252,7 @@ def test_train_single_table(tmp_path: Path):
     with open("tests/integration/assets/single_table/assertion_data/synthetic_data.json", "r") as f:
         expected_results = json.load(f)
 
-    model_data = dict(models[key]["diffusion"].named_parameters())
+    model_data = dict(models[key].diffusion.named_parameters())
 
     expected_model_data = pickle.loads(
         Path("tests/integration/assets/single_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
@@ -295,11 +295,11 @@ def test_train_multi_table(tmp_path: Path):
 
     # Assert
     with open(tmp_path / "models" / "account_trans_ckpt.pkl", "rb") as f:
-        table_info = pickle.load(f)["table_info"]
+        table_info = pickle.load(f).table_info
 
     sample_size = 5
     key = ("account", "trans")
-    x_gen_tensor, y_gen_tensor = models[1][key]["diffusion"].sample_all(
+    x_gen_tensor, y_gen_tensor = models[1][key].diffusion.sample_all(
         sample_size,
         DIFFUSION_CONFIG["batch_size"],
         table_info[key]["empirical_class_dist"].float(),
@@ -310,7 +310,7 @@ def test_train_multi_table(tmp_path: Path):
     with open("tests/integration/assets/multi_table/assertion_data/synthetic_data.json", "r") as f:
         expected_results = json.load(f)
 
-    model_data = dict(models[1][key]["diffusion"].named_parameters())
+    model_data = dict(models[1][key].diffusion.named_parameters())
 
     expected_model_data = pickle.loads(
         Path("tests/integration/assets/multi_table/assertion_data/diffusion_parameters.pkl").read_bytes(),
@@ -345,10 +345,10 @@ def test_train_multi_table(tmp_path: Path):
     ys = [[y] for y in random.choices(groups, k=classifier_batch_size)]
 
     ys_tensor = torch.tensor(np.array(ys).reshape(-1, 1), requires_grad=False)
-    conditional_sample, _ = models[1][key]["diffusion"].conditional_sample(
+    conditional_sample, _ = models[1][key].diffusion.conditional_sample(
         targets=ys_tensor,
         model_kwargs={"y": ys_tensor},
-        conditioning_function=get_conditioning_function_for_diffusion(models[1][key]["classifier"], classifier_scale),
+        conditioning_function=get_conditioning_function_for_diffusion(models[1][key].classifier, classifier_scale),
     )
 
     expected_conditional_sample = torch.load(

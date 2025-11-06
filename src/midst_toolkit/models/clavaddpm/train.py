@@ -1,8 +1,8 @@
 """Defines the training functions for the ClavaDDPM model."""
 
 import pickle
-from collections.abc import Generator
-from dataclasses import asdict
+from collections.abc import Callable, Generator
+from dataclasses import dataclass
 from logging import INFO, WARNING
 from pathlib import Path
 from typing import Any
@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import torch
+from sklearn.preprocessing import LabelEncoder
 from torch import Tensor, optim
 
 from midst_toolkit.common.enumerations import DataSplit, DomainDataType, TaskType
@@ -20,7 +21,6 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
     Configs,
     IsTargetConditioned,
-    ModelArtifacts,
     ReductionMethod,
     Relation,
     RelationOrder,
@@ -40,6 +40,23 @@ from midst_toolkit.models.clavaddpm.model import (
 )
 from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, ScheduleSamplerType
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
+
+
+@dataclass
+class ModelArtifacts:
+    diffusion: GaussianMultinomialDiffusion
+    label_encoders: dict[int, LabelEncoder]
+    dataset: Dataset
+    column_orders: list[str]
+    num_numerical_features: int
+    category_sizes: np.ndarray
+    is_regression: bool
+    inverse_transform_function: Callable[[np.ndarray], np.ndarray] | None = None
+    empirical_class_dist: Tensor | None = None
+    classifier: Classifier | None = None
+    table_metadata: TableMetadata | None = None
+    model_params: ModelParameters | None = None
+    transformations: Transformations | None = None
 
 
 # TODO: Make diffusion_config and classifier_config into config classes and use the
@@ -227,7 +244,7 @@ def child_training(
     )
 
     if parent_name is None:
-        child_result["classifier"] = None
+        child_result.classifier = None
     else:
         assert classifier_config is not None, "Classifier config is required for multi-table training"
         if classifier_config["iterations"] > 0:
@@ -248,13 +265,13 @@ def child_training(
                 device=device,
                 data_split_ratios=classifier_config["data_split_ratios"],
             )
-            child_result["classifier"] = child_classifier
+            child_result.classifier = child_classifier
         else:
             log(WARNING, "Skipping classifier training since classifier_config['iterations'] <= 0")
 
-    child_result["table_metadata"] = child_metadata
-    child_result["model_params"] = asdict(child_model_params)
-    child_result["T_dict"] = asdict(child_transformations)
+    child_result.table_metadata = child_metadata
+    child_result.model_params = child_model_params
+    child_result.transformations = child_transformations
     return child_result
 
 
@@ -273,7 +290,7 @@ def train_model(
     weight_decay: float,
     data_split_ratios: list[float],
     device: str = "cuda",
-) -> dict[str, Any]:
+) -> ModelArtifacts:
     """
     Training function for the diffusion model.
 
@@ -295,7 +312,7 @@ def train_model(
         device: Device to use for training. Default is `"cuda"`.
 
     Returns:
-        Dictionary of the training results. It will contain the following keys:
+        ModelArtifacts containing the training results. It will contain the following keys:
             - diffusion: The diffusion model.
             - label_encoders: The label encoders.
             - dataset: The dataset.
@@ -360,17 +377,17 @@ def train_model(
     if dataset.numerical_transform is not None:
         inverse_transform_function = dataset.numerical_transform.inverse_transform
 
-    return {
-        "diffusion": diffusion,
-        "label_encoders": label_encoders,
-        "dataset": dataset,
-        "column_orders": column_orders,
-        "num_numerical_features": num_numerical_features,
-        "K": category_sizes,
-        "empirical_class_dist": empirical_class_dist,
-        "is_regression": dataset.is_regression,
-        "inverse_transform": inverse_transform_function,
-    }
+    return ModelArtifacts(
+        diffusion=diffusion,
+        label_encoders=label_encoders,
+        dataset=dataset,
+        column_orders=column_orders,
+        num_numerical_features=num_numerical_features,
+        category_sizes=category_sizes,
+        empirical_class_dist=empirical_class_dist,
+        is_regression=dataset.is_regression,
+        inverse_transform_function=inverse_transform_function,
+    )
 
 
 def train_classifier(
@@ -511,9 +528,9 @@ def train_classifier(
                 )
                 classifier.train()
 
-        if step % logger_interval == 0:
-            # Dump the metrics every logger_interval number of steps
-            key_value_logger.dump()
+        # if step % logger_interval == 0:
+        #     # Dump the metrics every logger_interval number of steps
+        #     key_value_logger.dump()
 
     # test classifier
     classifier.eval()
@@ -589,7 +606,9 @@ def save_table_info(
         result = models[(parent, child)]
         df_with_cluster = tables[child]["df"]
         df_without_id = get_df_without_id(df_with_cluster)
-        table_metadata = result["table_metadata"]
+
+        assert result.table_metadata is not None, "Table metadata is required"
+        table_metadata = result.table_metadata
         x_num_real = df_without_id[table_metadata.numerical_column_names].to_numpy().astype(float)
         unique_values_list = []
 
@@ -605,18 +624,23 @@ def save_table_info(
             "original_cols": tables[child]["original_cols"],
         }
 
-        required_keys = ["num_numerical_features", "is_regression", "inverse_transform", "empirical_class_dist", "K"]
-        filtered_result = {key: result[key] for key in required_keys}
+        filtered_result = {
+            "num_numerical_features": result.num_numerical_features,
+            "is_regression": result.is_regression,
+            "inverse_transform_function": result.inverse_transform_function,
+            "empirical_class_dist": result.empirical_class_dist,
+            "category_sizes": result.category_sizes,
+        }
         table_info[(parent, child)].update(filtered_result)
 
     for parent, child in relation_order:
         with open(save_dir / f"models/{parent}_{child}_ckpt.pkl", "rb") as f:
-            result = pickle.load(f)
+            loaded_result = pickle.load(f)
 
-        result["table_info"] = table_info
+        loaded_result.table_info = table_info
 
         with open(save_dir / f"models/{parent}_{child}_ckpt.pkl", "wb") as f:
-            pickle.dump(result, f)
+            pickle.dump(loaded_result, f)
 
 
 def get_df_without_id(df: pd.DataFrame) -> pd.DataFrame:

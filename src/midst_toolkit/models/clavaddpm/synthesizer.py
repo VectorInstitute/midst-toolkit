@@ -23,7 +23,6 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     GroupLengthProbDict,
     GroupLengthsProbDicts,
     IsTargetConditioned,
-    ModelArtifacts,
     Relation,
     RelationOrder,
     Tables,
@@ -33,7 +32,7 @@ from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
     GaussianMultinomialDiffusion,
 )
 from midst_toolkit.models.clavaddpm.model import Classifier, ModelParameters
-from midst_toolkit.models.clavaddpm.train import get_df_without_id
+from midst_toolkit.models.clavaddpm.train import ModelArtifacts, get_df_without_id
 
 
 def sample_from_diffusion(
@@ -834,15 +833,19 @@ def _synthesize_single_table(
             - A DataFrame containing the synthesized data.
             - The list of keys for the synthesized data.
     """
+    assert training_results.table_metadata is not None, "training_results.table_metadata is required"
+    assert training_results.model_params is not None, "training_results.model_params is required"
+    assert training_results.transformations is not None, "training_results.transformations is required"
+
     _, child_synthesized = sample_from_diffusion(
         df=data,
-        table_metadata=training_results["table_metadata"],
-        diffusion=training_results["diffusion"],
-        dataset=training_results["dataset"],
-        label_encoders=training_results["label_encoders"],
+        table_metadata=training_results.table_metadata,
+        diffusion=training_results.diffusion,
+        dataset=training_results.dataset,
+        label_encoders=training_results.label_encoders,
         sample_size=int(sample_scale * len(data)),
-        model_params=ModelParameters(**training_results["model_params"]),
-        transformations=Transformations(**training_results["T_dict"]),
+        model_params=training_results.model_params,
+        transformations=training_results.transformations,
         sample_batch_size=sample_batch_size,
     )
     child_keys = list(range(len(child_synthesized)))
@@ -853,9 +856,9 @@ def _synthesize_single_table(
     synthesized_final_df = pd.DataFrame(
         synthesized_final_data,
         columns=[f"{table_name}_id"]
-        + training_results["table_metadata"].numerical_column_names
-        + training_results["table_metadata"].categorical_column_names
-        + [training_results["table_metadata"].target_column_name],
+        + training_results.table_metadata.numerical_column_names
+        + training_results.table_metadata.categorical_column_names
+        + [training_results.table_metadata.target_column_name],
     )
 
     synthesized_final_df = synthesized_final_df[[f"{table_name}_id"] + data.columns.tolist()]
@@ -868,7 +871,7 @@ def _synthesize_multi_table(
     child_name: str,
     parent_training_results: ModelArtifacts,
     child_training_results: ModelArtifacts,
-    parent_synthetic_data: ModelArtifacts,
+    parent_synthetic_data: dict[str, Any],
     data: pd.DataFrame,
     group_length_prob_dict: GroupLengthProbDict,
     tables: Tables,
@@ -896,22 +899,25 @@ def _synthesize_multi_table(
             - A DataFrame containing the synthesized data.
             - The list of keys for the synthesized data.
     """
+    assert child_training_results.classifier is not None, "child_training_results.classifier is required"
+    assert child_training_results.table_metadata is not None, "child_training_results.table_metadata is required"
+
     parent_synthetic_df = parent_synthetic_data["df"]
     parent_keys = parent_synthetic_data["keys"]
 
-    child_target_column_name = child_training_results["table_metadata"].target_column_name
-    parent_label_index = parent_training_results["column_orders"].index(child_target_column_name)
+    child_target_column_name = child_training_results.table_metadata.target_column_name
+    parent_label_index = parent_training_results.column_orders.index(child_target_column_name)
 
     parent_synthetic_df_without_id = get_df_without_id(parent_synthetic_df)
     group_labels = parent_synthetic_df_without_id.values[:, parent_label_index].astype(float).astype(int).tolist()
 
     _, child_synthesized, child_sampled_group_sizes = conditional_sample_from_diffusion(
         df=data,
-        table_metadata=child_training_results["table_metadata"],
-        dataset=child_training_results["dataset"],
-        label_encoders=child_training_results["label_encoders"],
-        classifier=child_training_results["classifier"],
-        diffusion=child_training_results["diffusion"],
+        table_metadata=child_training_results.table_metadata,
+        dataset=child_training_results.dataset,
+        label_encoders=child_training_results.label_encoders,
+        classifier=child_training_results.classifier,
+        diffusion=child_training_results.diffusion,
         group_labels=group_labels,
         group_length_prob_dict=group_length_prob_dict,
         sample_batch_size=sample_batch_size,
@@ -934,9 +940,9 @@ def _synthesize_multi_table(
 
     child_final_columns = (
         [f"{child_name}_id"]
-        + child_training_results["table_metadata"].numerical_column_names
-        + child_training_results["table_metadata"].categorical_column_names
-        + [child_training_results["table_metadata"].target_column_name]
+        + child_training_results.table_metadata.numerical_column_names
+        + child_training_results.table_metadata.categorical_column_names
+        + [child_training_results.table_metadata.target_column_name]
         + [f"{parent_name}_id"]
     )
 
