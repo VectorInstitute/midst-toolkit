@@ -9,7 +9,7 @@
     "clustering": {
         "parent_scale": 1.0,
         "num_clusters": 1,
-        "clustering_method": "both"
+        "clustering_method": "kmeans_and_gmm"
     },
     "diffusion": {
         "d_layers": [

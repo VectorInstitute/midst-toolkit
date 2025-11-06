@@ -14,13 +14,13 @@ from sklearn.preprocessing import LabelEncoder
 from torch.nn import functional
 from tqdm import tqdm
 
+from midst_toolkit.common.config import GeneralConfig, MatchingConfig, SamplingConfig
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.data_loaders import Tables
 from midst_toolkit.models.clavaddpm.dataset import Dataset, TableMetadata, Transformations
 from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
-    Configs,
     GroupLengthProbDict,
     GroupLengthsProbDicts,
     IsTargetConditioned,
@@ -675,7 +675,7 @@ def clava_synthesizing_matching_process(
     synthetic_tables: dict[Relation, dict[str, Any]],
     tables: Tables,
     relation_order: RelationOrder,
-    configs: Configs,
+    matching_config: MatchingConfig,
 ) -> dict[str, pd.DataFrame]:
     """
     Matches synthetic child tables to synthetic parent tables based on clustering information.
@@ -684,7 +684,7 @@ def clava_synthesizing_matching_process(
         synthetic_tables: Dictionary containing synthetic dataframes for each parent-child relationship.
         tables: Original tables containing dataframes and clustering information.
         relation_order: List of parent-child table relationships.
-        configs: Configuration with matching settings.
+        matching_config: Configuration with matching settings.
 
     Returns:
         Dictionary containing the matched synthetic child tables.
@@ -697,10 +697,10 @@ def clava_synthesizing_matching_process(
                     child,
                     tables[child].parents,
                     synthetic_tables,
-                    configs["matching"]["num_matching_clusters"],
-                    unique_matching=configs["matching"]["unique_matching"],
-                    batch_size=configs["matching"]["matching_batch_size"],
-                    no_matching=configs["matching"]["no_matching"],
+                    matching_config.num_matching_clusters,
+                    unique_matching=matching_config.unique_matching,
+                    batch_size=matching_config.matching_batch_size,
+                    no_matching=matching_config.no_matching,
                 )
             else:
                 final_tables[child] = synthetic_tables[(parent, child)]["df"]
@@ -713,7 +713,9 @@ def clava_synthesizing(
     save_dir: Path,
     all_group_lengths_prob_dicts: GroupLengthsProbDicts,
     models: dict[Relation, ModelArtifacts],
-    configs: Configs,
+    general_config: GeneralConfig,
+    sampling_config: SamplingConfig,
+    matching_config: MatchingConfig,
     sample_scale: float = 1.0,
 ) -> tuple[dict[str, pd.DataFrame], float, float]:
     """
@@ -727,7 +729,9 @@ def clava_synthesizing(
         all_group_lengths_prob_dicts: Dictionary containing group length probabilities for each
             parent-child relationship.
         models: Trained models for each parent-child relationship.
-        configs: Configuration settings for synthesis and matching.
+        general_config: General configuration settings.
+        sampling_config: Configuration settings for sampling.
+        matching_config: Configuration settings for matching.
         sample_scale: Scale factor for the number of samples to generate
             based on the train data size. Defaults to 1.0.
 
@@ -756,7 +760,7 @@ def clava_synthesizing(
                 df_without_id,
                 training_results,
                 sample_scale,
-                configs["sampling"]["batch_size"],
+                sampling_config.batch_size,
             )
         else:
             # Finding previously synthesized data and training results for the parent
@@ -781,8 +785,8 @@ def clava_synthesizing(
                 df_without_id,
                 all_group_lengths_prob_dicts[(parent, child)],
                 tables,
-                configs["sampling"]["batch_size"],
-                configs["sampling"]["classifier_scale"],
+                sampling_config.batch_size,
+                sampling_config.classifier_scale,
             )
 
         synthetic_tables[(parent, child)] = {
@@ -801,12 +805,12 @@ def clava_synthesizing(
     # Matching
     matching_start_time = time.time()
 
-    synthetic_data = clava_synthesizing_matching_process(synthetic_tables, tables, relation_order, configs)
+    synthetic_data = clava_synthesizing_matching_process(synthetic_tables, tables, relation_order, matching_config)
 
     matching_end_time = time.time()
     matching_time_spent = matching_end_time - matching_start_time
 
-    cleaned_synthetic_data = _clean_and_save_synthetic_data(synthetic_data, tables, configs)
+    cleaned_synthetic_data = _clean_and_save_synthetic_data(synthetic_data, tables, general_config)
     return cleaned_synthetic_data, synthesizing_time_spent, matching_time_spent
 
 
@@ -959,7 +963,7 @@ def _synthesize_multi_table(
 def _clean_and_save_synthetic_data(
     synthetic_data: dict[str, pd.DataFrame],
     tables: Tables,
-    configs: Configs,
+    general_config: GeneralConfig,
 ) -> dict[str, pd.DataFrame]:
     """
     Cleans the synthetic data by removing the id columns and saving the data to the workspace directory.
@@ -967,7 +971,7 @@ def _clean_and_save_synthetic_data(
     Args:
         synthetic_data: Dictionary containing the synthetic data for each table.
         tables: Dictionary with information about the tables, including the original column names for each table.
-        configs: Configuration settings for the workspace directory.
+        general_config: General configuration settings.
 
     Returns:
         Dictionary containing the cleaned synthetic data for each table.
@@ -981,10 +985,10 @@ def _clean_and_save_synthetic_data(
 
     for cleaned_key, cleaned_val in cleaned_synthetic_data.items():
         table_dir = (
-            Path(configs["general"]["workspace_dir"])
-            / configs["general"]["exp_name"]
+            general_config.workspace_dir
+            / general_config.exp_name
             / cleaned_key
-            / f"{configs['general']['sample_prefix']}_final"
+            / f"{general_config.sample_prefix}_final"
         )
         table_dir.mkdir(parents=True, exist_ok=True)
         if f"{cleaned_key}_id" in cleaned_val.columns:

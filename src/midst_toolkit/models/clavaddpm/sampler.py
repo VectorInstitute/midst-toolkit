@@ -27,7 +27,7 @@ class ScheduleSampler(ABC):
         The weights needn't be normalized, but must be positive.
         """
 
-    def sample(self, batch_size: int, device: str) -> tuple[Tensor, Tensor]:
+    def sample(self, batch_size: int, device: torch.device) -> tuple[Tensor, Tensor]:
         # TODO: what's happening with batch_size? Is is also the number of timesteps?
         # We need to clarify this.
         """

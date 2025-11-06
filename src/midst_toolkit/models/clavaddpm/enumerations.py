@@ -1,10 +1,8 @@
 from enum import Enum
-from typing import Any
 
 import numpy as np
 
 
-Configs = dict[str, Any]
 Relation = tuple[str, str]
 RelationOrder = list[Relation]
 GroupLengthProbDict = dict[int, dict[int, float]]
