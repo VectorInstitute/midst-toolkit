@@ -15,7 +15,7 @@ from torch import Tensor, optim
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
-from midst_toolkit.models.clavaddpm.dataset import Dataset, Transformations, make_dataset_from_df
+from midst_toolkit.models.clavaddpm.dataset import Dataset, Transformations
 from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
     Configs,
@@ -301,11 +301,11 @@ def train_model(
             - dataset: The dataset.
             - column_orders: The column orders.
     """
-    dataset, label_encoders, column_orders = make_dataset_from_df(
+    dataset, label_encoders, column_orders = Dataset.from_df(
         data_frame,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
-        data_split_ratios=data_split_ratios,
+        data_split_percentages=data_split_ratios,
         info=data_frame_info,
         noise_scale=0,
     )
@@ -417,12 +417,11 @@ def train_classifier(
     Returns:
         The trained classifier model.
     """
-    # ruff: noqa: N806
-    dataset, label_encoders, column_orders = make_dataset_from_df(
+    dataset, _, _ = Dataset.from_df(
         data_frame,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
-        data_split_ratios=data_split_ratios,
+        data_split_percentages=data_split_ratios,
         info=data_frame_info,
         noise_scale=0,
     )
