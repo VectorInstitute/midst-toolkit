@@ -13,11 +13,11 @@ from sklearn.cluster import KMeans
 from sklearn.mixture import BayesianGaussianMixture, GaussianMixture
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler, OneHotEncoder, QuantileTransformer
 
+from midst_toolkit.common.config import ClusteringConfig
 from midst_toolkit.common.enumerations import DomainDataType
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.enumerations import (
     ClusteringMethod,
-    Configs,
     DataAndKeyNormalizationType,
     GroupLengthsProbDicts,
     RelationOrder,
@@ -29,7 +29,7 @@ def clava_clustering(
     tables: Tables,
     relation_order: RelationOrder,
     save_dir: Path,
-    configs: Configs,
+    configs: ClusteringConfig,
 ) -> tuple[dict[str, Any], GroupLengthsProbDicts]:
     """
     Clustering function for the multi-table function of the ClavaDDPM model.
@@ -49,12 +49,7 @@ def clava_clustering(
         relation_order: List of tuples of parent and child tables. Example:
             [("table1", "table2"), ("table1", "table3")]
         save_dir: Directory to save the clustering checkpoint.
-        configs: Dictionary of configurations. The following config keys are required:
-            {
-                num_clusters = int | dict,
-                parent_scale = float,
-                clustering_method = str["kmeans" | "both" | "variational" | "gmm"],
-            }
+        configs: Configuration for the clustering model.
 
     Returns:
         A tuple with 2 values:
@@ -109,7 +104,7 @@ def _load_clustering_info_from_checkpoint(save_dir: Path) -> dict[str, Any] | No
 def _run_clustering(
     tables: Tables,
     relation_order: RelationOrder,
-    configs: Configs,
+    configs: ClusteringConfig,
 ) -> tuple[Tables, GroupLengthsProbDicts]:
     """
     Run the clustering process.
@@ -118,12 +113,7 @@ def _run_clustering(
         tables: Dictionary of the tables by name.
         relation_order: List of tuples of parent and child tables. Example:
             [("table1", "table2"), ("table1", "table3")]
-        configs: Dictionary of configurations. The following config keys are required:
-            {
-                num_clusters = int | dict,
-                parent_scale = float,
-                clustering_method = str["kmeans" | "gmm" | "kmeans_and_gmm" | "variational"],
-            }
+        configs: Configuration for the clustering model.
 
     Returns:
         Tuple with 2 elements:
@@ -135,19 +125,19 @@ def _run_clustering(
     for parent, child in relation_order_reversed:
         if parent is not None:
             log(INFO, f"Clustering {parent} -> {child}")
-            if isinstance(configs["num_clusters"], dict):
-                num_clusters = configs["num_clusters"][child]
+            if isinstance(configs.num_clusters, dict):
+                num_clusters = configs.num_clusters[child]
             else:
-                num_clusters = configs["num_clusters"]
+                num_clusters = configs.num_clusters
 
             parent_df_with_cluster, child_df_with_cluster, group_lengths_prob_dicts = _pair_clustering(
                 tables,
                 child,
                 parent,
                 num_clusters,
-                configs["parent_scale"],
+                configs.parent_scale,
                 1,  # not used for now
-                clustering_method=ClusteringMethod(configs["clustering_method"]),
+                clustering_method=configs.clustering_method,
             )
             tables[parent]["df"] = parent_df_with_cluster
             tables[child]["df"] = child_df_with_cluster
