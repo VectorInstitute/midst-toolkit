@@ -288,7 +288,7 @@ def calculate_rmia_signals(
     # Here, for each input record, we sort the distances to all target synthetic records,
     # then keep only the first k columns (the k smallest distances).
     k_nearest_target_distances = np.sort(gower_target, axis=1)[:, :k]
-    signal_target_k_means = np.mean(k_nearest_target_distances, axis=1)
+    signal_target_k_mean = np.mean(k_nearest_target_distances, axis=1)
     signal_target_k_1 = gower_target[:, 0]  # First element is the minimum
 
     # Process shadow model distances. Gower_shadows is a 3D matrix of shape:
@@ -299,9 +299,10 @@ def calculate_rmia_signals(
     # Similar to target, we sort the distances in each shadow model's gower matrix,
     # and keep only the first k columns (the k smallest distances).
     k_nearest_shadow_distances = sorted_shadow_gower[:, :, :k]
-    mean_dist_shadow = np.mean(k_nearest_shadow_distances, axis=2)
-    # Taking the mean across all shadow models (axis=0) to compute signal_shadows
-    signal_shadows = np.mean(mean_dist_shadow, axis=0)
+    signal_shadow_k_mean = np.mean(k_nearest_shadow_distances, axis=2)
+
+    # Taking the mean across ALL shadow models (axis=0) to compute signal_shadows
+    signal_shadows = np.mean(signal_shadow_k_mean, axis=0)
 
     # For single nearest neighbor (k=1)
     nearest_shadow_distances = sorted_shadow_gower[:, :, 0]
@@ -318,28 +319,26 @@ def calculate_rmia_signals(
     )
 
     # Create masks for records in/out of training sets. We're creating masks for all the samples in train_df,
-    # as opposed to the original implementation which only creates masks a sample of 200 records.
+    # as opposed to the original implementation which only creates masks a sample of 200 records. We've also
+    # changed the way the masks are created to improve efficiency.
 
-    shadow_training_sets = [set(df[id_column_name].values) for df in shadow_training_data]
+    shadow_training_id_data = [set(id_list) for id_list in shadow_training_data]
 
     mask_in_training = np.array(
-        [
-            [results_df[id_column_name].iloc[j] in shadow_training_sets[i] for j in range(len(results_df))]
-            for i in range(len(shadow_training_sets))
-        ]
+        [results_df[id_column_name].isin(id_set).to_numpy() for id_set in shadow_training_id_data]
     )
 
     mask_not_in_training = ~mask_in_training
 
     # Calculate signals based on membership status
     results_df["signal_shadows_in_k_1"] = conditional_average(nearest_shadow_distances, mask_in_training)
-    results_df[f"signal_shadows_in_k_{k}"] = conditional_average(mean_dist_shadow, mask_in_training)
+    results_df[f"signal_shadows_in_k_{k}"] = conditional_average(signal_shadow_k_mean, mask_in_training)
     results_df["signal_shadows_out_k_1"] = conditional_average(nearest_shadow_distances, mask_not_in_training)
-    results_df[f"signal_shadows_out_k_{k}"] = conditional_average(mean_dist_shadow, mask_not_in_training)
+    results_df[f"signal_shadows_out_k_{k}"] = conditional_average(signal_shadow_k_mean, mask_not_in_training)
 
     # Add target signals to results
     results_df["signal_target_k_1"] = signal_target_k_1
-    results_df[f"signal_target_k_{k}"] = signal_target_k_means
+    results_df[f"signal_target_k_{k}"] = signal_target_k_mean
 
     # Calculate RMIA scores (ratios of target to shadow signals)
     results_df["rmia_k_1"] = np.divide(

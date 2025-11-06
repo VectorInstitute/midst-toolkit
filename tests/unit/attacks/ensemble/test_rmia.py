@@ -80,15 +80,15 @@ def rmia_signal_data() -> dict[str, Any]:
 
     shadow_data_collection = [
         {
-            "fine_tuning_sets": [train_set_0],
+            "fine_tuning_sets": [train_set_0["id"].tolist()],
             "fine_tuned_results": [MockTrainingResult(syn_data_5.copy())],
         },
         {
-            "fine_tuning_sets": [train_set_1],
+            "fine_tuning_sets": [train_set_1["id"].tolist()],
             "fine_tuned_results": [MockTrainingResult(syn_data_5.copy())],
         },
         {
-            "selected_sets": [train_set_2],
+            "selected_sets": [train_set_2["id"].tolist()],
             "trained_results": [MockTrainingResult(syn_data_5.copy())],
         },
     ]
