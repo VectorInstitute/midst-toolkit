@@ -153,18 +153,14 @@ class AlphaPrecision(StatisticalEvaluator):
         if delta_coverage_beta < 0:
             raise RuntimeError("negative value detected for Delta_coverage_beta")
 
-        nbrs_real_for_synthetic = NearestNeighbors(n_neighbors=1, n_jobs=-1, p=2).fit(x)
-        k_neighbors_real_for_synthetic = nbrs_real_for_synthetic.kneighbors(x_syn)
+        k_neighbors_real_for_synthetic = nbrs_real.kneighbors(x_syn)
         closest_real_to_synth_distance, closest_real_to_synthetic_idx_list = k_neighbors_real_for_synthetic
-        closest_real_to_synth_distance = closest_real_to_synth_distance.squeeze()
-        closest_real_to_synthetic_idx_list = closest_real_to_synthetic_idx_list.squeeze()
+        # Find the closest real point to each synthetic point
+        closest_real_to_synth_distance = closest_real_to_synth_distance[:, 0].squeeze()
+        closest_real_to_synthetic_idx_list = closest_real_to_synthetic_idx_list[:, 0].squeeze()
 
-        authen = []
-        for syn_idx in range(x_syn.shape[0]):
-            d_real_to_synthetic = closest_real_to_synth_distance[syn_idx]
-            d_real_to_real = real_to_real[closest_real_to_synthetic_idx_list[syn_idx]]
-            is_authentic = d_real_to_real <= d_real_to_synthetic
-            authen.append(is_authentic)
+        closest_real_to_real_distance = real_to_real[closest_real_to_synthetic_idx_list]
+        authen = closest_real_to_real_distance <= closest_real_to_synth_distance
 
         authenticity = np.mean(authen)
 
