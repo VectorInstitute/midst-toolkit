@@ -528,9 +528,9 @@ def train_classifier(
                 )
                 classifier.train()
 
-        # if step % logger_interval == 0:
-        #     # Dump the metrics every logger_interval number of steps
-        #     key_value_logger.dump()
+        if step % logger_interval == 0:
+            # Dump the metrics every logger_interval number of steps
+            key_value_logger.dump()
 
     # test classifier
     classifier.eval()
