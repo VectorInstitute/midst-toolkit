@@ -1144,9 +1144,9 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         for t in reversed(range(num_timesteps)):
             log(DEBUG, f"Sample timestep {t:4d}")
             t_array = (torch.ones(batch_size, device=self.device) * t).long()
-            out_num = self._denoise_fn(features, t_array, **outputs)
+            numerical_outputs = self._denoise_fn(features, t_array, **outputs)
             features = self.gaussian_ddim_step(
-                out_num,
+                numerical_outputs,
                 features,
                 t_array,
                 eta=eta,
@@ -1159,7 +1159,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
     @torch.no_grad()
     def gaussian_ddim_reverse_step(
         self,
-        model_numeric_output: Tensor,
+        model_numerical_output: Tensor,
         features: Tensor,
         timestep: Tensor,
     ) -> Tensor:
@@ -1167,14 +1167,14 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         Calculate the Gaussian DDIM reverse step.
 
         Args:
-            model_numeric_output: The numerical features of the model output.
+            model_numerical_output: The numerical features of the model output.
             features: The input features.
             timestep: The timestep.
 
         Returns:
             The predicted features.
         """
-        out = self.gaussian_p_mean_variance(model_numeric_output, features, timestep)
+        out = self.gaussian_p_mean_variance(model_numerical_output, features, timestep)
 
         coefficient = extract(self.sqrt_recip_alphas_cumprod, timestep, features.shape)
         denominator = extract(self.sqrt_recipm1_alphas_cumprod, timestep, features.shape)
