@@ -155,7 +155,7 @@ def child_training(
     child_info = get_table_info(child_df_with_cluster, child_domain, y_col)
     child_model_params = ModelParameters(
         diffusion_parameters=DiffusionParameters(
-            d_layers=diffusion_config.d_layers,
+            layers_dimensions=diffusion_config.d_layers,
             dropout=diffusion_config.dropout,
         ),
     )
@@ -234,11 +234,14 @@ def train_model(
     if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = np.array([0])
 
-    _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.y[DataSplit.TRAIN.value]), return_counts=True)
+    _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.target[DataSplit.TRAIN.value]), return_counts=True)
 
-    num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1] if dataset.x_num is not None else 0
-    d_in = np.sum(category_sizes) + num_numerical_features
-    model_params.d_in = d_in
+    num_numerical_features = 0
+    if dataset.numerical_features is not None:
+        num_numerical_features = dataset.numerical_features[DataSplit.TRAIN.value].shape[1]
+
+    input_dimension = np.sum(category_sizes) + num_numerical_features
+    model_params.input_dimension = input_dimension
 
     print("Model params: {}".format(model_params))
     model = diffusion_config.model_type.get_model(model_params)
@@ -261,7 +264,7 @@ def train_model(
     trainer = ClavaDDPMTrainer(
         diffusion,
         train_loader,
-        lr=diffusion_config.lr,
+        learning_rate=diffusion_config.lr,
         weight_decay=diffusion_config.weight_decay,
         steps=diffusion_config.iterations,
         device=device,
@@ -356,19 +359,19 @@ def train_classifier(
     print(category_sizes)
 
     # TODO: understand what's going on here
-    if dataset.x_num is None:
-        log(WARNING, "dataset.x_num is None. num_numerical_features will be set to 0")
+    if dataset.numerical_features is None:
+        log(WARNING, "dataset.numerical_features is None. num_numerical_features will be set to 0")
         num_numerical_features = 0
     else:
-        num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1]
+        num_numerical_features = dataset.numerical_features[DataSplit.TRAIN.value].shape[1]
 
     if model_params.is_target_conditioned == IsTargetConditioned.CONCAT:
         num_numerical_features -= 1
 
     classifier = Classifier(
-        d_in=num_numerical_features,
-        d_out=int(max(data_frame[cluster_col].values) + 1),  # TODO: add a comment why we need to add 1
-        dim_t=classifier_config.dim_t,
+        input_dimension=num_numerical_features,
+        output_dimension=int(max(data_frame[cluster_col].values) + 1),  # TODO: add a comment why we need to add 1
+        timestep_dimension=classifier_config.dim_t,
         hidden_sizes=classifier_config.d_layers,
     ).to(device)
 
@@ -547,7 +550,7 @@ def _numerical_forward_backward_log(
         # Remove the first column of the batch, which is the label.
         batch = batch[:, 1:]
 
-    num_batch = batch[:, : dataset.n_num_features].to(device)
+    num_batch = batch[:, : dataset.n_numerical_features].to(device)
 
     t, _ = schedule_sampler.sample(num_batch.shape[0], device)
     batch = diffusion.gaussian_q_sample(num_batch, t).to(device)

@@ -68,16 +68,16 @@ def sample_from_diffusion(
 
     """
     num_features = 0
-    if dataset.x_num is not None:
-        num_features = dataset.x_num[DataSplit.TRAIN.value].shape[1]
+    if dataset.numerical_features is not None:
+        num_features = dataset.numerical_features[DataSplit.TRAIN.value].shape[1]
 
     category_sizes = dataset.get_category_sizes(DataSplit.TRAIN)
     if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = [0]
 
-    model_params.d_in = np.sum(category_sizes) + num_features
+    model_params.input_dimension = np.sum(category_sizes) + num_features
 
-    _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.y[DataSplit.TRAIN.value]), return_counts=True)
+    _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.target[DataSplit.TRAIN.value]), return_counts=True)
     synthetic_data = diffusion.sample_all(
         sample_size,
         sample_batch_size,
@@ -138,8 +138,8 @@ def conditional_sample_from_diffusion(
             - sampled_group_sizes: List of the sampled group sizes.
     """
     num_features = 0
-    if dataset.x_num is not None:
-        num_features = dataset.x_num[DataSplit.TRAIN.value].shape[1]
+    if dataset.numerical_features is not None:
+        num_features = dataset.numerical_features[DataSplit.TRAIN.value].shape[1]
 
     targets, sampled_group_sizes = _sample_targets(group_labels, group_length_prob_dict)
 
@@ -437,18 +437,18 @@ def _get_conditioning_function(classifier: Classifier, classifier_scale: float) 
         assert "y" in kwargs and kwargs["y"] is not None, "The kwargs parameter `y` must be provided."
         assert isinstance(kwargs["y"], torch.Tensor), "The kwargs parameter `y` must be a Tensor."
 
-        y = kwargs["y"]
+        target = kwargs["y"]
         remove_first_col = kwargs.get("remove_first_col", False)
 
         with torch.enable_grad():
             if remove_first_col:
-                x_in = features[:, 1:].detach().requires_grad_(True).float()
+                input_features = features[:, 1:].detach().requires_grad_(True).float()
             else:
-                x_in = features.detach().requires_grad_(True).float()
-            logits = classifier(x_in, timestep)
+                input_features = features.detach().requires_grad_(True).float()
+            logits = classifier(input_features, timestep)
             log_probs = functional.log_softmax(logits, dim=-1)
-            selected = log_probs[range(len(logits)), y.view(-1)]
-            return torch.autograd.grad(selected.sum(), x_in)[0] * classifier_scale
+            selected = log_probs[range(len(logits)), target.view(-1)]
+            return torch.autograd.grad(selected.sum(), input_features)[0] * classifier_scale
 
     return conditioning_function
 

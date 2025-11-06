@@ -181,7 +181,7 @@ def collapse_rare_categories(data_splits: ArrayDict, min_frequency: float) -> Ar
 def encode_categorical_features(
     datasets: ArrayDict,
     encoding: CategoricalEncoding | None,
-    y_train: np.ndarray | None,
+    target_train: np.ndarray | None,
     seed: int | None,
     return_encoder: bool = False,
 ) -> tuple[ArrayDict, bool, Any | None]:
@@ -192,7 +192,7 @@ def encode_categorical_features(
     Args:
         datasets: The data to encode.
         encoding: The kind of encoding to use. If None, will use CatEncoding.ORDINAL.
-        y_train: The target values. Will only be used for the "counter" encoding. Optional
+        target_train: The target values. Will only be used for the "counter" encoding. Optional
         seed: The seed to use for the random state. Only applied when using ``CategoricalEncoding.COUNTER``. Optional
         return_encoder: Whether to return the encoder. Optional, default is False.
 
@@ -203,7 +203,7 @@ def encode_categorical_features(
             - The encoder, if ``return_encoder`` is True. None otherwise.
     """
     encoding = CategoricalEncoding.ORDINAL if encoding is None else encoding
-    y_train = None if encoding != CategoricalEncoding.COUNTER else y_train
+    target_train = None if encoding != CategoricalEncoding.COUNTER else target_train
 
     train_split = datasets[DataSplit.TRAIN.value]
 
@@ -244,10 +244,10 @@ def encode_categorical_features(
         datasets = {k: encoder.transform(v) for k, v in datasets.items()}
 
     elif encoding == CategoricalEncoding.COUNTER:
-        assert y_train is not None
+        assert target_train is not None
         leave_one_out = LeaveOneOutEncoder(sigma=0.1, random_state=seed, return_df=False)
         encoder = make_pipeline(leave_one_out)
-        encoder.fit(train_split, y_train)
+        encoder.fit(train_split, target_train)
         datasets = {k: encoder.transform(v).astype("float32") for k, v in datasets.items()}
     else:
         raise ValueError(f"Unsupported encoding: {encoding.value}")

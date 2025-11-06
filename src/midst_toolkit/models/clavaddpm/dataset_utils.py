@@ -26,16 +26,16 @@ def load_pickle(path: Path | str, **kwargs: Any) -> Any:
     return pickle.loads(Path(path).read_bytes(), **kwargs)
 
 
-def dump_pickle(x: Any, path: Path | str, **kwargs: Any) -> None:
+def dump_pickle(obj: Any, path: Path | str, **kwargs: Any) -> None:
     """
     Dump an object into a pickle file.
 
     Args:
-        x: The object to dump.
+        obj: The object to dump.
         path: The path to the pickle file.
         **kwargs: Additional arguments to pass to the pickle.dumps function.
     """
-    Path(path).write_bytes(pickle.dumps(x, **kwargs))
+    Path(path).write_bytes(pickle.dumps(obj, **kwargs))
 
 
 def get_category_sizes(features: torch.Tensor | np.ndarray) -> list[int]:

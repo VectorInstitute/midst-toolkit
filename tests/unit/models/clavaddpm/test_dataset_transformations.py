@@ -154,11 +154,11 @@ def test_transform_targets() -> None:
         "test": np.random.randn(3, 1).astype(float),
     }
     # Nothing should happen in these settings
-    new_targets, _ = transform_targets(target_splits, TargetPolicy.DEFAULT, task_type=TaskType.BINCLASS)
+    new_targets, _ = transform_targets(target_splits, TargetPolicy.DEFAULT, task_type=TaskType.BINARY_CLASSIFICATION)
     assert np.allclose(target_splits["train"], new_targets["train"], atol=1e-9)
     assert np.allclose(target_splits["val"], new_targets["val"], atol=1e-9)
     assert np.allclose(target_splits["test"], new_targets["test"], atol=1e-9)
-    new_targets, _ = transform_targets(target_splits, None, task_type=TaskType.BINCLASS)
+    new_targets, _ = transform_targets(target_splits, None, task_type=TaskType.BINARY_CLASSIFICATION)
     assert np.allclose(target_splits["train"], new_targets["train"], atol=1e-9)
     assert np.allclose(target_splits["val"], new_targets["val"], atol=1e-9)
     assert np.allclose(target_splits["test"], new_targets["test"], atol=1e-9)

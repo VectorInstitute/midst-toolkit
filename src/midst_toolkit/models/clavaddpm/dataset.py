@@ -66,10 +66,10 @@ class Transformations:
 
 @dataclass(frozen=False)
 class Dataset:
-    x_num: ArrayDict | None
-    x_cat: ArrayDict | None
-    y: ArrayDict
-    y_info: dict[str, Any]
+    numerical_features: ArrayDict | None
+    categorical_features: ArrayDict | None
+    target: ArrayDict
+    target_info: dict[str, Any]
     task_type: TaskType
     n_classes: int | None
     categorical_transform: OneHotEncoder | None = None
@@ -124,24 +124,24 @@ class Dataset:
         return datasets
 
     @property
-    def is_binclass(self) -> bool:
+    def is_binary_classification(self) -> bool:
         """
         Check if the dataset is a binary classification dataset.
 
         Returns:
             True if the dataset is a binary classification dataset, False otherwise.
         """
-        return self.task_type == TaskType.BINCLASS
+        return self.task_type == TaskType.BINARY_CLASSIFICATION
 
     @property
-    def is_multiclass(self) -> bool:
+    def is_multiclass_classification(self) -> bool:
         """
         Check if the dataset is a multiclass classification dataset.
 
         Returns:
             True if the dataset is a multiclass classification dataset, False otherwise.
         """
-        return self.task_type == TaskType.MULTICLASS
+        return self.task_type == TaskType.MULTICLASS_CLASSIFICATION
 
     @property
     def is_regression(self) -> bool:
@@ -154,7 +154,7 @@ class Dataset:
         return self.task_type == TaskType.REGRESSION
 
     @property
-    def n_num_features(self) -> int:
+    def n_numerical_features(self) -> int:
         """
         Get the number of numerical features in the dataset.
 
@@ -163,10 +163,10 @@ class Dataset:
         Returns:
             The number of numerical features in the dataset.
         """
-        return 0 if self.x_num is None else self.x_num[DataSplit.TRAIN.value].shape[1]
+        return 0 if self.numerical_features is None else self.numerical_features[DataSplit.TRAIN.value].shape[1]
 
     @property
-    def n_cat_features(self) -> int:
+    def n_categorical_features(self) -> int:
         """
         Get the number of categorical features in the dataset.
 
@@ -175,7 +175,7 @@ class Dataset:
         Returns:
             The number of categorical features in the dataset.
         """
-        return 0 if self.x_cat is None else self.x_cat[DataSplit.TRAIN.value].shape[1]
+        return 0 if self.categorical_features is None else self.categorical_features[DataSplit.TRAIN.value].shape[1]
 
     @property
     def n_features(self) -> int:
@@ -185,7 +185,7 @@ class Dataset:
         Returns:
             The total number of features in the dataset.
         """
-        return self.n_num_features + self.n_cat_features
+        return self.n_numerical_features + self.n_categorical_features
 
     def size(self, split: DataSplit | None) -> int:
         """
@@ -199,21 +199,22 @@ class Dataset:
         Returns:
             The size of the dataset.
         """
-        return sum(map(len, self.y.values())) if split is None else len(self.y[split.value])
+        return sum(map(len, self.target.values())) if split is None else len(self.target[split.value])
 
     @property
     def output_dimension(self) -> int:
         """
         Get the output dimension of the model.
 
-        For self.task_type == TaskType.MULTICLASS, the output dimension is the number of classes.
+        For self.task_type == TaskType.MULTICLASS_CLASSIFICATION, the output dimension is the number of classes.
         For self.task_type == TaskType.REGRESSION, the output dimension is 1.
-        For self.task_type == TaskType.BINCLASS, the output dimension is also 1 because it is label encoded.
+        For self.task_type == TaskType.BINARY_CLASSIFICATION, the output dimension is also 1 because
+            it is label encoded.
 
         Returns:
             The output dimension of the model.
         """
-        if self.is_multiclass:
+        if self.is_multiclass_classification:
             assert self.n_classes is not None
             return self.n_classes
         return 1
@@ -228,7 +229,7 @@ class Dataset:
         Returns:
             The size of the categories in the specified split of the dataset.
         """
-        return [] if self.x_cat is None else get_category_sizes(self.x_cat[split.value])
+        return [] if self.categorical_features is None else get_category_sizes(self.categorical_features[split.value])
 
     def calculate_metrics(
         self,
@@ -246,17 +247,20 @@ class Dataset:
             The metrics of the predictions.
         """
         metrics = {
-            x: calculate_metrics(self.y[x], predictions[x], self.task_type, prediction_type, self.y_info)
+            x: calculate_metrics(self.target[x], predictions[x], self.task_type, prediction_type, self.target_info)
             for x in predictions
         }
+
         if self.task_type == TaskType.REGRESSION:
             score_key = "rmse"
             score_sign = -1
         else:
             score_key = "accuracy"
             score_sign = 1
+
         for part_metrics in metrics.values():
             part_metrics["score"] = score_sign * part_metrics[score_key]
+
         return metrics
 
     @staticmethod
@@ -373,10 +377,10 @@ class Dataset:
         assert isinstance(info["n_classes"], int)
 
         dataset = Dataset(
-            x_num=features,
-            x_cat=None,
-            y=target,
-            y_info={},
+            numerical_features=features,
+            categorical_features=None,
+            target=target,
+            target_info={},
             task_type=TaskType(info["task_type"]),
             n_classes=info["n_classes"],
         )
@@ -401,8 +405,10 @@ def setup_cache_path(transformations: Transformations, cache_dir: Path | None) -
     if cache_dir is None:
         log(INFO, "No cache_dir provided. Will not attempt to load or save transformed dataset from/to cache")
         return None
+
     transformations_md5 = hashlib.md5(str(transformations).encode("utf-8")).hexdigest()
     transformations_str = "__".join(map(str, astuple(transformations)))
+
     return cache_dir / f"cache__{transformations_str}__{transformations_md5}.pickle"
 
 
@@ -456,13 +462,13 @@ def transform_dataset(
     if cache_path is not None and cache_path.exists():
         return get_cached_dataset(cache_path, transformations)
 
-    if dataset.x_num is not None:
+    if dataset.numerical_features is not None:
         dataset = process_nans_in_numerical_features(dataset, transformations.numerical_nan_policy)
 
     numerical_transform = None
     categorical_transform = None
-    numerical_features = dataset.x_num
-    categorical_features = dataset.x_cat
+    numerical_features = dataset.numerical_features
+    categorical_features = dataset.categorical_features
 
     if numerical_features is not None and transformations.normalization is not None:
         numerical_features, numerical_transform = normalize(
@@ -485,7 +491,7 @@ def transform_dataset(
         categorical_features, is_numerical, categorical_transform = encode_categorical_features(
             categorical_features,
             transformations.categorical_encoding,
-            dataset.y[DataSplit.TRAIN.value],
+            dataset.target[DataSplit.TRAIN.value],
             transformations.seed,
             return_encoder=True,
         )
@@ -498,9 +504,15 @@ def transform_dataset(
                 }
             categorical_features = None
 
-    target, target_info = transform_targets(dataset.y, transformations.target_policy, dataset.task_type)
+    target, target_info = transform_targets(dataset.target, transformations.target_policy, dataset.task_type)
 
-    dataset = replace(dataset, x_num=numerical_features, x_cat=categorical_features, y=target, y_info=target_info)
+    dataset = replace(
+        dataset,
+        numerical_features=numerical_features,
+        categorical_features=categorical_features,
+        target=target,
+        target_info=target_info,
+    )
     dataset.numerical_transform = numerical_transform
     dataset.categorical_transform = categorical_transform
 
@@ -527,9 +539,9 @@ def process_nans_in_numerical_features(dataset: Dataset, policy: NumericalNaNPol
         log(INFO, "No NaN processing policy specified.")
         return dataset
 
-    assert dataset.x_num is not None, "No numerical features are present to process."
+    assert dataset.numerical_features is not None, "No numerical features are present to process."
 
-    nan_masks = {k: np.isnan(v) for k, v in dataset.x_num.items()}
+    nan_masks = {k: np.isnan(v) for k, v in dataset.numerical_features.items()}
     nan_values_exist = any(mask.any() for mask in nan_masks.values())
     if not nan_values_exist:
         log(INFO, "No NaN values to be processed.")
@@ -544,24 +556,32 @@ def process_nans_in_numerical_features(dataset: Dataset, policy: NumericalNaNPol
             "Cannot drop test rows, since this will affect the final metrics."
         )
 
-        dataset.x_num = None if dataset.x_num is None else drop_rows_according_to_mask(dataset.x_num, valid_masks)
-        dataset.x_cat = None if dataset.x_cat is None else drop_rows_according_to_mask(dataset.x_cat, valid_masks)
-        dataset.y = drop_rows_according_to_mask(dataset.y, valid_masks)
+        dataset.numerical_features = (
+            None
+            if dataset.numerical_features is None
+            else drop_rows_according_to_mask(dataset.numerical_features, valid_masks)
+        )
+        dataset.categorical_features = (
+            None
+            if dataset.categorical_features is None
+            else drop_rows_according_to_mask(dataset.categorical_features, valid_masks)
+        )
+        dataset.target = drop_rows_according_to_mask(dataset.target, valid_masks)
 
     elif policy == NumericalNaNPolicy.MEAN:
         # Computes column means in the training dataset, ignoring NaN values.
-        new_values = np.nanmean(dataset.x_num[DataSplit.TRAIN.value], axis=0)
+        new_values = np.nanmean(dataset.numerical_features[DataSplit.TRAIN.value], axis=0)
 
         # If any training column is all-NaN, np.nanmean returns NaN
         bad_cols = np.isnan(new_values)
         if bad_cols.any():
             raise ValueError("At least one of the columns in the train split are all NaN")
 
-        numerical_features_per_split = deepcopy(dataset.x_num)
+        numerical_features_per_split = deepcopy(dataset.numerical_features)
         for data_split, numerical_features in numerical_features_per_split.items():
             nan_indices = np.where(nan_masks[data_split])
             numerical_features[nan_indices] = np.take(new_values, nan_indices[1])
-        dataset.x_num = numerical_features_per_split
+        dataset.numerical_features = numerical_features_per_split
     else:
         raise ValueError(f"Unsupported policy: {policy.value}")
 
