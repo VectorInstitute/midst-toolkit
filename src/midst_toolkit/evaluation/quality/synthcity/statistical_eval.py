@@ -160,9 +160,9 @@ class AlphaPrecision(StatisticalEvaluator):
         closest_real_to_synthetic_idx_list = closest_real_to_synthetic_idx_list[:, 0].squeeze()
 
         closest_real_to_real_distance = real_to_real[closest_real_to_synthetic_idx_list]
-        authen = closest_real_to_real_distance <= closest_real_to_synth_distance
+        is_authetic = closest_real_to_real_distance <= closest_real_to_synth_distance
 
-        authenticity = np.mean(authen)
+        authenticity = np.mean(is_authetic.astype(int))
 
         return (
             alphas.tolist(),
