@@ -1,35 +1,41 @@
 """Defines the dataset functions for the ClavaDDPM model."""
 
+from __future__ import annotations
+
 import hashlib
 import json
-import pickle
-from collections import Counter
 from copy import deepcopy
 from dataclasses import astuple, dataclass, replace
 from logging import INFO
 from pathlib import Path
-from typing import Any, Self, cast
+from typing import Any
 
 import numpy as np
 import pandas as pd
-import torch
-from category_encoders import LeaveOneOutEncoder
-from scipy.special import expit, softmax
-from sklearn.impute import SimpleImputer
-from sklearn.metrics import classification_report, mean_squared_error, r2_score, roc_auc_score
 from sklearn.model_selection import train_test_split
-from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import (
     LabelEncoder,
-    MinMaxScaler,
     OneHotEncoder,
-    OrdinalEncoder,
-    QuantileTransformer,
     StandardScaler,
 )
 
 from midst_toolkit.common.enumerations import DataSplit, PredictionType, TaskType
 from midst_toolkit.common.logger import log
+from midst_toolkit.models.clavaddpm.dataset_transformations import (
+    TargetInfo,
+    collapse_rare_categories,
+    drop_rows_according_to_mask,
+    encode_categorical_features,
+    normalize,
+    process_nans_in_categorical_features,
+    transform_targets,
+)
+from midst_toolkit.models.clavaddpm.dataset_utils import (
+    dump_pickle,
+    encode_and_merge_features,
+    get_category_sizes,
+    load_pickle,
+)
 from midst_toolkit.models.clavaddpm.enumerations import (
     ArrayDict,
     CategoricalEncoding,
@@ -39,11 +45,7 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     NumericalNaNPolicy,
     TargetPolicy,
 )
-
-
-# Wildcard value to which all rare categorical variables are mapped
-CAT_RARE_VALUE = "_rare_"
-CAT_MISSING_VALUE = "_nan_"
+from midst_toolkit.models.clavaddpm.metrics import calculate_metrics
 
 
 @dataclass(frozen=True)
@@ -57,16 +59,9 @@ class Transformations:
     target_policy: TargetPolicy | None = TargetPolicy.DEFAULT
 
     @classmethod
-    def default(cls) -> Self:
+    def default(cls) -> Transformations:
         """Return the default transformations."""
         return cls(seed=0, normalization=Normalization.QUANTILE, target_policy=TargetPolicy.DEFAULT)
-
-
-@dataclass
-class TargetInfo:
-    policy: TargetPolicy | None = None
-    mean: float | None = None
-    std: float | None = None
 
 
 @dataclass
@@ -90,7 +85,7 @@ class Dataset:
     numerical_transform: StandardScaler | None = None
 
     @classmethod
-    def from_dir(cls, directory: Path) -> Self:
+    def from_dir(cls, directory: Path) -> Dataset:
         """
         Load a dataset from a directory.
 
@@ -115,10 +110,8 @@ class Dataset:
     @classmethod
     def _load_datasets(cls, directory: Path, dataset_name: str) -> ArrayDict:
         """
-        Load all the dataset splits from a directory.
-
-        Will check which of the splits exist in the directory for the
-        given dataset_name and load all of them.
+        Load all the dataset splits from a directory. Will check which of the splits exist in the directory for the
+        given ``dataset_name`` and load all of them.
 
         Args:
             directory: The directory to load the dataset from.
@@ -128,8 +121,16 @@ class Dataset:
             The loaded datasets with all the splits.
         """
         splits = [k.value for k in list(DataSplit) if directory.joinpath(f"y_{k.value}.npy").exists()]
-        # TODO: figure out if there is a way of getting rid of the cast
-        return {x: cast(np.ndarray, np.load(directory / f"{dataset_name}_{x}.npy", allow_pickle=True)) for x in splits}
+        if not len(splits) > 0:
+            raise ValueError("Splits to be loaded is empty!")
+        datasets: ArrayDict = {}
+
+        for split in splits:
+            dataset = np.load(directory / f"{dataset_name}_{split}.npy", allow_pickle=True)
+            assert isinstance(dataset, np.ndarray), "Dataset must be of type Numpy Array"
+            datasets[split] = dataset
+
+        return datasets
 
     @property
     def is_binary_classification(self) -> bool:
@@ -214,9 +215,10 @@ class Dataset:
         """
         Get the output dimension of the model.
 
-        For self.task_type == TaskType.MULTICLASS, the output dimension is the number of classes.
+        For self.task_type == TaskType.MULTICLASS_CLASSIFICATION, the output dimension is the number of classes.
         For self.task_type == TaskType.REGRESSION, the output dimension is 1.
-        For self.task_type == TaskType.BINCLASS, the output dimension is also 1 because it is label encoded.
+        For self.task_type == TaskType.BINARY_CLASSIFICATION, the output dimension is also 1 because
+            it is label encoded.
 
         Returns:
             The output dimension of the model.
@@ -270,412 +272,212 @@ class Dataset:
 
         return metrics
 
+    @staticmethod
+    def from_df(
+        data: pd.DataFrame,
+        transformations: Transformations,
+        is_target_conditioned: IsTargetConditioned,
+        table_metadata: TableMetadata,
+        data_split_percentages: list[float] | None = None,
+        noise_scale: float = 0,
+        # TODO: Find places in code that have this kind of hardcoded random default and remove (with TESTING)
+        data_split_random_state: int = 42,
+    ) -> tuple[Dataset, dict[int, LabelEncoder], list[str]]:
+        """
+        Generate a dataset from a pandas DataFrame.
 
-# TODO consider moving all the functions below into the Dataset class
-def get_category_sizes(features: torch.Tensor | np.ndarray) -> list[int]:
-    """
-    Get the size of the categories in the data by counting the number of
-    unique values in each column.
+        NOTE: For now, n_classes (which is part of the info dictionary) has to be set to 0. This is because our
+        matrix is the concatenation of (x_num, x_cat). In this case, if we have
+        is_y_cond == IsTargetConditioned.CONCAT, we can guarantee that y is the first column of the matrix.  However,
+        if we have n_classes > 0, then y is not the first column of the matrix.
 
-    Args:
-        features: The data from which to extract category sizes.
+        Args:
+            data: The pandas DataFrame from which to generate the dataset.
+            transformations: The transformations to apply to the dataset AFTER creation.
+            is_target_conditioned: The condition on the y column.
+                IsTargetConditioned.CONCAT: y is concatenated to X, the model learns a joint distribution of (y, X)
+                IsTargetConditioned.EMBEDDING: y is not concatenated to X. During computations, y is embedded
+                    and added to the latent vector of X
+                IsTargetConditioned.NONE: y column is completely ignored
 
-    Returns:
-        A list with the category sizes in the data.
-    """
-    features_transposed = features.T.cpu().tolist() if isinstance(features, torch.Tensor) else features.T.tolist()
-    return [len(set(xt)) for xt in features_transposed]
-
-
-def calculate_metrics(
-    true_target: np.ndarray,
-    predicted_target: np.ndarray,
-    task_type: TaskType,
-    prediction_type: PredictionType | None,
-    target_info: TargetInfo,
-) -> dict[str, Any]:
-    """
-    Calculate the metrics of the predictions.
-
-    Usage: calculate_metrics(y_true, y_pred, TaskType.BINCLASS, PredictionType.LOGITS, TargetInfo())
-
-    Args:
-        true_target: The true labels as a numpy array.
-        predicted_target: The predicted labels as a numpy array.
-        task_type: The type of the task.
-        prediction_type: The type of the predictions.
-        target_info: Metadata about the labels.
-
-    Returns:
-        The metrics of the predictions as a dictionary with the following keys:
-            If the task type is TaskType.REGRESSION:
-                {
-                    "rmse": The root mean squared error.
-                    "r2": The R^2 score.
-                }
-
-            If the task type is TaskType.MULTICLASS_CLASSIFICATION, it will have a key for each label
-            with the following metrics (result of sklearn.metrics.classification_report):
-                {
-                    "label-1": {
-                        "precision": The precision of the label.
-                        "recall": The recall of the label.
-                        "f1-score": The F1 score of the label.
-                        "support": The number of occurrences of this label in true_target.
-                    },
-                    "label-2": {...}
-                    ...
-                }
-
-            If the task type is TaskType.BINARY_CLASSIFICATION, it will have a key for each label
-            with the following metrics ((result of sklearn.metrics.classification_report),
-            and an additional ROC AUC metric:
-                {
-                    "label-1": {
-                        "precision": The precision of the label.
-                        "recall": The recall of the label.
-                        "f1-score": The F1 score of the label.
-                        "support": The number of occurrences of this label in true_target.
-                    },
-                    "label-2": {...}
-                    ...
-                    "roc_auc": The ROC AUC score.
-                }
-    """
-    if task_type == TaskType.REGRESSION:
-        assert prediction_type is None
-        assert target_info.std is not None
-
-        rmse = calculate_rmse(true_target, predicted_target, target_info.std)
-        r2 = r2_score(true_target, predicted_target)
-
-        result = {
-            "rmse": rmse,
-            "r2": r2,
-        }
-
-    else:
-        labels, probs = _get_predicted_labels_and_probs(predicted_target, task_type, prediction_type)
-        # TODO: figure out if there is a way of getting rid of the cast
-        result = cast(dict[str, Any], classification_report(true_target, labels, output_dict=True))
-        if task_type == TaskType.BINARY_CLASSIFICATION:
-            result["roc_auc"] = roc_auc_score(true_target, probs)
-
-    return result
-
-
-def calculate_rmse(true_target: np.ndarray, predicted_target: np.ndarray, std: float | None) -> float:
-    """
-    Calculate the root mean squared error (RMSE) of the predictions.
-
-    Args:
-        true_target: The true labels as a numpy array.
-        predicted_target: The predicted labels as a numpy array.
-        std: The standard deviation of the labels. If None, the RMSE is calculated
-            without the standard deviation.
-
-    Returns:
-        The RMSE of the predictions.
-    """
-    rmse = mean_squared_error(true_target, predicted_target) ** 0.5
-    if std is not None:
-        rmse *= std
-
-    return rmse
-
-
-def _get_predicted_labels_and_probs(
-    predicted_target: np.ndarray,
-    task_type: TaskType,
-    prediction_type: PredictionType | None,
-) -> tuple[np.ndarray, np.ndarray | None]:
-    """
-    Get the labels and probabilities from the predictions.
-    If prediction_type is None, will return the predicted labels as is
-    and the probabilities as None.
-
-    Args:
-        predicted_target: The predicted labels as a numpy array.
-        task_type: The type of the task. Can be TaskType.BINARY_CLASSIFICATION or TaskType.MULTICLASS_CLASSIFICATION.
-            Other task types are not supported.
-        prediction_type: The type of the predictions. If None, will return the predictions as labels
-            and probabilities as None.
-
-    Returns:
-        A tuple with the labels and probabilities. The probabilities are None
-            if the prediction_type is None.
-    """
-    assert task_type in (TaskType.BINARY_CLASSIFICATION, TaskType.MULTICLASS_CLASSIFICATION), (
-        f"Unsupported task type: {task_type.value}"
-    )
-
-    if prediction_type is None:
-        return predicted_target, None
-
-    if prediction_type == PredictionType.LOGITS:
-        if task_type == TaskType.BINARY_CLASSIFICATION:
-            probabilities = expit(predicted_target)
-        else:
-            probabilities = softmax(predicted_target, axis=1)
-
-    elif prediction_type == PredictionType.PROBS:
-        probabilities = predicted_target
-
-    else:
-        raise ValueError(f"Unsupported prediction_type: {prediction_type.value}")
-
-    assert probabilities is not None
-    labels = np.round(probabilities) if task_type == TaskType.BINARY_CLASSIFICATION else probabilities.argmax(axis=1)
-
-    return labels.astype("int64"), probabilities
-
-
-def make_dataset_from_df(
-    data: pd.DataFrame,
-    transformations: Transformations,
-    is_target_conditioned: IsTargetConditioned,
-    table_metadata: TableMetadata,
-    data_split_ratios: list[float] | None = None,
-    noise_scale: float = 0,
-    data_split_random_state: int = 42,
-) -> tuple[Dataset, dict[int, LabelEncoder], list[str]]:
-    """
-    Generate a dataset from a pandas DataFrame.
-
-    The order of the generated dataset: (y, x_num, x_cat).
-
-    Note: For now, n_classes has to be set to 0. This is because our matrix is the concatenation
-    of (x_num, x_cat). In this case, if we have is_y_cond == 'concat', we can guarantee that y
-    is the first column of the matrix.
-    However, if we have n_classes > 0, then y is not the first column of the matrix.
-
-    Args:
-        data: The pandas DataFrame to generate the dataset from.
-        transformations: The transformations to apply to the dataset.
-        is_target_conditioned: The condition on the y column.
-            IsTargetConditioned.CONCAT: y is concatenated to X, the model learns a joint distribution of (y, X)
-            IsTargetConditioned.EMBEDDING: y is not concatenated to X. During computations, y is embedded
-                and added to the latent vector of X
-            IsTargetConditioned.NONE: y column is completely ignored
-
-            How does is_target_conditioned affect the generation of y?
-            is_target_conditioned:
+                How does is_target_conditioned affect the generation of y?
                 IsTargetConditioned.CONCAT: the model synthesizes (y, X) directly, so y is just the first column
                 IsTargetConditioned.EMBEDDING: y is first sampled using empirical distribution of y. The model only
-                    synthesizes X. When returning the generated data, we return the generated X
-                    and the sampled y. (y is sampled from empirical distribution, instead of being
-                    generated by the model)
-                    Note that in this way, y is still not independent of X, because the model has been
-                    adding the embedding of y to the latent vector of X during computations.
-                IsTargetConditioned.NONE:
-                    y is synthesized using y's empirical distribution. X is generated by the model.
-                    In this case, y is completely independent of X.
+                    synthesizes X. When returning the generated data, we return the generated X and the sampled y.
+                    (y is sampled from empirical distribution, instead of being generated by the model). Note that in
+                    this way, y is still not independent of X, because the model has been adding the embedding of y
+                    to the latent vector of X during computations.
+                IsTargetConditioned.NONE: y is synthesized using y's empirical distribution. X is generated by the
+                    model. In this case, y is completely independent of X.
 
-        table_metadata: TableMetadata object containing metadata about the table.
-        data_split_ratios: The ratios of the dataset to split into train, val, and test. The sum of
-            the ratios must amount to 1 (with a tolerance of 0.01). Optional, default is [0.7, 0.2, 0.1].
-        noise_scale: The scale of the noise to add to the categorical features. Optional, default is 0.
-        data_split_random_state: The random state to use for the data split. Will be passed down to the
-            train_test_split function from sklearn. Optional, default is 42.
+            table_metadata: TableMetadata object containing metadata about the table.
+            data_split_percentages: The percentages of the dataset to go into train, val, and test splits. The sum of
+                the percentages must amount to 1 (within a tolerance of 0.01). Optional, default is [0.7, 0.2, 0.1].
+            noise_scale: The scale of the noise to add to the categorical features. Optional, default is 0.
+            data_split_random_state: The random state to use for the data split. Will be passed down to the
+                ``train_test_split`` function from sklearn. Optional, default is 42.
+
+        Returns:
+            A tuple with:
+            - The dataset object containing the created dataset,
+            - The label encoders for the categorical columns as a dictionary mapping column INDEX within the
+              categorical columns to a label encoder for that column.
+            - The column names, with numerical columns first, then categorical columns. Within these two categories,
+              column names are in the order they appear in the dataset.
+        """
+        if data_split_percentages is None:
+            data_split_percentages = [0.7, 0.2, 0.1]
+
+        assert len(data_split_percentages) == 3, "The ratios must be a list of 3 values (train, validation, test)."
+        assert np.isclose(sum(data_split_percentages), 1, atol=0.01), (
+            "The sum of the ratios must amount to 1 (with a tolerance of 0.01)."
+        )
+
+        train_percent, validation_percent, test_percent = data_split_percentages
+        train_val_data, test_data = train_test_split(
+            data,
+            test_size=test_percent,
+            random_state=data_split_random_state,
+        )
+        train_data, val_data = train_test_split(
+            train_val_data,
+            test_size=validation_percent / (train_percent + validation_percent),
+            random_state=data_split_random_state,
+        )
+
+        categorical_column_names, numerical_column_names = get_categorical_and_numerical_column_names(
+            table_metadata,
+            is_target_conditioned,
+        )
+
+        if len(categorical_column_names) > 0:
+            categorical_features = {
+                DataSplit.TRAIN.value: train_data[categorical_column_names].to_numpy(dtype=np.str_),
+                DataSplit.VALIDATION.value: val_data[categorical_column_names].to_numpy(dtype=np.str_),
+                DataSplit.TEST.value: test_data[categorical_column_names].to_numpy(dtype=np.str_),
+            }
+        else:
+            categorical_features = None
+
+        if len(numerical_column_names) > 0:
+            numerical_features = {
+                DataSplit.TRAIN.value: train_data[numerical_column_names].values.astype(np.float32),
+                DataSplit.VALIDATION.value: val_data[numerical_column_names].values.astype(np.float32),
+                DataSplit.TEST.value: test_data[numerical_column_names].values.astype(np.float32),
+            }
+        else:
+            numerical_features = None
+
+        target = {
+            DataSplit.TRAIN.value: train_data[table_metadata.target_column_name].values.astype(np.float32),
+            DataSplit.VALIDATION.value: val_data[table_metadata.target_column_name].values.astype(np.float32),
+            DataSplit.TEST.value: test_data[table_metadata.target_column_name].values.astype(np.float32),
+        }
+
+        column_orders = numerical_column_names + categorical_column_names
+
+        # Encode the categorical features and merge them with the numerical features
+        features, label_encoders = encode_and_merge_features(
+            categorical_features,
+            numerical_features,
+            noise_scale,
+        )
+
+        assert isinstance(table_metadata.n_classes, int)
+
+        dataset = Dataset(
+            numerical_features=features,
+            categorical_features=None,
+            target=target,
+            target_info=TargetInfo(),
+            task_type=table_metadata.task_type,
+            n_classes=table_metadata.n_classes,
+        )
+
+        return transform_dataset(dataset, transformations, None), label_encoders, column_orders
+
+
+def setup_cache_path(transformations: Transformations, cache_dir: Path | None) -> Path | None:
+    """
+    Setup the cache path for the transformations and transformed dataset. This will be used to check if a cache for
+    the specified transformations already exists. If they don't already exist, this is where they will be saved.
+
+    Args:
+        transformations: Set of transformations to be cached.
+        cache_dir: Directory to look for the tuple of cached transformations and dataset pickle. This will be used as
+            the stub and the path will be determined by the specified transformations
 
     Returns:
-        A tuple with the dataset, the label encoders, and the column names in the order they appear in the dataset.
+        A path to the cache file based on the hash of the transformations and their names. It may exist already
+        (will be loaded from there if so) or represent the name of the cache to be saved.
     """
-    if data_split_ratios is None:
-        data_split_ratios = [0.7, 0.2, 0.1]
+    if cache_dir is None:
+        log(INFO, "No cache_dir provided. Will not attempt to load or save transformed dataset from/to cache")
+        return None
 
-    assert len(data_split_ratios) == 3, "The ratios must be a list of 3 values (train, validation, test)."
-    assert np.isclose(sum(data_split_ratios), 1, atol=0.01), (
-        "The sum of the ratios must amount to 1 (with a tolerance of 0.01)."
-    )
+    transformations_md5 = hashlib.md5(str(transformations).encode("utf-8")).hexdigest()
+    transformations_str = "__".join(map(str, astuple(transformations)))
 
-    train_val_data, test_data = train_test_split(
-        data,
-        test_size=data_split_ratios[2],
-        random_state=data_split_random_state,
-    )
-    train_data, val_data = train_test_split(
-        train_val_data,
-        test_size=data_split_ratios[1] / (data_split_ratios[0] + data_split_ratios[1]),
-        random_state=data_split_random_state,
-    )
-
-    categorical_column_names, numerical_column_names = _get_categorical_and_numerical_column_names(
-        table_metadata,
-        is_target_conditioned,
-    )
-
-    if len(categorical_column_names) > 0:
-        categorical_features = {
-            DataSplit.TRAIN.value: train_data[categorical_column_names].to_numpy(dtype=np.str_),
-            DataSplit.VALIDATION.value: val_data[categorical_column_names].to_numpy(dtype=np.str_),
-            DataSplit.TEST.value: test_data[categorical_column_names].to_numpy(dtype=np.str_),
-        }
-    else:
-        categorical_features = None
-
-    if len(numerical_column_names) > 0:
-        numerical_features = {
-            DataSplit.TRAIN.value: train_data[numerical_column_names].values.astype(np.float32),
-            DataSplit.VALIDATION.value: val_data[numerical_column_names].values.astype(np.float32),
-            DataSplit.TEST.value: test_data[numerical_column_names].values.astype(np.float32),
-        }
-    else:
-        numerical_features = None
-
-    target = {
-        DataSplit.TRAIN.value: train_data[table_metadata.target_column_name].values.astype(np.float32),
-        DataSplit.VALIDATION.value: val_data[table_metadata.target_column_name].values.astype(np.float32),
-        DataSplit.TEST.value: test_data[table_metadata.target_column_name].values.astype(np.float32),
-    }
-
-    # build the column_orders list
-    # It's a string list with the names numerical columns followed by the names of
-    # the categorical columns in order they appear in the dataset that will be returned
-    index_to_column = list(data.columns)
-    column_to_index = {col: i for i, col in enumerate(index_to_column)}
-    categorical_column_orders = [column_to_index[col] for col in categorical_column_names]
-    numerical_column_orders = [column_to_index[col] for col in numerical_column_names]
-
-    column_orders_indices = numerical_column_orders + categorical_column_orders
-    column_orders = [index_to_column[index] for index in column_orders_indices]
-
-    # Encode the categorical features and merge them with the numerical features
-    numerical_features, label_encoders = _encode_and_merge_features(
-        categorical_features,
-        numerical_features,
-        noise_scale,
-    )
-
-    assert isinstance(table_metadata.n_classes, int)
-
-    dataset = Dataset(
-        numerical_features,
-        None,
-        target,
-        target_info=TargetInfo(),
-        task_type=table_metadata.task_type,
-        n_classes=table_metadata.n_classes,
-    )
-
-    return transform_dataset(dataset, transformations, None), label_encoders, column_orders
+    return cache_dir / f"cache__{transformations_str}__{transformations_md5}.pickle"
 
 
-def _get_categorical_and_numerical_column_names(
+def get_cached_dataset(cache_path: Path, transformations: Transformations) -> Dataset:
+    """
+    Provided a ``cache_path`` that exists, we load the contents of the pickle, which should be a tuple of
+    Transformations followed by a transformed dataset object. We check if the cached transformations match the
+    specified transformations. If they don't, then our cache and the transformations requested are misaligned and we
+    throw an error.
+
+    Args:
+        cache_path: A Path that has already been verified to exist.
+        transformations: A set of desired transformations to have been applied to the cached dataset.
+
+    Raises:
+        RuntimeError: Throws if the set of transformations desired does not match those in the cache.
+
+    Returns:
+        A cached dataset with the transformations requested already applied.
+    """
+    cache_transformations, transformed_dataset = load_pickle(cache_path)
+    if transformations == cache_transformations:
+        log(INFO, f"Using cached features: {cache_path}")
+        return transformed_dataset
+
+    raise RuntimeError(f"Hash collision for {cache_path}")
+
+
+def get_categorical_and_numerical_column_names(
     table_metadata: TableMetadata,
     is_target_conditioned: IsTargetConditioned,
 ) -> tuple[list[str], list[str]]:
     """
-    Get the categorical and numerical column names from the info dictionary.
+    Get the categorical and numerical column names from the info dictionary. It will also consider whether the target
+    variable should be considered a categorical column or not. If ``is_target_conditioned`` is
+    ``IsTargetConditioned.CONCAT``, then the label column is considered part of the categorical or numerical columns.
+    If table_metadata.n_classes > 0, it is deemed a categorical column. If not, then it is deemed a numerical column.
 
     Args:
-        table_metadata: TableMetadata object containing metadata about the table.
+        table_metadata: The TableMetadata object containing metadata for a dataset,
+            including the names of the categorical and numerical columns.
         is_target_conditioned: The condition on the y column.
-    """
-    numerical_columns: list[str] = []
-    categorical_columns: list[str] = []
-
-    if table_metadata.n_classes > 0:
-        if table_metadata.categorical_column_names is not None:
-            categorical_columns += table_metadata.categorical_column_names
-        if is_target_conditioned == IsTargetConditioned.CONCAT:
-            categorical_columns += [table_metadata.target_column_name]
-
-        numerical_columns = table_metadata.numerical_column_names
-
-    else:
-        if table_metadata.numerical_column_names is not None:
-            numerical_columns += table_metadata.numerical_column_names
-        if is_target_conditioned == IsTargetConditioned.CONCAT:
-            numerical_columns += [table_metadata.target_column_name]
-
-        categorical_columns = table_metadata.categorical_column_names
-
-    return categorical_columns, numerical_columns
-
-
-def _encode_and_merge_features(
-    categorical_features: ArrayDict | None,
-    numerical_features: ArrayDict | None,
-    noise_scale: float,
-) -> tuple[ArrayDict, dict[int, LabelEncoder]]:
-    """
-    Merge the categorical with the numerical features for train, validation, and test datasets.
-
-    The categorical features are encoded and then merged with the numerical features. The
-    label encoders used to do that are also returned.
-
-    If ``noise_scale`` is greater than 0, noise from a normal distribution with a standard
-    deviation of ``noise_scale`` is added to the categorical features.
-
-    Args:
-        categorical_features: A dictionary with the categorical features data for train,
-            validation, and test datasets.
-        numerical_features: A dictionary with the numerical features data for train,
-            validation, and test datasets.
-        noise_scale: The scale of the noise to add to the categorical features.
 
     Returns:
-        The merged features for train, validation, and test datasets and the label encoders
-        used to do so.
+        A tuple of lists with the categorical column names, followed by the numerical column names
     """
-    if categorical_features is None:
-        # if no categorical features, just return the numerical features
-        assert numerical_features is not None
-        return numerical_features, {}
-
-    # Otherwise, encode the categorical features
-    all_categorical_data = np.vstack(
-        (
-            categorical_features[DataSplit.TRAIN.value],
-            categorical_features[DataSplit.VALIDATION.value],
-            categorical_features[DataSplit.TEST.value],
-        )
+    numerical_columns = (
+        table_metadata.numerical_column_names if table_metadata.numerical_column_names is not None else []
+    )
+    categorical_columns = (
+        table_metadata.categorical_column_names if table_metadata.categorical_column_names is not None else []
     )
 
-    categorical_data_converted = []
-    label_encoders = {}
-    for column in range(all_categorical_data.shape[1]):
-        label_encoder = LabelEncoder()
-        encoded_labels = label_encoder.fit_transform(all_categorical_data[:, column]).astype(float)
-        categorical_data_converted.append(encoded_labels)
-        if noise_scale > 0:
-            # add noise
-            categorical_data_converted[-1] += np.random.normal(0, noise_scale, categorical_data_converted[-1].shape)
-        label_encoders[column] = label_encoder
+    if is_target_conditioned == IsTargetConditioned.CONCAT:
+        if table_metadata.n_classes > 0:
+            categorical_columns += [table_metadata.target_column_name]
+        else:
+            numerical_columns += [table_metadata.target_column_name]
 
-    categorical_data_transposed = np.vstack(categorical_data_converted).T
-
-    num_train_samples = categorical_features[DataSplit.TRAIN.value].shape[0]
-    num_validation_samples = categorical_features[DataSplit.VALIDATION.value].shape[0]
-
-    categorical_features[DataSplit.TRAIN.value] = categorical_data_transposed[:num_train_samples, :]
-    categorical_features[DataSplit.VALIDATION.value] = categorical_data_transposed[
-        num_train_samples : num_train_samples + num_validation_samples, :
-    ]
-    categorical_features[DataSplit.TEST.value] = categorical_data_transposed[
-        num_train_samples + num_validation_samples :, :
-    ]
-
-    if numerical_features is None:
-        # if no numerical features then no need to merge, just return the categorical features
-        return categorical_features, label_encoders
-
-    # Otherwise, merge the categorical and numerical features
-    merged_features = {
-        DataSplit.TRAIN.value: np.concatenate(
-            (numerical_features[DataSplit.TRAIN.value], categorical_features[DataSplit.TRAIN.value]), axis=1
-        ),
-        DataSplit.VALIDATION.value: np.concatenate(
-            (numerical_features[DataSplit.VALIDATION.value], categorical_features[DataSplit.VALIDATION.value]),
-            axis=1,
-        ),
-        DataSplit.TEST.value: np.concatenate(
-            (numerical_features[DataSplit.TEST.value], categorical_features[DataSplit.TEST.value]), axis=1
-        ),
-    }
-
-    return merged_features, label_encoders
+    return categorical_columns, numerical_columns
 
 
 def transform_dataset(
@@ -684,33 +486,24 @@ def transform_dataset(
     cache_dir: Path | None,
 ) -> Dataset:
     """
-    Transform the dataset.
+    Fits and applies the given set of transformations to the contents of the provided dataset and returns the
+    transformed dataset. If an appropriate cache is specified and exists, this function simply loads an already
+    transformed dataset from the cache. If a cache does not exist, this function will cache the dataset and
+    transformations there in addition to returning the transformed dataset.
 
     Args:
         dataset: The dataset to transform.
         transformations: The transformations to apply to the dataset.
-        cache_dir: The directory to cache the transformed dataset.
-            Optional, default is None. If not None, will check if the transformations exist in the cache directory.
-            If they do, will returned the cached transformed dataset. If not, will transform the dataset and cache it.
+        cache_dir: The directory to cache the transformed dataset. Optional, default is None. If not None, will check
+            if the transformations and dataset exist in the cache directory. If they do, will return the cached
+            transformed dataset. If not, will transform the dataset and cache it.
 
     Returns:
         The transformed dataset.
     """
-    # WARNING: the order of transformations matters. Moreover, the current
-    # implementation is not ideal in that sense.
-    cache_path = None
-    if cache_dir is not None:
-        # if cache_dir is not None, will save the cache file path into the cache_path variable
-        # so the transformations can be saved in the cache dir
-        transformations_md5 = hashlib.md5(str(transformations).encode("utf-8")).hexdigest()
-        transformations_str = "__".join(map(str, astuple(transformations)))
-        cache_path = cache_dir / f"cache__{transformations_str}__{transformations_md5}.pickle"
-        if cache_path.exists():
-            cache_transformations, value = load_pickle(cache_path)
-            if transformations == cache_transformations:
-                print(f"Using cached features: {cache_dir.name + '/' + cache_path.name}")
-                return value
-            raise RuntimeError(f"Hash collision for {cache_path}")
+    cache_path = setup_cache_path(transformations, cache_dir)
+    if cache_path is not None and cache_path.exists():
+        return get_cached_dataset(cache_path, transformations)
 
     if dataset.numerical_features is not None:
         dataset = process_nans_in_numerical_features(dataset, transformations.numerical_nan_policy)
@@ -727,10 +520,7 @@ def transform_dataset(
             transformations.seed,
         )
 
-    if categorical_features is None:
-        assert transformations.categorical_nan_policy is None
-        assert transformations.category_minimum_frequency is None
-    else:
+    if categorical_features is not None:
         categorical_features = process_nans_in_categorical_features(
             categorical_features,
             transformations.categorical_nan_policy,
@@ -757,7 +547,7 @@ def transform_dataset(
                 }
             categorical_features = None
 
-    target, target_info = build_target(dataset.target, transformations.target_policy, dataset.task_type)
+    target, target_info = transform_targets(dataset.target, transformations.target_policy, dataset.task_type)
 
     dataset = replace(
         dataset,
@@ -773,69 +563,6 @@ def transform_dataset(
         dump_pickle((transformations, dataset), cache_path)
 
     return dataset
-
-
-def load_pickle(path: Path | str, **kwargs: Any) -> Any:
-    """
-    Load a pickle file.
-
-    Args:
-        path: The path to the pickle file.
-        **kwargs: Additional arguments to pass to the pickle.loads function.
-
-    Returns:
-        The loaded pickle file.
-    """
-    return pickle.loads(Path(path).read_bytes(), **kwargs)
-
-
-def dump_pickle(object: Any, path: Path | str, **kwargs: Any) -> None:
-    """
-    Dump an object into a pickle file.
-
-    Args:
-        object: The object to dump.
-        path: The path to the pickle file.
-        **kwargs: Additional arguments to pass to the pickle.dumps function.
-    """
-    Path(path).write_bytes(pickle.dumps(object, **kwargs))
-
-
-# Inspired by: https://github.com/yandex-research/rtdl/blob/a4c93a32b334ef55d2a0559a4407c8306ffeeaee/lib/data.py#L20
-def normalize(
-    data: ArrayDict,
-    normalization: Normalization,
-    seed: int | None,
-) -> tuple[ArrayDict, StandardScaler | MinMaxScaler | QuantileTransformer]:
-    """
-    Normalize the input data.
-
-    Args:
-        data: The data to normalize.
-        normalization: The normalization to use.
-        seed: The seed to use for the random state. Optional, default is None.
-
-    Returns:
-        The normalized data and the normalizer.
-    """
-    if normalization == Normalization.STANDARD:
-        normalizer = StandardScaler()
-    elif normalization == Normalization.MINMAX:
-        normalizer = MinMaxScaler()
-    elif normalization == Normalization.QUANTILE:
-        normalizer = QuantileTransformer(
-            output_distribution="normal",
-            n_quantiles=max(min(data[DataSplit.TRAIN.value].shape[0] // 30, 1000), 10),
-            subsample=int(1e9),
-            random_state=seed,
-        )
-    else:
-        raise ValueError(f"Unsupported normalization: {normalization.value}")
-
-    train_features = data[DataSplit.TRAIN.value]
-    normalizer.fit(train_features)
-
-    return {k: normalizer.transform(v) for k, v in data.items()}, normalizer
 
 
 def process_nans_in_numerical_features(dataset: Dataset, policy: NumericalNaNPolicy | None) -> Dataset:
@@ -902,226 +629,3 @@ def process_nans_in_numerical_features(dataset: Dataset, policy: NumericalNaNPol
         raise ValueError(f"Unsupported policy: {policy.value}")
 
     return dataset
-
-
-def drop_rows_according_to_mask(data_split: ArrayDict, valid_masks: dict[str, np.ndarray]) -> ArrayDict:
-    """
-    Provided a dictionary of keys to numpy arrays, this function drops rows in each numpy array in the dictionary
-    according to the values in `valid_masks`. The keys of `valid_masks` must match the entries in data.
-
-    Args:
-        data_split: The data to apply the mask to.
-        valid_masks: Mapping from datasplit key to 1D boolean array with entries corresponding to rows of an array.
-            An entry of True indicates that the row should be kept. False implies it should be dropped.
-
-    Returns:
-        The data with the mask applied, dropping rows corresponding to False entries of the mask.
-    """
-    if set(data_split.keys()) != set(valid_masks.keys()):
-        raise KeyError("Keys of data do not match the provided valid_masks")
-    # Dropping rows in each array that have a False entry in valid_masks
-    filtered_data_split: ArrayDict = {}
-    for split_name, data in data_split.items():
-        row_mask = valid_masks[split_name]
-        if row_mask.ndim != 1 or row_mask.shape[0] != data.shape[0]:
-            raise ValueError(f"Mask for split '{split_name}' has shape {row_mask.shape}; expected ({data.shape[0]},)")
-        filtered_data_split[split_name] = data[row_mask]
-    return filtered_data_split
-
-
-def process_nans_in_categorical_features(data_splits: ArrayDict, policy: CategoricalNaNPolicy | None) -> ArrayDict:
-    """
-    Process the NaN values in the categorical features of the datasets provided. Supports only string or float arrays.
-
-    Args:
-        data_splits: A dictionary containing data to process, split into different partitions. One of which must
-            be keys with DataSplit.TRAIN.value.
-        policy: The policy to use to process the NaN values. If none, will no-op.
-
-    Returns:
-        The processed data.
-    """
-    if policy is None:
-        log(INFO, "No NaN processing policy specified.")
-        return data_splits
-
-    assert len(data_splits) > 0, "data_splits is empty, processing will fail."
-
-    # Determine whether the arrays are float or string typed. We assume all arrays in data_splits have the same type
-    train_data_split = data_splits[DataSplit.TRAIN.value]
-    is_float_array = np.issubdtype(train_data_split.dtype, np.floating)
-    # Value that we're looking for to replace
-    missing_values = float("nan") if is_float_array else CAT_MISSING_VALUE
-
-    # If there are any NaN values, try to apply a the policy.
-    nan_values = [
-        np.isnan(data).any() if is_float_array else (data == CAT_MISSING_VALUE).any() for data in data_splits.values()
-    ]
-    if any(nan_values):
-        if policy == CategoricalNaNPolicy.MOST_FREQUENT:
-            imputer = SimpleImputer(missing_values=missing_values, strategy=policy.value)
-            imputer.fit(data_splits[DataSplit.TRAIN.value])
-            return {k: imputer.transform(v) for k, v in data_splits.items()}
-        raise ValueError(f"Unsupported cat_nan_policy: {policy.value}")
-
-    # If no nan values are present. We do nothing.
-    return data_splits
-
-
-def collapse_rare_categories(data_splits: ArrayDict, min_frequency: float) -> ArrayDict:
-    """
-    Collapses rare categories in each column of the datasets under ``data_splits`` into a single category encoded by
-    the global variable CAT_RARE_VALUE. Categories considered rare are those not satisfying the ``min_frequency``
-    threshold within the training split of ``data_splits``.
-
-    NOTE: Arrays must be of type string
-
-    Args:
-        data_splits: A dictionary containing data to process, split into different partitions. One of which must
-            be keys with DataSplit.TRAIN.value.
-        min_frequency: The minimum frequency threshold of the categories to keep. Has to be between 0 and 1.
-
-    Returns:
-        The processed data.
-    """
-    assert 0.0 < min_frequency < 1.0, "min_frequency has to be between 0 and 1"
-
-    training_data = data_splits[DataSplit.TRAIN.value]
-    min_count = max(1, int(np.ceil(len(training_data) * min_frequency)))
-    # Creating a container to hold each of the edited columns of each data split. During transformation each column
-    # of the data becomes a list of entries (one for each row). The outer list holds all the columns in order.
-    new_data_split: dict[str, list[list[str]]] = {key: [] for key in data_splits}
-
-    # Run through each of the columns in the training data
-    for column_idx in range(training_data.shape[1]):
-        counter = Counter(training_data[:, column_idx].tolist())
-        popular_categories = {k for k, v in counter.items() if v >= min_count}
-
-        for split, data_split in data_splits.items():
-            data_split_column: list[str] = data_split[:, column_idx].tolist()
-            collapsed_categories = [
-                (cat if cat in popular_categories else CAT_RARE_VALUE) for cat in data_split_column
-            ]
-            new_data_split[split].append(collapsed_categories)
-
-    return {k: np.array(v).T for k, v in new_data_split.items()}
-
-
-def encode_categorical_features(
-    categorical_features: ArrayDict,
-    encoding: CategoricalEncoding | None,
-    target_train: np.ndarray | None,
-    seed: int | None,
-    return_encoder: bool = False,
-) -> tuple[ArrayDict, bool, Any | None]:
-    """
-    Encode the categorical features of the dataset.
-
-    Args:
-        categorical_features: The categorical features to encode.
-        encoding: The encoding to use. If None, will use CatEncoding.ORDINAL.
-        target_train: The target values. Optional, default is None. Will only be used for the "counter" encoding.
-        seed: The seed to use for the random state. Optional, default is None.
-        return_encoder: Whether to return the encoder. Optional, default is False.
-
-    Returns:
-        A tuple with the following values:
-            - The encoded data.
-            - A boolean value indicating if the data was converted to numerical.
-            - The encoder, if return_encoder is True. None otherwise.
-    """
-    if encoding != CategoricalEncoding.COUNTER:
-        target_train = None
-
-    # Step 1. Map strings to 0-based ranges
-
-    if encoding is None or encoding == CategoricalEncoding.ORDINAL:
-        unknown_value = np.iinfo("int64").max - 3
-        oe = OrdinalEncoder(
-            handle_unknown="use_encoded_value",
-            unknown_value=unknown_value,
-            dtype="int64",
-        ).fit(categorical_features[DataSplit.TRAIN.value])
-
-        encoder = make_pipeline(oe)
-        encoder.fit(categorical_features[DataSplit.TRAIN.value])
-        categorical_features = {k: encoder.transform(v) for k, v in categorical_features.items()}
-        max_values = categorical_features[DataSplit.TRAIN.value].max(axis=0)
-
-        for split in categorical_features:
-            if split == DataSplit.TRAIN.value:
-                continue
-            for column_idx in range(categorical_features[split].shape[1]):
-                selector = categorical_features[split][:, column_idx] == unknown_value, column_idx
-                categorical_features[split][selector] = max_values[column_idx] + 1
-
-        if return_encoder:
-            return categorical_features, False, encoder
-
-        return categorical_features, False, None
-
-    # Step 2. Encode.
-
-    if encoding == CategoricalEncoding.ONE_HOT:
-        ohe = OneHotEncoder(
-            handle_unknown="ignore",
-            sparse=False,
-            dtype=np.float32,
-        )
-        encoder = make_pipeline(ohe)
-        encoder.fit(categorical_features[DataSplit.TRAIN.value])
-        categorical_features = {k: encoder.transform(v) for k, v in categorical_features.items()}
-
-    elif encoding == CategoricalEncoding.COUNTER:
-        assert target_train is not None
-        assert seed is not None
-        loe = LeaveOneOutEncoder(sigma=0.1, random_state=seed, return_df=False)
-        encoder.steps.append(("loe", loe))
-        encoder.fit(categorical_features[DataSplit.TRAIN.value], target_train)
-        categorical_features = {k: encoder.transform(v).astype("float32") for k, v in categorical_features.items()}
-
-        if not isinstance(categorical_features[DataSplit.TRAIN.value], pd.DataFrame):
-            categorical_features = {k: v.value if hasattr(v, "value") else v for k, v in categorical_features.items()}
-
-    else:
-        raise ValueError(f"Unsupported encoding: {encoding.value}")
-
-    if return_encoder:
-        return categorical_features, True, encoder
-
-    return categorical_features, True, None
-
-
-def build_target(
-    target: ArrayDict,
-    policy: TargetPolicy | None,
-    task_type: TaskType,
-) -> tuple[ArrayDict, TargetInfo]:
-    """
-    Build the target and return the target values metadata.
-
-    Args:
-        target: The target values.
-        policy: The policy to use to build the target. Can be YPolicy.DEFAULT. If none, it will no-op.
-        task_type: The type of the task.
-
-    Returns:
-        A tuple with the target values and the target values metadata.
-    """
-    info = TargetInfo(policy=policy)
-
-    if policy is None:
-        pass  # No-op in this case, just skip the if-else block
-
-    elif policy == TargetPolicy.DEFAULT:
-        if task_type == TaskType.REGRESSION:
-            mean = float(target[DataSplit.TRAIN.value].mean())
-            std = float(target[DataSplit.TRAIN.value].std())
-            target = {k: (v - mean) / std for k, v in target.items()}
-            info.mean = mean
-            info.std = std
-
-    else:
-        raise ValueError(f"Unsupported policy: {policy.value}")
-
-    return target, info

@@ -17,11 +17,7 @@ from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
-from midst_toolkit.models.clavaddpm.dataset import (
-    TableMetadata,
-    Transformations,
-    make_dataset_from_df,
-)
+from midst_toolkit.models.clavaddpm.dataset import Dataset, TableMetadata, Transformations
 from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
     Configs,
@@ -87,11 +83,12 @@ def fine_tune_model(
             - dataset: The dataset.
             - column_orders: The column orders.
     """
-    dataset, label_encoders, column_orders = make_dataset_from_df(
+    dataset, label_encoders, column_orders = Dataset.from_df(
         fine_tuning_data,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
-        data_split_ratios=data_split_ratios,
+        # TODO change data_split_ratios to percentage in other parts of the code.
+        data_split_percentages=data_split_ratios,
         table_metadata=table_metadata,
         noise_scale=0,
     )
@@ -178,11 +175,11 @@ def fine_tune_classifier(
     Returns:
         The fine-tuned classifier model.
     """
-    dataset, _, _ = make_dataset_from_df(
+    dataset, _, _ = Dataset.from_df(
         fine_tuning_data,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
-        data_split_ratios=data_split_ratios,
+        data_split_percentages=data_split_ratios,
         table_metadata=table_metadata,
         noise_scale=0,
     )

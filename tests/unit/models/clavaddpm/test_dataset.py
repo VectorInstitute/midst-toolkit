@@ -1,21 +1,49 @@
 from copy import deepcopy
+from pathlib import Path
 
 import numpy as np
 import pytest
 
+from midst_toolkit.common.enumerations import TaskType
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.models.clavaddpm.dataset import (
-    CAT_MISSING_VALUE,
-    CAT_RARE_VALUE,
     Dataset,
-    NumericalNaNPolicy,
-    TargetInfo,
-    TaskType,
-    collapse_rare_categories,
-    process_nans_in_categorical_features,
+    TableMetadata,
+    Transformations,
+    get_cached_dataset,
+    get_categorical_and_numerical_column_names,
     process_nans_in_numerical_features,
+    setup_cache_path,
 )
-from midst_toolkit.models.clavaddpm.enumerations import CategoricalNaNPolicy
+from midst_toolkit.models.clavaddpm.dataset_transformations import TargetInfo
+from midst_toolkit.models.clavaddpm.dataset_utils import dump_pickle
+from midst_toolkit.models.clavaddpm.enumerations import (
+    CategoricalEncoding,
+    IsTargetConditioned,
+    Normalization,
+    NumericalNaNPolicy,
+)
+
+
+def test_load_dataset(tmp_path: Path) -> None:
+    train_array = np.random.randn(3, 3)
+    val_array = np.random.randn(3, 3)
+    test_array = np.random.randn(3, 3)
+
+    np.save(tmp_path / "test_dataset_train.npy", train_array)
+    np.save(tmp_path / "test_dataset_val.npy", val_array)
+    np.save(tmp_path / "test_dataset_test.npy", test_array)
+
+    # Need to also save label arrays, as thats how the load works...
+    np.save(tmp_path / "y_train.npy", np.random.randn(3, 1))
+    np.save(tmp_path / "y_val.npy", np.random.randn(3, 1))
+    np.save(tmp_path / "y_test.npy", np.random.randn(3, 1))
+
+    datasets = Dataset._load_datasets(tmp_path, "test_dataset")
+
+    assert np.allclose(datasets["train"], train_array, atol=1e-8)
+    assert np.allclose(datasets["val"], val_array, atol=1e-8)
+    assert np.allclose(datasets["test"], test_array, atol=1e-8)
 
 
 def _compare_data_splits(test_splits: dict[str, np.ndarray], reference_splits: dict[str, np.ndarray]) -> bool:
@@ -54,86 +82,6 @@ def _get_test_dataset() -> Dataset:
     )
     unset_all_random_seeds()
     return dataset
-
-
-def test_process_nans_in_categorical_features() -> None:
-    set_all_random_seeds(42)
-    data_splits = {
-        "train": np.random.randint(low=0, high=2, size=(3, 3)).astype(float),
-        "val": np.random.randint(low=0, high=2, size=(3, 3)).astype(float),
-        "test": np.random.randint(low=0, high=2, size=(3, 3)).astype(float),
-    }
-    # Test when there are no NaNs
-    processed_data_splits = process_nans_in_categorical_features(data_splits, CategoricalNaNPolicy.MOST_FREQUENT)
-    assert np.all(data_splits["train"] == processed_data_splits["train"])
-    assert np.all(data_splits["val"] == processed_data_splits["val"])
-    assert np.all(data_splits["test"] == processed_data_splits["test"])
-
-    # Make one of the train data set NaN but no others
-    data_splits["train"][0, 1] = float("nan")
-    processed_data_splits = process_nans_in_categorical_features(data_splits, CategoricalNaNPolicy.MOST_FREQUENT)
-    assert processed_data_splits["train"][0, 1] == 0
-    assert np.all(data_splits["val"] == processed_data_splits["val"])
-    assert np.all(data_splits["test"] == processed_data_splits["test"])
-
-    # Try when test has a NaN
-    data_splits["test"][1, 1] = float("nan")
-    processed_data_splits = process_nans_in_categorical_features(data_splits, CategoricalNaNPolicy.MOST_FREQUENT)
-    assert processed_data_splits["train"][0, 1] == 0
-    assert processed_data_splits["test"][1, 1] == 0
-    assert np.all(data_splits["val"] == processed_data_splits["val"])
-
-    # Try when no policy is provided
-    processed_data_splits = process_nans_in_categorical_features(data_splits, policy=None)
-    # NaNs should be left alone
-    assert np.isnan(data_splits["train"][0, 1])
-    assert np.isnan(data_splits["test"][1, 1])
-
-    # Try with string values rather than numbers
-    data_splits = {k: v.astype(str).astype(object) for k, v in data_splits.items()}
-    data_splits["train"][0, 1] = CAT_MISSING_VALUE
-    data_splits["test"][1, 1] = CAT_MISSING_VALUE
-    processed_data_splits = process_nans_in_categorical_features(data_splits, CategoricalNaNPolicy.MOST_FREQUENT)
-    assert processed_data_splits["train"][0, 1] == "0.0"
-    assert processed_data_splits["test"][1, 1] == "0.0"
-
-    unset_all_random_seeds()
-
-
-def test_collapse_rare_values() -> None:
-    set_all_random_seeds(42)
-    data_splits = {
-        "train": np.random.randint(low=0, high=2, size=(10, 10)).astype(str),
-        "val": np.random.randint(low=0, high=2, size=(10, 10)).astype(str),
-        "test": np.random.randint(low=0, high=2, size=(10, 10)).astype(str),
-    }
-    # Based on these settings, column index 6 in the train split ends up with 0 being rare (1 entry of 10)
-    # So it should be replaced with CAT_RARE_VALUE in all datasets. Otherwise, everywhere else should be equal
-    processed_data_splits = collapse_rare_categories(data_splits, 0.2)
-    assert processed_data_splits["train"][0, 6] == CAT_RARE_VALUE
-    assert processed_data_splits["val"][1, 6] == CAT_RARE_VALUE
-    assert processed_data_splits["val"][3, 6] == CAT_RARE_VALUE
-    assert processed_data_splits["val"][4, 6] == CAT_RARE_VALUE
-    assert processed_data_splits["val"][5, 6] == CAT_RARE_VALUE
-    assert processed_data_splits["val"][7, 6] == CAT_RARE_VALUE
-    assert processed_data_splits["test"][2, 6] == CAT_RARE_VALUE
-    assert processed_data_splits["test"][4, 6] == CAT_RARE_VALUE
-    assert processed_data_splits["test"][5, 6] == CAT_RARE_VALUE
-    assert processed_data_splits["test"][7, 6] == CAT_RARE_VALUE
-    assert processed_data_splits["test"][8, 6] == CAT_RARE_VALUE
-    # Make sure there are no other rares
-    assert np.sum(processed_data_splits["train"] != data_splits["train"]) == 1
-    assert np.sum(processed_data_splits["val"] != data_splits["val"]) == 5
-    assert np.sum(processed_data_splits["test"] != data_splits["test"]) == 5
-
-    # Now we create rare ones in both the train and validation sets
-    data_splits["train"][0, 1] = "5"
-    data_splits["val"][2, 1] = "5"
-    processed_data_splits = collapse_rare_categories(data_splits, 0.2)
-    assert processed_data_splits["train"][0, 1] == CAT_RARE_VALUE
-    assert processed_data_splits["val"][2, 1] == CAT_RARE_VALUE
-
-    unset_all_random_seeds()
 
 
 def test_process_nans_in_numerical_features_drop() -> None:
@@ -210,3 +158,72 @@ def test_process_nans_in_numerical_features_mean() -> None:
         dataset = process_nans_in_numerical_features(dataset=dataset, policy=NumericalNaNPolicy.MEAN)
 
     unset_all_random_seeds()
+
+
+def test_setup_cache_path(tmp_path: Path) -> None:
+    transformations_1 = Transformations(seed=2, normalization=Normalization.QUANTILE)
+    transformations_2 = Transformations(seed=2, normalization=Normalization.MINMAX)
+    transformations_3 = Transformations(seed=2, normalization=Normalization.QUANTILE)
+    transformations_4 = Transformations(seed=2, categorical_encoding=CategoricalEncoding.ONE_HOT)
+
+    path_1 = setup_cache_path(transformations_1, tmp_path)
+    path_2 = setup_cache_path(transformations_2, tmp_path)
+    path_3 = setup_cache_path(transformations_3, tmp_path)
+    path_4 = setup_cache_path(transformations_4, tmp_path)
+    assert path_1 == path_3
+    assert path_1 != path_2
+    assert path_1 != path_4
+
+    no_path = setup_cache_path(transformations_1, None)
+    assert no_path is None
+
+
+def test_get_cached_dataset(tmp_path: Path) -> None:
+    transformations_1 = Transformations(seed=2, normalization=Normalization.QUANTILE)
+    dataset = _get_test_dataset()
+
+    cache_path = setup_cache_path(transformations_1, tmp_path)
+    dump_pickle((transformations_1, dataset), cache_path)
+
+    dataset_cache = get_cached_dataset(cache_path, transformations_1)
+
+    assert np.allclose(dataset_cache.numerical_features["train"], dataset.numerical_features["train"], atol=1e-8)
+
+
+def test_get_categorical_and_numerical_column_names() -> None:
+    info_1 = TableMetadata(
+        numerical_column_names=["col_1", "col_3"],
+        categorical_column_names=["col_2"],
+        target_column_name="target",
+        n_classes=0,
+        task_type=TaskType.BINARY_CLASSIFICATION,
+    )
+    info_2 = TableMetadata(
+        numerical_column_names=["col_1", "col_2"],
+        categorical_column_names=["col_3"],
+        target_column_name="target",
+        n_classes=2,
+        task_type=TaskType.BINARY_CLASSIFICATION,
+    )
+
+    categorical_columns, numerical_columns = get_categorical_and_numerical_column_names(
+        info_1, is_target_conditioned=IsTargetConditioned.NONE
+    )
+    assert categorical_columns == ["col_2"]
+    assert numerical_columns == ["col_1", "col_3"]
+    categorical_columns, numerical_columns = get_categorical_and_numerical_column_names(
+        info_2, is_target_conditioned=IsTargetConditioned.NONE
+    )
+    assert categorical_columns == ["col_3"]
+    assert numerical_columns == ["col_1", "col_2"]
+
+    categorical_columns, numerical_columns = get_categorical_and_numerical_column_names(
+        info_1, is_target_conditioned=IsTargetConditioned.CONCAT
+    )
+    assert categorical_columns == ["col_2"]
+    assert numerical_columns == ["col_1", "col_3", "target"]
+    categorical_columns, numerical_columns = get_categorical_and_numerical_column_names(
+        info_2, is_target_conditioned=IsTargetConditioned.CONCAT
+    )
+    assert categorical_columns == ["col_3", "target"]
+    assert numerical_columns == ["col_1", "col_2"]
