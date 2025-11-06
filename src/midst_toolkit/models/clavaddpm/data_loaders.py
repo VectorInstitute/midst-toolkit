@@ -113,7 +113,7 @@ def load_tables(
 
         id_cols = [col for col in train_df.columns if "_id" in col]
         df_no_id = train_df.drop(columns=id_cols)
-        _, info = process_pipeline_data(df_no_id, domain, training_data_ratio, verbose)
+        info = process_pipeline_data(df_no_id, domain, training_data_ratio, verbose)
 
         tables[table] = Table(
             data=train_df,
@@ -177,7 +177,7 @@ def process_pipeline_data(
     table_domain: dict[str, Any],
     training_data_ratio: float = 0.9,
     verbose: bool = True,
-) -> tuple[dict[str, dict[str, Any]], DomainInfo]:
+) -> DomainInfo:
     """
     Processes the data to be sent through the pipeline.
 
@@ -194,23 +194,7 @@ def process_pipeline_data(
         verbose: Whether to print verbose output. Optional, default is True.
 
     Returns:
-        A tuple with 2 values:
-            - The data dictionary containing the following keys:
-                - "df": The dataframe containing the data.
-                    - DataSplit.TRAIN: The dataframe containing the training set.
-                    - DataSplit.TEST: The dataframe containing the test set. It will be absent if
-                        training_data_ratio == 1.
-                - "numpy": A dictionary with the numeric data, containing the keys:
-                    - "x_num_train": The numeric data for the training set.
-                    - "x_cat_train": The categorical data for the training set.
-                    - "y_train": The target data for the training set.
-                    - "x_num_test": The numeric data for the test set. It will be absent if
-                        training_data_ratio == 1.
-                    - "x_cat_test": The categorical data for the test set. It will be absent if
-                        training_data_ratio == 1.
-                    - "y_test": The target data for the test set. It will be absent if
-                        training_data_ratio == 1.
-            - The DomainInfo object.
+        A fully populated DomainInfo object.
     """
     data_splits, info = _split_data_and_generate_info(data, table_domain, training_data_ratio)
 
@@ -249,24 +233,7 @@ def process_pipeline_data(
         log(INFO, f"Numerical data shape: {data_splits.train_data.numerical_features.shape}")
         log(INFO, f"Categorical data shape: {data_splits.train_data.categorical_features.shape}")
 
-    output_data: dict[str, dict[str, Any]] = {
-        "df": {
-            DataSplit.TRAIN.value: data_splits.train_data.data,
-        },
-        "numpy": {
-            "x_num_train": data_splits.train_data.numerical_features,
-            "x_cat_train": data_splits.train_data.categorical_features,
-            "y_train": data_splits.train_data.target_features,
-        },
-    }
-
-    if data_splits.test_data is not None:
-        output_data["df"][DataSplit.TEST.value] = data_splits.test_data.data
-        output_data["numpy"]["x_num_test"] = data_splits.test_data.numerical_features
-        output_data["numpy"]["x_cat_test"] = data_splits.test_data.categorical_features
-        output_data["numpy"]["y_test"] = data_splits.test_data.target_features
-
-    return output_data, info
+    return info
 
 
 def _get_columns_info(
