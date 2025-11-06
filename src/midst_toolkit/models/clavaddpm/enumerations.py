@@ -4,9 +4,7 @@ from typing import Any
 import numpy as np
 
 
-# TODO: Temporary, will switch to classes later
 Configs = dict[str, Any]
-Tables = dict[str, dict[str, Any]]
 Relation = tuple[str, str]
 RelationOrder = list[Relation]
 GroupLengthProbDict = dict[int, dict[int, float]]

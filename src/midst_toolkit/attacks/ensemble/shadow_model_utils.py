@@ -11,13 +11,12 @@ import torch
 from midst_toolkit.attacks.ensemble.clavaddpm_fine_tuning import clava_fine_tuning
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
-from midst_toolkit.models.clavaddpm.data_loaders import load_tables
+from midst_toolkit.models.clavaddpm.data_loaders import Tables, load_tables
 from midst_toolkit.models.clavaddpm.enumerations import (
     Configs,
     GroupLengthsProbDicts,
     Relation,
     RelationOrder,
-    Tables,
 )
 from midst_toolkit.models.clavaddpm.synthesizer import clava_synthesizing
 from midst_toolkit.models.clavaddpm.train import ModelArtifacts, clava_training

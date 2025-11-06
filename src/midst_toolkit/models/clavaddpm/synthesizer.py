@@ -16,6 +16,7 @@ from tqdm import tqdm
 
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import log
+from midst_toolkit.models.clavaddpm.data_loaders import Tables
 from midst_toolkit.models.clavaddpm.dataset import Dataset, TableMetadata, Transformations
 from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
@@ -25,7 +26,6 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     IsTargetConditioned,
     Relation,
     RelationOrder,
-    Tables,
 )
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
     ConditioningFunction,
@@ -692,10 +692,10 @@ def clava_synthesizing_matching_process(
     final_tables: dict[str, pd.DataFrame] = {}
     for parent, child in relation_order:
         if child not in final_tables:
-            if len(tables[child]["parents"]) > 1:
+            if len(tables[child].parents) > 1:
                 final_tables[child] = handle_multi_parent(
                     child,
-                    tables[child]["parents"],
+                    tables[child].parents,
                     synthetic_tables,
                     configs["matching"]["num_matching_clusters"],
                     unique_matching=configs["matching"]["unique_matching"],
@@ -744,7 +744,7 @@ def clava_synthesizing(
     for parent, child in relation_order:
         log(INFO, f"Generating {parent} -> {child}")
         training_results = models[(parent, child)]
-        df_with_cluster = tables[child]["df"]
+        df_with_cluster = tables[child].data
         df_without_id = get_df_without_id(df_with_cluster)
 
         log(INFO, "Sample size: {}".format(int(sample_scale * len(df_without_id))))
@@ -948,7 +948,7 @@ def _synthesize_multi_table(
 
     child_final_df = pd.DataFrame(child_synthesized_final_arr, columns=child_final_columns)
     original_columns = []
-    for col in tables[child_name]["df"].columns:
+    for col in tables[child_name].data.columns:
         if col in child_final_df.columns:
             original_columns.append(col)
     child_final_df = child_final_df[original_columns]
@@ -974,7 +974,9 @@ def _clean_and_save_synthetic_data(
     """
     cleaned_synthetic_data: dict[str, pd.DataFrame] = {}
     for table_key, table_val in synthetic_data.items():
-        column_names = [column_name for column_name in tables[table_key]["original_cols"] if "_id" not in column_name]
+        column_names = [
+            column_name for column_name in tables[table_key].original_column_names if "_id" not in column_name
+        ]
         cleaned_synthetic_data[table_key] = pd.DataFrame(table_val[column_names])
 
     for cleaned_key, cleaned_val in cleaned_synthetic_data.items():

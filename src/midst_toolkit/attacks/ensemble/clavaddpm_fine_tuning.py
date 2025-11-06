@@ -15,7 +15,7 @@ from torch import optim
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.common.variables import DEVICE
-from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
+from midst_toolkit.models.clavaddpm.data_loaders import NO_PARENT_COLUMN_NAME, Tables, prepare_fast_dataloader
 from midst_toolkit.models.clavaddpm.dataset import Dataset, TableMetadata, Transformations
 from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
@@ -23,7 +23,6 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     IsTargetConditioned,
     Relation,
     RelationOrder,
-    Tables,
     TargetType,
 )
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
@@ -273,8 +272,8 @@ def child_fine_tuning(
 
     """
     if parent_name is None:
-        target_column_name = "placeholder"
-        child_df_with_cluster["placeholder"] = list(range(len(child_df_with_cluster)))
+        target_column_name = NO_PARENT_COLUMN_NAME
+        child_df_with_cluster[NO_PARENT_COLUMN_NAME] = list(range(len(child_df_with_cluster)))
     else:
         target_column_name = f"{parent_name}_{child_name}_cluster"
 
@@ -367,14 +366,14 @@ def clava_fine_tuning(
     """
     new_models = {}
     for parent, child in relation_order:
-        df_with_cluster = new_tables[child]["df"]
+        df_with_cluster = new_tables[child].data
         id_cols = [col for col in df_with_cluster.columns if "_id" in col]
         df_without_id = df_with_cluster.drop(columns=id_cols)
         child_model = trained_models[(parent, child)]
         result = child_fine_tuning(
             child_model,
             df_without_id,
-            new_tables[child]["domain"],
+            new_tables[child].domain,
             parent,
             child,
             diffusion_config,

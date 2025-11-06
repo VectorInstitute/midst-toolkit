@@ -39,3 +39,7 @@ class InfoDataType(Enum):
 
     NUMERICAL = "numerical"
     CATEGORICAL = "categorical"
+
+
+class ComputerRepresentation(Enum):
+    FLOAT = "Float"

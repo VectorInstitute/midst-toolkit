@@ -15,7 +15,7 @@ from torch import Tensor, optim
 
 from midst_toolkit.common.enumerations import DataSplit, DomainDataType, TaskType
 from midst_toolkit.common.logger import KeyValueLogger, log
-from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
+from midst_toolkit.models.clavaddpm.data_loaders import NO_PARENT_COLUMN_NAME, Tables, prepare_fast_dataloader
 from midst_toolkit.models.clavaddpm.dataset import Dataset, TableMetadata, Transformations
 from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
@@ -24,7 +24,6 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     ReductionMethod,
     Relation,
     RelationOrder,
-    Tables,
     TargetType,
 )
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
@@ -73,17 +72,7 @@ def clava_training(
     Training function for the ClavaDDPM model.
 
     Args:
-        tables: Definition of the tables and their relations. Example:
-            {
-                "table1": {
-                    "children": ["table2"],
-                    "parents": []
-                },
-                "table2": {
-                    "children": [],
-                    "parents": ["table1"]
-                }
-            }
+        tables: Dictionary of tables loaded from the load_tables function.
         relation_order: List of tuples of parent and child tables. Example:
             [("table1", "table2"), ("table1", "table3")]
         save_dir: Directory to save the ClavaDDPM models.
@@ -121,13 +110,13 @@ def clava_training(
     models = {}
     for parent, child in relation_order:
         print(f"Training {parent} -> {child} model from scratch")
-        df_with_cluster = tables[child]["df"]
+        df_with_cluster = tables[child].data
         id_cols = [col for col in df_with_cluster.columns if "_id" in col]
         df_without_id = df_with_cluster.drop(columns=id_cols)
 
         result = child_training(
             df_without_id,
-            tables[child]["domain"],
+            tables[child].domain,
             parent,
             child,
             diffusion_config,
@@ -149,7 +138,7 @@ def clava_training(
 
     for parent, child in relation_order:
         if parent is None:
-            tables[child]["df"]["placeholder"] = list(range(len(tables[child]["df"])))
+            tables[child].data[NO_PARENT_COLUMN_NAME] = list(range(len(tables[child].data)))
 
     save_table_info(tables, relation_order, models, save_dir)
 
@@ -212,8 +201,8 @@ def child_training(
         # for its column name. This can happen on single table training or
         # when the table is on the top level of the hierarchy.
         # TODO: find a better name for this variable
-        target_column_name = "placeholder"
-        child_df_with_cluster["placeholder"] = list(range(len(child_df_with_cluster)))
+        target_column_name = NO_PARENT_COLUMN_NAME
+        child_df_with_cluster[NO_PARENT_COLUMN_NAME] = list(range(len(child_df_with_cluster)))
     else:
         target_column_name = f"{parent_name}_{child_name}_cluster"
 
@@ -595,7 +584,7 @@ def save_table_info(
     Save the table information into the save_dir.
 
     Args:
-        tables: Dictionary of the tables by name.
+        tables: Dictionary of tables loaded from the load_tables function.
         relation_order: List of tuples of parent and child tables. Example:
             [("table1", "table2"), ("table1", "table3")]
         models: Dictionary of models for each parent-child pair.
@@ -604,7 +593,7 @@ def save_table_info(
     table_info = {}
     for parent, child in relation_order:
         result = models[(parent, child)]
-        df_with_cluster = tables[child]["df"]
+        df_with_cluster = tables[child].data
         df_without_id = get_df_without_id(df_with_cluster)
 
         assert result.table_metadata is not None, "Table metadata is required"
@@ -619,9 +608,9 @@ def save_table_info(
         table_info[(parent, child)] = {
             "uniq_vals_list": unique_values_list,
             "size": len(df_with_cluster),
-            "columns": tables[child]["df"].columns,
-            "parents": tables[child]["parents"],
-            "original_cols": tables[child]["original_cols"],
+            "columns": tables[child].data.columns,
+            "parents": tables[child].parents,
+            "original_cols": tables[child].original_column_names,
         }
 
         filtered_result = {
