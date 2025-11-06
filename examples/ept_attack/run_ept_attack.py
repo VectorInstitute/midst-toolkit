@@ -1,6 +1,9 @@
 """
 This file is an uncompleted example script for running the EPT-MIA Attack on MIDST challenge
 provided resources and data.
+Overall workflow and decisions are taken with from the Cyber@BGU team's attack implementation at
+https://github.com/eyalgerman/MIA-EPT.
+
 """
 
 import json
@@ -11,12 +14,12 @@ import hydra
 from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
-from midst_toolkit.attacks.ept import run_feature_extraction
+from midst_toolkit.attacks.ept import feature_extraction
 from midst_toolkit.common.logger import log
 
 
 # Step 2 and 3: Attribute prediction model training and feature extraction
-def attribute_prediction_train_and_extract(config: DictConfig) -> None:
+def run_attribute_prediction(config: DictConfig) -> None:
     """
     Train attribute prediction models and extract features for EPT-MIA attack.
     The function is specifically designed to work with the MIDST challenge data structure,
@@ -33,6 +36,10 @@ def attribute_prediction_train_and_extract(config: DictConfig) -> None:
     input_data_path = Path(config.data_paths.input_data_path)
     output_features_path = Path(config.data_paths.output_data_path, "attribute_prediction_features")
 
+    # Load column types specific to the competition dataset
+    with open(config.data_paths.data_types_file_path, "r") as f:
+        column_types = json.load(f)
+
     # Iterating over directories specific to the shadow models folder structure in the competition
     for model_name in diffusion_model_names:
         model_path = Path(input_data_path / f"{model_name}_black_box")
@@ -45,13 +52,9 @@ def attribute_prediction_train_and_extract(config: DictConfig) -> None:
 
                 df_synthetic_data = load_dataframe(input_data_path, "trans_synthetic.csv")
                 df_challenge_data = load_dataframe(input_data_path, "challenge_with_id.csv")
-                df_challenge_labels = load_dataframe(input_data_path, "challenge_label.csv")
+                # df_challenge_labels = load_dataframe(input_data_path, "challenge_label.csv")
 
-                # Load column types specific to the competition dataset
-                with open(config.data_paths.data_types_file_path, "r") as f:
-                    column_types = json.load(f)
-
-                # Drop columns in df_syntehtic_data that end with '_id'
+                # Drop columns in df_syntehtic_data that end with '_id', as they do not create meaningful features
                 df_synthetic_data = df_synthetic_data.drop(
                     columns=[col for col in df_synthetic_data.columns if col.endswith("_id")]
                 )
@@ -60,7 +63,7 @@ def attribute_prediction_train_and_extract(config: DictConfig) -> None:
                 )
 
                 # Run feature extraction
-                df_extracted_features = run_feature_extraction.main(
+                df_extracted_features = feature_extraction.main(
                     synthetic_data=df_synthetic_data,
                     challenge_data=df_challenge_data,
                     column_types=column_types,
@@ -98,7 +101,7 @@ def main(config: DictConfig) -> None:
     # TODO: Implement shadow model training step.
 
     if config.pipeline.run_attribute_prediction_model_training:
-        attribute_prediction_train_and_extract(config)
+        run_attribute_prediction(config)
 
 
 if __name__ == "__main__":
