@@ -9,6 +9,7 @@ from midst_toolkit.models.clavaddpm.dataset import (
     CAT_RARE_VALUE,
     Dataset,
     NumericalNaNPolicy,
+    TargetInfo,
     TaskType,
     collapse_rare_categories,
     process_nans_in_categorical_features,
@@ -47,7 +48,7 @@ def _get_test_dataset() -> Dataset:
         numerical_features=numerical_data_splits,
         categorical_features=categorical_data_splits,
         target=label_splits,
-        target_info={},
+        target_info=TargetInfo(),
         task_type=TaskType.BINARY_CLASSIFICATION,
         n_classes=2,
     )

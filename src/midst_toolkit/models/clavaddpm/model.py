@@ -7,12 +7,10 @@ from enum import Enum
 from logging import INFO
 from typing import Any, Self
 
-import pandas as pd
 import torch
 from torch import Tensor, nn
 from torch.nn import functional
 
-from midst_toolkit.common.enumerations import DomainDataType, TaskType
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.enumerations import IsTargetConditioned, ModuleType
 
@@ -119,44 +117,6 @@ class Classifier(nn.Module):
         embeddings = self.timestep_embedding(timestep_embedding(timesteps, self.timestep_dimension))
         output_tensor = self.proj(input_tensor) + embeddings
         return self.model(output_tensor)
-
-
-def get_table_info(df: pd.DataFrame, table_domain: dict[str, Any], target_column_name: str) -> dict[str, Any]:
-    """
-    Get the dictionary of table information.
-
-    Args:
-        df: The dataframe containing the data.
-        table_domain: The table's domain dictionary containing metadata about the data columns.
-        target_column_name: The name of the target column.
-
-    Returns:
-        The table information in the following format:
-        {
-            "cat_cols": list[str],
-            "num_cols": list[str],
-            "y_col": str,
-            "n_classes": int,
-            "task_type": str,
-        }
-    """
-    categorical_cols = []
-    numerical_cols = []
-    for column in df.columns:
-        if column in table_domain and column != target_column_name:
-            if table_domain[column]["type"] == DomainDataType.DISCRETE.value:
-                categorical_cols.append(column)
-            else:
-                numerical_cols.append(column)
-
-    table_info: dict[str, Any] = {}
-    table_info["cat_cols"] = categorical_cols
-    table_info["num_cols"] = numerical_cols
-    table_info["y_col"] = target_column_name
-    table_info["n_classes"] = 0
-    table_info["task_type"] = TaskType.MULTICLASS_CLASSIFICATION.value
-
-    return table_info
 
 
 def timestep_embedding(timesteps: Tensor, output_dimension: int, max_period: int = 10000) -> Tensor:
