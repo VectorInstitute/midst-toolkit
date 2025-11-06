@@ -114,8 +114,8 @@ class Dataset:
         splits = [k.value for k in list(DataSplit) if directory.joinpath(f"y_{k.value}.npy").exists()]
         if not len(splits) > 0:
             raise ValueError("Splits to be loaded is empty!")
-
         datasets: ArrayDict = {}
+
         for split in splits:
             dataset = np.load(directory / f"{dataset_name}_{split}.npy", allow_pickle=True)
             assert isinstance(dataset, np.ndarray), "Dataset must be of type Numpy Array"
