@@ -42,4 +42,6 @@ class InfoDataType(Enum):
 
 
 class ComputerRepresentation(Enum):
+    """Possible types of computer representation for data values."""
+
     FLOAT = "Float"

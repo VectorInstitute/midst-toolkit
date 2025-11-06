@@ -64,7 +64,7 @@ class Transformations:
         return cls(seed=0, normalization=Normalization.QUANTILE, target_policy=TargetPolicy.DEFAULT)
 
 
-@dataclass
+@dataclass(frozen=True)
 class TableMetadata:
     categorical_column_names: list[str]
     numerical_column_names: list[str]
@@ -73,7 +73,7 @@ class TableMetadata:
     task_type: TaskType
 
 
-@dataclass(frozen=False)
+@dataclass
 class Dataset:
     numerical_features: ArrayDict | None
     categorical_features: ArrayDict | None
@@ -288,8 +288,8 @@ class Dataset:
 
         NOTE: For now, n_classes (which is part of the info dictionary) has to be set to 0. This is because our
         matrix is the concatenation of (x_num, x_cat). In this case, if we have
-        is_y_cond == IsTargetConditioned.CONCAT, we can guarantee that y is the first column of the matrix.  However,
-        if we have n_classes > 0, then y is not the first column of the matrix.
+        is_target_conditioned == IsTargetConditioned.CONCAT, we can guarantee that y is the first column of the
+        matrix.  However, if we have n_classes > 0, then y is not the first column of the matrix.
 
         Args:
             data: The pandas DataFrame from which to generate the dataset.
@@ -464,18 +464,19 @@ def get_categorical_and_numerical_column_names(
     Returns:
         A tuple of lists with the categorical column names, followed by the numerical column names
     """
-    numerical_columns = (
-        table_metadata.numerical_column_names if table_metadata.numerical_column_names is not None else []
-    )
-    categorical_columns = (
-        table_metadata.categorical_column_names if table_metadata.categorical_column_names is not None else []
-    )
+    numerical_columns = []
+    if table_metadata.numerical_column_names is not None:
+        numerical_columns = list(table_metadata.numerical_column_names)
+
+    categorical_columns = []
+    if table_metadata.categorical_column_names is not None:
+        categorical_columns = list(table_metadata.categorical_column_names)
 
     if is_target_conditioned == IsTargetConditioned.CONCAT:
         if table_metadata.n_classes > 0:
-            categorical_columns += [table_metadata.target_column_name]
+            categorical_columns.append(table_metadata.target_column_name)
         else:
-            numerical_columns += [table_metadata.target_column_name]
+            numerical_columns.append(table_metadata.target_column_name)
 
     return categorical_columns, numerical_columns
 
