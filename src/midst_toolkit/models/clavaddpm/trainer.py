@@ -8,6 +8,7 @@ import pandas as pd
 import torch
 from torch import Tensor, nn
 
+from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 
 
@@ -19,7 +20,7 @@ class ClavaDDPMTrainer:
         learning_rate: float,
         weight_decay: float,
         steps: int,
-        device: str = "cuda",
+        device: torch.device = DEVICE,
     ):
         """
         Trainer class for the ClavaDDPM model.
@@ -31,7 +32,7 @@ class ClavaDDPMTrainer:
             learning_rate: The learning rate.
             weight_decay: The weight decay.
             steps: The number of steps to train.
-            device: The device to use. Default is `"cuda"`.
+            device: The device to use. Default is midst_toolkit.common.variables.DEVICE.
         """
         self.diffusion_model = diffusion_model
         self.ema_model = deepcopy(self.diffusion_model._denoise_fn)

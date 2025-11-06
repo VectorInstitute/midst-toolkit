@@ -13,6 +13,7 @@ import pandas as pd
 import torch
 from torch import optim
 
+from midst_toolkit.common.config import ClassifierConfig, DiffusionConfig
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.common.variables import DEVICE
@@ -20,7 +21,6 @@ from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
 from midst_toolkit.models.clavaddpm.dataset import Dataset, Transformations
 from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
-    Configs,
     IsTargetConditioned,
     ModelArtifacts,
     Relation,
@@ -113,7 +113,7 @@ def fine_tune_model(
         learning_rate=lr,
         weight_decay=weight_decay,
         steps=steps,
-        device=str(device),
+        device=device,
     )
     trainer.train()
 
@@ -213,7 +213,7 @@ def fine_tune_classifier(
         gaussian_loss_type=gaussian_loss_type,
         num_timesteps=num_timesteps,
         scheduler_type=scheduler_type,
-        device=torch.device(device),
+        device=device,
     )
     diffusion.to(device)
 
@@ -231,7 +231,7 @@ def fine_tune_classifier(
             schedule_sampler,
             diffusion,
             prefix=DataSplit.TRAIN.value,
-            device=str(device),
+            device=device,
             key_value_logger=key_value_logger,
         )
         # Dump the contents of the key value logger before returning.
@@ -246,8 +246,8 @@ def child_fine_tuning(
     child_domain_dict: dict[str, Any],
     parent_name: str | None,
     child_name: str,
-    diffusion_config: Configs,
-    classifier_config: Configs | None,
+    diffusion_config: DiffusionConfig,
+    classifier_config: ClassifierConfig | None,
     fine_tuning_diffusion_iterations: int,
     fine_tuning_classifier_iterations: int,
     device: torch.device = DEVICE,
@@ -279,8 +279,8 @@ def child_fine_tuning(
     child_info = get_table_info(child_df_with_cluster, child_domain_dict, target_col)
     child_model_params = ModelParameters(
         diffusion_parameters=DiffusionParameters(
-            layers_dimensions=diffusion_config["d_layers"],
-            dropout=diffusion_config["dropout"],
+            layers_dimensions=diffusion_config.d_layers,
+            dropout=diffusion_config.dropout,
         ),
     )
     child_transformations = Transformations.default()
@@ -292,10 +292,10 @@ def child_fine_tuning(
         child_model_params,
         child_transformations,
         fine_tuning_diffusion_iterations,
-        diffusion_config["batch_size"],
-        diffusion_config["lr"],
-        diffusion_config["weight_decay"],
-        diffusion_config["data_split_ratios"],
+        diffusion_config.batch_size,
+        diffusion_config.lr,
+        diffusion_config.weight_decay,
+        diffusion_config.data_split_ratios,
         device=device,
     )
 
@@ -307,7 +307,7 @@ def child_fine_tuning(
             "Ensemble attack is designed for single table. You are using multi-table fine-tuning.",
         )
         assert classifier_config is not None, "Classifier config is required for multi-table training"
-        if classifier_config["iterations"] > 0:
+        if classifier_config.iterations > 0:
             child_classifier = fine_tune_classifier(
                 pre_trained_model["classifier"],
                 child_df_with_cluster,
@@ -315,19 +315,19 @@ def child_fine_tuning(
                 child_model_params,
                 child_transformations,
                 fine_tuning_classifier_iterations,
-                classifier_config["batch_size"],
-                GaussianLossType(diffusion_config["gaussian_loss_type"]),
-                classifier_config["num_timesteps"],
-                SchedulerType(diffusion_config["scheduler"]),
-                data_split_ratios=classifier_config["data_split_ratios"],
-                learning_rate=classifier_config["lr"],
+                classifier_config.batch_size,
+                diffusion_config.gaussian_loss_type,
+                diffusion_config.num_timesteps,
+                diffusion_config.scheduler,
+                data_split_ratios=classifier_config.data_split_ratios,
+                learning_rate=classifier_config.lr,
                 device=device,
             )
             child_result["classifier"] = child_classifier
         else:
             log(
                 WARNING,
-                "Skipping classifier training since classifier_config['iterations'] <= 0",
+                "Skipping classifier training since classifier_config.iterations <= 0",
             )
 
     child_result["df_info"] = child_info
@@ -340,8 +340,8 @@ def clava_fine_tuning(
     trained_models: dict[Relation, ModelArtifacts],
     new_tables: Tables,
     relation_order: RelationOrder,
-    diffusion_config: Configs,
-    classifier_config: Configs,
+    diffusion_config: DiffusionConfig,
+    classifier_config: ClassifierConfig,
     fine_tuning_diffusion_iterations: int,
     fine_tuning_classifier_iterations: int,
 ) -> dict[Relation, ModelArtifacts]:
