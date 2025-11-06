@@ -834,7 +834,7 @@ def _synthesize_single_table(
             - The list of keys for the synthesized data.
     """
     assert training_results.table_metadata is not None, "training_results.table_metadata is required"
-    assert training_results.model_params is not None, "training_results.model_params is required"
+    assert training_results.model_parameters is not None, "training_results.model_params is required"
     assert training_results.transformations is not None, "training_results.transformations is required"
 
     _, child_synthesized = sample_from_diffusion(
@@ -844,7 +844,7 @@ def _synthesize_single_table(
         dataset=training_results.dataset,
         label_encoders=training_results.label_encoders,
         sample_size=int(sample_scale * len(data)),
-        model_params=training_results.model_params,
+        model_params=training_results.model_parameters,
         transformations=training_results.transformations,
         sample_batch_size=sample_batch_size,
     )

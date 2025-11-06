@@ -137,7 +137,12 @@ def get_info_from_domain(data: pd.DataFrame, table_domain: dict[str, Any]) -> Do
         table_domain: The table's domain dictionary containing metadata about the data columns.
 
     Returns:
-        An instance of DomainInfo.
+        An instance of DomainInfo with the following fields populated:
+            - numerical_column_indices: The indices of the numerical columns.
+            - categorical_column_indices: The indices of the categorical columns.
+            - target_column_indices: The indices of the target columns.
+            - task_type: The type of the task.
+            - column_names: The names of all the columns.
     """
     numerical_column_indices = []
     categorical_column_indices = []

@@ -54,7 +54,7 @@ class ModelArtifacts:
     empirical_class_dist: Tensor | None = None
     classifier: Classifier | None = None
     table_metadata: TableMetadata | None = None
-    model_params: ModelParameters | None = None
+    model_parameters: ModelParameters | None = None
     transformations: Transformations | None = None
 
 
@@ -259,7 +259,7 @@ def child_training(
             log(WARNING, "Skipping classifier training since classifier_config['iterations'] <= 0")
 
     child_result.table_metadata = child_metadata
-    child_result.model_params = child_model_params
+    child_result.model_parameters = child_model_params
     child_result.transformations = child_transformations
     return child_result
 

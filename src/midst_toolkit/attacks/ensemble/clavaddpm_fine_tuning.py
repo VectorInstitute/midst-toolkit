@@ -334,7 +334,7 @@ def child_fine_tuning(
             )
 
     child_result.table_metadata = child_metadata
-    child_result.model_params = child_model_params
+    child_result.model_parameters = child_model_params
     child_result.transformations = child_transformations
     return child_result
 
