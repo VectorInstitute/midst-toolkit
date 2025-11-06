@@ -156,8 +156,8 @@ class AlphaPrecision(StatisticalEvaluator):
             raise RuntimeError("negative value detected for Delta_coverage_beta")
 
         nbrs_real_for_synthetic = NearestNeighbors(n_neighbors=1, n_jobs=-1, p=2).fit(x)
-        k_neighbors_real_for_synhtetic = nbrs_real_for_synthetic.kneighbors(x_syn)
-        closest_real_to_synth_distance, closest_real_to_synthetic_idx_list = k_neighbors_real_for_synhtetic
+        k_neighbors_real_for_synthetic = nbrs_real_for_synthetic.kneighbors(x_syn)
+        closest_real_to_synth_distance, closest_real_to_synthetic_idx_list = k_neighbors_real_for_synthetic
         closest_real_to_synth_distance = closest_real_to_synth_distance.squeeze()
         closest_real_to_synthetic_idx_list = closest_real_to_synthetic_idx_list.squeeze()
 
