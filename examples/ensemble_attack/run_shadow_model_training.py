@@ -1,5 +1,8 @@
+import pickle
+import shutil
 from logging import INFO
 from pathlib import Path
+from typing import Any
 
 from omegaconf import DictConfig
 
@@ -7,15 +10,94 @@ from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
     train_three_sets_of_shadow_models,
 )
+from midst_toolkit.attacks.ensemble.shadow_model_utils import (
+    save_additional_tabddpm_config,
+    train_tabddpm_and_synthesize,
+)
 from midst_toolkit.common.logger import log
 
 
-def run_shadow_model_training(config: DictConfig) -> None:
+def run_target_model_training(config: DictConfig) -> Path:
+    """
+    Function to run the target model training for RMIA attack.
+
+    Args:
+        config: Configuration object set in config.yaml.
+
+    Returns:
+        Path to the saved target model results.
+    """
+    log(INFO, "Running target model training...")
+
+    # Load the required dataframe for target model training.
+    df_real_data = load_dataframe(
+        Path(config.data_paths.processed_attack_data_path),
+        "real_train.csv",
+    )
+
+    # TODO: Test when pipeline is complete to make sure real_data is correct.
+
+    target_model_output_path = Path(config.shadow_training.target_model_output_path)
+    target_training_json_config_paths = config.shadow_training.training_json_config_paths
+
+    # TODO: Add this to config or .json files
+    table_name = "trans"
+    id_column_name = "trans_id"
+
+    target_folder = target_model_output_path / "target_model"
+
+    target_folder.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(
+        target_training_json_config_paths.table_domain_file_path,
+        target_folder / f"{table_name}_domain.json",
+    )
+    shutil.copyfile(
+        target_training_json_config_paths.dataset_meta_file_path,
+        target_folder / "dataset_meta.json",
+    )
+    configs, save_dir = save_additional_tabddpm_config(
+        data_dir=target_folder,
+        training_config_json_path=Path(target_training_json_config_paths.tabddpm_training_config_path),
+        final_config_json_path=target_folder / f"{table_name}.json",  # Path to the new json
+        experiment_name="trained_target_model",
+    )
+
+    train_result = train_tabddpm_and_synthesize(
+        train_set=df_real_data,
+        configs=configs,
+        save_dir=save_dir,
+        synthesize=True,
+    )
+
+    # TODO: Check: Selected_id_lists should be of form [[]]
+    selected_id_lists = [df_real_data[id_column_name].tolist()]
+
+    attack_data: dict[str, Any] = {
+        "selected_sets": selected_id_lists,
+        "trained_results": [],
+    }
+
+    attack_data["trained_results"].append(train_result)
+
+    # Pickle dump the results
+    result_path = Path(save_dir, "target_model.pkl")
+    with open(result_path, "wb") as file:
+        pickle.dump(attack_data, file)
+
+    return result_path
+
+
+def run_shadow_model_training(config: DictConfig) -> list[Path]:
     """
     Function to run the shadow model training for RMIA attack.
 
     Args:
         config: Configuration object set in config.yaml.
+
+    Returns:
+        Paths to the saved shadow model results for the three sets of shadow models. For more details,
+        see the documentation and return value of `train_three_sets_of_shadow_models`
+        at src/midst_toolkit/attacks/ensemble/rmia/shadow_model_training.py.
     """
     log(INFO, "Running shadow model training...")
     # Load the required dataframes for shadow model training.
@@ -55,5 +137,7 @@ def run_shadow_model_training(config: DictConfig) -> None:
     )
     log(
         INFO,
-        f"Shadow model training finished and saved at 1) {first_set_result_path}, 2) {second_set_result_path}, 3) {third_set_result_path}",
+        f"Shadow model training finished and saved at \n1) {first_set_result_path} \n2) {second_set_result_path} \n3) {third_set_result_path}",
     )
+
+    return [first_set_result_path, second_set_result_path, third_set_result_path]
