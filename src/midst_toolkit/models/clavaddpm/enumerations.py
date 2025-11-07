@@ -5,7 +5,6 @@ import numpy as np
 
 
 # TODO: Temporary, will switch to classes later
-Configs = dict[str, Any]
 Tables = dict[str, dict[str, Any]]
 Relation = tuple[str, str]
 RelationOrder = list[Relation]
@@ -16,7 +15,7 @@ ModelArtifacts = dict[str, Any]
 
 
 class ClusteringMethod(Enum):
-    """Possioble clustering methods for multi-table training."""
+    """Possible clustering methods for multi-table training."""
 
     KMEANS = "kmeans"
     GMM = "gmm"
@@ -102,8 +101,8 @@ class TargetType(Enum):
     LONG = "long"
 
 
-class KeyScalingType(Enum):
-    """Possible types of scaling for the foreign key."""
+class DataAndKeyNormalizationType(Enum):
+    """Possible types of normalization for data and primary keys when clustering."""
 
     MINMAX = "minmax"
     QUANTILE = "quantile"

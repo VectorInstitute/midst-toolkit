@@ -45,35 +45,35 @@ def normal_kl(
     )
 
 
-def approx_standard_normal_cdf(x: Tensor) -> Tensor:
+def approx_standard_normal_cdf(input_tensor: Tensor) -> Tensor:
     """
     A fast approximation of the cumulative distribution function of the
     standard normal.
 
     Args:
-        x: The input tensor.
+        input_tensor: The input tensor.
 
     Returns:
         The cumulative distribution function of the standard normal.
     """
-    return 0.5 * (1.0 + torch.tanh(np.sqrt(2.0 / np.pi) * (x + 0.044715 * torch.pow(x, 3))))
+    return 0.5 * (1.0 + torch.tanh(np.sqrt(2.0 / np.pi) * (input_tensor + 0.044715 * torch.pow(input_tensor, 3))))
 
 
-def discretized_gaussian_log_likelihood(x: Tensor, *, means: Tensor, log_scales: Tensor) -> Tensor:
+def discretized_gaussian_log_likelihood(target_images: Tensor, *, means: Tensor, log_scales: Tensor) -> Tensor:
     """
     Compute the log-likelihood of a Gaussian distribution discretizing to a
     given image.
 
     Args:
-        x: The target images. It is assumed that this was uint8 values, rescaled to the range [-1, 1].
+        target_images: The target images. It is assumed that this was uint8 values, rescaled to the range [-1, 1].
         means: The Gaussian mean Tensor.
         log_scales: The Gaussian log stddev Tensor.
 
     Returns:
-        A tensor like x of log probabilities (in nats).
+        A tensor like target_images of log probabilities (in nats).
     """
-    assert x.shape == means.shape == log_scales.shape
-    centered_x = x - means
+    assert target_images.shape == means.shape == log_scales.shape
+    centered_x = target_images - means
     inv_stdv = torch.exp(-log_scales)
     plus_in = inv_stdv * (centered_x + 1.0 / 255.0)
     cdf_plus = approx_standard_normal_cdf(plus_in)
@@ -83,26 +83,26 @@ def discretized_gaussian_log_likelihood(x: Tensor, *, means: Tensor, log_scales:
     log_one_minus_cdf_min = torch.log((1.0 - cdf_min).clamp(min=1e-12))
     cdf_delta = cdf_plus - cdf_min
     log_probs = torch.where(
-        x < -0.999,
+        target_images < -0.999,
         log_cdf_plus,
-        torch.where(x > 0.999, log_one_minus_cdf_min, torch.log(cdf_delta.clamp(min=1e-12))),
+        torch.where(target_images > 0.999, log_one_minus_cdf_min, torch.log(cdf_delta.clamp(min=1e-12))),
     )
-    assert log_probs.shape == x.shape
+    assert log_probs.shape == target_images.shape
     return log_probs
 
 
-def sum_except_batch(x: Tensor, num_dims: int = 1) -> Tensor:
+def sum_except_batch(input_tensor: Tensor, num_dims: int = 1) -> Tensor:
     """
     Sums all dimensions except the first.
 
     Args:
-        x: Tensor, shape (batch_size, ...)
+        input_tensor: Tensor, shape (batch_size, ...)
         num_dims: int, number of batch dims (default=1)
 
     Returns:
-        x_sum: Tensor, shape (batch_size,)
+        Tensor, shape (batch_size,)
     """
-    return x.reshape(*x.shape[:num_dims], -1).sum(-1)
+    return input_tensor.reshape(*input_tensor.shape[:num_dims], -1).sum(-1)
 
 
 def mean_flat(tensor: Tensor) -> Tensor:
