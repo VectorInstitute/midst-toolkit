@@ -29,7 +29,7 @@ wheels/
 # Synthcity backups
 **/workspace/*.bkp
 
-# Dataset files
+# Data files
 examples/**/data/
 
 # Trained metaclassifiers
