@@ -11,14 +11,13 @@ data_paths:
   attack_results_path: ${base_example_dir}/attack_results # Path where the attack results will be stored
 
 model_paths:
-  shadow_models_path: ${base_example_dir}/shadow_models # Path where the shadow models are stored
   metaclassifier_model_path: ${base_example_dir}/trained_models # Path where the trained metaclassifier model will be saved
 
 # Pipeline control
 pipeline:
   run_data_processing: false # Set this to false if you have already saved the processed data
-  run_shadow_model_training: true
-  run_metaclassifier_training: false
+  run_shadow_model_training: false # Set this to false if shadow models are already trained and saved
+  run_metaclassifier_training: true
 
 
 # Dataset specific information used for processing in this example
@@ -54,7 +53,18 @@ shadow_training:
     tabddpm_training_config_path: ${base_example_dir}/data_configs/trans.json
   # Model training artifacts are saved under shadow_models_data_path/workspace_name/exp_name
   # Also, training configs for each shadow model are created under shadow_models_data_path.
-  shadow_models_output_path: ${base_data_dir}/shadow_models_data
+  shadow_models_output_path: ${base_data_dir}/shadow_models_and_data
+  target_model_output_path: ${base_data_dir}/target_model_and_data
+  final_shadow_models_path: [
+          "${shadow_training.shadow_models_output_path}/initial_model_rmia_1/shadow_workspace/pre_trained_model/rmia_shadows.pkl",
+          "${shadow_training.shadow_models_output_path}/initial_model_rmia_2/shadow_workspace/pre_trained_model/rmia_shadows.pkl",
+          "${shadow_training.shadow_models_output_path}/shadow_model_rmia_third_set/shadow_workspace/trained_model/rmia_shadows_third_set.pkl",
+      ] # Paths to final shadow models used for metaclassifier training (relative to shadow_models_output_path)
+      # These paths are a result of running the shadow model training pipeline, specifically the
+      # train_three_sets_of_shadow_models in shadow_model_training.py
+      # Each .pkl file contains the training data, trained model and training results for all shadow models in a list.
+  final_target_model_path: ${shadow_training.target_model_output_path}/target_model/shadow_workspace/trained_target_model/target_model.pkl
+  # Path to final target model (relative to target_model_output_path)
   fine_tuning_config:
     fine_tune_diffusion_iterations: 2
     fine_tune_classifier_iterations: 2
@@ -66,10 +76,13 @@ metaclassifier:
   # Data types json file is used for xgboost model training.
   data_types_file_path: ${base_example_dir}/data_configs/data_types.json
   model_type: "xgb"
-  use_gpu: true
+  # Model training parameters
+  num_optuna_trials: 10 # Original code: 100
+  num_kfolds: 5
+  use_gpu: false
   # Temporary. Might remove having an epoch parameter.
   epochs: 1
 
 
 # General settings
-random_seed: 42
+random_seed: 42 # Set to null for no seed, or an integer for a fixed seed

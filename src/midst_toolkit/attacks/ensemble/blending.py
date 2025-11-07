@@ -2,6 +2,8 @@
 
 import json
 from enum import Enum
+from logging import INFO
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -9,8 +11,10 @@ from omegaconf import DictConfig
 from sklearn.linear_model import LogisticRegression
 
 from midst_toolkit.attacks.ensemble.distance_features import calculate_domias_score, calculate_gower_features
+from midst_toolkit.attacks.ensemble.rmia.rmia_calculation import calculate_rmia_signals
 from midst_toolkit.attacks.ensemble.train_utils import get_tpr_at_fpr
 from midst_toolkit.attacks.ensemble.xgboost_tuner import XgBoostHyperparameterTuner
+from midst_toolkit.common.logger import log
 
 
 class MetaClassifierType(Enum):
@@ -22,6 +26,8 @@ class BlendingPlusPlus:
     def __init__(
         self,
         config: DictConfig,
+        shadow_data_collection: list[dict[str, list[Any]]],
+        target_data: dict[str, list[Any]],
         meta_classifier_type: MetaClassifierType = MetaClassifierType.XGB,
         random_seed: int | None = None,
     ) -> None:
@@ -30,12 +36,27 @@ class BlendingPlusPlus:
 
         This class encapsulates the entire workflow:
         1. Generates features from Gower distance and DOMIAS.
-        2. Assembles a meta-feature set.
-        3. Trains a meta-classifier on these features.
-        4. Predicts membership probability on new data.
+        2. Calculates RMIA signals using the provided attack data, which contains training/fine-tuning data
+            and the synthetic data generated.
+        3. Assembles a meta-feature set (original numerical features + Gower + DOMIAS + RMIA).
+        4. Trains a meta-classifier on these features.
+        5. Predicts membership probability on new data.
 
         Args:
             config: Dictionary storing data configuration paths and parameters, used to load data properties.
+            shadow_data_collection: List of training data of the shadow models and their generated synthetic data.
+                Each list element is a dict with keys "fine_tuning_sets" and "fine_tuned_results".
+                Fine_tuning_sets is a list of dataframes used to fine-tune the shadow models, and fine_tuned_results
+                is a list of type TrainingResult containing model training information and generated synthetic data.
+                For more details, see the documentation of `train_three_sets_of_shadow_models` at
+                attacks/ensemble/rmia/shadow_model_training.py.
+            target_data: Dictionary containing the training data of the target model and its generated synthetic data.
+                The dictionary contains the keys "selected_sets" and "trained_results".
+                Selected_sets is a list of dataframes used to train the target model, and trained_results
+                is a list of type TrainingResult containing model training information and generated synthetic data.
+                For more details, see the documentation of `train_three_sets_of_shadow_models` at
+                attacks/ensemble/rmia/shadow_model_training.py.
+
             meta_classifier_type: Type of meta classifier model. Defaults to MetaClassifierType.XGB.
             random_seed: Random seed for reproducibility. Defaults to None.
 
@@ -43,18 +64,23 @@ class BlendingPlusPlus:
         # TODO: We can directly pass the `data_types_file_path` as a parameter to this class.
         with open(config.metaclassifier.data_types_file_path, "r") as f:
             self.column_types = json.load(f)
+
+        self.shadow_data_collection = shadow_data_collection
+        self.target_data = target_data
         self.meta_classifier_type = meta_classifier_type
         self.trained_model = None
         self.random_seed = random_seed
+        self.training_config = config.metaclassifier
 
-    # TODO: Add RMIA function
     def _prepare_meta_features(
         self,
         df_input: pd.DataFrame,
         df_synthetic: pd.DataFrame,
         df_reference: pd.DataFrame,
+        id_column_data: pd.Series,
         categorical_cols: list[str],
         numerical_cols: list[str],
+        id_column_name: str,
     ) -> pd.DataFrame:
         """
         Prepares meta-classifier features by combining original continuous features,
@@ -64,8 +90,10 @@ class BlendingPlusPlus:
             df_input: Input dataframe (e.g., meta-classifier train or test set).
             df_synthetic: Synthetic dataframe.
             df_reference: Real population dataframe, used as a reference for calculating the DOMIAS score.
+            id_column_data: The data in the ID column, used to ensure correct alignment of results.
             categorical_cols: Categorical column names.
             numerical_cols: Numerical column names.
+            id_column_name: Name of the ID column.
 
         Returns:
             A dataframe with the meta-classifier features.
@@ -74,22 +102,35 @@ class BlendingPlusPlus:
         """
         df_synthetic = df_synthetic.reset_index(drop=True)[df_input.columns]
 
-        # 1. Get Gower distance features
+        # 1. Get RMIA signals
+
+        log(INFO, "Calculating RMIA signals...")
+
+        rmia_signals = calculate_rmia_signals(
+            df_input=df_input,
+            shadow_data_collection=self.shadow_data_collection,
+            target_data=self.target_data,
+            categorical_column_names=categorical_cols,
+            id_column_name=id_column_name,
+            id_column_data=id_column_data,
+            random_seed=self.random_seed,
+        )
+
+        # 2. Get Gower distance features
+
+        log(INFO, "Calculating Gower features...")
+
         gower_features = calculate_gower_features(
             df_input=df_input, df_synthetic=df_synthetic, categorical_column_names=categorical_cols
         )
 
-        # 2. Get DOMIAS predictions
+        # 3. Get DOMIAS predictions
+
+        log(INFO, "Calculating DOMIAS scores...")
+
         domias_features = calculate_domias_score(
             df_input=df_input, df_synthetic=df_synthetic, df_reference=df_reference
         )
-
-        # 3. Get RMIA signals (borrowed from the attack implementation repository,
-        # at https://github.com/CRCHUM-CITADEL/ensemble-mia/tree/main/input/tabddpm_black_box/meta_classifier)
-        # Will be removed after our own implementation is ready.
-        rmia_signals = pd.read_csv(
-            "examples/ensemble_attack/data/attack_data/og_rmia_train_meta_pred.csv"
-        )  # Placeholder for RMIA features
 
         original_numerical_features = df_input[numerical_cols]  # Numerical features from original data
 
@@ -103,14 +144,16 @@ class BlendingPlusPlus:
             axis=1,
         )
 
+    # TODO: Handle epochs parameter
     def fit(
         self,
         df_train: pd.DataFrame,
         y_train: np.ndarray,
-        df_synthetic: pd.DataFrame,
+        df_target_synthetic: pd.DataFrame,
         df_reference: pd.DataFrame,
+        id_column_data: pd.Series,
         use_gpu: bool = True,
-        epochs: int = 1,
+        epochs: int | None = None,
     ) -> None:
         """
         Trains the Blending++ meta-classifier.
@@ -119,21 +162,27 @@ class BlendingPlusPlus:
             df_train: Dataframe for training the meta-classifier. This training set is derived from the population
                 dataset which is all the data the attacker has access to (all the other attacks' training data,
                 holdout data, and the challenge dataset).
-                The meta training set is a combination of the "real train" data and "real control val", which is
-                the data used to validate the diffusion model to generate synthetic data.
-            y_train: Labels for the meta-classifier training data.
-            df_synthetic: Synthetic dataframe, generated by the diffusion model.
+                The meta training set is a combination of the "real train" data and "real control val".
+            y_train: Labels for the meta-classifier training data, indicating whether rows in df_train are a
+                member of the target model's train data or not.
+            df_target_synthetic: Synthetic dataframe, generated by the simulated target diffusion model.
             df_reference: Reference (real) population dataframe.
+            id_column_data: The data in the ID column, used to ensure correct alignment of results.
             use_gpu: Whether to use GPU acceleration. Defaults to True.
-            epochs: Number of training iterations. Defaults to 1.
+            epochs: Number of training iterations. Defaults to None, in which case self.training_config.epochs is used.
 
         """
+        if epochs is None:
+            epochs = self.training_config.epochs
+
         meta_features = self._prepare_meta_features(
             df_input=df_train,
-            df_synthetic=df_synthetic,
+            df_synthetic=df_target_synthetic,
             df_reference=df_reference,
+            id_column_data=id_column_data,
             categorical_cols=self.column_types["categorical"],
             numerical_cols=self.column_types["numerical"],
+            id_column_name=self.column_types["id_column_name"],
         )
 
         if self.meta_classifier_type == MetaClassifierType.XGB:
@@ -146,8 +195,8 @@ class BlendingPlusPlus:
 
             # Run the tuning process
             self.trained_model = tuner.tune_hyperparameters(
-                num_optuna_trials=100,
-                num_kfolds=5,
+                num_optuna_trials=self.training_config.num_optuna_trials,
+                num_kfolds=self.training_config.num_kfolds,
             )
 
         elif self.meta_classifier_type == MetaClassifierType.LR:
@@ -160,8 +209,9 @@ class BlendingPlusPlus:
     def predict(
         self,
         df_test: pd.DataFrame,
-        df_synthetic: pd.DataFrame,
+        df_original_synthetic: pd.DataFrame,
         df_reference: pd.DataFrame,
+        id_column_data: pd.Series,
         y_test: np.ndarray,
     ) -> tuple[np.ndarray, float | None]:
         """
@@ -174,8 +224,9 @@ class BlendingPlusPlus:
                 attacks' training data, holdout data, and the challenge dataset).
                 The meta-test set includes "real train" data and "real control test" data used to evaluate the
                 diffusion model's synthetic data generation.
-            df_synthetic: DataFrame containing synthetic data generated by the diffusion model.
+            df_original_synthetic: DataFrame containing synthetic data generated by the diffusion model.
             df_reference: DataFrame of the real population data, used as a reference for calculating the DOMIAS score.
+            id_column_data: The data in the ID column, used to ensure correct alignment of results.
             y_test: Optional array of test labels for evaluation. A label of "1" indicates membership in the
                 diffusion model's training set, while "0" indicates non-membership.
 
@@ -191,10 +242,12 @@ class BlendingPlusPlus:
 
         df_test_features = self._prepare_meta_features(
             df_input=df_test,
-            df_synthetic=df_synthetic,
+            df_synthetic=df_original_synthetic,
             df_reference=df_reference,
+            id_column_data=id_column_data,
             categorical_cols=self.column_types["categorical"],
             numerical_cols=self.column_types["numerical"],
+            id_column_name=self.column_types["id_column_name"],
         )
 
         probabilities = self.trained_model.predict_proba(df_test_features)[:, 1]
