@@ -283,28 +283,28 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         }
 
     # Gaussian part
-    def gaussian_q_mean_variance(self, x_start: Tensor, timestep: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+    def gaussian_q_mean_variance(self, features_start: Tensor, timestep: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         """
         Calculate the mean and variance of the Gaussian posterior distribution.
 
         Args:
-            x_start: The initial, noiseless input.
+            features_start: The initial, noiseless input.
             timestep: The timestep.
 
         Returns:
             The mean and variance of the Gaussian posterior distribution.
         """
-        mean = extract(self.sqrt_alphas_cumprod, timestep, x_start.shape) * x_start
-        variance = extract(1.0 - self.alphas_cumprod, timestep, x_start.shape)
-        log_variance = extract(self.log_1_min_cumprod_alpha, timestep, x_start.shape)
+        mean = extract(self.sqrt_alphas_cumprod, timestep, features_start.shape) * features_start
+        variance = extract(1.0 - self.alphas_cumprod, timestep, features_start.shape)
+        log_variance = extract(self.log_1_min_cumprod_alpha, timestep, features_start.shape)
         return mean, variance, log_variance
 
-    def gaussian_q_sample(self, x_start: Tensor, timestep: Tensor, noise: Tensor | None = None) -> Tensor:
+    def gaussian_q_sample(self, features_start: Tensor, timestep: Tensor, noise: Tensor | None = None) -> Tensor:
         """
         Sample from the Gaussian posterior distribution.
 
         Args:
-            x_start: The initial, noiseless input.
+            features_start: The initial, noiseless input.
             timestep: The timestep.
             noise: The noise. Optional, default is None.
 
@@ -312,12 +312,12 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             The sample from the Gaussian posterior distribution.
         """
         if noise is None:
-            noise = torch.randn_like(x_start)
+            noise = torch.randn_like(features_start)
 
-        assert noise.shape == x_start.shape
+        assert noise.shape == features_start.shape
         return (
-            extract(self.sqrt_alphas_cumprod, timestep, x_start.shape) * x_start
-            + extract(self.sqrt_one_minus_alphas_cumprod, timestep, x_start.shape) * noise
+            extract(self.sqrt_alphas_cumprod, timestep, features_start.shape) * features_start
+            + extract(self.sqrt_one_minus_alphas_cumprod, timestep, features_start.shape) * noise
         )
 
     def gaussian_q_posterior_mean_variance(
@@ -397,7 +397,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         model_log_variance = extract(model_log_variance, timestep, features_timestep.shape)
 
         if self.gaussian_parametrization == GaussianParametrization.EPS:
-            pred_xstart = self._predict_xstart_from_eps(
+            pred_xstart = self._predict_features_start_from_eps(
                 features_timestep=features_timestep, timestep=timestep, eps=model_output
             )
 
@@ -483,7 +483,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             "true_mean": true_mean,
         }
 
-    def _prior_gaussian(self, x_start: Tensor) -> Tensor:
+    def _prior_gaussian(self, features_start: Tensor) -> Tensor:
         """
         Get the prior KL term for the variational lower-bound, measured in
         bits-per-dim.
@@ -491,14 +491,14 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         This term can't be optimized, as it only depends on the encoder.
 
         Args:
-            x_start: the [N x C x ...] tensor of inputs.
+            features_start: the [N x C x ...] tensor of inputs.
 
         Returns:
             A batch of [N] KL values (in bits), one per batch element.
         """
-        batch_size = x_start.shape[0]
-        t = torch.tensor([self.num_timesteps - 1] * batch_size, device=x_start.device)
-        qt_mean, _, qt_log_variance = self.gaussian_q_mean_variance(x_start, t)
+        batch_size = features_start.shape[0]
+        t = torch.tensor([self.num_timesteps - 1] * batch_size, device=features_start.device)
+        qt_mean, _, qt_log_variance = self.gaussian_q_mean_variance(features_start, t)
         kl_prior = normal_kl(mean1=qt_mean, logvar1=qt_log_variance, mean2=0.0, logvar2=0.0)
         return mean_flat(kl_prior) / np.log(2.0)
 
@@ -542,7 +542,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
 
         raise ValueError(f"Unsupported Gaussian loss type: {self.gaussian_loss_type}")
 
-    def _predict_xstart_from_eps(self, features_timestep: Tensor, timestep: Tensor, eps: Tensor) -> Tensor:
+    def _predict_features_start_from_eps(self, features_timestep: Tensor, timestep: Tensor, eps: Tensor) -> Tensor:
         """
         Predict the xstart from the eps.
 
@@ -560,21 +560,27 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             - extract(self.sqrt_recipm1_alphas_cumprod, timestep, features_timestep.shape) * eps
         )
 
-    def _predict_eps_from_xstart(self, features: Tensor, timestep: Tensor, pred_xstart: Tensor) -> Tensor:
+    def _predict_eps_from_features_start(
+        self,
+        features_timestep: Tensor,
+        timestep: Tensor,
+        predicted_features_start: Tensor,
+    ) -> Tensor:
         """
-        Predict the eps from the xstart.
+        Predict the eps from the featuresstart.
 
         Args:
-            features: The features used to compute the Gaussian parameters.
+            features_timestep: The features at the given timestep.
             timestep: The timestep.
-            pred_xstart: The predicted xstart.
+            predicted_features_start: The predicted features start.
 
         Returns:
             The predicted eps.
         """
-        return (extract(self.sqrt_recip_alphas_cumprod, timestep, features.shape) * features - pred_xstart) / extract(
-            self.sqrt_recipm1_alphas_cumprod, timestep, features.shape
-        )
+        dividend = extract(self.sqrt_recip_alphas_cumprod, timestep, features_timestep.shape)
+        dividend = dividend * features_timestep - predicted_features_start
+        divisor = extract(self.sqrt_recipm1_alphas_cumprod, timestep, features_timestep.shape)
+        return dividend / divisor
 
     def condition_mean(
         self,
@@ -642,11 +648,11 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
 
         alpha_bar = extract(self.alphas_cumprod, timestep, features.shape)
 
-        eps = self._predict_eps_from_xstart(features, timestep, p_mean_var["pred_xstart"])
+        eps = self._predict_eps_from_features_start(features, timestep, p_mean_var["pred_xstart"])
         eps = eps - (1 - alpha_bar).sqrt() * conditioning_function(features, timestep, **model_kwargs)
 
         out = p_mean_var.copy()
-        out["pred_xstart"] = self._predict_xstart_from_eps(features, timestep, eps)
+        out["pred_xstart"] = self._predict_features_start_from_eps(features, timestep, eps)
         out["mean"], _, _ = self.gaussian_q_posterior_mean_variance(
             features_start=out["pred_xstart"],
             features_timestep=features,
@@ -656,7 +662,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
 
     def gaussian_p_sample(
         self,
-        model_out: Tensor,
+        model_output: Tensor,
         features: Tensor,
         timestep: Tensor,
         model_kwargs: dict[str, Any] | None = None,
@@ -666,7 +672,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         Sample from the Gaussian posterior distribution.
 
         Args:
-            model_out: The model output.
+            model_output: The model output.
             features: The features used to compute the Gaussian parameters.
             timestep: The timestep.
             model_kwargs: The model kwargs. Optional, default is None.
@@ -681,7 +687,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             model_kwargs = {}
 
         out = self.gaussian_p_mean_variance(
-            model_out,
+            model_output,
             features,
             timestep,
             model_kwargs=model_kwargs,
@@ -772,13 +778,13 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             log_pred[:, ix] = functional.log_softmax(model_out[:, ix], dim=1)
         return log_pred
 
-    def q_posterior(self, log_x_start: Tensor, log_x_t: Tensor, timestep: Tensor) -> Tensor:
+    def q_posterior(self, log_features_start: Tensor, log_features_timestep: Tensor, timestep: Tensor) -> Tensor:
         """
         Calculate the posterior probability for one timestep.
 
         Args:
-            log_x_start: The log sample of the initial input.
-            log_x_t: The log sample of the features at the given timestep.
+            log_features_start: The log sample of the initial input.
+            log_features_timestep: The log sample of the features at the given timestep.
             timestep: The timestep.
 
         Returns:
@@ -787,38 +793,40 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         t_minus_1 = timestep - 1
         # Remove negative values, will not be used anyway for final decoder
         t_minus_1 = torch.where(t_minus_1 < 0, torch.zeros_like(t_minus_1), t_minus_1)
-        log_ev_qxtmin_x0 = self.q_pred(log_x_start, t_minus_1)
+        log_ev_qxtmin_x0 = self.q_pred(log_features_start, t_minus_1)
 
-        num_axes = (1,) * (len(log_x_start.size()) - 1)
-        t_broadcast = timestep.to(log_x_start.device).view(-1, *num_axes) * torch.ones_like(log_x_start)
-        log_ev_qxtmin_x0 = torch.where(t_broadcast == 0, log_x_start, log_ev_qxtmin_x0.to(torch.float32))
+        num_axes = (1,) * (len(log_features_start.size()) - 1)
+        t_broadcast = timestep.to(log_features_start.device).view(-1, *num_axes) * torch.ones_like(log_features_start)
+        log_ev_qxtmin_x0 = torch.where(t_broadcast == 0, log_features_start, log_ev_qxtmin_x0.to(torch.float32))
 
         # unnormed_logprobs = log_EV_qxtmin_x0 +
         #                     log q_pred_one_timestep(x_t, t)
         # Note: _NOT_ x_tmin1, which is how the formula is typically used!!!
         # Not very easy to see why this is true. But it is :)
-        unnormed_logprobs = log_ev_qxtmin_x0 + self.q_pred_one_timestep(log_x_t, timestep)
+        unnormed_logprobs = log_ev_qxtmin_x0 + self.q_pred_one_timestep(log_features_timestep, timestep)
 
         return unnormed_logprobs - sliced_logsumexp(unnormed_logprobs, self.offsets)
 
-    def p_pred(self, model_out: Tensor, log_x: Tensor, timestep: Tensor) -> Tensor:
+    def p_pred(self, model_output: Tensor, log_features: Tensor, timestep: Tensor) -> Tensor:
         """
         Predict the start from the model output based on the parametrization set in ``self.parametrization``.
 
         Args:
-            model_out: The model output.
-            log_x: The log sample of the features.
+            model_output: The model output.
+            log_features: The log sample of the features.
             timestep: The timestep.
 
         Returns:
             The predicted start from the model output.
         """
         if self.parametrization == Parametrization.X0:
-            log_x_recon = self.predict_start(model_out, log_x)
-            log_model_pred = self.q_posterior(log_x_start=log_x_recon, log_x_t=log_x, timestep=timestep)
+            log_x_recon = self.predict_start(model_output, log_features)
+            log_model_pred = self.q_posterior(
+                log_features_start=log_x_recon, log_features_timestep=log_features, timestep=timestep
+            )
 
         elif self.parametrization == Parametrization.DIRECT:
-            log_model_pred = self.predict_start(model_out, log_x)
+            log_model_pred = self.predict_start(model_output, log_features)
 
         else:
             raise ValueError(f"Unsupported parametrization: {self.parametrization}")
@@ -826,19 +834,19 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         return log_model_pred
 
     @torch.no_grad()
-    def p_sample(self, model_out: Tensor, log_x: Tensor, timestep: Tensor) -> Tensor:
+    def p_sample(self, model_output: Tensor, log_features: Tensor, timestep: Tensor) -> Tensor:
         """
         Sample from the model output.
 
         Args:
-            model_out: The model output.
-            log_x: The log sample of the features.
+            model_output: The model output.
+            log_features: The log sample of the features.
             timestep: The timestep.
 
         Returns:
             The sample from the model output.
         """
-        model_log_prob = self.p_pred(model_out, log_x=log_x, timestep=timestep)
+        model_log_prob = self.p_pred(model_output, log_features=log_features, timestep=timestep)
         return self.log_sample_categorical(model_log_prob)
 
     def log_sample_categorical(self, logits: Tensor) -> Tensor:
@@ -862,35 +870,35 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         full_sample_tensor = torch.cat(full_sample, dim=1)
         return index_to_log_onehot(full_sample_tensor, torch.from_numpy(self.num_classes))
 
-    def q_sample(self, log_x_start: Tensor, timestep: Tensor) -> Tensor:
+    def q_sample(self, log_features_start: Tensor, timestep: Tensor) -> Tensor:
         """
         Sample from the log of the initial input for one timestep.
 
         Args:
-            log_x_start: The log of the initial input.
+            log_features_start: The log of the initial input.
             timestep: The timestep.
 
         Returns:
             The sample from the categorical logits.
         """
-        log_ev_qxt_x0 = self.q_pred(log_x_start, timestep)
+        log_ev_qxt_x0 = self.q_pred(log_features_start, timestep)
         return self.log_sample_categorical(log_ev_qxt_x0)
 
-    def kl_prior(self, log_x_start: Tensor) -> Tensor:
+    def kl_prior(self, log_features_start: Tensor) -> Tensor:
         """
         Calculate the KL divergence between the prior and the posterior.
 
         Args:
-            log_x_start: The log sample of the initial input.
+            log_features_start: The log sample of the initial input.
 
         Returns:
             The KL divergence between the prior and the posterior.
         """
-        batch_size = log_x_start.size(0)
-        device = log_x_start.device
+        batch_size = log_features_start.size(0)
+        device = log_features_start.device
         ones = torch.ones(batch_size, device=device).long()
 
-        log_qxt_prob = self.q_pred(log_x_start, timestep=(self.num_timesteps - 1) * ones)
+        log_qxt_prob = self.q_pred(log_features_start, timestep=(self.num_timesteps - 1) * ones)
         log_half_prob = -torch.log(self.num_classes_expanded * torch.ones_like(log_qxt_prob))
 
         kl_prior = self.multinomial_kl(log_qxt_prob, log_half_prob)
@@ -898,9 +906,9 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
 
     def compute_lt(
         self,
-        model_out: Tensor,
-        log_x_start: Tensor,
-        log_x_t: Tensor,
+        model_output: Tensor,
+        log_features_start: Tensor,
+        log_features_timestep: Tensor,
         timestep: Tensor,
         detach_mean: bool = False,
     ) -> Tensor:
@@ -908,17 +916,19 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         Calculate the KL divergence between the true and the model probability.
 
         Args:
-            model_out: The model output.
-            log_x_start: The log sample of the initial input.
-            log_x_t: The log samples of the features at the given timestep.
+            model_output: The model output.
+            log_features_start: The log sample of the initial input.
+            log_features_timestep: The log samples of the features at the given timestep.
             timestep: The timestep.
             detach_mean: Whether to detach the mean.
 
         Returns:
             The KL divergence between the true and the model probability.
         """
-        log_true_prob = self.q_posterior(log_x_start=log_x_start, log_x_t=log_x_t, timestep=timestep)
-        log_model_prob = self.p_pred(model_out, log_x=log_x_t, timestep=timestep)
+        log_true_prob = self.q_posterior(
+            log_features_start=log_features_start, log_features_timestep=log_features_timestep, timestep=timestep
+        )
+        log_model_prob = self.p_pred(model_output, log_features=log_features_timestep, timestep=timestep)
 
         if detach_mean:
             log_model_prob = log_model_prob.detach()
@@ -926,7 +936,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         kl = self.multinomial_kl(log_true_prob, log_model_prob)
         kl = sum_except_batch(kl)
 
-        decoder_nll = -log_categorical(log_x_start, log_model_prob)
+        decoder_nll = -log_categorical(log_features_start, log_model_prob)
         decoder_nll = sum_except_batch(decoder_nll)
 
         mask = (timestep == torch.zeros_like(timestep)).float()
@@ -973,9 +983,9 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
 
     def _multinomial_loss(
         self,
-        model_out: Tensor,
-        log_x_start: Tensor,
-        log_x_t: Tensor,
+        model_output: Tensor,
+        log_features_start: Tensor,
+        log_features_timestep: Tensor,
         timestep: Tensor,
         p_timestep: Tensor,
     ) -> Tensor:
@@ -983,9 +993,9 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         Calculate the multinomial loss.
 
         Args:
-            model_out: The model output.
-            log_x_start: The log samples of the initial input.
-            log_x_t: The log samples of the features at the given timestep.
+            model_output: The model output.
+            log_features_start: The log samples of the initial input.
+            log_features_timestep: The log samples of the features at the given timestep.
             timestep: The timestep.
             p_timestep: The probability of the timestep.
 
@@ -995,18 +1005,18 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         # Here we are calculating the VB_STOCHASTIC loss. In the original implementation, there
         # was a choice between VB_STOCHASTIC and VB_ALL. VB_ALL is deprecated for being too
         # expensive to calculate.
-        kl = self.compute_lt(model_out, log_x_start, log_x_t, timestep)
-        kl_prior = self.kl_prior(log_x_start)
+        kl = self.compute_lt(model_output, log_features_start, log_features_timestep, timestep)
+        kl_prior = self.kl_prior(log_features_start)
         # Upweigh loss term of the kl
         return (kl / p_timestep) + kl_prior
 
-    def mixed_loss(self, features: Tensor, out_dict: dict[str, Tensor]) -> tuple[Tensor, Tensor]:
+    def mixed_loss(self, features: Tensor, outputs: dict[str, Tensor]) -> tuple[Tensor, Tensor]:
         """
         Calculate the mixed loss.
 
         Args:
             features: The input features.
-            out_dict: The output dictionary.
+            outputs: The outputs as a dictionary.
 
         Returns:
             The multinomial loss and the Gaussian loss.
@@ -1025,11 +1035,11 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         log_categorical_features_ts = categorical_features
         if categorical_features.shape[1] > 0:
             log_x_cat = index_to_log_onehot(categorical_features.long(), torch.from_numpy(self.num_classes))
-            log_categorical_features_ts = self.q_sample(log_x_start=log_x_cat, timestep=timestep)
+            log_categorical_features_ts = self.q_sample(log_features_start=log_x_cat, timestep=timestep)
 
         input_features = torch.cat([numerical_features_ts, log_categorical_features_ts], dim=1)
 
-        model_output = self._denoise_fn(input_features, timestep, **out_dict)
+        model_output = self._denoise_fn(input_features, timestep, **outputs)
 
         model_numerical_output = model_output[:, : self.num_numerical_features]
         model_categorical_output = model_output[:, self.num_numerical_features :]
@@ -1094,7 +1104,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         if conditioning_function is not None:
             out = self.condition_score(conditioning_function, out, features, timestep, model_kwargs=model_kwargs)
 
-        eps = self._predict_eps_from_xstart(features, timestep, out["pred_xstart"])
+        eps = self._predict_eps_from_features_start(features, timestep, out["pred_xstart"])
 
         alpha_bar = extract(self.alphas_cumprod, timestep, features.shape)
         alpha_bar_prev = extract(self.alphas_cumprod_prev, timestep, features.shape)
@@ -1110,7 +1120,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         self,
         noise: Tensor,
         num_timesteps: int,
-        out_dict: dict[str, Tensor],
+        outputs: dict[str, Tensor],
         eta: float = 0.0,
         model_kwargs: Any | None = None,
         conditioning_function: ConditioningFunction | None = None,
@@ -1121,7 +1131,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         Args:
             noise: The noise.
             num_timesteps: The number of timesteps.
-            out_dict: The output dictionary.
+            outputs: The outputs as a dictionary.
             eta: The DDIM stochasticity coefficient. Optional, default is 0.0.
             model_kwargs: The model kwargs. Optional, default is None.
             conditioning_function: The conditioning function. Optional, default is None.
@@ -1134,9 +1144,9 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         for t in reversed(range(num_timesteps)):
             log(DEBUG, f"Sample timestep {t:4d}")
             t_array = (torch.ones(batch_size, device=self.device) * t).long()
-            out_num = self._denoise_fn(features, t_array, **out_dict)
+            numerical_outputs = self._denoise_fn(features, t_array, **outputs)
             features = self.gaussian_ddim_step(
-                out_num,
+                numerical_outputs,
                 features,
                 t_array,
                 eta=eta,
@@ -1149,7 +1159,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
     @torch.no_grad()
     def gaussian_ddim_reverse_step(
         self,
-        model_out_num: Tensor,
+        model_numerical_output: Tensor,
         features: Tensor,
         timestep: Tensor,
     ) -> Tensor:
@@ -1157,14 +1167,14 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         Calculate the Gaussian DDIM reverse step.
 
         Args:
-            model_out_num: The numerical features of the model output.
+            model_numerical_output: The numerical features of the model output.
             features: The input features.
             timestep: The timestep.
 
         Returns:
             The predicted features.
         """
-        out = self.gaussian_p_mean_variance(model_out_num, features, timestep)
+        out = self.gaussian_p_mean_variance(model_numerical_output, features, timestep)
 
         coefficient = extract(self.sqrt_recip_alphas_cumprod, timestep, features.shape)
         denominator = extract(self.sqrt_recipm1_alphas_cumprod, timestep, features.shape)
@@ -1180,7 +1190,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         self,
         features: Tensor,
         num_timesteps: int,
-        out_dict: dict[str, Tensor],
+        outputs: dict[str, Tensor],
     ) -> Tensor:
         """
         Produce the Gaussian DDIM reverse sample.
@@ -1188,7 +1198,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         Args:
             features: The input features.
             num_timesteps: The number of timesteps.
-            out_dict: The output dictionary.
+            outputs: The outputs as a dictionary.
 
         Returns:
             The predicted features.
@@ -1199,7 +1209,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         for t in range(num_timesteps):
             log(DEBUG, f"Reverse timestep {t:4d}")
             t_array = (torch.ones(batch_size, device=self.device) * t).long()
-            out_num = self._denoise_fn(output_features, t_array, **out_dict)
+            out_num = self._denoise_fn(output_features, t_array, **outputs)
             output_features = self.gaussian_ddim_reverse_step(out_num, output_features, t_array)
 
         return output_features
@@ -1207,8 +1217,8 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
     @torch.no_grad()
     def multinomial_ddim_step(
         self,
-        model_out_cat: Tensor,
-        log_x_t: Tensor,
+        model_categorical_output: Tensor,
+        log_features_timestep: Tensor,
         timestep: Tensor,
         eta: float = 0.0,
     ) -> Tensor:
@@ -1216,18 +1226,18 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         Calculate the multinomial DDIM step.
 
         Args:
-            model_out_cat: The categorical model output.
-            log_x_t: The log samples of the features at the given timestep.
+            model_categorical_output: The categorical model output.
+            log_features_timestep: The log samples of the features at the given timestep.
             timestep: The timestep.
             eta: The DDIM stochasticity coefficient. Optional, default is 0.0.
 
         Returns:
             The multinomial DDIM step.
         """
-        log_x0 = self.predict_start(model_out_cat, log_x_t=log_x_t)
+        log_x0 = self.predict_start(model_categorical_output, log_x_t=log_features_timestep)
 
-        alpha_bar = extract(self.alphas_cumprod, timestep, log_x_t.shape)
-        alpha_bar_prev = extract(self.alphas_cumprod_prev, timestep, log_x_t.shape)
+        alpha_bar = extract(self.alphas_cumprod, timestep, log_features_timestep.shape)
+        alpha_bar_prev = extract(self.alphas_cumprod_prev, timestep, log_features_timestep.shape)
         sigma = eta * torch.sqrt((1 - alpha_bar_prev) / (1 - alpha_bar)) * torch.sqrt(1 - alpha_bar / alpha_bar_prev)
 
         coef1 = sigma
@@ -1236,7 +1246,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
 
         log_ps = torch.stack(
             [
-                torch.log(coef1) + log_x_t,
+                torch.log(coef1) + log_features_timestep,
                 torch.log(coef2) + log_x0,
                 torch.log(coef3) - torch.log(self.num_classes_expanded),
             ],
@@ -1279,12 +1289,12 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             uniform_logits = torch.zeros((batch_size, len(self.num_classes_expanded)), device=self.device)
             log_z = self.log_sample_categorical(uniform_logits)
 
-        y = torch.multinomial(target_dist, num_samples=batch_size, replacement=True)
-        out_dict = {"y": y.long().to(self.device)}
+        target = torch.multinomial(target_dist, num_samples=batch_size, replacement=True)
+        outputs = {"y": target.long().to(self.device)}
         for i in reversed(range(0, self.num_timesteps)):
             log(DEBUG, f"Sample timestep {i:4d}")
             t = torch.full((batch_size,), i, device=self.device, dtype=torch.long)
-            model_out = self._denoise_fn(torch.cat([z_norm, log_z], dim=1).float(), t, **out_dict)
+            model_out = self._denoise_fn(torch.cat([z_norm, log_z], dim=1).float(), t, **outputs)
             model_out_num = model_out[:, : self.num_numerical_features]
             model_out_cat = model_out[:, self.num_numerical_features :]
             z_norm = self.gaussian_ddim_step(
@@ -1303,7 +1313,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             z_cat = one_hot_encoding_to_categories(z_ohe, self.num_classes)
         sample = torch.cat([z_norm, z_cat], dim=1).cpu()
 
-        return sample, out_dict
+        return sample, outputs
 
     @torch.no_grad()
     def conditional_sample(
@@ -1332,11 +1342,11 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         has_cat = self.num_classes[0] != 0
         log_z = torch.zeros((batch_size, 0), device=self.device).float()
 
-        out_dict = {"y": targets.long().to(self.device)}
+        outputs = {"y": targets.long().to(self.device)}
         for i in reversed(range(0, self.num_timesteps)):
             log(DEBUG, f"Sample timestep {i:4d}")
             t = torch.full((batch_size,), i, device=self.device, dtype=torch.long)
-            model_out = self._denoise_fn(torch.cat([z_norm, log_z], dim=1).float(), t, **out_dict)
+            model_out = self._denoise_fn(torch.cat([z_norm, log_z], dim=1).float(), t, **outputs)
             model_out_num = model_out[:, : self.num_numerical_features]
             model_out_cat = model_out[:, self.num_numerical_features :]
             z_norm = self.gaussian_p_sample(
@@ -1354,7 +1364,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         if has_cat:
             z_cat = one_hot_encoding_to_categories(z_ohe, self.num_classes)
         sample = torch.cat([z_norm, z_cat], dim=1).cpu()
-        return sample, out_dict
+        return sample, outputs
 
     @torch.no_grad()
     def sample(
@@ -1388,12 +1398,12 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             uniform_logits = torch.zeros((batch_size, len(self.num_classes_expanded)), device=self.device)
             log_z = self.log_sample_categorical(uniform_logits)
 
-        y = torch.multinomial(target_dist, num_samples=batch_size, replacement=True)
-        out_dict = {"y": y.long().to(self.device)}
+        target = torch.multinomial(target_dist, num_samples=batch_size, replacement=True)
+        outputs = {"y": target.long().to(self.device)}
         for i in reversed(range(0, self.num_timesteps)):
             log(DEBUG, f"Sample timestep {i:4d}")
             t = torch.full((batch_size,), i, device=self.device, dtype=torch.long)
-            model_out = self._denoise_fn(torch.cat([z_norm, log_z], dim=1).float(), t, **out_dict)
+            model_out = self._denoise_fn(torch.cat([z_norm, log_z], dim=1).float(), t, **outputs)
             model_out_num = model_out[:, : self.num_numerical_features]
             model_out_cat = model_out[:, self.num_numerical_features :]
             z_norm = self.gaussian_p_sample(
@@ -1411,7 +1421,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         if has_cat:
             z_cat = one_hot_encoding_to_categories(z_ohe, self.num_classes)
         sample = torch.cat([z_norm, z_cat], dim=1).cpu()
-        return sample, out_dict
+        return sample, outputs
 
     def sample_all(
         self,
@@ -1447,7 +1457,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         all_samples = []
         num_generated = 0
         while num_generated < num_samples:
-            sample, out_dict = sample_fn(
+            sample, outputs = sample_fn(
                 batch_size,
                 target_dist,
                 model_kwargs=model_kwargs,
@@ -1455,10 +1465,10 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             )
             mask_nan = torch.any(sample.isnan(), dim=1)
             sample = sample[~mask_nan]
-            out_dict["y"] = out_dict["y"][~mask_nan]
+            outputs["y"] = outputs["y"][~mask_nan]
 
             all_samples.append(sample)
-            all_targets.append(out_dict["y"].cpu())
+            all_targets.append(outputs["y"].cpu())
             if sample.shape[0] != batch_size:
                 raise FoundNaNsError
             num_generated += sample.shape[0]

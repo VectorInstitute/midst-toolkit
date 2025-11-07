@@ -2,8 +2,8 @@ from enum import Enum
 
 
 class TaskType(Enum):
-    BINCLASS = "binclass"
-    MULTICLASS = "multiclass"
+    BINARY_CLASSIFICATION = "binclass"
+    MULTICLASS_CLASSIFICATION = "multiclass"
     REGRESSION = "regression"
 
     def __str__(self) -> str:

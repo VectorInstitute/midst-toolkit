@@ -25,6 +25,7 @@ dependencies = [
     "xgboost>=3.0.5",
     "optuna>=4.5.0",
     "gower>=0.1.2",
+    "pydantic>=2.12.3",
 ]
 
 [build-system]
