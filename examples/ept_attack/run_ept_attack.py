@@ -48,7 +48,6 @@ def run_attribute_prediction(config: DictConfig) -> None:
 
             model_folders = [entry.name for entry in current_path.iterdir() if entry.is_dir()]
             for model_folder in model_folders:
-
                 # Load the data files as dataframes
                 model_data_path = Path(current_path / model_folder)
 
