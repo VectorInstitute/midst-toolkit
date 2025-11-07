@@ -45,14 +45,16 @@ def run_attribute_prediction(config: DictConfig) -> None:
         model_path = Path(input_data_path / f"{model_name}_black_box")
         for mode in modes:
             current_path = Path(model_path / mode)
+
             model_folders = [entry.name for entry in current_path.iterdir() if entry.is_dir()]
             for model_folder in model_folders:
-                # Load the data files as dataframes
-                input_data_path = Path(current_path / model_folder)
 
-                df_synthetic_data = load_dataframe(input_data_path, "trans_synthetic.csv")
-                df_challenge_data = load_dataframe(input_data_path, "challenge_with_id.csv")
-                # df_challenge_labels = load_dataframe(input_data_path, "challenge_label.csv")
+                # Load the data files as dataframes
+                model_data_path = Path(current_path / model_folder)
+
+                df_synthetic_data = load_dataframe(model_data_path, "trans_synthetic.csv")
+                df_challenge_data = load_dataframe(model_data_path, "challenge_with_id.csv")
+                # df_challenge_labels = load_dataframe(model_data_path, "challenge_label.csv")
 
                 # Drop columns in df_syntehtic_data that end with '_id', as they do not create meaningful features
                 df_synthetic_data = df_synthetic_data.drop(
@@ -84,7 +86,7 @@ def run_attribute_prediction(config: DictConfig) -> None:
 @hydra.main(config_path=".", config_name="config", version_base=None)
 def main(config: DictConfig) -> None:
     """
-    Run the EPT-MIA Attack example pipeline.
+    Main orchestrator of the EPT-MIA Attack example pipeline.
     First step has yet to be implemented: shadow model training.
     Second and third steps are attribute prediction model training and feature extraction.
 
