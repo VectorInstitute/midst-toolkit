@@ -309,7 +309,7 @@ def train_three_sets_of_shadow_models(
     in each set.
     Each observation in the challenge points is repeated ``n_reps`` times in the training set of each shadow model.
 
-    This attack by default trains 16 shadow models in total, 8 of which are fine-tuned from a pre-traine model and
+    This attack by default trains 16 shadow models in total, 8 of which are fine-tuned from a pre-trained model and
     8 of which are trained from scratch on the challenge points. Pre-training is done on a number of samples from the
     population data as stated in the ``fine_tuning_config`` or `60K` samples by default.
     We keep track of and save the challenge id's used to train each shadow model to be used by RMIA.
