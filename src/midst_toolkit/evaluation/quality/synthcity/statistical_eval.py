@@ -101,12 +101,8 @@ class AlphaPrecision(StatisticalEvaluator):
             alphas, alpha_precision_curve, beta_coverage_curve, delta_precision_alpha, delta_coverage_beta,
             authenticity.
         """
-        if len(x) != len(x_syn):
-            raise RuntimeError("The real and synthetic data must have the same length")
-
         if emb_center is None:
             emb_center = np.mean(x, axis=0)
-
         n_steps = 30
         alphas = np.linspace(0, 1, n_steps)
 
@@ -118,8 +114,8 @@ class AlphaPrecision(StatisticalEvaluator):
         beta_coverage_curve: list[float] = []
 
         synth_to_center = np.sqrt(np.sum((x_syn - emb_center) ** 2, axis=1))
-
         nbrs_real = NearestNeighbors(n_neighbors=2, n_jobs=-1, p=2).fit(x)
+
         k_neighbors_real = nbrs_real.kneighbors(x)
         assert isinstance(k_neighbors_real, tuple)
         real_to_real, _ = k_neighbors_real
@@ -135,37 +131,38 @@ class AlphaPrecision(StatisticalEvaluator):
         real_to_synth_args = real_to_synth_args.squeeze()
 
         real_synth_closest = x_syn[real_to_synth_args]
-
         real_synth_closest_d = np.sqrt(np.sum((real_synth_closest - synth_center) ** 2, axis=1))
         closest_synth_radii = np.quantile(real_synth_closest_d, alphas)
 
         for k in range(len(radii)):
             precision_audit_mask = synth_to_center <= radii[k]
             alpha_precision = np.mean(precision_audit_mask)
-
             beta_coverage = np.mean(
                 ((real_to_synth <= real_to_real) * (real_synth_closest_d <= closest_synth_radii[k]))
             )
-
             alpha_precision_curve.append(alpha_precision)
             beta_coverage_curve.append(beta_coverage)
-
-        # See which one is bigger
-
-        authen = real_to_real[real_to_synth_args] < real_to_synth
-        authenticity = np.mean(authen)
 
         delta_precision_alpha = 1.0 - np.sum(np.abs(np.array(alphas) - np.array(alpha_precision_curve))) / np.sum(
             alphas
         )
-
         if delta_precision_alpha < 0:
             raise RuntimeError("negative value detected for Delta_precision_alpha")
 
         delta_coverage_beta = 1.0 - np.sum(np.abs(np.array(alphas) - np.array(beta_coverage_curve))) / np.sum(alphas)
-
         if delta_coverage_beta < 0:
             raise RuntimeError("negative value detected for Delta_coverage_beta")
+
+        k_neighbors_real_for_synthetic = nbrs_real.kneighbors(x_syn)
+        closest_real_to_synth_distance, closest_real_to_synthetic_idx_list = k_neighbors_real_for_synthetic
+        # Find the closest real point to each synthetic point
+        closest_real_to_synth_distance = closest_real_to_synth_distance[:, 0].squeeze()
+        closest_real_to_synthetic_idx_list = closest_real_to_synthetic_idx_list[:, 0].squeeze()
+
+        closest_real_to_real_distance = real_to_real[closest_real_to_synthetic_idx_list]
+        is_authetic = closest_real_to_real_distance <= closest_real_to_synth_distance
+
+        authenticity = np.mean(is_authetic.astype(int))
 
         return (
             alphas.tolist(),

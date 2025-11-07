@@ -12,13 +12,14 @@ import pandas as pd
 import torch
 from torch import Tensor, optim
 
+from midst_toolkit.common.config import ClassifierConfig, DiffusionConfig
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import KeyValueLogger, log
+from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
-from midst_toolkit.models.clavaddpm.dataset import Dataset, Transformations, make_dataset_from_df
+from midst_toolkit.models.clavaddpm.dataset import Dataset, Transformations
 from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
-    Configs,
     IsTargetConditioned,
     ModelArtifacts,
     ReductionMethod,
@@ -27,31 +28,24 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     Tables,
     TargetType,
 )
-from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
-    GaussianLossType,
-    GaussianMultinomialDiffusion,
-    SchedulerType,
-)
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 from midst_toolkit.models.clavaddpm.model import (
     Classifier,
     DiffusionParameters,
     ModelParameters,
-    ModelType,
     get_table_info,
 )
 from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, ScheduleSamplerType
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 
 
-# TODO: Make diffusion_config and classifier_config into config classes and use the
-# enums instead of string values.
 def clava_training(
     tables: Tables,
     relation_order: RelationOrder,
     save_dir: Path,
-    diffusion_config: Configs,
-    classifier_config: Configs | None,
-    device: str = "cuda",
+    diffusion_config: DiffusionConfig,
+    classifier_config: ClassifierConfig | None = None,
+    device: torch.device = DEVICE,
 ) -> tuple[Tables, dict[Relation, dict[str, Any]]]:
     """
     Training function for the ClavaDDPM model.
@@ -71,31 +65,10 @@ def clava_training(
         relation_order: List of tuples of parent and child tables. Example:
             [("table1", "table2"), ("table1", "table3")]
         save_dir: Directory to save the ClavaDDPM models.
-        diffusion_config: Dictionary of configurations for the diffusion model. The following config keys are required:
-            {
-                d_layers = list[int],
-                dropout = float,
-                iterations = int,
-                batch_size = int,
-                model_type = str["mlp" | "resnet"],
-                gaussian_loss_type = str["mse" | "kl"],
-                num_timesteps = int,
-                scheduler = str["cosine" | "linear"],
-                lr = float,
-                weight_decay = float,
-                data_split_ratios = list[float], # Must have 3 values: [train, validation, test], and they must
-                    amount to 1 (with a tolerance of 0.01).
-            }
-        classifier_config: Dictionary of configurations for the classifier model. Not required for single table
-            training. The following config keys are required for multi-table training:
-            {
-                iterations = int,
-                batch_size = int,
-                d_layers = list[int],
-                dim_t = int,
-                lr = float,
-            }
-        device: Device to use for training. Default is `"cuda"`.
+        diffusion_config: Configurations for the diffusion model.
+        classifier_config: Configurations for the classifier model. Defaults to None.
+            Required for multi-table training, but not for single-table training.
+        device: Device to use for training. Default is midst_toolkit.common.variables.DEVICE.
 
     Returns:
         A tuple with 2 values:
@@ -145,9 +118,9 @@ def child_training(
     child_domain: dict[str, Any],
     parent_name: str | None,
     child_name: str,
-    diffusion_config: Configs,
-    classifier_config: Configs | None,
-    device: str = "cuda",
+    diffusion_config: DiffusionConfig,
+    classifier_config: ClassifierConfig | None = None,
+    device: torch.device = DEVICE,
 ) -> dict[str, Any]:
     """
     Training function for a single child table.
@@ -162,31 +135,10 @@ def child_training(
                 }
         parent_name: Name of the parent table, or None if there is no parent.
         child_name: Name of the child table.
-        diffusion_config: Dictionary of configurations for the diffusion model. The following config keys are required:
-            {
-                d_layers = list[int],
-                dropout = float,
-                iterations = int,
-                batch_size = int,
-                model_type = str["mlp" | "resnet"],
-                gaussian_loss_type = str["mse" | "kl"],
-                num_timesteps = int,
-                scheduler = str["cosine" | "linear"],
-                lr = float,
-                weight_decay = float,
-                data_split_ratios = list[float], # Must have 3 values: [train, validation, test], and they must
-                    amount to 1 (with a tolerance of 0.01).
-            }
-        classifier_config: Dictionary of configurations for the classifier model. Not required for single table
-            training. The following config keys are required for multi-table training:
-            {
-                iterations = int,
-                batch_size = int,
-                d_layers = list[int],
-                dim_t = int,
-                lr = float,
-            }
-        device: Device to use for training. Default is `"cuda"`.
+        diffusion_config: Configurations for the diffusion model.
+        classifier_config: Configurations for the classifier model. Defaults to None.
+            Required for multi-table training, but not for single-table training.
+        device: Device to use for training. Default is midst_toolkit.common.variables.DEVICE.
 
     Returns:
         Dictionary of the training results.
@@ -203,8 +155,8 @@ def child_training(
     child_info = get_table_info(child_df_with_cluster, child_domain, y_col)
     child_model_params = ModelParameters(
         diffusion_parameters=DiffusionParameters(
-            d_layers=diffusion_config["d_layers"],
-            dropout=diffusion_config["dropout"],
+            layers_dimensions=diffusion_config.d_layers,
+            dropout=diffusion_config.dropout,
         ),
     )
     child_transformations = Transformations.default()
@@ -214,15 +166,7 @@ def child_training(
         child_info,
         child_model_params,
         child_transformations,
-        diffusion_config["iterations"],
-        diffusion_config["batch_size"],
-        ModelType(diffusion_config["model_type"]),
-        GaussianLossType(diffusion_config["gaussian_loss_type"]),
-        diffusion_config["num_timesteps"],
-        SchedulerType(diffusion_config["scheduler"]),
-        diffusion_config["lr"],
-        diffusion_config["weight_decay"],
-        diffusion_config["data_split_ratios"],
+        diffusion_config,
         device=device,
     )
 
@@ -230,27 +174,20 @@ def child_training(
         child_result["classifier"] = None
     else:
         assert classifier_config is not None, "Classifier config is required for multi-table training"
-        if classifier_config["iterations"] > 0:
+        if classifier_config.iterations > 0:
             child_classifier = train_classifier(
                 child_df_with_cluster,
                 child_info,
                 child_model_params,
                 child_transformations,
-                classifier_config["iterations"],
-                classifier_config["batch_size"],
-                GaussianLossType(diffusion_config["gaussian_loss_type"]),
-                diffusion_config["num_timesteps"],
-                SchedulerType(diffusion_config["scheduler"]),
-                cluster_col=y_col,
-                d_layers=classifier_config["d_layers"],
-                dim_t=classifier_config["dim_t"],
-                learning_rate=classifier_config["lr"],
+                diffusion_config,
+                classifier_config,
                 device=device,
-                data_split_ratios=classifier_config["data_split_ratios"],
+                cluster_col=y_col,
             )
             child_result["classifier"] = child_classifier
         else:
-            log(WARNING, "Skipping classifier training since classifier_config['iterations'] <= 0")
+            log(WARNING, "Skipping classifier training since classifier_config.iterations <= 0")
 
     child_result["df_info"] = child_info
     child_result["model_params"] = asdict(child_model_params)
@@ -263,16 +200,8 @@ def train_model(
     data_frame_info: dict[str, Any],
     model_params: ModelParameters,
     transformations: Transformations,
-    steps: int,
-    batch_size: int,
-    model_type: ModelType,
-    gaussian_loss_type: GaussianLossType,
-    num_timesteps: int,
-    scheduler_type: SchedulerType,
-    learning_rate: float,
-    weight_decay: float,
-    data_split_ratios: list[float],
-    device: str = "cuda",
+    diffusion_config: DiffusionConfig,
+    device: torch.device = DEVICE,
 ) -> dict[str, Any]:
     """
     Training function for the diffusion model.
@@ -282,17 +211,8 @@ def train_model(
         data_frame_info: Dictionary of the table information.
         model_params: The model parameters.
         transformations: The transformations to apply to the dataset.
-        steps: Number of steps to train the model.
-        batch_size: Batch size to use for training.
-        model_type: Type of the model to use.
-        gaussian_loss_type: Type of the gaussian loss to use.
-        num_timesteps: Number of timesteps to use for the diffusion model.
-        scheduler_type: Type of scheduler to use for the diffusion model.
-        learning_rate: Learning rate to use for the optimizer in the diffusion model.
-        weight_decay: Weight decay to use for the optimizer in the diffusion model.
-        data_split_ratios: The ratios of the dataset to split into train, validation, and test.
-            It must have exactly 3 values and their sum must amount to 1 (with a tolerance of 0.01).
-        device: Device to use for training. Default is `"cuda"`.
+        diffusion_config: Configurations for the diffusion model.
+        device: Device to use for training. Default is midst_toolkit.common.variables.DEVICE.
 
     Returns:
         Dictionary of the training results. It will contain the following keys:
@@ -301,11 +221,11 @@ def train_model(
             - dataset: The dataset.
             - column_orders: The column orders.
     """
-    dataset, label_encoders, column_orders = make_dataset_from_df(
+    dataset, label_encoders, column_orders = Dataset.from_df(
         data_frame,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
-        data_split_ratios=data_split_ratios,
+        data_split_percentages=diffusion_config.data_split_ratios,
         info=data_frame_info,
         noise_scale=0,
     )
@@ -314,26 +234,29 @@ def train_model(
     if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = np.array([0])
 
-    _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.y[DataSplit.TRAIN.value]), return_counts=True)
+    _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.target[DataSplit.TRAIN.value]), return_counts=True)
 
-    num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1] if dataset.x_num is not None else 0
-    d_in = np.sum(category_sizes) + num_numerical_features
-    model_params.d_in = d_in
+    num_numerical_features = 0
+    if dataset.numerical_features is not None:
+        num_numerical_features = dataset.numerical_features[DataSplit.TRAIN.value].shape[1]
+
+    input_dimension = np.sum(category_sizes) + num_numerical_features
+    model_params.input_dimension = input_dimension
 
     print("Model params: {}".format(model_params))
-    model = model_type.get_model(model_params)
+    model = diffusion_config.model_type.get_model(model_params)
     model.to(device)
 
-    train_loader = prepare_fast_dataloader(dataset, split=DataSplit.TRAIN, batch_size=batch_size)
+    train_loader = prepare_fast_dataloader(dataset, split=DataSplit.TRAIN, batch_size=diffusion_config.batch_size)
 
     diffusion = GaussianMultinomialDiffusion(
         num_classes=category_sizes,
         num_numerical_features=num_numerical_features,
         denoise_fn=model,
-        gaussian_loss_type=gaussian_loss_type,
-        num_timesteps=num_timesteps,
-        scheduler_type=scheduler_type,
-        device=torch.device(device),
+        gaussian_loss_type=diffusion_config.gaussian_loss_type,
+        num_timesteps=diffusion_config.num_timesteps,
+        scheduler_type=diffusion_config.scheduler,
+        device=device,
     )
     diffusion.to(device)
     diffusion.train()
@@ -341,9 +264,9 @@ def train_model(
     trainer = ClavaDDPMTrainer(
         diffusion,
         train_loader,
-        lr=learning_rate,
-        weight_decay=weight_decay,
-        steps=steps,
+        learning_rate=diffusion_config.lr,
+        weight_decay=diffusion_config.weight_decay,
+        steps=diffusion_config.iterations,
         device=device,
     )
     trainer.train()
@@ -375,17 +298,10 @@ def train_classifier(
     data_frame_info: dict[str, Any],
     model_params: ModelParameters,
     transformations: Transformations,
-    classifier_steps: int,
-    batch_size: int,
-    gaussian_loss_type: GaussianLossType,
-    num_timesteps: int,
-    scheduler_type: SchedulerType,
-    d_layers: list[int],
-    data_split_ratios: list[float],
-    device: str = "cuda",
+    diffusion_config: DiffusionConfig,
+    classifier_config: ClassifierConfig,
+    device: torch.device = DEVICE,
     cluster_col: str = "cluster",
-    dim_t: int = 128,
-    learning_rate: float = 0.0001,
     classifier_evaluation_interval: int = 5,
     logger_interval: int = 10,
 ) -> Classifier:
@@ -397,18 +313,10 @@ def train_classifier(
         data_frame_info: Dictionary of the table information.
         model_params: The model parameters.
         transformations: The transformations to apply to the dataset.
-        classifier_steps: Number of steps to train the classifier.
-        batch_size: Batch size to use for training.
-        gaussian_loss_type: Type of the gaussian loss to use.
-        num_timesteps: Number of timesteps to use for the diffusion model.
-        scheduler_type: Type of scheduler to use for the diffusion model.
-        d_layers: List of the hidden sizes of the classifier.
-        data_split_ratios: The ratios of the dataset to split into train, validation, and test.
-            It must have exactly 3 values and their sum must amount to 1 (with a tolerance of 0.01).
-        device: Device to use for training. Default is `"cuda"`.
+        diffusion_config: Configurations for the diffusion model.
+        classifier_config: Configurations for the classifier model.
+        device: Device to use for training. Default is midst_toolkit.common.variables.DEVICE.
         cluster_col: Name of the cluster column. Default is `"cluster"`.
-        dim_t: Dimension of the timestamp. Default is 128.
-        learning_rate: Learning rate to use for the optimizer in the classifier. Default is 0.0001.
         classifier_evaluation_interval: The number of classifier training steps to wait
             until the next evaluation of the classifier. Default is 5.
         logger_interval: The number of classifier training steps to wait until the next logging
@@ -417,24 +325,32 @@ def train_classifier(
     Returns:
         The trained classifier model.
     """
-    # ruff: noqa: N806
-    dataset, label_encoders, column_orders = make_dataset_from_df(
+    dataset, _, _ = Dataset.from_df(
         data_frame,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
-        data_split_ratios=data_split_ratios,
+        data_split_percentages=classifier_config.data_split_ratios,
         info=data_frame_info,
         noise_scale=0,
     )
     print(dataset.n_features)
     train_loader = prepare_fast_dataloader(
-        dataset, split=DataSplit.TRAIN, batch_size=batch_size, target_type=TargetType.LONG
+        dataset,
+        split=DataSplit.TRAIN,
+        batch_size=classifier_config.batch_size,
+        target_type=TargetType.LONG,
     )
     val_loader = prepare_fast_dataloader(
-        dataset, split=DataSplit.VALIDATION, batch_size=batch_size, target_type=TargetType.LONG
+        dataset,
+        split=DataSplit.VALIDATION,
+        batch_size=classifier_config.batch_size,
+        target_type=TargetType.LONG,
     )
     test_loader = prepare_fast_dataloader(
-        dataset, split=DataSplit.TEST, batch_size=batch_size, target_type=TargetType.LONG
+        dataset,
+        split=DataSplit.TEST,
+        batch_size=classifier_config.batch_size,
+        target_type=TargetType.LONG,
     )
 
     category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
@@ -443,25 +359,25 @@ def train_classifier(
     print(category_sizes)
 
     # TODO: understand what's going on here
-    if dataset.x_num is None:
-        log(WARNING, "dataset.x_num is None. num_numerical_features will be set to 0")
+    if dataset.numerical_features is None:
+        log(WARNING, "dataset.numerical_features is None. num_numerical_features will be set to 0")
         num_numerical_features = 0
     else:
-        num_numerical_features = dataset.x_num[DataSplit.TRAIN.value].shape[1]
+        num_numerical_features = dataset.numerical_features[DataSplit.TRAIN.value].shape[1]
 
     if model_params.is_target_conditioned == IsTargetConditioned.CONCAT:
         num_numerical_features -= 1
 
     classifier = Classifier(
-        d_in=num_numerical_features,
-        d_out=int(max(data_frame[cluster_col].values) + 1),  # TODO: add a comment why we need to add 1
-        dim_t=dim_t,
-        hidden_sizes=d_layers,
+        input_dimension=num_numerical_features,
+        output_dimension=int(max(data_frame[cluster_col].values) + 1),  # TODO: add a comment why we need to add 1
+        timestep_dimension=classifier_config.dim_t,
+        hidden_sizes=classifier_config.d_layers,
     ).to(device)
 
-    classifier_optimizer = optim.AdamW(classifier.parameters(), lr=learning_rate)
+    classifier_optimizer = optim.AdamW(classifier.parameters(), lr=classifier_config.lr)
 
-    schedule_sampler = ScheduleSamplerType.UNIFORM.create_named_schedule_sampler(num_timesteps)
+    schedule_sampler = ScheduleSamplerType.UNIFORM.create_named_schedule_sampler(diffusion_config.num_timesteps)
     key_value_logger = KeyValueLogger()
 
     # TODO: change the type hint of denoise_fn to include None.
@@ -469,17 +385,17 @@ def train_classifier(
         num_classes=category_sizes,
         num_numerical_features=num_numerical_features,
         denoise_fn=torch.nn.Module(),  # This is not used, so passing an empty module is fine
-        gaussian_loss_type=gaussian_loss_type,
-        num_timesteps=num_timesteps,
-        scheduler_type=scheduler_type,
-        device=torch.device(device),
+        gaussian_loss_type=diffusion_config.gaussian_loss_type,
+        num_timesteps=diffusion_config.num_timesteps,
+        scheduler_type=diffusion_config.scheduler,
+        device=device,
     )
     diffusion_model.to(device)
 
     classifier.train()
-    for step in range(classifier_steps):
+    for step in range(classifier_config.iterations):
         key_value_logger.save_entry("step", float(step))
-        key_value_logger.save_entry("samples", float((step + 1) * batch_size))
+        key_value_logger.save_entry("samples", float((step + 1) * classifier_config.batch_size))
         _numerical_forward_backward_log(
             classifier,
             classifier_optimizer,
@@ -530,7 +446,7 @@ def train_classifier(
             pred = classifier(test_x, timesteps=torch.zeros(test_x.shape[0]).to(device))
             correct += (pred.argmax(dim=1) == test_y).sum().item()
 
-    acc = correct / (3000 * batch_size)
+    acc = correct / (3000 * classifier_config.batch_size)
     log(INFO, f"Classifier accuracy: {acc}")
 
     return classifier
@@ -609,7 +525,7 @@ def _numerical_forward_backward_log(
     diffusion: GaussianMultinomialDiffusion,
     prefix: str = DataSplit.TRAIN.value,
     remove_first_col: bool = False,
-    device: str = "cuda",  # TODO: type should be changed to torch.device.
+    device: torch.device = DEVICE,
     key_value_logger: KeyValueLogger | None = None,
 ) -> None:
     """
@@ -624,7 +540,7 @@ def _numerical_forward_backward_log(
         diffusion: The diffusion object.
         prefix: The prefix for the loss. Defaults to DataSplit.TRAIN.value.
         remove_first_col: Whether to remove the first column of the batch. Defaults to False.
-        device: The device to use. Defaults to "cuda".
+        device: The device to use. Defaults to midst_toolkit.common.variables.DEVICE.
         key_value_logger: The key-value logger to log the losses. If None, the losses are not logged.
     """
     batch, labels = next(data_loader)
@@ -634,7 +550,7 @@ def _numerical_forward_backward_log(
         # Remove the first column of the batch, which is the label.
         batch = batch[:, 1:]
 
-    num_batch = batch[:, : dataset.n_num_features].to(device)
+    num_batch = batch[:, : dataset.n_numerical_features].to(device)
 
     t, _ = schedule_sampler.sample(num_batch.shape[0], device)
     batch = diffusion.gaussian_q_sample(num_batch, t).to(device)
