@@ -40,6 +40,12 @@ def run_attribute_prediction(config: DictConfig) -> None:
     with open(config.data_paths.data_types_file_path, "r") as f:
         column_types = json.load(f)
 
+    # Drop columns that end with '_id' from column_types, as they do not create meaningful features
+    feature_column_types = {
+        "numerical": [col for col in column_types.get("numerical", []) if not col.endswith("_id")],
+        "categorical": [col for col in column_types.get("categorical", []) if not col.endswith("_id")],
+    }
+
     # Iterating over directories specific to the shadow models folder structure in the competition
     for model_name in diffusion_model_names:
         model_path = Path(input_data_path / f"{model_name}_black_box")
@@ -67,7 +73,7 @@ def run_attribute_prediction(config: DictConfig) -> None:
                 df_extracted_features = feature_extraction.main(
                     synthetic_data=df_synthetic_data,
                     challenge_data=df_challenge_data,
-                    column_types=column_types,
+                    column_types=feature_column_types,
                     random_seed=config.random_seed,
                 )
 

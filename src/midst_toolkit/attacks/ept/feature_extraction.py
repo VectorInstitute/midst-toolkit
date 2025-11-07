@@ -175,14 +175,27 @@ def main(
             columns.append(f"{column}_accuracy")
 
         elif task_type == TaskType.REGRESSION:
+            # # Calculate errors
+            # errors = np.abs(predictions - y_test)
+            # # Calculate the ratio of the error
+            # error_ratio = errors / y_test
+
+            # # Save the error and the ratio error
+            # features.append(errors)
+            # features.append(error_ratio)
+
+            # ______________________#
             # Calculate errors
-            errors = np.abs(predictions - y_test)
-            # Calculate the ratio of the error
-            error_ratio = errors / y_test
+            errors = pd.Series(np.abs(predictions - y_test), index=y_test.index)
+            # Calculate the ratio of the error in a zero-safe manner
+            denominator = y_test.replace(0, np.nan)
+            error_ratio = errors / denominator
+            error_ratio = error_ratio.replace([np.inf, -np.inf], np.nan).fillna(0)
 
             # Save the error and the ratio error
             features.append(errors)
             features.append(error_ratio)
+
             columns.append(f"{column}_error")
             columns.append(f"{column}_error_ratio")
 
