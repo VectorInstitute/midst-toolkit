@@ -35,7 +35,7 @@ def clava_clustering(
     Clustering function for the multi-table function of the ClavaDDPM model.
 
     Args:
-        tables: Dictionary of tables loaded from the load_tables function.
+        tables: Dictionary of tables by table name, as loaded from the load_tables function.
         relation_order: List of tuples of parent and child tables. Example:
             [("table1", "table2"), ("table1", "table3")]
         save_dir: Directory to save the clustering checkpoint.
@@ -100,7 +100,7 @@ def _run_clustering(
     Run the clustering process.
 
     Args:
-        tables: Dictionary of tables loaded from the load_tables function.
+        tables: Dictionary of tables by table name, asloaded from the load_tables function.
         relation_order: List of tuples of parent and child tables. Example:
             [("table1", "table2"), ("table1", "table3")]
         configs: Configuration for the clustering model.
@@ -152,7 +152,7 @@ def _pair_clustering(
     Used by the mutli-table function of the ClavaDDPM model.
 
     Args:
-        tables: Dictionary of tables loaded from the load_tables function.
+        tables: Dictionary of tables by table name, as loaded from the load_tables function.
         parent_name: Name of the parent table.
         child_name: Name of the child table.
         num_clusters: Number of clusters.

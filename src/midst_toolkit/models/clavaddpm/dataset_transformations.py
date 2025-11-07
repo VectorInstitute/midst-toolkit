@@ -288,9 +288,9 @@ def transform_targets(
         A tuple with the transformed target values across datasets and the metadata that stores information about
         how the transformation was performed.
     """
-    info = TargetInfo(policy=policy)
+    target_info = TargetInfo(policy=policy)
     if policy is None:
-        return target_datasets, info
+        return target_datasets, target_info
 
     if policy == TargetPolicy.DEFAULT:
         if task_type == TaskType.REGRESSION:
@@ -298,9 +298,9 @@ def transform_targets(
             mean = float(train_split.mean())
             std = float(train_split.std())
             target_datasets = {split: (target_data - mean) / std for split, target_data in target_datasets.items()}
-            info.mean = mean
-            info.std = std
+            target_info.mean = mean
+            target_info.std = std
     else:
         raise ValueError(f"Unsupported policy: {policy.value}")
 
-    return target_datasets, info
+    return target_datasets, target_info

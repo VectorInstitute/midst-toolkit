@@ -10,7 +10,7 @@ import pandas as pd
 import torch
 from torch import Tensor
 
-from midst_toolkit.common.enumerations import ComputerRepresentation, DataSplit, DomainDataType, InfoDataType, TaskType
+from midst_toolkit.common.enumerations import ColumnType, ComputerRepresentation, DataSplit, DomainDataType, TaskType
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.dataset import Dataset
 from midst_toolkit.models.clavaddpm.enumerations import RelationOrder, TargetType
@@ -29,13 +29,13 @@ class CategoricalColumnInfo:
 
 @dataclass
 class ColumnInfo:
-    type: InfoDataType
+    type: ColumnType
     info: NumericalColumnInfo | CategoricalColumnInfo
 
 
 @dataclass
 class ColumnMetadata:
-    sdtype: InfoDataType
+    sdtype: ColumnType
     computer_representation: ComputerRepresentation | None = None
 
 
@@ -83,7 +83,7 @@ def load_tables(
         verbose: Whether to print verbose output. Optional, default is True.
         training_data_ratio: The ratio of the data to be used for training. Should be between 0 and 1.
             If it's equal to 1, it will only return the training set. Optional, default is 1.
-        train_data: Optional dictionary of already loaded tabel DataFrames to be used
+        train_data: Optional dictionary of already loaded table DataFrames to be used
             as the training data. If None, the function will look for a train.csv or ``f{table_name}.csv``
             file in the ``data_dir``.
 
@@ -207,23 +207,23 @@ def process_pipeline_data(
 
     for i in info.numerical_column_indices:
         metadata[i] = ColumnMetadata(
-            sdtype=InfoDataType.NUMERICAL,
+            sdtype=ColumnType.NUMERICAL,
             computer_representation=ComputerRepresentation.FLOAT,
         )
 
     for i in info.categorical_column_indices:
-        metadata[i] = ColumnMetadata(sdtype=InfoDataType.CATEGORICAL)
+        metadata[i] = ColumnMetadata(sdtype=ColumnType.CATEGORICAL)
 
     if info.task_type == TaskType.REGRESSION:
         for i in info.target_column_indices:
             metadata[i] = ColumnMetadata(
-                sdtype=InfoDataType.NUMERICAL,
+                sdtype=ColumnType.NUMERICAL,
                 computer_representation=ComputerRepresentation.FLOAT,
             )
 
     else:
         for i in info.target_column_indices:
-            metadata[i] = ColumnMetadata(sdtype=InfoDataType.CATEGORICAL)
+            metadata[i] = ColumnMetadata(sdtype=ColumnType.CATEGORICAL)
 
     info.metadata = metadata
 
@@ -274,7 +274,7 @@ def _get_columns_info(
     for column in numerical_column_indices:
         column_name = train_data.columns[column]
         columns_info[column_name] = ColumnInfo(
-            type=InfoDataType.NUMERICAL,
+            type=ColumnType.NUMERICAL,
             info=NumericalColumnInfo(
                 max=float(train_data[column_name].max()),
                 min=float(train_data[column_name].min()),
@@ -284,7 +284,7 @@ def _get_columns_info(
     for column in categorical_column_indices:
         column_name = train_data.columns[column]
         columns_info[column_name] = ColumnInfo(
-            type=InfoDataType.CATEGORICAL,
+            type=ColumnType.CATEGORICAL,
             info=CategoricalColumnInfo(
                 categorizes=list(set(train_data[column_name])),
             ),
@@ -294,7 +294,7 @@ def _get_columns_info(
         if task_type == TaskType.REGRESSION:
             column_name = train_data.columns[column]
             columns_info[column_name] = ColumnInfo(
-                type=InfoDataType.NUMERICAL,
+                type=ColumnType.NUMERICAL,
                 info=NumericalColumnInfo(
                     max=float(train_data[column_name].max()),
                     min=float(train_data[column_name].min()),
@@ -303,7 +303,7 @@ def _get_columns_info(
         else:
             column_name = train_data.columns[column]
             columns_info[column_name] = ColumnInfo(
-                type=InfoDataType.CATEGORICAL,
+                type=ColumnType.CATEGORICAL,
                 info=CategoricalColumnInfo(
                     categorizes=list(set(train_data[column_name])),
                 ),
@@ -331,10 +331,7 @@ def _split_data_and_generate_info(
         A tuple with 2 values:
             - The data splits as an instance of the DataSplits class. Test data will be None if the
                 training_data_ratio is 1.
-            - The info dictionary as retrieved from the get_info_from_domain function with updated metadata, namely:
-                - column_info: The columns info dictionary, as returned by the _get_columns_info function.
-                - train_num: The number of samples in the training set.
-                - test_num: The number of samples in the test set. It will be absent if the training_data_ratio is 1.
+            - The DomainInfo object, which holds information about the data columns.
     """
     info = get_info_from_domain(data, table_domain)
 

@@ -66,7 +66,7 @@ def clava_training(
     Training function for the ClavaDDPM model.
 
     Args:
-        tables: Dictionary of tables loaded from the load_tables function.
+        tables: Dictionary of tables by table name, as loaded from the load_tables function.
         relation_order: List of tuples of parent and child tables. Example:
             [("table1", "table2"), ("table1", "table3")]
         save_dir: Directory to save the ClavaDDPM models.
@@ -152,7 +152,6 @@ def child_training(
         # If there is no parent for this child table, just set a placeholder
         # for its column name. This can happen on single table training or
         # when the table is on the top level of the hierarchy.
-        # TODO: find a better name for this variable
         target_column_name = NO_PARENT_COLUMN_NAME
         child_df_with_cluster[NO_PARENT_COLUMN_NAME] = list(range(len(child_df_with_cluster)))
     else:
@@ -221,11 +220,7 @@ def train_model(
         device: Device to use for training. Default is midst_toolkit.common.variables.DEVICE.
 
     Returns:
-        ModelArtifacts containing the training results. It will contain the following keys:
-            - diffusion: The diffusion model.
-            - label_encoders: The label encoders.
-            - dataset: The dataset.
-            - column_orders: The column orders.
+        ModelArtifacts containing the training results.
     """
     dataset, label_encoders, column_orders = Dataset.from_df(
         data_frame,
@@ -498,7 +493,7 @@ def save_table_info(
     Save the table information into the save_dir.
 
     Args:
-        tables: Dictionary of tables loaded from the load_tables function.
+        tables: Dictionary of tables by table name, as loaded from the load_tables function.
         relation_order: List of tuples of parent and child tables. Example:
             [("table1", "table2"), ("table1", "table3")]
         models: Dictionary of models for each parent-child pair.

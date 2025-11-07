@@ -20,9 +20,9 @@ from midst_toolkit.models.clavaddpm.data_loaders import (
     CategoricalColumnInfo,
     ColumnInfo,
     ColumnMetadata,
+    ColumnType,
     ComputerRepresentation,
     DomainInfo,
-    InfoDataType,
     NumericalColumnInfo,
     load_tables,
 )
@@ -93,32 +93,32 @@ def test_load_single_table():
         task_type=None,
         column_names=["trans_date", "trans_type", "operation", "amount", "balance", "k_symbol", "bank", "account"],
         columns_info={
-            "trans_date": ColumnInfo(type=InfoDataType.NUMERICAL, info=NumericalColumnInfo(max=2166.0, min=280.0)),
-            "trans_type": ColumnInfo(type=InfoDataType.CATEGORICAL, info=CategoricalColumnInfo(categorizes=[0, 1, 2])),
+            "trans_date": ColumnInfo(type=ColumnType.NUMERICAL, info=NumericalColumnInfo(max=2166.0, min=280.0)),
+            "trans_type": ColumnInfo(type=ColumnType.CATEGORICAL, info=CategoricalColumnInfo(categorizes=[0, 1, 2])),
             "operation": ColumnInfo(
-                type=InfoDataType.CATEGORICAL, info=CategoricalColumnInfo(categorizes=[0, 1, 2, 3, 4])
+                type=ColumnType.CATEGORICAL, info=CategoricalColumnInfo(categorizes=[0, 1, 2, 3, 4])
             ),
-            "amount": ColumnInfo(type=InfoDataType.NUMERICAL, info=NumericalColumnInfo(max=45715.0, min=14.6)),
-            "balance": ColumnInfo(type=InfoDataType.NUMERICAL, info=NumericalColumnInfo(max=140228.7, min=7704.0)),
+            "amount": ColumnInfo(type=ColumnType.NUMERICAL, info=NumericalColumnInfo(max=45715.0, min=14.6)),
+            "balance": ColumnInfo(type=ColumnType.NUMERICAL, info=NumericalColumnInfo(max=140228.7, min=7704.0)),
             "k_symbol": ColumnInfo(
-                type=InfoDataType.CATEGORICAL, info=CategoricalColumnInfo(categorizes=[0, 1, 2, 3, 5, 6, 7, 8])
+                type=ColumnType.CATEGORICAL, info=CategoricalColumnInfo(categorizes=[0, 1, 2, 3, 5, 6, 7, 8])
             ),
             "bank": ColumnInfo(
-                type=InfoDataType.CATEGORICAL,
+                type=ColumnType.CATEGORICAL,
                 info=CategoricalColumnInfo(categorizes=[0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]),
             ),
-            "account": ColumnInfo(type=InfoDataType.NUMERICAL, info=NumericalColumnInfo(max=92881422.0, min=0.0)),
+            "account": ColumnInfo(type=ColumnType.NUMERICAL, info=NumericalColumnInfo(max=92881422.0, min=0.0)),
         },
         train_num=99,
         metadata={
-            0: ColumnMetadata(sdtype=InfoDataType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
-            1: ColumnMetadata(sdtype=InfoDataType.CATEGORICAL),
-            2: ColumnMetadata(sdtype=InfoDataType.CATEGORICAL),
-            3: ColumnMetadata(sdtype=InfoDataType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
-            4: ColumnMetadata(sdtype=InfoDataType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
-            5: ColumnMetadata(sdtype=InfoDataType.CATEGORICAL),
-            6: ColumnMetadata(sdtype=InfoDataType.CATEGORICAL),
-            7: ColumnMetadata(sdtype=InfoDataType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
+            0: ColumnMetadata(sdtype=ColumnType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
+            1: ColumnMetadata(sdtype=ColumnType.CATEGORICAL),
+            2: ColumnMetadata(sdtype=ColumnType.CATEGORICAL),
+            3: ColumnMetadata(sdtype=ColumnType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
+            4: ColumnMetadata(sdtype=ColumnType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
+            5: ColumnMetadata(sdtype=ColumnType.CATEGORICAL),
+            6: ColumnMetadata(sdtype=ColumnType.CATEGORICAL),
+            7: ColumnMetadata(sdtype=ColumnType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
         },
     )
 
@@ -148,13 +148,13 @@ def test_load_tables():
         task_type=None,
         column_names=["frequency", "account_date"],
         columns_info={
-            "frequency": ColumnInfo(type=InfoDataType.CATEGORICAL, info=CategoricalColumnInfo(categorizes=[0, 1])),
-            "account_date": ColumnInfo(type=InfoDataType.NUMERICAL, info=NumericalColumnInfo(max=36.0, min=2.0)),
+            "frequency": ColumnInfo(type=ColumnType.CATEGORICAL, info=CategoricalColumnInfo(categorizes=[0, 1])),
+            "account_date": ColumnInfo(type=ColumnType.NUMERICAL, info=NumericalColumnInfo(max=36.0, min=2.0)),
         },
         train_num=9,
         metadata={
-            0: ColumnMetadata(sdtype=InfoDataType.CATEGORICAL),
-            1: ColumnMetadata(sdtype=InfoDataType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
+            0: ColumnMetadata(sdtype=ColumnType.CATEGORICAL),
+            1: ColumnMetadata(sdtype=ColumnType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
         },
     )
 
@@ -196,32 +196,32 @@ def test_load_tables():
         task_type=None,
         column_names=["trans_date", "trans_type", "operation", "amount", "balance", "k_symbol", "bank", "account"],
         columns_info={
-            "trans_date": ColumnInfo(type=InfoDataType.NUMERICAL, info=NumericalColumnInfo(max=2169.0, min=58.0)),
-            "trans_type": ColumnInfo(type=InfoDataType.CATEGORICAL, info=CategoricalColumnInfo(categorizes=[0, 1, 2])),
+            "trans_date": ColumnInfo(type=ColumnType.NUMERICAL, info=NumericalColumnInfo(max=2169.0, min=58.0)),
+            "trans_type": ColumnInfo(type=ColumnType.CATEGORICAL, info=CategoricalColumnInfo(categorizes=[0, 1, 2])),
             "operation": ColumnInfo(
-                type=InfoDataType.CATEGORICAL, info=CategoricalColumnInfo(categorizes=[0, 1, 2, 3, 4])
+                type=ColumnType.CATEGORICAL, info=CategoricalColumnInfo(categorizes=[0, 1, 2, 3, 4])
             ),
-            "amount": ColumnInfo(type=InfoDataType.NUMERICAL, info=NumericalColumnInfo(max=49764.0, min=14.6)),
-            "balance": ColumnInfo(type=InfoDataType.NUMERICAL, info=NumericalColumnInfo(max=98605.1, min=14750.5)),
+            "amount": ColumnInfo(type=ColumnType.NUMERICAL, info=NumericalColumnInfo(max=49764.0, min=14.6)),
+            "balance": ColumnInfo(type=ColumnType.NUMERICAL, info=NumericalColumnInfo(max=98605.1, min=14750.5)),
             "k_symbol": ColumnInfo(
-                type=InfoDataType.CATEGORICAL, info=CategoricalColumnInfo(categorizes=[0, 1, 3, 5, 6, 7])
+                type=ColumnType.CATEGORICAL, info=CategoricalColumnInfo(categorizes=[0, 1, 3, 5, 6, 7])
             ),
             "bank": ColumnInfo(
-                type=InfoDataType.CATEGORICAL,
+                type=ColumnType.CATEGORICAL,
                 info=CategoricalColumnInfo(categorizes=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]),
             ),
-            "account": ColumnInfo(type=InfoDataType.NUMERICAL, info=NumericalColumnInfo(max=95059883.0, min=0.0)),
+            "account": ColumnInfo(type=ColumnType.NUMERICAL, info=NumericalColumnInfo(max=95059883.0, min=0.0)),
         },
         train_num=143,
         metadata={
-            0: ColumnMetadata(sdtype=InfoDataType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
-            1: ColumnMetadata(sdtype=InfoDataType.CATEGORICAL),
-            2: ColumnMetadata(sdtype=InfoDataType.CATEGORICAL),
-            3: ColumnMetadata(sdtype=InfoDataType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
-            4: ColumnMetadata(sdtype=InfoDataType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
-            5: ColumnMetadata(sdtype=InfoDataType.CATEGORICAL),
-            6: ColumnMetadata(sdtype=InfoDataType.CATEGORICAL),
-            7: ColumnMetadata(sdtype=InfoDataType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
+            0: ColumnMetadata(sdtype=ColumnType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
+            1: ColumnMetadata(sdtype=ColumnType.CATEGORICAL),
+            2: ColumnMetadata(sdtype=ColumnType.CATEGORICAL),
+            3: ColumnMetadata(sdtype=ColumnType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
+            4: ColumnMetadata(sdtype=ColumnType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
+            5: ColumnMetadata(sdtype=ColumnType.CATEGORICAL),
+            6: ColumnMetadata(sdtype=ColumnType.CATEGORICAL),
+            7: ColumnMetadata(sdtype=ColumnType.NUMERICAL, computer_representation=ComputerRepresentation.FLOAT),
         },
     )
 
