@@ -49,7 +49,7 @@ def get_rmia_gower(
     Returns:
         A list of numpy arrays, each representing the Gower distance matrix between the input dataframe and the
         synthetic data from a model. Each entry in the list corresponds to one of the synthetically generated
-        datasets provided within `model_data`.
+        datasets provided within ``model_data``.
 
     """
     # Check if any specified categorical columns are missing from the dataframe
@@ -94,18 +94,18 @@ def get_rmia_gower(
 def conditional_average(values: np.ndarray, condition_mask: np.ndarray) -> np.ndarray:
     """
     Calculate the conditional average of values based on a condition mask.
-    This function computes the mean of the `values` array where the corresponding
-    entries in the `condition_mask` are `True`. If no entries satisfy the condition
-    for a particular record, the result will be `NaN` for that record.
+    This function computes the mean of the ``values`` array where the corresponding
+    entries in the ``condition_mask`` are ``True``. If no entries satisfy the condition
+    for a particular record, the result will be ``NaN`` for that record.
 
     Args:
         values: A NumPy array containing the values to average.
         condition_mask (numpy.ndarray): A boolean NumPy array of the same shape as
-            `values`, where `True` indicates the values to include in the average.
+            ``values``, where ``True`` indicates the values to include in the average.
 
     Returns:
         An array of the same shape as the input, containing the conditional averages
-        where the condition is met, or `NaN` where no values satisfy the condition.
+        where the condition is met, or ``NaN`` where no values satisfy the condition.
 
     """
     assert values.shape == condition_mask.shape, "condition_mask must have the same shape as values"
@@ -156,50 +156,50 @@ def calculate_rmia_signals(
 
     Args:
         df_input: The dataframe to generate features for (e.g., meta classifier train or test set), derived
-            from the challenge dataset and processed in `process_split_data.py`.
+            from the challenge dataset and processed in ``process_split_data.py``.
         shadow_data_collection: A list containing three dictionaries, each representing a collection of shadow
             models with their training data and generated synthetic outputs. Each collection can contain multiple
-            shadow models. The first two dictionaries have keys `fine_tuning_sets` and `fine_tuned_results`, while
-            the third has keys `selected_sets` and `trained_results`. The `fine_tuning_sets` and `selected_sets`
+            shadow models. The first two dictionaries have keys ``fine_tuning_sets`` and ``fine_tuned_results``, while
+            the third has keys ``selected_sets`` and ``trained_results``. The ``fine_tuning_sets`` and ``selected_sets``
             keys map to lists of DataFrames containing the data used to fine-tune or train the shadow models. The
-            `fine_tuned_results` and `trained_results` keys map to lists of `TrainingResult` objects, which store
+            ``fine_tuned_results`` and ``trained_results`` keys map to lists of ``TrainingResult`` objects, which store
             model training metadata and the corresponding generated synthetic data.
-            See `train_three_sets_of_shadow_models` in attacks/ensemble/rmia/shadow_model_training.py
+            See ``train_three_sets_of_shadow_models`` in attacks/ensemble/rmia/shadow_model_training.py
             for additional details.
         target_data: A dictionary containing information about the target model. It includes:
-            - `selected_sets`: A list of DataFrames used to train the target model.
-            - `trained_results`: A list of `TrainingResult` objects, each containing details about the model's
+            - ``selected_sets``: A list of DataFrames used to train the target model.
+            - ``trained_results``: A list of ``TrainingResult`` objects, each containing details about the model's
               training process and the synthetic data generated during training.
         categorical_column_names: A list of categorical column names.
         id_column_name: Name of the ID column.
         id_column_data: The data in the ID column extracted from df_input, ensuring that output signals are
             correctly aligned with their corresponding input records.
         k: The number of nearest neighbors to consider when computing the final membership inference signals.
-            A higher `k` provides a more stable but less sensitive signal. Default is 5.
+            A higher ``k`` provides a more stable but less sensitive signal. Default is 5.
         random_seed: Random seed for reproducibility.
 
     Returns:
         A pandas DataFrame of shape (num_samples, 13) containing the following signals:
-            - `{id_column_name}`: The ID column for result alignment.
-            - `signal_shadow_k_1`: The smallest Gower distance from the input data to any shadow model's data
+            - ``{id_column_name}``: The ID column for result alignment.
+            - ``signal_shadow_k_1``: The smallest Gower distance from the input data to any shadow model's data
               (averaged across all shadow models). Lower is more similar.
-            - `signal_shadow_k_{k}`: The mean of the `k` smallest Gower distances from the
+            - ``signal_shadow_k_{k}``: The mean of the ``k`` smallest Gower distances from the
               input data to shadow models' data.
-            - `signal_shadows_in_k_1`: Smallest distance from the input data for records known to be IN the
+            - ``signal_shadows_in_k_1``: Smallest distance from the input data for records known to be IN the
               shadow models' training sets (a baseline for member behavior).
-            - `signal_shadows_in_k_{k}`: Mean of `k` smallest distances from the input data for IN records.
-            - `signal_shadows_out_k_1`: Smallest distance from the input data for records known to be OUT of
+            - ``signal_shadows_in_k_{k}``: Mean of ``k`` smallest distances from the input data for IN records.
+            - ``signal_shadows_out_k_1``: Smallest distance from the input data for records known to be OUT of
               the shadow models' training sets (a baseline for non-member behavior).
-            - `signal_shadows_out_k_{k}`: Mean of `k` smallest distances from the input data for OUT records.
-            - `signal_target_k_1`: The smallest Gower distance from the input data to the target model's data.
-            - `signal_target_k_{k}`: The mean of the `k` smallest Gower distances from the input data to the
+            - ``signal_shadows_out_k_{k}``: Mean of ``k`` smallest distances from the input data for OUT records.
+            - ``signal_target_k_1``: The smallest Gower distance from the input data to the target model's data.
+            - ``signal_target_k_{k}``: The mean of the ``k`` smallest Gower distances from the input data to the
               target model's data.
-            - `rmia_k_1`: The final RMIA score using the single nearest neighbor. A higher
+            - ``rmia_k_1``: The final RMIA score using the single nearest neighbor. A higher
               value indicates a stronger membership signal.
-            - `rmia_k_{k}`: The final RMIA score using `k` nearest neighbors.
-            - `rmia_out_k_1`: RMIA score calibrated against the 'OUT' shadow signals,
+            - ``rmia_k_{k}``: The final RMIA score using ``k`` nearest neighbors.
+            - ``rmia_out_k_1``: RMIA score calibrated against the 'OUT' shadow signals,
               providing a more robust measure of membership.
-            - `rmia_out_k_{k}`: RMIA score using `k` neighbors, calibrated against the
+            - ``rmia_out_k_{k}``: RMIA score using ``k`` neighbors, calibrated against the
               'OUT' shadow signals.
     """
     # Extract shadow data collections. The first two elements are fine-tuned shadow models,
