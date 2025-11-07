@@ -17,28 +17,27 @@ from tqdm import tqdm
 from midst_toolkit.common.config import GeneralConfig, MatchingConfig, SamplingConfig
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import log
-from midst_toolkit.models.clavaddpm.dataset import Dataset, Transformations
+from midst_toolkit.models.clavaddpm.data_loaders import Tables
+from midst_toolkit.models.clavaddpm.dataset import Dataset, TableMetadata, Transformations
 from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
     GroupLengthProbDict,
     GroupLengthsProbDicts,
     IsTargetConditioned,
-    ModelArtifacts,
     Relation,
     RelationOrder,
-    Tables,
 )
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
     ConditioningFunction,
     GaussianMultinomialDiffusion,
 )
 from midst_toolkit.models.clavaddpm.model import Classifier, ModelParameters
-from midst_toolkit.models.clavaddpm.train import get_df_without_id
+from midst_toolkit.models.clavaddpm.train import ModelArtifacts, get_df_without_id
 
 
 def sample_from_diffusion(
     df: pd.DataFrame,
-    df_info: dict[str, Any],
+    table_metadata: TableMetadata,
     diffusion: GaussianMultinomialDiffusion,
     dataset: Dataset,
     label_encoders: dict[int, LabelEncoder],
@@ -52,7 +51,7 @@ def sample_from_diffusion(
 
     Args:
         df: Real data dataframe without id.
-        df_info: Dictionary of the real data table information.
+        table_metadata: TableMetadata object containing metadata about the dataset.
         diffusion: The trained diffusion model used for sampling.
         dataset: The dataset object containing training data and transformations.
         label_encoders: The label encoders used to encode the categorical features.
@@ -91,7 +90,7 @@ def sample_from_diffusion(
         synthetic_features,
         synthetic_target,
         df,
-        df_info,
+        table_metadata,
         num_features,
         model_params.is_target_conditioned,
         dataset,
@@ -103,7 +102,7 @@ def sample_from_diffusion(
 
 def conditional_sample_from_diffusion(
     df: pd.DataFrame,
-    df_info: dict[str, Any],
+    table_metadata: TableMetadata,
     dataset: Dataset,
     label_encoders: dict[int, LabelEncoder],
     classifier: Classifier,
@@ -120,7 +119,7 @@ def conditional_sample_from_diffusion(
 
     Args:
         df: Real data dataframe without id.
-        df_info: Information about the real data table.
+        table_metadata: TableMetadata object containing metadata about the dataset.
         dataset: The dataset object containing training data and transformations.
         label_encoders: Label encoders for categorical features.
         classifier: The trained classifier model.
@@ -155,7 +154,7 @@ def conditional_sample_from_diffusion(
         synthetic_features,
         synthetic_targets,
         df,
-        df_info,
+        table_metadata,
         num_features,
         is_target_conditioned,
         dataset,
@@ -169,7 +168,7 @@ def _post_process_synthetic_data(
     synthetic_features: np.ndarray,
     synthetic_target: np.ndarray,
     df: pd.DataFrame,
-    df_info: dict[str, Any],
+    table_metadata: TableMetadata,
     num_features: int,
     is_target_conditioned: IsTargetConditioned,
     dataset: Dataset,
@@ -182,7 +181,7 @@ def _post_process_synthetic_data(
         synthetic_features: The synthetic features.
         synthetic_target: The synthetic targets.
         df: The dataframe containing the real data.
-        df_info: The info dictionary of the real data table.
+        table_metadata: TableMetadata object containing metadata about the dataset.
         num_features: The number of features.
         is_target_conditioned: The condition on the y column.
         dataset: The dataset object containing the numerical transformations.
@@ -193,9 +192,9 @@ def _post_process_synthetic_data(
             - df_real_data: DataFrame of the real data.
             - df_synthetic_data: DataFrame of the generated synthetic data.
     """
-    real_numerical_features = df[df_info["num_cols"]].to_numpy().astype(float)
-    real_categorical_features = df[df_info["cat_cols"]].to_numpy().astype(str)
-    real_target = np.round(df[df_info["y_col"]].to_numpy().astype(float)).astype(int).reshape(-1, 1)
+    real_numerical_features = df[table_metadata.numerical_column_names].to_numpy().astype(float)
+    real_categorical_features = df[table_metadata.categorical_column_names].to_numpy().astype(str)
+    real_target = np.round(df[table_metadata.target_column_name].to_numpy().astype(float)).astype(int).reshape(-1, 1)
 
     if num_features == 0:
         numerical_features = np.array([])
@@ -693,10 +692,10 @@ def clava_synthesizing_matching_process(
     final_tables: dict[str, pd.DataFrame] = {}
     for parent, child in relation_order:
         if child not in final_tables:
-            if len(tables[child]["parents"]) > 1:
+            if len(tables[child].parents) > 1:
                 final_tables[child] = handle_multi_parent(
                     child,
-                    tables[child]["parents"],
+                    tables[child].parents,
                     synthetic_tables,
                     matching_config.num_matching_clusters,
                     unique_matching=matching_config.unique_matching,
@@ -749,7 +748,7 @@ def clava_synthesizing(
     for parent, child in relation_order:
         log(INFO, f"Generating {parent} -> {child}")
         training_results = models[(parent, child)]
-        df_with_cluster = tables[child]["df"]
+        df_with_cluster = tables[child].data
         df_without_id = get_df_without_id(df_with_cluster)
 
         log(INFO, "Sample size: {}".format(int(sample_scale * len(df_without_id))))
@@ -838,15 +837,19 @@ def _synthesize_single_table(
             - A DataFrame containing the synthesized data.
             - The list of keys for the synthesized data.
     """
+    assert training_results.table_metadata is not None, "training_results.table_metadata is required"
+    assert training_results.model_parameters is not None, "training_results.model_params is required"
+    assert training_results.transformations is not None, "training_results.transformations is required"
+
     _, child_synthesized = sample_from_diffusion(
         df=data,
-        df_info=training_results["df_info"],
-        diffusion=training_results["diffusion"],
-        dataset=training_results["dataset"],
-        label_encoders=training_results["label_encoders"],
+        table_metadata=training_results.table_metadata,
+        diffusion=training_results.diffusion,
+        dataset=training_results.dataset,
+        label_encoders=training_results.label_encoders,
         sample_size=int(sample_scale * len(data)),
-        model_params=ModelParameters(**training_results["model_params"]),
-        transformations=Transformations(**training_results["T_dict"]),
+        model_params=training_results.model_parameters,
+        transformations=training_results.transformations,
         sample_batch_size=sample_batch_size,
     )
     child_keys = list(range(len(child_synthesized)))
@@ -857,9 +860,9 @@ def _synthesize_single_table(
     synthesized_final_df = pd.DataFrame(
         synthesized_final_data,
         columns=[f"{table_name}_id"]
-        + training_results["df_info"]["num_cols"]
-        + training_results["df_info"]["cat_cols"]
-        + [training_results["df_info"]["y_col"]],
+        + training_results.table_metadata.numerical_column_names
+        + training_results.table_metadata.categorical_column_names
+        + [training_results.table_metadata.target_column_name],
     )
 
     synthesized_final_df = synthesized_final_df[[f"{table_name}_id"] + data.columns.tolist()]
@@ -872,7 +875,7 @@ def _synthesize_multi_table(
     child_name: str,
     parent_training_results: ModelArtifacts,
     child_training_results: ModelArtifacts,
-    parent_synthetic_data: ModelArtifacts,
+    parent_synthetic_data: dict[str, Any],
     data: pd.DataFrame,
     group_length_prob_dict: GroupLengthProbDict,
     tables: Tables,
@@ -900,21 +903,25 @@ def _synthesize_multi_table(
             - A DataFrame containing the synthesized data.
             - The list of keys for the synthesized data.
     """
+    assert child_training_results.classifier is not None, "child_training_results.classifier is required"
+    assert child_training_results.table_metadata is not None, "child_training_results.table_metadata is required"
+
     parent_synthetic_df = parent_synthetic_data["df"]
     parent_keys = parent_synthetic_data["keys"]
 
-    parent_label_index = parent_training_results["column_orders"].index(child_training_results["df_info"]["y_col"])
+    child_target_column_name = child_training_results.table_metadata.target_column_name
+    parent_label_index = parent_training_results.column_orders.index(child_target_column_name)
 
     parent_synthetic_df_without_id = get_df_without_id(parent_synthetic_df)
     group_labels = parent_synthetic_df_without_id.values[:, parent_label_index].astype(float).astype(int).tolist()
 
     _, child_synthesized, child_sampled_group_sizes = conditional_sample_from_diffusion(
         df=data,
-        df_info=child_training_results["df_info"],
-        dataset=child_training_results["dataset"],
-        label_encoders=child_training_results["label_encoders"],
-        classifier=child_training_results["classifier"],
-        diffusion=child_training_results["diffusion"],
+        table_metadata=child_training_results.table_metadata,
+        dataset=child_training_results.dataset,
+        label_encoders=child_training_results.label_encoders,
+        classifier=child_training_results.classifier,
+        diffusion=child_training_results.diffusion,
         group_labels=group_labels,
         group_length_prob_dict=group_length_prob_dict,
         sample_batch_size=sample_batch_size,
@@ -937,15 +944,15 @@ def _synthesize_multi_table(
 
     child_final_columns = (
         [f"{child_name}_id"]
-        + child_training_results["df_info"]["num_cols"]
-        + child_training_results["df_info"]["cat_cols"]
-        + [child_training_results["df_info"]["y_col"]]
+        + child_training_results.table_metadata.numerical_column_names
+        + child_training_results.table_metadata.categorical_column_names
+        + [child_training_results.table_metadata.target_column_name]
         + [f"{parent_name}_id"]
     )
 
     child_final_df = pd.DataFrame(child_synthesized_final_arr, columns=child_final_columns)
     original_columns = []
-    for col in tables[child_name]["df"].columns:
+    for col in tables[child_name].data.columns:
         if col in child_final_df.columns:
             original_columns.append(col)
     child_final_df = child_final_df[original_columns]
@@ -971,7 +978,9 @@ def _clean_and_save_synthetic_data(
     """
     cleaned_synthetic_data: dict[str, pd.DataFrame] = {}
     for table_key, table_val in synthetic_data.items():
-        column_names = [column_name for column_name in tables[table_key]["original_cols"] if "_id" not in column_name]
+        column_names = [
+            column_name for column_name in tables[table_key].original_column_names if "_id" not in column_name
+        ]
         cleaned_synthetic_data[table_key] = pd.DataFrame(table_val[column_names])
 
     for cleaned_key, cleaned_val in cleaned_synthetic_data.items():

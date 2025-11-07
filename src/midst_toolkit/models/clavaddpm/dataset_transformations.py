@@ -1,4 +1,5 @@
 from collections import Counter
+from dataclasses import dataclass
 from logging import INFO
 from typing import Any
 
@@ -28,6 +29,13 @@ from midst_toolkit.models.clavaddpm.enumerations import (
 # Wildcard value to which all rare categorical variables are mapped
 CAT_RARE_VALUE = "_rare_"
 CAT_MISSING_VALUE = "_nan_"
+
+
+@dataclass
+class TargetInfo:
+    policy: TargetPolicy | None = None
+    mean: float | None = None
+    std: float | None = None
 
 
 # Inspired by: https://github.com/yandex-research/rtdl/blob/a4c93a32b334ef55d2a0559a4407c8306ffeeaee/lib/data.py#L20
@@ -258,8 +266,10 @@ def encode_categorical_features(
 
 
 def transform_targets(
-    target_datasets: ArrayDict, policy: TargetPolicy | None, task_type: TaskType
-) -> tuple[ArrayDict, dict[str, Any]]:
+    target_datasets: ArrayDict,
+    policy: TargetPolicy | None,
+    task_type: TaskType,
+) -> tuple[ArrayDict, TargetInfo]:
     """
     Applies a transformation to the provided target values across data splits based on the policy specified in
     ``policy``. If no policy is provided or the task type is not Regression, nothing is done. If the policy is
@@ -278,9 +288,9 @@ def transform_targets(
         A tuple with the transformed target values across datasets and the metadata that stores information about
         how the transformation was performed.
     """
-    info: dict[str, Any] = {"policy": policy}
+    target_info = TargetInfo(policy=policy)
     if policy is None:
-        return target_datasets, info
+        return target_datasets, target_info
 
     if policy == TargetPolicy.DEFAULT:
         if task_type == TaskType.REGRESSION:
@@ -288,9 +298,9 @@ def transform_targets(
             mean = float(train_split.mean())
             std = float(train_split.std())
             target_datasets = {split: (target_data - mean) / std for split, target_data in target_datasets.items()}
-            info["mean"] = mean
-            info["std"] = std
+            target_info.mean = mean
+            target_info.std = std
     else:
         raise ValueError(f"Unsupported policy: {policy.value}")
 
-    return target_datasets, info
+    return target_datasets, target_info

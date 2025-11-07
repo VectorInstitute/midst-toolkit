@@ -5,10 +5,8 @@ from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.models.clavaddpm.dataset_utils import (
     encode_and_merge_features,
-    get_categorical_and_numerical_column_names,
     get_category_sizes,
 )
-from midst_toolkit.models.clavaddpm.enumerations import IsTargetConditioned
 
 
 def test_get_category_sizes() -> None:
@@ -18,33 +16,6 @@ def test_get_category_sizes() -> None:
 
     assert get_category_sizes(tensor_to_process) == [3, 2, 1]
     assert get_category_sizes(array_to_process) == [3, 2, 1]
-
-
-def test_get_categorical_and_numerical_column_names() -> None:
-    info_1 = {"num_cols": ["col_1", "col_3"], "cat_cols": ["col_2"], "y_col": "target", "n_classes": 0}
-    info_2 = {"num_cols": ["col_1", "col_2"], "cat_cols": ["col_3"], "y_col": "target", "n_classes": 2}
-
-    categorical_columns, numerical_columns = get_categorical_and_numerical_column_names(
-        info_1, is_target_conditioned=IsTargetConditioned.NONE
-    )
-    assert categorical_columns == ["col_2"]
-    assert numerical_columns == ["col_1", "col_3"]
-    categorical_columns, numerical_columns = get_categorical_and_numerical_column_names(
-        info_2, is_target_conditioned=IsTargetConditioned.NONE
-    )
-    assert categorical_columns == ["col_3"]
-    assert numerical_columns == ["col_1", "col_2"]
-
-    categorical_columns, numerical_columns = get_categorical_and_numerical_column_names(
-        info_1, is_target_conditioned=IsTargetConditioned.CONCAT
-    )
-    assert categorical_columns == ["col_2"]
-    assert numerical_columns == ["col_1", "col_3", "target"]
-    categorical_columns, numerical_columns = get_categorical_and_numerical_column_names(
-        info_2, is_target_conditioned=IsTargetConditioned.CONCAT
-    )
-    assert categorical_columns == ["col_3", "target"]
-    assert numerical_columns == ["col_1", "col_2"]
 
 
 def test_encode_and_merge_features() -> None:

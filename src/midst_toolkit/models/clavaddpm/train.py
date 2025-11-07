@@ -1,8 +1,8 @@
 """Defines the training functions for the ClavaDDPM model."""
 
 import pickle
-from collections.abc import Generator
-from dataclasses import asdict
+from collections.abc import Callable, Generator
+from dataclasses import dataclass
 from logging import INFO, WARNING
 from pathlib import Path
 from typing import Any
@@ -10,22 +10,21 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import torch
+from sklearn.preprocessing import LabelEncoder
 from torch import Tensor, optim
 
 from midst_toolkit.common.config import ClassifierConfig, DiffusionConfig
-from midst_toolkit.common.enumerations import DataSplit
+from midst_toolkit.common.enumerations import DataSplit, DomainDataType, TaskType
 from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.common.variables import DEVICE
-from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
-from midst_toolkit.models.clavaddpm.dataset import Dataset, Transformations
+from midst_toolkit.models.clavaddpm.data_loaders import NO_PARENT_COLUMN_NAME, Tables, prepare_fast_dataloader
+from midst_toolkit.models.clavaddpm.dataset import Dataset, TableMetadata, Transformations
 from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
     IsTargetConditioned,
-    ModelArtifacts,
     ReductionMethod,
     Relation,
     RelationOrder,
-    Tables,
     TargetType,
 )
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
@@ -33,10 +32,26 @@ from midst_toolkit.models.clavaddpm.model import (
     Classifier,
     DiffusionParameters,
     ModelParameters,
-    get_table_info,
 )
 from midst_toolkit.models.clavaddpm.sampler import ScheduleSampler, ScheduleSamplerType
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
+
+
+@dataclass
+class ModelArtifacts:
+    diffusion: GaussianMultinomialDiffusion
+    label_encoders: dict[int, LabelEncoder]
+    dataset: Dataset
+    column_orders: list[str]
+    num_numerical_features: int
+    category_sizes: np.ndarray
+    is_regression: bool
+    inverse_transform_function: Callable[[np.ndarray], np.ndarray] | None = None
+    empirical_class_dist: Tensor | None = None
+    classifier: Classifier | None = None
+    table_metadata: TableMetadata | None = None
+    model_parameters: ModelParameters | None = None
+    transformations: Transformations | None = None
 
 
 def clava_training(
@@ -46,22 +61,12 @@ def clava_training(
     diffusion_config: DiffusionConfig,
     classifier_config: ClassifierConfig | None = None,
     device: torch.device = DEVICE,
-) -> tuple[Tables, dict[Relation, dict[str, Any]]]:
+) -> tuple[Tables, dict[Relation, ModelArtifacts]]:
     """
     Training function for the ClavaDDPM model.
 
     Args:
-        tables: Definition of the tables and their relations. Example:
-            {
-                "table1": {
-                    "children": ["table2"],
-                    "parents": []
-                },
-                "table2": {
-                    "children": [],
-                    "parents": ["table1"]
-                }
-            }
+        tables: Dictionary of tables by table name, as loaded from the load_tables function.
         relation_order: List of tuples of parent and child tables. Example:
             [("table1", "table2"), ("table1", "table3")]
         save_dir: Directory to save the ClavaDDPM models.
@@ -73,18 +78,18 @@ def clava_training(
     Returns:
         A tuple with 2 values:
             - The tables dictionary.
-            - Dictionary of models for each parent-child pair.
+            - Dictionary of ModelArtifacts for each parent-child pair.
     """
     models = {}
     for parent, child in relation_order:
         print(f"Training {parent} -> {child} model from scratch")
-        df_with_cluster = tables[child]["df"]
+        df_with_cluster = tables[child].data
         id_cols = [col for col in df_with_cluster.columns if "_id" in col]
         df_without_id = df_with_cluster.drop(columns=id_cols)
 
         result = child_training(
             df_without_id,
-            tables[child]["domain"],
+            tables[child].domain,
             parent,
             child,
             diffusion_config,
@@ -106,7 +111,7 @@ def clava_training(
 
     for parent, child in relation_order:
         if parent is None:
-            tables[child]["df"]["placeholder"] = list(range(len(tables[child]["df"])))
+            tables[child].data[NO_PARENT_COLUMN_NAME] = list(range(len(tables[child].data)))
 
     save_table_info(tables, relation_order, models, save_dir)
 
@@ -121,7 +126,7 @@ def child_training(
     diffusion_config: DiffusionConfig,
     classifier_config: ClassifierConfig | None = None,
     device: torch.device = DEVICE,
-) -> dict[str, Any]:
+) -> ModelArtifacts:
     """
     Training function for a single child table.
 
@@ -141,18 +146,18 @@ def child_training(
         device: Device to use for training. Default is midst_toolkit.common.variables.DEVICE.
 
     Returns:
-        Dictionary of the training results.
+        ModelArtifacts containing the training results.
     """
     if parent_name is None:
         # If there is no parent for this child table, just set a placeholder
         # for its column name. This can happen on single table training or
         # when the table is on the top level of the hierarchy.
-        # TODO: find a better name for this variable
-        y_col = "placeholder"
-        child_df_with_cluster["placeholder"] = list(range(len(child_df_with_cluster)))
+        target_column_name = NO_PARENT_COLUMN_NAME
+        child_df_with_cluster[NO_PARENT_COLUMN_NAME] = list(range(len(child_df_with_cluster)))
     else:
-        y_col = f"{parent_name}_{child_name}_cluster"
-    child_info = get_table_info(child_df_with_cluster, child_domain, y_col)
+        target_column_name = f"{parent_name}_{child_name}_cluster"
+
+    child_metadata = get_table_metadata(child_df_with_cluster, child_domain, target_column_name)
     child_model_params = ModelParameters(
         diffusion_parameters=DiffusionParameters(
             layers_dimensions=diffusion_config.d_layers,
@@ -163,7 +168,7 @@ def child_training(
 
     child_result = train_model(
         child_df_with_cluster,
-        child_info,
+        child_metadata,
         child_model_params,
         child_transformations,
         diffusion_config,
@@ -171,62 +176,58 @@ def child_training(
     )
 
     if parent_name is None:
-        child_result["classifier"] = None
+        child_result.classifier = None
     else:
         assert classifier_config is not None, "Classifier config is required for multi-table training"
         if classifier_config.iterations > 0:
             child_classifier = train_classifier(
                 child_df_with_cluster,
-                child_info,
+                child_metadata,
                 child_model_params,
                 child_transformations,
                 diffusion_config,
                 classifier_config,
                 device=device,
-                cluster_col=y_col,
+                cluster_col=target_column_name,
             )
-            child_result["classifier"] = child_classifier
+            child_result.classifier = child_classifier
         else:
             log(WARNING, "Skipping classifier training since classifier_config.iterations <= 0")
 
-    child_result["df_info"] = child_info
-    child_result["model_params"] = asdict(child_model_params)
-    child_result["T_dict"] = asdict(child_transformations)
+    child_result.table_metadata = child_metadata
+    child_result.model_parameters = child_model_params
+    child_result.transformations = child_transformations
     return child_result
 
 
 def train_model(
     data_frame: pd.DataFrame,
-    data_frame_info: dict[str, Any],
+    table_metadata: TableMetadata,
     model_params: ModelParameters,
     transformations: Transformations,
     diffusion_config: DiffusionConfig,
     device: torch.device = DEVICE,
-) -> dict[str, Any]:
+) -> ModelArtifacts:
     """
     Training function for the diffusion model.
 
     Args:
         data_frame: DataFrame to train the model on.
-        data_frame_info: Dictionary of the table information.
+        table_metadata: TableMetadata object containing metadata information about the table.
         model_params: The model parameters.
         transformations: The transformations to apply to the dataset.
         diffusion_config: Configurations for the diffusion model.
         device: Device to use for training. Default is midst_toolkit.common.variables.DEVICE.
 
     Returns:
-        Dictionary of the training results. It will contain the following keys:
-            - diffusion: The diffusion model.
-            - label_encoders: The label encoders.
-            - dataset: The dataset.
-            - column_orders: The column orders.
+        ModelArtifacts containing the training results.
     """
     dataset, label_encoders, column_orders = Dataset.from_df(
         data_frame,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
         data_split_percentages=diffusion_config.data_split_ratios,
-        info=data_frame_info,
+        table_metadata=table_metadata,
         noise_scale=0,
     )
 
@@ -274,28 +275,28 @@ def train_model(
     if model_params.is_target_conditioned == IsTargetConditioned.CONCAT:
         column_orders = column_orders[1:] + [column_orders[0]]
     else:
-        column_orders = column_orders + [data_frame_info["y_col"]]
+        column_orders = column_orders + [table_metadata.target_column_name]
 
     inverse_transform_function = None
     if dataset.numerical_transform is not None:
         inverse_transform_function = dataset.numerical_transform.inverse_transform
 
-    return {
-        "diffusion": diffusion,
-        "label_encoders": label_encoders,
-        "dataset": dataset,
-        "column_orders": column_orders,
-        "num_numerical_features": num_numerical_features,
-        "K": category_sizes,
-        "empirical_class_dist": empirical_class_dist,
-        "is_regression": dataset.is_regression,
-        "inverse_transform": inverse_transform_function,
-    }
+    return ModelArtifacts(
+        diffusion=diffusion,
+        label_encoders=label_encoders,
+        dataset=dataset,
+        column_orders=column_orders,
+        num_numerical_features=num_numerical_features,
+        category_sizes=category_sizes,
+        empirical_class_dist=empirical_class_dist,
+        is_regression=dataset.is_regression,
+        inverse_transform_function=inverse_transform_function,
+    )
 
 
 def train_classifier(
     data_frame: pd.DataFrame,
-    data_frame_info: dict[str, Any],
+    table_metadata: TableMetadata,
     model_params: ModelParameters,
     transformations: Transformations,
     diffusion_config: DiffusionConfig,
@@ -310,7 +311,7 @@ def train_classifier(
 
     Args:
         data_frame: DataFrame to train the model on.
-        data_frame_info: Dictionary of the table information.
+        table_metadata: TableMetadata object containing metadata about the dataset.
         model_params: The model parameters.
         transformations: The transformations to apply to the dataset.
         diffusion_config: Configurations for the diffusion model.
@@ -330,7 +331,7 @@ def train_classifier(
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
         data_split_percentages=classifier_config.data_split_ratios,
-        info=data_frame_info,
+        table_metadata=table_metadata,
         noise_scale=0,
     )
     print(dataset.n_features)
@@ -452,6 +453,36 @@ def train_classifier(
     return classifier
 
 
+def get_table_metadata(df: pd.DataFrame, table_domain: dict[str, Any], target_column_name: str) -> TableMetadata:
+    """
+    Get the table metadata.
+
+    Args:
+        df: The dataframe containing the data.
+        table_domain: The table's domain dictionary containing metadata about the data columns.
+        target_column_name: The name of the target column.
+
+    Returns:
+        The table metadata as an instance of TableMetadata.
+    """
+    categorical_cols = []
+    numerical_cols = []
+    for column in df.columns:
+        if column in table_domain and column != target_column_name:
+            if table_domain[column]["type"] == DomainDataType.DISCRETE.value:
+                categorical_cols.append(column)
+            else:
+                numerical_cols.append(column)
+
+    return TableMetadata(
+        categorical_column_names=categorical_cols,
+        numerical_column_names=numerical_cols,
+        target_column_name=target_column_name,
+        n_classes=0,
+        task_type=TaskType.MULTICLASS_CLASSIFICATION,
+    )
+
+
 def save_table_info(
     tables: Tables,
     relation_order: RelationOrder,
@@ -462,7 +493,7 @@ def save_table_info(
     Save the table information into the save_dir.
 
     Args:
-        tables: Dictionary of the tables by name.
+        tables: Dictionary of tables by table name, as loaded from the load_tables function.
         relation_order: List of tuples of parent and child tables. Example:
             [("table1", "table2"), ("table1", "table3")]
         models: Dictionary of models for each parent-child pair.
@@ -471,33 +502,43 @@ def save_table_info(
     table_info = {}
     for parent, child in relation_order:
         result = models[(parent, child)]
-        df_with_cluster = tables[child]["df"]
+        df_with_cluster = tables[child].data
         df_without_id = get_df_without_id(df_with_cluster)
-        df_info = result["df_info"]
-        x_num_real = df_without_id[df_info["num_cols"]].to_numpy().astype(float)
+
+        assert result.table_metadata is not None, "Table metadata is required"
+        table_metadata = result.table_metadata
+        x_num_real = df_without_id[table_metadata.numerical_column_names].to_numpy().astype(float)
         unique_values_list = []
+
         for column in range(x_num_real.shape[1]):
             unique_values = np.unique(x_num_real[:, column])
             unique_values_list.append(unique_values)
+
         table_info[(parent, child)] = {
             "uniq_vals_list": unique_values_list,
             "size": len(df_with_cluster),
-            "columns": tables[child]["df"].columns,
-            "parents": tables[child]["parents"],
-            "original_cols": tables[child]["original_cols"],
+            "columns": tables[child].data.columns,
+            "parents": tables[child].parents,
+            "original_cols": tables[child].original_column_names,
         }
-        required_keys = ["num_numerical_features", "is_regression", "inverse_transform", "empirical_class_dist", "K"]
-        filtered_result = {key: result[key] for key in required_keys}
+
+        filtered_result = {
+            "num_numerical_features": result.num_numerical_features,
+            "is_regression": result.is_regression,
+            "inverse_transform_function": result.inverse_transform_function,
+            "empirical_class_dist": result.empirical_class_dist,
+            "category_sizes": result.category_sizes,
+        }
         table_info[(parent, child)].update(filtered_result)
 
     for parent, child in relation_order:
         with open(save_dir / f"models/{parent}_{child}_ckpt.pkl", "rb") as f:
-            result = pickle.load(f)
+            loaded_result = pickle.load(f)
 
-        result["table_info"] = table_info
+        loaded_result.table_info = table_info
 
         with open(save_dir / f"models/{parent}_{child}_ckpt.pkl", "wb") as f:
-            pickle.dump(result, f)
+            pickle.dump(loaded_result, f)
 
 
 def get_df_without_id(df: pd.DataFrame) -> pd.DataFrame:

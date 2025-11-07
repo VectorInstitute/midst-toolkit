@@ -1,17 +1,13 @@
 from enum import Enum
-from typing import Any
 
 import numpy as np
 
 
-# TODO: Temporary, will switch to classes later
-Tables = dict[str, dict[str, Any]]
 Relation = tuple[str, str]
 RelationOrder = list[Relation]
 GroupLengthProbDict = dict[int, dict[int, float]]
 GroupLengthsProbDicts = dict[Relation, GroupLengthProbDict]
 ArrayDict = dict[str, np.ndarray]
-ModelArtifacts = dict[str, Any]
 
 
 class ClusteringMethod(Enum):
