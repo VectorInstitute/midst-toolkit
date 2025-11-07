@@ -100,7 +100,7 @@ def _run_clustering(
     Run the clustering process.
 
     Args:
-        tables: Dictionary of tables by table name, asloaded from the load_tables function.
+        tables: Dictionary of tables by table name, as loaded from the load_tables function.
         relation_order: List of tuples of parent and child tables. Example:
             [("table1", "table2"), ("table1", "table3")]
         configs: Configuration for the clustering model.
