@@ -34,8 +34,14 @@ class DomainDataType(Enum):
     DISCRETE = "discrete"
 
 
-class InfoDataType(Enum):
-    """Possible types of column information data."""
+class ColumnType(Enum):
+    """Possible types of column data."""
 
     NUMERICAL = "numerical"
     CATEGORICAL = "categorical"
+
+
+class ComputerRepresentation(Enum):
+    """Possible types of computer representation for data values."""
+
+    FLOAT = "Float"

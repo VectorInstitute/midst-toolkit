@@ -16,12 +16,12 @@ from sklearn.preprocessing import LabelEncoder, MinMaxScaler, OneHotEncoder, Qua
 from midst_toolkit.common.config import ClusteringConfig
 from midst_toolkit.common.enumerations import DomainDataType
 from midst_toolkit.common.logger import log
+from midst_toolkit.models.clavaddpm.data_loaders import NO_PARENT_COLUMN_NAME, Tables
 from midst_toolkit.models.clavaddpm.enumerations import (
     ClusteringMethod,
     DataAndKeyNormalizationType,
     GroupLengthsProbDicts,
     RelationOrder,
-    Tables,
 )
 
 
@@ -35,17 +35,7 @@ def clava_clustering(
     Clustering function for the multi-table function of the ClavaDDPM model.
 
     Args:
-        tables: Definition of the tables and their relations. Example:
-            {
-                "table1": {
-                    "children": ["table2"],
-                    "parents": []
-                },
-                "table2": {
-                    "children": [],
-                    "parents": ["table1"]
-                }
-            }
+        tables: Dictionary of tables by table name, as loaded from the load_tables function.
         relation_order: List of tuples of parent and child tables. Example:
             [("table1", "table2"), ("table1", "table3")]
         save_dir: Directory to save the clustering checkpoint.
@@ -75,7 +65,7 @@ def clava_clustering(
     # adding a placeholder for the top level tables (i.e. tables with no parent)
     for parent, child in relation_order:
         if parent is None:
-            tables[child]["df"]["placeholder"] = list(range(len(tables[child]["df"])))
+            tables[child].data[NO_PARENT_COLUMN_NAME] = list(range(len(tables[child].data)))
 
     return tables, all_group_lengths_prob_dicts
 
@@ -110,7 +100,7 @@ def _run_clustering(
     Run the clustering process.
 
     Args:
-        tables: Dictionary of the tables by name.
+        tables: Dictionary of tables by table name, as loaded from the load_tables function.
         relation_order: List of tuples of parent and child tables. Example:
             [("table1", "table2"), ("table1", "table3")]
         configs: Configuration for the clustering model.
@@ -139,8 +129,8 @@ def _run_clustering(
                 1,  # not used for now
                 clustering_method=configs.clustering_method,
             )
-            tables[parent]["df"] = parent_df_with_cluster
-            tables[child]["df"] = child_df_with_cluster
+            tables[parent].data = parent_df_with_cluster
+            tables[child].data = child_df_with_cluster
             all_group_lengths_prob_dicts[(parent, child)] = group_lengths_prob_dicts
 
     return tables, all_group_lengths_prob_dicts
@@ -162,7 +152,7 @@ def _pair_clustering(
     Used by the mutli-table function of the ClavaDDPM model.
 
     Args:
-        tables: Dictionary of the tables by name.
+        tables: Dictionary of tables by table name, as loaded from the load_tables function.
         parent_name: Name of the parent table.
         child_name: Name of the child table.
         num_clusters: Number of clusters.
@@ -187,11 +177,11 @@ def _pair_clustering(
                 "size": num_clusters,
             }
     """
-    child_df = tables[child_name]["df"]
-    parent_df = tables[parent_name]["df"]
+    child_df = tables[child_name].data
+    parent_df = tables[parent_name].data
     # The domain dictionary holds metadata about the columns of each one of the tables.
-    child_domain = tables[child_name]["domain"]
-    parent_domain = tables[parent_name]["domain"]
+    child_domain = tables[child_name].domain
+    parent_domain = tables[parent_name].domain
     child_primary_key = f"{child_name}_id"
     parent_primary_key = f"{parent_name}_id"
     all_child_columns = list(child_df.columns)

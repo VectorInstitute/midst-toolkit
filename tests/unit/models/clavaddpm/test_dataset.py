@@ -8,14 +8,18 @@ from midst_toolkit.common.enumerations import TaskType
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.models.clavaddpm.dataset import (
     Dataset,
+    TableMetadata,
     Transformations,
     get_cached_dataset,
+    get_categorical_and_numerical_column_names,
     process_nans_in_numerical_features,
     setup_cache_path,
 )
+from midst_toolkit.models.clavaddpm.dataset_transformations import TargetInfo
 from midst_toolkit.models.clavaddpm.dataset_utils import dump_pickle
 from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
+    IsTargetConditioned,
     Normalization,
     NumericalNaNPolicy,
 )
@@ -72,7 +76,7 @@ def _get_test_dataset() -> Dataset:
         numerical_features=numerical_data_splits,
         categorical_features=categorical_data_splits,
         target=label_splits,
-        target_info={},
+        target_info=TargetInfo(),
         task_type=TaskType.BINARY_CLASSIFICATION,
         n_classes=2,
     )
@@ -184,3 +188,42 @@ def test_get_cached_dataset(tmp_path: Path) -> None:
     dataset_cache = get_cached_dataset(cache_path, transformations_1)
 
     assert np.allclose(dataset_cache.numerical_features["train"], dataset.numerical_features["train"], atol=1e-8)
+
+
+def test_get_categorical_and_numerical_column_names() -> None:
+    info_1 = TableMetadata(
+        numerical_column_names=["col_1", "col_3"],
+        categorical_column_names=["col_2"],
+        target_column_name="target",
+        n_classes=0,
+        task_type=TaskType.BINARY_CLASSIFICATION,
+    )
+    info_2 = TableMetadata(
+        numerical_column_names=["col_1", "col_2"],
+        categorical_column_names=["col_3"],
+        target_column_name="target",
+        n_classes=2,
+        task_type=TaskType.BINARY_CLASSIFICATION,
+    )
+
+    categorical_columns, numerical_columns = get_categorical_and_numerical_column_names(
+        info_1, is_target_conditioned=IsTargetConditioned.NONE
+    )
+    assert categorical_columns == ["col_2"]
+    assert numerical_columns == ["col_1", "col_3"]
+    categorical_columns, numerical_columns = get_categorical_and_numerical_column_names(
+        info_2, is_target_conditioned=IsTargetConditioned.NONE
+    )
+    assert categorical_columns == ["col_3"]
+    assert numerical_columns == ["col_1", "col_2"]
+
+    categorical_columns, numerical_columns = get_categorical_and_numerical_column_names(
+        info_1, is_target_conditioned=IsTargetConditioned.CONCAT
+    )
+    assert categorical_columns == ["col_2"]
+    assert numerical_columns == ["col_1", "col_3", "target"]
+    categorical_columns, numerical_columns = get_categorical_and_numerical_column_names(
+        info_2, is_target_conditioned=IsTargetConditioned.CONCAT
+    )
+    assert categorical_columns == ["col_3", "target"]
+    assert numerical_columns == ["col_1", "col_2"]

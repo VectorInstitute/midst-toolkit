@@ -9,7 +9,7 @@ import torch
 from sklearn.preprocessing import LabelEncoder
 
 from midst_toolkit.common.enumerations import DataSplit
-from midst_toolkit.models.clavaddpm.enumerations import ArrayDict, IsTargetConditioned
+from midst_toolkit.models.clavaddpm.enumerations import ArrayDict
 
 
 def load_pickle(path: Path | str, **kwargs: Any) -> Any:
@@ -51,36 +51,6 @@ def get_category_sizes(features: torch.Tensor | np.ndarray) -> list[int]:
     """
     columns_list = features.T.cpu().tolist() if isinstance(features, torch.Tensor) else features.T.tolist()
     return [len(set(column)) for column in columns_list]
-
-
-def get_categorical_and_numerical_column_names(
-    info: dict[str, Any],
-    is_target_conditioned: IsTargetConditioned,
-) -> tuple[list[str], list[str]]:
-    """
-    Get the categorical and numerical column names from the info dictionary. It will also consider whether the target
-    variable should be considered a categorical column or not. If ``is_target_conditioned`` is
-    ``IsTargetConditioned.CONCAT``, then the label column is considered part of the categorical or numerical columns.
-    If info["n_classes"] > 0, it is deemed a categorical column. If not, then it is deemed a numerical column.
-
-    Args:
-        info: The info dictionary containing metadata for a dataset, including the names of the categorical and
-            numerical columns.
-        is_target_conditioned: The condition on the y column.
-
-    Returns:
-        A tuple of lists with the categorical column names, followed by the numerical column names
-    """
-    numerical_columns = info["num_cols"] if info["num_cols"] is not None else []
-    categorical_columns = info["cat_cols"] if info["cat_cols"] is not None else []
-
-    if is_target_conditioned == IsTargetConditioned.CONCAT:
-        if info["n_classes"] > 0:
-            categorical_columns += [info["y_col"]]
-        else:
-            numerical_columns += [info["y_col"]]
-
-    return categorical_columns, numerical_columns
 
 
 def encode_and_merge_features(

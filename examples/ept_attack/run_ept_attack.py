@@ -114,12 +114,15 @@ def main(config: DictConfig) -> None:
     else:
         log(INFO, "Data: Multi-table.")
 
+    # TODO: Implement potential data preprocessing step.
     # TODO: Implement shadow model training step.
 
     if config.pipeline.run_attribute_prediction_model_training:
         run_attribute_prediction(config)
     if config.pipeline.run_attack_classifier_training:
         run_attack_classifier_training(config)
+
+    # TODO: Implement attack classifier training step.
 
 
 if __name__ == "__main__":

@@ -10,10 +10,63 @@ import pandas as pd
 import torch
 from torch import Tensor
 
-from midst_toolkit.common.enumerations import DataSplit, DomainDataType, InfoDataType, TaskType
+from midst_toolkit.common.enumerations import ColumnType, ComputerRepresentation, DataSplit, DomainDataType, TaskType
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.dataset import Dataset
-from midst_toolkit.models.clavaddpm.enumerations import RelationOrder, Tables, TargetType
+from midst_toolkit.models.clavaddpm.enumerations import RelationOrder, TargetType
+
+
+@dataclass
+class NumericalColumnInfo:
+    max: float
+    min: float
+
+
+@dataclass
+class CategoricalColumnInfo:
+    categorizes: list[str]
+
+
+@dataclass
+class ColumnInfo:
+    type: ColumnType
+    info: NumericalColumnInfo | CategoricalColumnInfo
+
+
+@dataclass
+class ColumnMetadata:
+    sdtype: ColumnType
+    computer_representation: ComputerRepresentation | None = None
+
+
+@dataclass
+class DomainInfo:
+    numerical_column_indices: list[int]
+    categorical_column_indices: list[int]
+    target_column_indices: list[int]
+    task_type: TaskType | None
+    column_names: list[str]
+    columns_info: dict[str, ColumnInfo] | None = None
+    train_num: int | None = None
+    test_num: int | None = None
+    metadata: dict[int, ColumnMetadata] | None = None
+
+
+@dataclass
+class Table:
+    data: pd.DataFrame
+    domain: dict[str, Any]
+    children: list[str]
+    parents: list[str]
+    original_column_names: list[str]
+    original_data: pd.DataFrame
+    info: DomainInfo
+
+
+Tables = dict[str, Table]
+
+
+NO_PARENT_COLUMN_NAME = "placeholder"  # Value to assign to key column for tables with no parent
 
 
 def load_tables(
@@ -30,7 +83,7 @@ def load_tables(
         verbose: Whether to print verbose output. Optional, default is True.
         training_data_ratio: The ratio of the data to be used for training. Should be between 0 and 1.
             If it's equal to 1, it will only return the training set. Optional, default is 1.
-        train_data: Optional dictionary of already loaded tabel DataFrames to be used
+        train_data: Optional dictionary of already loaded table DataFrames to be used
             as the training data. If None, the function will look for a train.csv or ``f{table_name}.csv``
             file in the ``data_dir``.
 
@@ -58,25 +111,24 @@ def load_tables(
         with open(data_dir / f"{table}_domain.json", "r") as f:
             domain = json.load(f)
 
-        tables[table] = {
-            "df": train_df,
-            "domain": domain,
-            "children": meta["children"],
-            "parents": meta["parents"],
-        }
-        tables[table]["original_cols"] = list(tables[table]["df"].columns)
-        tables[table]["original_df"] = tables[table]["df"].copy()
-        id_cols = [col for col in tables[table]["df"].columns if "_id" in col]
-        df_no_id = tables[table]["df"].drop(columns=id_cols)
-        table_domain = tables[table]["domain"]
+        id_cols = [col for col in train_df.columns if "_id" in col]
+        df_no_id = train_df.drop(columns=id_cols)
+        info = process_pipeline_data(df_no_id, domain, training_data_ratio, verbose)
 
-        _, info = process_pipeline_data(df_no_id, table_domain, training_data_ratio, verbose)
-        tables[table]["info"] = info
+        tables[table] = Table(
+            data=train_df,
+            domain=domain,
+            children=meta["children"],
+            parents=meta["parents"],
+            original_column_names=list(train_df.columns),
+            original_data=train_df.copy(),
+            info=info,
+        )
 
     return tables, relation_order, dataset_meta
 
 
-def get_info_from_domain(data: pd.DataFrame, table_domain: dict[str, Any]) -> dict[str, Any]:
+def get_info_from_domain(data: pd.DataFrame, table_domain: dict[str, Any]) -> DomainInfo:
     """
     Get the information dictionary from the table domain dictionary.
 
@@ -85,28 +137,29 @@ def get_info_from_domain(data: pd.DataFrame, table_domain: dict[str, Any]) -> di
         table_domain: The table's domain dictionary containing metadata about the data columns.
 
     Returns:
-        The information dictionary containing the following keys:
-        - num_col_idx: The indices of the numerical columns.
-        - cat_col_idx: The indices of the categorical columns.
-        - target_col_idx: The indices of the target columns.
-        - task_type: The type of the task.
-        - column_names: The names of all the columns.
+        An instance of DomainInfo with the following fields populated:
+            - numerical_column_indices: The indices of the numerical columns.
+            - categorical_column_indices: The indices of the categorical columns.
+            - target_column_indices: The indices of the target columns.
+            - task_type: The type of the task.
+            - column_names: The names of all the columns.
     """
-    info: dict[str, Any] = {}
-    info["num_col_idx"] = []
-    info["cat_col_idx"] = []
+    numerical_column_indices = []
+    categorical_column_indices = []
     columns = data.columns.tolist()
     for i in range(len(columns)):
         if table_domain[columns[i]]["type"] == DomainDataType.DISCRETE.value:
-            info["cat_col_idx"].append(i)
+            categorical_column_indices.append(i)
         else:
-            info["num_col_idx"].append(i)
+            numerical_column_indices.append(i)
 
-    info["target_col_idx"] = []
-    info["task_type"] = None
-    info["column_names"] = columns
-
-    return info
+    return DomainInfo(
+        numerical_column_indices=numerical_column_indices,
+        categorical_column_indices=categorical_column_indices,
+        target_column_indices=[],
+        task_type=None,
+        column_names=columns,
+    )
 
 
 @dataclass
@@ -129,7 +182,7 @@ def process_pipeline_data(
     table_domain: dict[str, Any],
     training_data_ratio: float = 0.9,
     verbose: bool = True,
-) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+) -> DomainInfo:
     """
     Processes the data to be sent through the pipeline.
 
@@ -146,54 +199,33 @@ def process_pipeline_data(
         verbose: Whether to print verbose output. Optional, default is True.
 
     Returns:
-        A tuple with 2 values:
-            - The data dictionary containing the following keys:
-                - "df": The dataframe containing the data.
-                    - DataSplit.TRAIN: The dataframe containing the training set.
-                    - DataSplit.TEST: The dataframe containing the test set. It will be absent if
-                        training_data_ratio == 1.
-                - "numpy": A dictionary with the numeric data, containing the keys:
-                    - "x_num_train": The numeric data for the training set.
-                    - "x_cat_train": The categorical data for the training set.
-                    - "y_train": The target data for the training set.
-                    - "x_num_test": The numeric data for the test set. It will be absent if
-                        training_data_ratio == 1.
-                    - "x_cat_test": The categorical data for the test set. It will be absent if
-                        training_data_ratio == 1.
-                    - "y_test": The target data for the test set. It will be absent if
-                        training_data_ratio == 1.
-            - The information dictionary as returned by the _split_data_and_populate_info function
-                with additional metadata.
+        A fully populated DomainInfo object.
     """
     data_splits, info = _split_data_and_generate_info(data, table_domain, training_data_ratio)
 
-    metadata: dict[str, Any] = {"columns": {}}
-    task_type = info["task_type"]
-    numerical_column_indices = info["num_col_idx"]
-    categorical_column_indices = info["cat_col_idx"]
-    target_columns_indices = info["target_col_idx"]
+    metadata: dict[int, ColumnMetadata] = {}
 
-    for i in numerical_column_indices:
-        metadata["columns"][i] = {
-            "sdtype": InfoDataType.NUMERICAL.value,
-            "computer_representation": "Float",
-        }
+    for i in info.numerical_column_indices:
+        metadata[i] = ColumnMetadata(
+            sdtype=ColumnType.NUMERICAL,
+            computer_representation=ComputerRepresentation.FLOAT,
+        )
 
-    for i in categorical_column_indices:
-        metadata["columns"][i] = {"sdtype": InfoDataType.CATEGORICAL.value}
+    for i in info.categorical_column_indices:
+        metadata[i] = ColumnMetadata(sdtype=ColumnType.CATEGORICAL)
 
-    if task_type == TaskType.REGRESSION.value:
-        for i in target_columns_indices:
-            metadata["columns"][i] = {
-                "sdtype": InfoDataType.NUMERICAL.value,
-                "computer_representation": "Float",
-            }
+    if info.task_type == TaskType.REGRESSION:
+        for i in info.target_column_indices:
+            metadata[i] = ColumnMetadata(
+                sdtype=ColumnType.NUMERICAL,
+                computer_representation=ComputerRepresentation.FLOAT,
+            )
 
     else:
-        for i in target_columns_indices:
-            metadata["columns"][i] = {"sdtype": InfoDataType.CATEGORICAL.value}
+        for i in info.target_column_indices:
+            metadata[i] = ColumnMetadata(sdtype=ColumnType.CATEGORICAL)
 
-    info["metadata"] = metadata
+    info.metadata = metadata
 
     if verbose:
         log(INFO, f"Train dataframe shape: {data_splits.train_data.data.shape}")
@@ -206,33 +238,16 @@ def process_pipeline_data(
         log(INFO, f"Numerical data shape: {data_splits.train_data.numerical_features.shape}")
         log(INFO, f"Categorical data shape: {data_splits.train_data.categorical_features.shape}")
 
-    output_data: dict[str, dict[str, Any]] = {
-        "df": {
-            DataSplit.TRAIN.value: data_splits.train_data.data,
-        },
-        "numpy": {
-            "x_num_train": data_splits.train_data.numerical_features,
-            "x_cat_train": data_splits.train_data.categorical_features,
-            "y_train": data_splits.train_data.target_features,
-        },
-    }
-
-    if data_splits.test_data is not None:
-        output_data["df"][DataSplit.TEST.value] = data_splits.test_data.data
-        output_data["numpy"]["x_num_test"] = data_splits.test_data.numerical_features
-        output_data["numpy"]["x_cat_test"] = data_splits.test_data.categorical_features
-        output_data["numpy"]["y_test"] = data_splits.test_data.target_features
-
-    return output_data, info
+    return info
 
 
 def _get_columns_info(
     train_data: pd.DataFrame,
     numerical_column_indices: list[int],
     categorical_column_indices: list[int],
-    target_columns_indices: list[int],
+    target_column_indices: list[int],
     task_type: TaskType | None,
-) -> dict[str, Any]:
+) -> dict[str, ColumnInfo]:
     """
     Get the columns info dictionary to be populated into the info dictionary.
 
@@ -240,7 +255,7 @@ def _get_columns_info(
         train_data: The training data.
         numerical_column_indices: The indices of the numerical columns.
         categorical_column_indices: The indices of the categorical columns.
-        target_columns_indices: The indices of the target columns.
+        target_column_indices: The indices of the target columns.
         task_type: The type of the task. If None, it will assume the target
             columns are categorical.
 
@@ -254,33 +269,45 @@ def _get_columns_info(
             - type: equals to InfoDataType.CATEGORICAL.value.
             - categorizes: The list of possible categories of the column.
     """
-    columns_info: dict[Any, Any] = {}
+    columns_info: dict[str, ColumnInfo] = {}
 
     for column in numerical_column_indices:
         column_name = train_data.columns[column]
-        columns_info[column] = {}
-        columns_info["type"] = InfoDataType.NUMERICAL.value
-        columns_info["max"] = float(train_data[column_name].max())
-        columns_info["min"] = float(train_data[column_name].min())
+        columns_info[column_name] = ColumnInfo(
+            type=ColumnType.NUMERICAL,
+            info=NumericalColumnInfo(
+                max=float(train_data[column_name].max()),
+                min=float(train_data[column_name].min()),
+            ),
+        )
 
     for column in categorical_column_indices:
         column_name = train_data.columns[column]
-        columns_info[column] = {}
-        columns_info["type"] = InfoDataType.CATEGORICAL.value
-        columns_info["categorizes"] = list(set(train_data[column_name]))
+        columns_info[column_name] = ColumnInfo(
+            type=ColumnType.CATEGORICAL,
+            info=CategoricalColumnInfo(
+                categorizes=list(set(train_data[column_name])),
+            ),
+        )
 
-    for column in target_columns_indices:
+    for column in target_column_indices:
         if task_type == TaskType.REGRESSION:
             column_name = train_data.columns[column]
-            columns_info[column] = {}
-            columns_info["type"] = InfoDataType.NUMERICAL.value
-            columns_info["max"] = float(train_data[column_name].max())
-            columns_info["min"] = float(train_data[column_name].min())
+            columns_info[column_name] = ColumnInfo(
+                type=ColumnType.NUMERICAL,
+                info=NumericalColumnInfo(
+                    max=float(train_data[column_name].max()),
+                    min=float(train_data[column_name].min()),
+                ),
+            )
         else:
             column_name = train_data.columns[column]
-            columns_info[column] = {}
-            columns_info["type"] = InfoDataType.CATEGORICAL.value
-            columns_info["categorizes"] = list(set(train_data[column_name]))
+            columns_info[column_name] = ColumnInfo(
+                type=ColumnType.CATEGORICAL,
+                info=CategoricalColumnInfo(
+                    categorizes=list(set(train_data[column_name])),
+                ),
+            )
 
     return columns_info
 
@@ -289,7 +316,7 @@ def _split_data_and_generate_info(
     data: pd.DataFrame,
     table_domain: dict[str, Any],
     training_data_ratio: float,
-) -> tuple[DataSplits, dict[str, Any]]:
+) -> tuple[DataSplits, DomainInfo]:
     """
     Split the data into training and test sets and populate the info dictionary
     with additional metadata.
@@ -304,32 +331,24 @@ def _split_data_and_generate_info(
         A tuple with 2 values:
             - The data splits as an instance of the DataSplits class. Test data will be None if the
                 training_data_ratio is 1.
-            - The info dictionary as retrieved from the get_info_from_domain function with updated metadata, namely:
-                - column_info: The columns info dictionary, as returned by the _get_columns_info function.
-                - train_num: The number of samples in the training set.
-                - test_num: The number of samples in the test set. It will be absent if the training_data_ratio is 1.
-                - column_names: The names of the columns.
+            - The DomainInfo object, which holds information about the data columns.
     """
     info = get_info_from_domain(data, table_domain)
 
-    column_names = info["column_names"] if info["column_names"] else data.columns.tolist()
-    numerical_column_indices = info["num_col_idx"]
-    categorical_column_indices = info["cat_col_idx"]
-    target_columns_indices = info["target_col_idx"]
-    numerical_column_names = [column_names[i] for i in numerical_column_indices]
-    categorical_column_names = [column_names[i] for i in categorical_column_indices]
-    target_column_names = [column_names[i] for i in target_columns_indices]
+    numerical_column_names = [info.column_names[i] for i in info.numerical_column_indices]
+    categorical_column_names = [info.column_names[i] for i in info.categorical_column_indices]
+    target_column_names = [info.column_names[i] for i in info.target_column_indices]
 
     # Splitting the data into training and test sets
     data_splits = train_test_split(data, categorical_column_names, training_data_ratio)
 
     # Populating the column info into the info dictionary
-    info["column_info"] = _get_columns_info(
+    info.columns_info = _get_columns_info(
         data_splits.train_data.data,
-        numerical_column_indices,
-        categorical_column_indices,
-        target_columns_indices,
-        TaskType(info["task_type"]) if info["task_type"] else None,
+        info.numerical_column_indices,
+        info.categorical_column_indices,
+        info.target_column_indices,
+        info.task_type,
     )
 
     # Replace the invalid and missing values with np.nan for the numerical columns
@@ -375,11 +394,10 @@ def _split_data_and_generate_info(
         data_splits.test_data.data[numerical_column_names] = numerical_data_as_float
 
     # Populating the rest of the info dictionary
-    info["column_names"] = column_names
-    info["train_num"] = data_splits.train_data.data.shape[0]
+    info.train_num = data_splits.train_data.data.shape[0]
 
     if data_splits.test_data is not None:
-        info["test_num"] = data_splits.test_data.data.shape[0]
+        info.test_num = data_splits.test_data.data.shape[0]
 
     return data_splits, info
 
