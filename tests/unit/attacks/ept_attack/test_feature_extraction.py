@@ -2,8 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from midst_toolkit.attacks.ept.feature_extraction import TaskType, preprocess_train_predict
-from midst_toolkit.attacks.ept.feature_extraction import main as run_feature_extraction_main
+from midst_toolkit.attacks.ept.feature_extraction import TaskType, extract_features, preprocess_train_predict
 
 
 @pytest.fixture
@@ -103,7 +102,7 @@ def test_main_feature_extraction(sample_dataframes, sample_column_types):
 
     synthetic_data, challenge_data = sample_dataframes
 
-    df_results = run_feature_extraction_main(
+    df_results = extract_features(
         synthetic_data=synthetic_data, challenge_data=challenge_data, column_types=sample_column_types, random_seed=42
     )
 

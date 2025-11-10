@@ -178,7 +178,6 @@ def extract_features(
             columns.append(f"{column}_accuracy")
 
         elif task_type == TaskType.REGRESSION:
-
             # Calculate errors
             errors = pd.Series(np.abs(predictions - y_test), index=y_test.index)
 
@@ -188,7 +187,9 @@ def extract_features(
 
             # Replace infs and NaNs with a large number. If all values are NaN, replace with 1e9.
             finite_max = error_ratio[np.isfinite(error_ratio)].max()
-            error_ratio = error_ratio.replace([np.inf, -np.inf], np.nan).fillna(finite_max if pd.notna(finite_max) else 1e9)
+            error_ratio = error_ratio.replace([np.inf, -np.inf], np.nan).fillna(
+                finite_max if pd.notna(finite_max) else 1e9
+            )
 
             # Save the error and the ratio error
             features.append(errors)
@@ -196,7 +197,7 @@ def extract_features(
 
             columns.append(f"{column}_error")
             columns.append(f"{column}_error_ratio")
-        
+
         else:
             raise ValueError(f"Unsupported task type: {task_type}")
 
