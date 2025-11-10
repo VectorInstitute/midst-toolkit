@@ -120,7 +120,7 @@ def preprocess_train_predict(
     return predictions, y_test, task_type
 
 
-def main(
+def extract_features(
     synthetic_data: pd.DataFrame,
     challenge_data: pd.DataFrame,
     column_types: dict[str, Any],

@@ -1,5 +1,5 @@
 """
-This file is an uncompleted example script for running the EPT-MIA Attack on MIDST challenge
+This file is an incomplete example script for running the EPT-MIA Attack on MIDST challenge
 provided resources and data.
 Overall workflow and decisions are taken with from the Cyber@BGU team's attack implementation at
 https://github.com/eyalgerman/MIA-EPT.
@@ -14,7 +14,7 @@ import hydra
 from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
-from midst_toolkit.attacks.ept import feature_extraction
+from midst_toolkit.attacks.ept.feature_extraction import extract_features
 from midst_toolkit.common.logger import log
 
 
@@ -59,18 +59,14 @@ def run_attribute_prediction(config: DictConfig) -> None:
 
                 df_synthetic_data = load_dataframe(model_data_path, "trans_synthetic.csv")
                 df_challenge_data = load_dataframe(model_data_path, "challenge_with_id.csv")
-                # df_challenge_labels = load_dataframe(model_data_path, "challenge_label.csv")
 
-                # Drop columns in df_syntehtic_data that end with '_id', as they do not create meaningful features
-                df_synthetic_data = df_synthetic_data.drop(
-                    columns=[col for col in df_synthetic_data.columns if col.endswith("_id")]
-                )
-                df_challenge_data = df_challenge_data.drop(
-                    columns=[col for col in df_challenge_data.columns if col.endswith("_id")]
-                )
+                # Keep only the columns that are present in feature_column_types
+                columns_to_keep = feature_column_types["numerical"] + feature_column_types["categorical"]
+                df_synthetic_data = df_synthetic_data[columns_to_keep]
+                df_challenge_data = df_challenge_data[columns_to_keep]
 
                 # Run feature extraction
-                df_extracted_features = feature_extraction.main(
+                df_extracted_features = extract_features(
                     synthetic_data=df_synthetic_data,
                     challenge_data=df_challenge_data,
                     column_types=feature_column_types,
@@ -87,6 +83,18 @@ def run_attribute_prediction(config: DictConfig) -> None:
 
                 save_dataframe(df=df_extracted_features, file_path=final_output_dir, file_name=file_name)
 
+def run_attack_classifier_training(config: DictConfig) -> None:
+    """
+    #TODO function description
+
+    Args:
+        config: Configuration object set in config.yaml.
+    """
+    log(INFO, "Running attack classifier training.")
+
+    features_path = Path(config.data_paths.output_data_path, "attribute_prediction_features")
+    
+
 
 @hydra.main(config_path=".", config_name="config", version_base=None)
 def main(config: DictConfig) -> None:
@@ -94,6 +102,7 @@ def main(config: DictConfig) -> None:
     Main orchestrator of the EPT-MIA Attack example pipeline.
     First step has yet to be implemented: shadow model training.
     Second and third steps are attribute prediction model training and feature extraction.
+    Fourth step is attack classifier training.
 
     Args:
         config: Attack configuration as an OmegaConf DictConfig object.
@@ -109,6 +118,8 @@ def main(config: DictConfig) -> None:
 
     if config.pipeline.run_attribute_prediction_model_training:
         run_attribute_prediction(config)
+    if config.pipeline.run_attack_classifier_training:
+        run_attack_classifier_training(config)
 
 
 if __name__ == "__main__":
