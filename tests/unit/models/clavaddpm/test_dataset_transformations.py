@@ -164,8 +164,8 @@ def test_transform_targets() -> None:
     assert np.allclose(target_splits["test"], new_targets["test"], atol=1e-9)
 
     new_targets, info = transform_targets(target_splits, TargetPolicy.DEFAULT, task_type=TaskType.REGRESSION)
-    assert pytest.approx(info["mean"], abs=1e-5) == 0.335379
-    assert pytest.approx(info["std"], abs=1e-5) == 0.340540
+    assert pytest.approx(info.mean, abs=1e-5) == 0.335379
+    assert pytest.approx(info.std, abs=1e-5) == 0.340540
 
     assert np.allclose(new_targets["train"], np.array([[0.473763, -1.39086, 0.917101]]).T, atol=1e-4)
     assert np.allclose(new_targets["val"], np.array([[3.48755, -1.67244, -1.67239]]).T, atol=1e-4)

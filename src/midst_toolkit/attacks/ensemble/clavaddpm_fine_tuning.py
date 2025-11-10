@@ -4,7 +4,6 @@ TODO: Merge the fine-tuning functionalities in this file with the training funct
 `midst_toolkit/models/clavaddpm/train.py`.
 """
 
-from dataclasses import asdict
 from logging import WARNING
 from typing import Any
 
@@ -17,15 +16,13 @@ from midst_toolkit.common.config import ClassifierConfig, DiffusionConfig
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.common.variables import DEVICE
-from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
-from midst_toolkit.models.clavaddpm.dataset import Dataset, Transformations
+from midst_toolkit.models.clavaddpm.data_loaders import NO_PARENT_COLUMN_NAME, Tables, prepare_fast_dataloader
+from midst_toolkit.models.clavaddpm.dataset import Dataset, TableMetadata, Transformations
 from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
     IsTargetConditioned,
-    ModelArtifacts,
     Relation,
     RelationOrder,
-    Tables,
     TargetType,
 )
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
@@ -37,11 +34,12 @@ from midst_toolkit.models.clavaddpm.model import (
     Classifier,
     DiffusionParameters,
     ModelParameters,
-    get_table_info,
 )
 from midst_toolkit.models.clavaddpm.sampler import ScheduleSamplerType
 from midst_toolkit.models.clavaddpm.train import (
+    ModelArtifacts,
     _numerical_forward_backward_log,
+    get_table_metadata,
 )
 from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 
@@ -49,7 +47,7 @@ from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 def fine_tune_model(
     trained_diffusion_model: GaussianMultinomialDiffusion,
     fine_tuning_data: pd.DataFrame,
-    fine_tuning_data_info: dict[str, Any],
+    table_metadata: TableMetadata,
     model_params: ModelParameters,
     transformations: Transformations,
     steps: int,
@@ -58,14 +56,14 @@ def fine_tune_model(
     weight_decay: float,
     data_split_ratios: list[float],
     device: torch.device = DEVICE,
-) -> dict[str, Any]:
+) -> ModelArtifacts:
     """
     Fine-tune a trained diffusion model on a new dataset.
 
     Args:
         trained_diffusion_model: The pre-trained diffusion model to be fine-tuned.
         fine_tuning_data: The new dataset to fine-tune the model on.
-        fine_tuning_data_info: Information about the new dataset.
+        table_metadata: TableMetadata object containing metadata about the dataset.
         model_params: Parameters for the model architecture.
         transformations: Object containing transformation configurations.
         steps: Number of training steps for fine-tuning.
@@ -89,7 +87,7 @@ def fine_tune_model(
         is_target_conditioned=model_params.is_target_conditioned,
         # TODO change data_split_ratios to percentage in other parts of the code.
         data_split_percentages=data_split_ratios,
-        info=fine_tuning_data_info,
+        table_metadata=table_metadata,
         noise_scale=0,
     )
 
@@ -120,20 +118,22 @@ def fine_tune_model(
     if model_params.is_target_conditioned == IsTargetConditioned.CONCAT:
         column_orders = column_orders[1:] + [column_orders[0]]
     else:
-        column_orders = column_orders + [fine_tuning_data_info["y_col"]]
+        column_orders = column_orders + [table_metadata.target_column_name]
 
-    return {
-        "diffusion": diffusion,
-        "label_encoders": label_encoders,
-        "dataset": dataset,
-        "column_orders": column_orders,
-        "num_numerical_features": num_numerical_features,
-        "K": category_sizes,
-        "is_regression": dataset.is_regression,
-        "inverse_transform": (
-            dataset.numerical_transform.inverse_transform if dataset.numerical_transform is not None else None
-        ),
-    }
+    inverse_transform_function = None
+    if dataset.numerical_transform is not None:
+        inverse_transform_function = dataset.numerical_transform.inverse_transform
+
+    return ModelArtifacts(
+        diffusion=diffusion,
+        label_encoders=label_encoders,
+        dataset=dataset,
+        column_orders=column_orders,
+        num_numerical_features=num_numerical_features,
+        category_sizes=category_sizes,
+        is_regression=dataset.is_regression,
+        inverse_transform_function=inverse_transform_function,
+    )
 
 
 # NOTE: This function will not be called in the Ensemble attack since Ensemble only covers the single-table setting,
@@ -141,7 +141,7 @@ def fine_tune_model(
 def fine_tune_classifier(
     pre_trained_classifier: Classifier,
     fine_tuning_data: pd.DataFrame,
-    fine_tuning_data_info: dict[str, Any],
+    table_metadata: TableMetadata,
     model_params: ModelParameters,
     transformations: Transformations,
     classifier_steps: int,
@@ -159,7 +159,7 @@ def fine_tune_classifier(
     Args:
         pre_trained_classifier: The pre-trained classifier model to be fine-tuned.
         fine_tuning_data: DataFrame to train the model on.
-        fine_tuning_data_info: Dictionary of the table information.
+        table_metadata: TableMetadata object containing metadata about the dataset.
         model_params: Parameters for the model architecture.
         transformations: Transformation object containing all the transformations.
         classifier_steps: Number of steps to fine-tune the classifier.
@@ -180,7 +180,7 @@ def fine_tune_classifier(
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
         data_split_percentages=data_split_ratios,
-        info=fine_tuning_data_info,
+        table_metadata=table_metadata,
         noise_scale=0,
     )
     train_loader = prepare_fast_dataloader(
@@ -194,7 +194,7 @@ def fine_tune_classifier(
         category_sizes = np.array([0])
 
     if dataset.numerical_features is None:
-        log(WARNING, "dataset.x_num is None. num_numerical_features will be set to 0")
+        log(WARNING, "dataset.numerical_features is None. num_numerical_features will be set to 0")
         num_numerical_features = 0
     else:
         num_numerical_features = dataset.numerical_features[DataSplit.TRAIN.value].shape[1]
@@ -272,11 +272,12 @@ def child_fine_tuning(
 
     """
     if parent_name is None:
-        target_col = "placeholder"
-        child_df_with_cluster["placeholder"] = list(range(len(child_df_with_cluster)))
+        target_column_name = NO_PARENT_COLUMN_NAME
+        child_df_with_cluster[NO_PARENT_COLUMN_NAME] = list(range(len(child_df_with_cluster)))
     else:
-        target_col = f"{parent_name}_{child_name}_cluster"
-    child_info = get_table_info(child_df_with_cluster, child_domain_dict, target_col)
+        target_column_name = f"{parent_name}_{child_name}_cluster"
+
+    child_metadata = get_table_metadata(child_df_with_cluster, child_domain_dict, target_column_name)
     child_model_params = ModelParameters(
         diffusion_parameters=DiffusionParameters(
             layers_dimensions=diffusion_config.d_layers,
@@ -286,9 +287,9 @@ def child_fine_tuning(
     child_transformations = Transformations.default()
 
     child_result = fine_tune_model(
-        pre_trained_model["diffusion"],
+        pre_trained_model.diffusion,
         child_df_with_cluster,
-        child_info,
+        child_metadata,
         child_model_params,
         child_transformations,
         fine_tuning_diffusion_iterations,
@@ -300,18 +301,20 @@ def child_fine_tuning(
     )
 
     if parent_name is None:
-        child_result["classifier"] = None
+        child_result.classifier = None
     else:
         log(
             WARNING,
             "Ensemble attack is designed for single table. You are using multi-table fine-tuning.",
         )
         assert classifier_config is not None, "Classifier config is required for multi-table training"
+        assert pre_trained_model.classifier is not None, "Pre-trained classifier is required for multi-table training"
+
         if classifier_config.iterations > 0:
             child_classifier = fine_tune_classifier(
-                pre_trained_model["classifier"],
+                pre_trained_model.classifier,
                 child_df_with_cluster,
-                child_info,
+                child_metadata,
                 child_model_params,
                 child_transformations,
                 fine_tuning_classifier_iterations,
@@ -323,16 +326,16 @@ def child_fine_tuning(
                 learning_rate=classifier_config.lr,
                 device=device,
             )
-            child_result["classifier"] = child_classifier
+            child_result.classifier = child_classifier
         else:
             log(
                 WARNING,
                 "Skipping classifier training since classifier_config.iterations <= 0",
             )
 
-    child_result["df_info"] = child_info
-    child_result["model_params"] = asdict(child_model_params)
-    child_result["T_dict"] = asdict(child_transformations)
+    child_result.table_metadata = child_metadata
+    child_result.model_parameters = child_model_params
+    child_result.transformations = child_transformations
     return child_result
 
 
@@ -363,14 +366,14 @@ def clava_fine_tuning(
     """
     new_models = {}
     for parent, child in relation_order:
-        df_with_cluster = new_tables[child]["df"]
+        df_with_cluster = new_tables[child].data
         id_cols = [col for col in df_with_cluster.columns if "_id" in col]
         df_without_id = df_with_cluster.drop(columns=id_cols)
         child_model = trained_models[(parent, child)]
         result = child_fine_tuning(
             child_model,
             df_without_id,
-            new_tables[child]["domain"],
+            new_tables[child].domain,
             parent,
             child,
             diffusion_config,

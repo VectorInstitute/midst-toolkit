@@ -5,6 +5,7 @@ from scipy.special import expit, softmax
 from sklearn.metrics import classification_report, r2_score, roc_auc_score, root_mean_squared_error
 
 from midst_toolkit.common.enumerations import PredictionType, TaskType
+from midst_toolkit.models.clavaddpm.dataset_transformations import TargetInfo
 
 
 def calculate_rmse(true_target: np.ndarray, predicted_target: np.ndarray, standard_deviation: float | None) -> float:
@@ -85,19 +86,20 @@ def calculate_metrics(
     predicted_target: np.ndarray,
     task_type: TaskType,
     prediction_type: PredictionType | None,
-    target_info: dict[str, Any],
+    target_info: TargetInfo,
 ) -> dict[str, Any]:
     """
     Calculate the metrics of the predictions.
 
-    Example Usage: calculate_metrics(y_true, y_pred, TaskType.BINARY_CLASSIFICATION, PredictionType.LOGITS, {})
+    Example Usage:
+        calculate_metrics(y_true, y_pred, TaskType.BINARY_CLASSIFICATION, PredictionType.LOGITS, TargetInfo())
 
     Args:
         true_target: The true labels as a numpy array.
         predicted_target: The predicted labels as a numpy array.
         task_type: The type of the task.
         prediction_type: The type of the predictions.
-        target_info: A dictionary with metadata about the labels.
+        target_info: TargetInfo object with metadata about the labels.
 
     Returns:
         The metrics of the predictions as a dictionary with the following keys:
@@ -137,8 +139,8 @@ def calculate_metrics(
     """
     if task_type == TaskType.REGRESSION:
         assert prediction_type is None
-        assert "std" in target_info
-        rmse = calculate_rmse(true_target, predicted_target, target_info["std"])
+        assert target_info.std is not None
+        rmse = calculate_rmse(true_target, predicted_target, target_info.std)
         r2 = r2_score(true_target, predicted_target)
         return {"rmse": rmse, "r2": r2}
 
