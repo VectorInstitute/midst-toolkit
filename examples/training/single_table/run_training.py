@@ -1,3 +1,4 @@
+import pickle
 from logging import INFO
 from pathlib import Path
 
@@ -8,7 +9,7 @@ from midst_toolkit.common.config import DiffusionConfig
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.data_loaders import load_tables
-from midst_toolkit.models.clavaddpm.train import clava_training
+from midst_toolkit.models.clavaddpm.train import ModelArtifacts, clava_training
 
 
 @hydra.main(config_path=".", config_name="config", version_base=None)
@@ -36,6 +37,17 @@ def main(config: DictConfig) -> None:
         device=DEVICE,
     )
     log(INFO, "Model trained successfully.")
+
+    results_file = Path(config.results_dir) / "models" / "None_trans_ckpt.pkl"
+    log(INFO, f"Checking the results from {results_file}...")
+
+    with open(results_file, "rb") as f:
+        result = pickle.load(f)
+
+    # Asserting the results are the correct type
+    assert isinstance(result, ModelArtifacts)
+
+    log(INFO, f"Result size (in bytes): {results_file.stat().st_size}")
 
 
 if __name__ == "__main__":
