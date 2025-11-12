@@ -46,16 +46,17 @@ def run_attribute_prediction(config: DictConfig) -> None:
         "categorical": [col for col in column_types.get("categorical", []) if not col.endswith("_id")],
     }
 
+    # TODO: Package iterating over competition structure (maybe into a utility function)
     # Iterating over directories specific to the shadow models folder structure in the competition
     for model_name in diffusion_model_names:
-        model_path = Path(input_data_path / f"{model_name}_black_box")
+        model_path = input_data_path / f"{model_name}_black_box"
         for mode in modes:
-            current_path = Path(model_path / mode)
+            current_path = model_path / mode
 
             model_folders = [entry.name for entry in current_path.iterdir() if entry.is_dir()]
             for model_folder in model_folders:
                 # Load the data files as dataframes
-                model_data_path = Path(current_path / model_folder)
+                model_data_path = current_path / model_folder
 
                 df_synthetic_data = load_dataframe(model_data_path, "trans_synthetic.csv")
                 df_challenge_data = load_dataframe(model_data_path, "challenge_with_id.csv")
@@ -73,7 +74,7 @@ def run_attribute_prediction(config: DictConfig) -> None:
                     random_seed=config.random_seed,
                 )
 
-                final_output_dir = Path(output_features_path / f"{model_name}_black_box")
+                final_output_dir = output_features_path / f"{model_name}_black_box"
 
                 final_output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -104,7 +105,7 @@ def main(config: DictConfig) -> None:
     # TODO: Implement potential data preprocessing step.
     # TODO: Implement shadow model training step.
 
-    if config.pipeline.run_attribute_prediction_model_training:
+    if config.pipeline.run_feature_extraction:
         run_attribute_prediction(config)
 
     # TODO: Implement attack classifier training step.
