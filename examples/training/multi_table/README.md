@@ -1,6 +1,6 @@
 # Multi-Table Training Example
 
-This example will go over traning a multi-table diffusion model from the ground up using the
+This example will go over training a multi-table diffusion model from the ground up using the
 code in this toolkit.
 
 
@@ -25,10 +25,10 @@ Additionally, you will find one more file:
 are associated with which other tables.
 
 
-## Kicking off traning
+## Kicking off training
 
-The (`config.yaml`)[config.yaml] file contains the parameters for the training. Please take a look a them
-beforee kicking off the training and edit them as necessary.
+The (`config.yaml`)[config.yaml] file contains the parameters for the training. Please take a
+look at them before kicking off the training and edit them as necessary.
 
 To kick off training, simply run the command below from the project's root folder:
 
@@ -47,7 +47,7 @@ One of the results file is `/results/cluster_ckpt.pkl`, which will contain the r
 of the clustering step.
 
 The other result files are in the `/results/models/` folder. They will be named after the
-table relations defined in `dataset_meta.json`. For eexample: for the `("client", "account")`
+table relations defined in `dataset_meta.json`. For example: for the `("client", "account")`
 relation, there will be a file called `client_account_ckpt.pkl`, which is a pickle file
 containing the training results. You can load it using Python's `pickle` and it will yield
 an instance of `midst_toolkit.models.clavaddpm.train.ModelArtifacts`, which contains the
@@ -57,7 +57,7 @@ trained diffusion model along with some additional metadata about the training p
 import pickle
 from midst_toolkit.models.clavaddpm.train import ModelArtifacts
 
-results_file = Path("examples/multi_table/results/models/client_account_ckpt.pkl")
+results_file = Path("examples/training/multi_table/results/models/client_account_ckpt.pkl")
 
  with open(results_file, "rb") as f:
     result = pickle.load(f)

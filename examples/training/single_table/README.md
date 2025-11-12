@@ -1,6 +1,6 @@
 # Single-Table Training Example
 
-This example will go over traning a single-table diffusion model from the ground up using the
+This example will go over training a single-table diffusion model from the ground up using the
 code in this toolkit.
 
 
@@ -23,10 +23,10 @@ contains 20,000 data points.
 single-table example, it will only contain information about the `trans` table.
 
 
-## Kicking off traning
+## Kicking off training
 
-The (`config.yaml`)[config.yaml] file contains the parameters for the training. Please take a look a them
-beforee kicking off the training and edit them as necessary.
+The (`config.yaml`)[config.yaml] file contains the parameters for the training. Please take a
+look at them before kicking off the training and edit them as necessary.
 
 To kick off training, simply run the command below from the project's root folder:
 
@@ -51,7 +51,7 @@ diffusion model along with some additional metadata about the training process:
 import pickle
 from midst_toolkit.models.clavaddpm.train import ModelArtifacts
 
-results_file = Path("examples/single_table/results/models/None_trans_ckpt.pkl")
+results_file = Path("examples/training/single_table/results/models/None_trans_ckpt.pkl")
 
  with open(results_file, "rb") as f:
     result = pickle.load(f)
