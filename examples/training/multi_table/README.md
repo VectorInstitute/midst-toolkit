@@ -13,7 +13,7 @@ extract the files and place them in a `/data` folder in within this folder
 
 > [!NOTE]
 > If you wish to change the data folder, you can do so by editing the `base_data_dir` attribute
-> of the [`config.yaml`](config.yaml) file.
+> of the (`config.yaml`)[config.yaml] file.
 
 It will contain data for 8 tables: `account`, `card`, `client`, `disp`, `district`, `loan`, `order`,
 and `trans`. For each table there will be two files:
@@ -27,7 +27,7 @@ are associated with which other tables.
 
 ## Kicking off traning
 
-The [`config.yaml`] file contains the parameters for the training. Please take a look a them
+The (`config.yaml`)[config.yaml] file contains the parameters for the training. Please take a look a them
 beforee kicking off the training and edit them as necessary.
 
 To kick off training, simply run the command below from the project's root folder:
@@ -41,7 +41,7 @@ It will save the result files inside a `/results` folder within this folder
 
 > [!NOTE]
 > If you wish to change the save folder, you can do so by editing the `results_dir` attribute
-> of the [`config.yaml`](config.yaml) file.
+> of the (`config.yaml`)[config.yaml] file.
 
 One of the results file is `/results/cluster_ckpt.pkl`, which will contain the results
 of the clustering step.
