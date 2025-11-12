@@ -16,5 +16,8 @@ pipeline:
   run_feature_extraction: true # Whether to run attribute prediction model training
   run_attack_classifier_training: false # Whether to run attack classifier training
 
+attack_settings:
+  single_table: true # Whether the data is single-table
+
 # General settings
 random_seed: 42

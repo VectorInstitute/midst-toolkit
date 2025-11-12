@@ -54,7 +54,6 @@ def preprocess_train_predict(
             y_test: True values for the target column on the test data.
             task_type: Whether the attribution prediction model was a classification or regression model.
     """
-
     assert target_col in train_points.columns, f"Target column '{target_col}' not found in train_points."
     assert target_col in test_points.columns, f"Target column '{target_col}' not found in test_points."
 
@@ -162,7 +161,7 @@ def extract_features(
         columns.append(column)
 
         if task_type == TaskType.CLASSIFICATION:
-            #TODO: Maybe change the variable name from accuracy to correctness
+            # TODO: Maybe change the variable name from accuracy to correctness
             # Calculate accuracy
             accuracy = predictions == y_test
             accuracy = accuracy.astype(int)
