@@ -20,7 +20,7 @@ TOOLKIT_LOGGER.setLevel(INFO)
 @hydra.main(config_path=".", config_name="config", version_base=None)
 def main(config: DictConfig) -> None:
     """
-    Run the training pipeline.
+    Run the training pipeline for a multi-table diffusion model.
 
     It will load the config and then data from the `config.base_data_dir` folder,
     train the model and save the results in the `config.results_dir` folder.
