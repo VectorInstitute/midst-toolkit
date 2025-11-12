@@ -1,7 +1,7 @@
 # Training example configuration
 # Base data directory (can be overridden from command line)
-base_data_dir: examples/training/data
-results_dir: examples/training/results
+base_data_dir: examples/training/single_table/data
+results_dir: examples/training/single_table/results
 
 diffusion_config:
   d_layers: [512, 1024, 1024, 1024, 1024, 512]

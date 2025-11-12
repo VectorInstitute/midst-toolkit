@@ -6,10 +6,14 @@ import hydra
 from omegaconf import DictConfig
 
 from midst_toolkit.common.config import DiffusionConfig
-from midst_toolkit.common.logger import log
+from midst_toolkit.common.logger import TOOLKIT_LOGGER, log
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.data_loaders import load_tables
 from midst_toolkit.models.clavaddpm.train import ModelArtifacts, clava_training
+
+
+# Preventing some excessive logging
+TOOLKIT_LOGGER.setLevel(INFO)
 
 
 @hydra.main(config_path=".", config_name="config", version_base=None)
