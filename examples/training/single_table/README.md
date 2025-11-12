@@ -25,7 +25,7 @@ single-table example, it will only contain information about the `trans` table.
 
 ## Kicking off training
 
-The (`config.yaml`)[config.yaml] file contains the parameters for the training. Please take a
+The [`config.yaml`](config.yaml) file contains the parameters for the training. Please take a
 look at them before kicking off the training and edit them as necessary.
 
 To kick off training, simply run the command below from the project's root folder:
