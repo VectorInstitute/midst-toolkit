@@ -13,7 +13,7 @@ extract the files and place them in a `/data` folder in within this folder
 
 > [!NOTE]
 > If you wish to change the data folder, you can do so by editing the `base_data_dir` attribute
-> of the [`config.yaml`](config.yaml) file.
+> of the (`config.yaml`)[config.yaml] file.
 
 Here is a description of the files that have been extracted:
 - `trans.csv`: The training data. It consists of information about bank transactions and it
@@ -25,7 +25,7 @@ single-table example, it will only contain information about the `trans` table.
 
 ## Kicking off traning
 
-The [`config.yaml`] file contains the parameters for the training. Please take a look a them
+The (`config.yaml`)[config.yaml] file contains the parameters for the training. Please take a look a them
 beforee kicking off the training and edit them as necessary.
 
 To kick off training, simply run the command below from the project's root folder:
@@ -39,7 +39,7 @@ It will save the result files inside a `/results` folder within this folder
 
 > [!NOTE]
 > If you wish to change the save folder, you can do so by editing the `results_dir` attribute
-> of the [`config.yaml`](config.yaml) file.
+> of the (`config.yaml`)[config.yaml] file.
 
 In the `/results/models/` folder, there will be a file called `None_trans_ckpt.pkl`,
 which is a pickle file containing the training results. You can load it using Python's
