@@ -43,7 +43,7 @@ def main(config: DictConfig) -> None:
     clustering_results_file = Path(config.results_dir) / "cluster_ckpt.pkl"
 
     if all(model_file.exists() for model_file in model_file_paths.values()) and clustering_results_file.exists():
-        log(INFO, f"Found a pre-trained models in {config.results_dir}. Skipping training.")
+        log(INFO, f"Found pre-trained models in {config.results_dir}. Skipping training.")
     else:
         log(INFO, "No pre-trained models found, training a new model from scratch...")
         run_training.main(config)

@@ -8,12 +8,12 @@ up using the code in this toolkit.
 
 First, we need the data. Download it from this
 [Google Drive link](https://drive.google.com/file/d/1J5qDuMHHg4dm9c3ISmb41tcTHSu1SVUC/view?usp=drive_link),
-extract the files and place them in a `/data` folder in within this folder
+extract the files and place them in a `/data` folder within this folder
 (`examples/synthesizing/single_table`).
 
 > [!NOTE]
 > If you wish to change the data folder, you can do so by editing the `base_data_dir` attribute
-> of the (`config.yaml`)[config.yaml] file.
+> of the [`config.yaml`](config.yaml) file.
 
 Here is a description of the files that have been extracted:
 - `trans.csv`: The training data. It consists of information about bank transactions and it
@@ -47,7 +47,7 @@ It will save the result files inside a `/results` folder within this folder
 
 > [!NOTE]
 > If you wish to change the save folder, you can do so by editing the `results_dir` attribute
-> of the (`config.yaml`)[config.yaml] file.
+> of the [`config.yaml`](config.yaml) file.
 
 In the `/results/before_matching/` folder, there will be a file called `synthetic_tables.pkl`,
 which is a pickle file containing the synthetic data before the matching process, in case

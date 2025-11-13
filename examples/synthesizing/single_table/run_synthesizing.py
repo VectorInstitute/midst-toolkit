@@ -41,7 +41,7 @@ def main(config: DictConfig) -> None:
         model_file_paths[relation] = model_file_path
 
     if all(model_file.exists() for model_file in model_file_paths.values()):
-        log(INFO, f"Found a pre-trained models in {config.results_dir}. Skipping training.")
+        log(INFO, f"Found pre-trained models in {config.results_dir}. Skipping training.")
     else:
         log(INFO, "No pre-trained models found, training a new model from scratch...")
         run_training.main(config)
