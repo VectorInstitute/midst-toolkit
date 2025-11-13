@@ -96,7 +96,7 @@ def load_tables(
     with open(data_dir / "dataset_meta.json", "r") as f:
         dataset_meta = json.load(f)
 
-    relation_order = dataset_meta["relation_order"]
+    relation_order = [tuple(relation) for relation in dataset_meta["relation_order"]]
 
     tables = {}
 
@@ -124,6 +124,11 @@ def load_tables(
             original_data=train_df.copy(),
             info=info,
         )
+
+    # Adding the no parent placeholder column in the tables with no parent
+    for parent, child in relation_order:
+        if parent is None:
+            tables[child].data[NO_PARENT_COLUMN_NAME] = list(range(len(tables[child].data)))
 
     return tables, relation_order, dataset_meta
 

@@ -711,11 +711,11 @@ def clava_synthesizing(
     tables: Tables,
     relation_order: RelationOrder,
     save_dir: Path,
-    all_group_lengths_prob_dicts: GroupLengthsProbDicts,
     models: dict[Relation, ModelArtifacts],
     general_config: GeneralConfig,
     sampling_config: SamplingConfig,
     matching_config: MatchingConfig,
+    all_group_lengths_prob_dicts: GroupLengthsProbDicts | None = None,
     sample_scale: float = 1.0,
 ) -> tuple[dict[str, pd.DataFrame], float, float]:
     """
@@ -726,12 +726,13 @@ def clava_synthesizing(
         tables: Tables containing dataframes and clustering information.
         relation_order: List of parent-child table relationships.
         save_dir: Directory to save intermediate and final results.
-        all_group_lengths_prob_dicts: Dictionary containing group length probabilities for each
-            parent-child relationship.
         models: Trained models for each parent-child relationship.
         general_config: General configuration settings.
         sampling_config: Configuration settings for sampling.
         matching_config: Configuration settings for matching.
+        all_group_lengths_prob_dicts: Dictionary containing group length probabilities for each
+            parent-child relationship. Optional for single-table synthesizing, required for
+            multi-table synthesizing. Defaults to None.
         sample_scale: Scale factor for the number of samples to generate
             based on the train data size. Defaults to 1.0.
 
@@ -762,7 +763,12 @@ def clava_synthesizing(
                 sample_scale,
                 sampling_config.batch_size,
             )
+
         else:
+            assert all_group_lengths_prob_dicts is not None, (
+                "all_group_lengths_prob_dicts is required for multi-table synthesizing."
+            )
+
             # Finding previously synthesized data and training results for the parent
             parent_synthetic_data = None
             parent_training_results = None

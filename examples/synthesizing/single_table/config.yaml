@@ -1,7 +1,7 @@
 # Training example configuration
 # Base data directory (can be overridden from command line)
-base_data_dir: examples/training/single_table/data
-results_dir: examples/training/single_table/results
+base_data_dir: examples/synthesizing/single_table/data
+results_dir: examples/synthesizing/single_table/results
 
 diffusion_config:
   d_layers: [512, 1024, 1024, 1024, 1024, 512]
@@ -17,10 +17,10 @@ diffusion_config:
   data_split_ratios: [0.99, 0.005, 0.005]
 
 general_config:
-    data_dir: examples/training/single_table/data
-    test_data_dir: examples/training/single_table/data
+    data_dir: examples/synthesizing/single_table/data
+    test_data_dir: examples/synthesizing/single_table/data
     exp_name: single_table_synthesizing
-    workspace_dir: examples/training/single_table/results
+    workspace_dir: examples/synthesizing/single_table/results
     sample_prefix: ""
 
 sampling_config:
