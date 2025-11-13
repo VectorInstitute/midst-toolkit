@@ -1,7 +1,7 @@
 # Training example configuration
 # Base data directory (can be overridden from command line)
-base_data_dir: examples/synthesizing/single_table/data
-results_dir: examples/synthesizing/single_table/results
+base_data_dir: examples/synthesizing/multi_table/data
+results_dir: examples/synthesizing/multi_table/results
 
 diffusion_config:
   d_layers: [512, 1024, 1024, 1024, 1024, 512]
@@ -29,10 +29,10 @@ classifier_config:
     iterations: 20000
 
 general_config:
-    data_dir: examples/synthesizing/single_table/data
-    test_data_dir: examples/synthesizing/single_table/data
-    exp_name: single_table_synthesizing
-    workspace_dir: examples/synthesizing/single_table/results
+    data_dir: examples/synthesizing/multi_table/data
+    test_data_dir: examples/synthesizing/multi_table/data
+    exp_name: multi_table_synthesizing
+    workspace_dir: examples/synthesizing/multi_table/results
     sample_prefix: ""
 
 sampling_config:

@@ -125,11 +125,6 @@ def load_tables(
             info=info,
         )
 
-    # Adding the no parent placeholder column in the tables with no parent
-    for parent, child in relation_order:
-        if parent is None:
-            tables[child].data[NO_PARENT_COLUMN_NAME] = list(range(len(tables[child].data)))
-
     return tables, relation_order, dataset_meta
 
 

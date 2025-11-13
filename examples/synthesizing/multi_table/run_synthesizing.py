@@ -5,7 +5,7 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig
 
-from examples.training.single_table import run_training
+from examples.training.multi_table import run_training
 from midst_toolkit.common.config import GeneralConfig, MatchingConfig, SamplingConfig
 from midst_toolkit.common.logger import TOOLKIT_LOGGER, log
 from midst_toolkit.models.clavaddpm.data_loaders import load_tables
@@ -19,7 +19,7 @@ TOOLKIT_LOGGER.setLevel(INFO)
 @hydra.main(config_path=".", config_name="config", version_base=None)
 def main(config: DictConfig) -> None:
     """
-    Run the synthesizing pipeline for a single-table diffusion model.
+    Run the synthesizing pipeline for a multi-table diffusion model.
 
     It will load the config and then data from the `config.base_data_dir` folder,
     train the model, synthesize the data and save the results in the
@@ -33,14 +33,16 @@ def main(config: DictConfig) -> None:
     """
     log(INFO, f"Checking for a pre-trained model in {config.results_dir}...")
 
-    tables, relation_order, _ = load_tables(Path(config.base_data_dir))
+    _, relation_order, _ = load_tables(Path(config.base_data_dir))
 
     model_file_paths = {}
     for relation in relation_order:
         model_file_path = Path(config.results_dir) / "models" / f"{relation[0]}_{relation[1]}_ckpt.pkl"
         model_file_paths[relation] = model_file_path
 
-    if all(model_file.exists() for model_file in model_file_paths.values()):
+    clustering_results_file = Path(config.results_dir) / "cluster_ckpt.pkl"
+
+    if all(model_file.exists() for model_file in model_file_paths.values()) and clustering_results_file.exists():
         log(INFO, f"Found a pre-trained models in {config.results_dir}. Skipping training.")
     else:
         log(INFO, "No pre-trained models found, training a new model from scratch...")
@@ -53,6 +55,12 @@ def main(config: DictConfig) -> None:
         with open(model_file_paths[relation], "rb") as f:
             models[relation] = pickle.load(f)
 
+    with open(clustering_results_file, "rb") as f:
+        clustering_result = pickle.load(f)
+
+    tables = clustering_result["tables"]
+    all_group_lengths_prob_dicts = clustering_result["all_group_lengths_prob_dicts"]
+
     log(INFO, "Synthesizing data...")
 
     clava_synthesizing(
@@ -63,6 +71,7 @@ def main(config: DictConfig) -> None:
         GeneralConfig(**config.general_config),
         SamplingConfig(**config.sampling_config),
         MatchingConfig(**config.matching_config),
+        all_group_lengths_prob_dicts,
     )
 
     log(INFO, "Data synthesized successfully.")

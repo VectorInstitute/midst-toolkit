@@ -17,7 +17,7 @@ from tqdm import tqdm
 from midst_toolkit.common.config import GeneralConfig, MatchingConfig, SamplingConfig
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import log
-from midst_toolkit.models.clavaddpm.data_loaders import Tables
+from midst_toolkit.models.clavaddpm.data_loaders import NO_PARENT_COLUMN_NAME, Tables
 from midst_toolkit.models.clavaddpm.dataset import Dataset, TableMetadata, Transformations
 from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
@@ -626,9 +626,9 @@ def sample_from_dict(probabilities: dict[int, float]) -> int:
     Returns:
         The sampled key.
     """
-    assert sum(probabilities.values()) == 1.0, "The sum of all probabilities must be 1.0."
+    assert np.isclose(sum(probabilities.values()), 1), "The sum of all probabilities must be 1."
 
-    # Generate a random number between 0 and 1
+    # Generate a random number between [0, 1)
     random_number = random.random()
 
     # Initialize cumulative sum and the selected key
@@ -755,6 +755,10 @@ def clava_synthesizing(
         log(INFO, "Sample size: {}".format(int(sample_scale * len(df_without_id))))
 
         if parent is None:
+            # Adding the no parent placeholder column in case it doesn't have it
+            if NO_PARENT_COLUMN_NAME not in df_without_id.columns:
+                df_without_id[NO_PARENT_COLUMN_NAME] = list(range(len(df_without_id)))
+
             # synthesize data for single table or tables with no parent
             synthesized_df, table_keys = _synthesize_single_table(
                 child,
