@@ -6,10 +6,10 @@ results_dir: examples/training/multi_table/results
 diffusion_config:
   d_layers: [512, 1024, 1024, 1024, 1024, 512]
   dropout: 0.0
-  num_timesteps: 2000
+  num_timesteps: 100
   model_type: mlp
-  iterations: 20000
-  batch_size: 4096
+  iterations: 1000
+  batch_size: 24
   lr: 0.0006
   gaussian_loss_type: mse
   weight_decay: 1e-05
@@ -26,4 +26,4 @@ classifier_config:
     lr: 0.0001
     dim_t: 128
     batch_size: 4096
-    iterations: 20000
+    iterations: 1000
