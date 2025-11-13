@@ -8,7 +8,7 @@ diffusion_config:
   dropout: 0.0
   num_timesteps: 2000
   model_type: mlp
-  iterations: 200000
+  iterations: 20000
   batch_size: 4096
   lr: 0.0006
   gaussian_loss_type: mse
