@@ -1,0 +1,46 @@
+# Training example configuration
+# Base data directory (can be overridden from command line)
+base_data_dir: examples/synthesizing/single_table/data
+results_dir: examples/synthesizing/single_table/results
+
+diffusion_config:
+  d_layers: [512, 1024, 1024, 1024, 1024, 512]
+  dropout: 0.0
+  num_timesteps: 100
+  model_type: mlp
+  iterations: 1000
+  batch_size: 24
+  lr: 0.0006
+  gaussian_loss_type: mse
+  weight_decay: 1e-05
+  scheduler: cosine
+  data_split_ratios: [0.99, 0.005, 0.005]
+
+clustering_config:
+  parent_scale: 1.0
+  num_clusters: 50
+  clustering_method: kmeans_and_gmm
+
+classifier_config:
+    d_layers: [128, 256, 512, 1024, 512, 256, 128]
+    lr: 0.0001
+    dim_t: 128
+    batch_size: 4096
+    iterations: 1000
+
+general_config:
+    data_dir: examples/synthesizing/single_table/data
+    test_data_dir: examples/synthesizing/single_table/data
+    exp_name: single_table_synthesizing
+    workspace_dir: examples/synthesizing/single_table/results
+    sample_prefix: ""
+
+sampling_config:
+    batch_size: 20000
+    classifier_scale: 1.0
+
+matching_config:
+    num_matching_clusters: 1
+    matching_batch_size: 1000
+    unique_matching: True
+    no_matching: False
