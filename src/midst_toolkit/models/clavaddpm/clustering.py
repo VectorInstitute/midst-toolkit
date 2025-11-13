@@ -59,6 +59,8 @@ def clava_clustering(
             "tables": tables,
             "all_group_lengths_prob_dicts": all_group_lengths_prob_dicts,
         }
+
+        save_dir.mkdir(parents=True, exist_ok=True)
         with open(save_dir / "cluster_ckpt.pkl", "wb") as f:
             pickle.dump(cluster_ckpt, f)
 
