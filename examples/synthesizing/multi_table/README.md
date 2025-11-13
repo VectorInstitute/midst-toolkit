@@ -55,6 +55,6 @@ In the `/results/before_matching/` folder, there will be a file called `syntheti
 which is a pickle file containing the synthetic data before the matching process, in case
 it's needed.
 
-The `/results/single_table_synthesizing` folder will contain the final synthesized
-data, organized per table. In this single-table example, there is only going to be one
-synthesized table under `/results/single_table_synthesizing/trans/_final/trans_synthetic.csv`.
+The `/results/multi_table_synthesizing` folder will contain the final synthesized
+data, organized per table, in the form of `.csv` files with the following naming pattern:
+`/results/multi_table_synthesizing/{table_name}/_final/{table_name}_synthetic.csv`.
