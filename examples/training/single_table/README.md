@@ -34,7 +34,10 @@ To kick off training, simply run the command below from the project's root folde
 python -m examples.training.single_table.run_training
 ```
 
-It will save the result files inside a `/results` folder within this folder
+
+## Results
+
+The result files will be saved inside a `/results` folder within this folder
 (`examples/training/single_table`).
 
 > [!NOTE]
