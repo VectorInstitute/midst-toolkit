@@ -55,7 +55,7 @@ def test_train_fine_tuned_shadow_models(cfg: DictConfig, tmp_path: Path) -> None
         table_name="trans",
         id_column_name="trans_id",
         pre_training_data_size=cfg.shadow_training.fine_tuning_config.pre_train_data_size,
-        synthetic_data_size=5,
+        number_of_points_to_synthesize=5,
         random_seed=cfg.random_seed,
     )
     # Expected saved models and synthesized data:
@@ -101,7 +101,7 @@ def test_train_shadow_on_half_challenge_data(cfg: DictConfig, tmp_path: Path) ->
         training_json_config_paths=cfg.shadow_training.training_json_config_paths,
         table_name="trans",
         id_column_name="trans_id",
-        synthetic_data_size=5,
+        number_of_points_to_synthesize=5,
         random_seed=cfg.random_seed,
     )
     # Expected saved models and synthesized data:
@@ -159,9 +159,9 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
         workspace_name="test_workspace",
     )
 
-    train_result = train_tabddpm_and_synthesize(train_set, configs, save_dir, synthesize=True, synthetic_data_size=99)
-    # By default, with a sampling scale of 1, the size of the synthesized data is equal
-    # to the size of the training data.
+    train_result = train_tabddpm_and_synthesize(
+        train_set, configs, save_dir, synthesize=True, number_of_points_to_synthesize=99
+    )
     assert train_result.synthetic_data is not None
     assert type(train_result.synthetic_data) is pd.DataFrame
     assert len(train_result.synthetic_data) == 99

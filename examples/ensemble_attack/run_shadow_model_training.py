@@ -67,7 +67,7 @@ def run_target_model_training(config: DictConfig) -> Path:
         configs=configs,
         save_dir=save_dir,
         synthesize=True,
-        synthetic_data_size=config.shadow_training.synthetic_data_size,
+        number_of_points_to_synthesize=config.shadow_training.number_of_points_to_synthesize,
     )
 
     # TODO: Check: Selected_id_lists should be of form [[]]
@@ -136,7 +136,7 @@ def run_shadow_model_training(config: DictConfig) -> list[Path]:
         # ``4 * n_models_per_set`` total shadow models.
         n_models_per_set=4,  # 4 based on the original code, must be even
         n_reps=12,  # Number of repetitions of challenge points in each shadow model training set. `12` based on the original code
-        synthetic_data_size=config.shadow_training.synthetic_data_size,
+        number_of_points_to_synthesize=config.shadow_training.number_of_points_to_synthesize,
         random_seed=config.random_seed,
     )
     log(
