@@ -59,8 +59,8 @@ def main(config: DictConfig) -> None:
     # TODO: Investigate the source of error.
     if config.pipeline.run_shadow_model_training:
         shadow_pipeline = importlib.import_module("examples.ensemble_attack.run_shadow_model_training")
-        attack_data_paths = shadow_pipeline.run_shadow_model_training(config)
-        attack_data_paths = [Path(path) for path in attack_data_paths]
+        shadow_data_paths = shadow_pipeline.run_shadow_model_training(config)
+        shadow_data_paths = [Path(path) for path in shadow_data_paths]
 
         target_data_path = shadow_pipeline.run_target_model_training(config)
         target_data_path = Path(target_data_path)
