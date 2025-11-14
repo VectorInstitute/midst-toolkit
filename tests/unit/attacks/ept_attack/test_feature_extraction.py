@@ -2,7 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from midst_toolkit.attacks.ept.feature_extraction import TaskType, extract_features, preprocess_train_predict
+from midst_toolkit.attacks.ept.feature_extraction import extract_features, preprocess_train_predict
+from midst_toolkit.common.enumerations import TaskType
 
 
 @pytest.fixture
@@ -51,7 +52,7 @@ def test_preprocess_train_predict_classification(sample_dataframes, sample_colum
         random_seed=42,
     )
 
-    assert task_type == TaskType.CLASSIFICATION
+    assert task_type == TaskType.MULTICLASS_CLASSIFICATION
     assert len(predictions) == len(test_df)
     assert predictions.dtype == "object"  # RandomForestClassifier predicts original class
     pd.testing.assert_series_equal(y_test, test_df[target_col], check_dtype=False, check_names=False)

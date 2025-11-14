@@ -13,6 +13,7 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig
 
+from examples.common.utils import iterate_model_folders
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
 from midst_toolkit.attacks.ept.feature_extraction import extract_features
 from midst_toolkit.common.logger import log
@@ -32,7 +33,6 @@ def run_attribute_prediction(config: DictConfig) -> None:
     log(INFO, "Running attribute prediction model training.")
 
     diffusion_model_names = ["tabddpm", "tabsyn"] if config.attack_settings.single_table else ["clavaddpm"]
-    modes = ["train", "dev", "final"]
     input_data_path = Path(config.data_paths.input_data_path)
     output_features_path = Path(config.data_paths.output_data_path, "attribute_prediction_features")
 
@@ -48,41 +48,33 @@ def run_attribute_prediction(config: DictConfig) -> None:
 
     # TODO: Package iterating over competition structure (maybe into a utility function)
     # Iterating over directories specific to the shadow models folder structure in the competition
-    for model_name in diffusion_model_names:
-        model_path = input_data_path / f"{model_name}_black_box"
-        for mode in modes:
-            current_path = model_path / mode
+    for model_name, model_data_path, model_folder in iterate_model_folders(input_data_path, diffusion_model_names):
+        # Load the data files as dataframes
+        df_synthetic_data = load_dataframe(model_data_path, "trans_synthetic.csv")
+        df_challenge_data = load_dataframe(model_data_path, "challenge_with_id.csv")
 
-            model_folders = [entry.name for entry in current_path.iterdir() if entry.is_dir()]
-            for model_folder in model_folders:
-                # Load the data files as dataframes
-                model_data_path = current_path / model_folder
+        # Keep only the columns that are present in feature_column_types
+        columns_to_keep = feature_column_types["numerical"] + feature_column_types["categorical"]
+        df_synthetic_data = df_synthetic_data[columns_to_keep]
+        df_challenge_data = df_challenge_data[columns_to_keep]
 
-                df_synthetic_data = load_dataframe(model_data_path, "trans_synthetic.csv")
-                df_challenge_data = load_dataframe(model_data_path, "challenge_with_id.csv")
+        # Run feature extraction
+        df_extracted_features = extract_features(
+            synthetic_data=df_synthetic_data,
+            challenge_data=df_challenge_data,
+            column_types=feature_column_types,
+            random_seed=config.random_seed,
+        )
 
-                # Keep only the columns that are present in feature_column_types
-                columns_to_keep = feature_column_types["numerical"] + feature_column_types["categorical"]
-                df_synthetic_data = df_synthetic_data[columns_to_keep]
-                df_challenge_data = df_challenge_data[columns_to_keep]
+        final_output_dir = output_features_path / f"{model_name}_black_box"
 
-                # Run feature extraction
-                df_extracted_features = extract_features(
-                    synthetic_data=df_synthetic_data,
-                    challenge_data=df_challenge_data,
-                    column_types=feature_column_types,
-                    random_seed=config.random_seed,
-                )
+        final_output_dir.mkdir(parents=True, exist_ok=True)
 
-                final_output_dir = output_features_path / f"{model_name}_black_box"
+        # Extract the number at the end of model_folder
+        model_folder_number = int(model_folder.split("_")[-1])
+        file_name = f"attribute_prediction_features_{model_folder_number}.csv"
 
-                final_output_dir.mkdir(parents=True, exist_ok=True)
-
-                # Extract the number at the end of model_folder
-                model_folder_number = int(model_folder.split("_")[-1])
-                file_name = f"attribute_prediction_features_{model_folder_number}.csv"
-
-                save_dataframe(df=df_extracted_features, file_path=final_output_dir, file_name=file_name)
+        save_dataframe(df=df_extracted_features, file_path=final_output_dir, file_name=file_name)
 
 
 @hydra.main(config_path=".", config_name="config", version_base=None)
