@@ -1,4 +1,4 @@
-# Functions used for attacks across multiple examples.
+# Functions used for attacks across multiple examples of the MIDST competition submissions.
 
 from collections.abc import Generator
 from pathlib import Path

@@ -46,7 +46,6 @@ def run_attribute_prediction(config: DictConfig) -> None:
         "categorical": [col for col in column_types.get("categorical", []) if not col.endswith("_id")],
     }
 
-    # TODO: Package iterating over competition structure (maybe into a utility function)
     # Iterating over directories specific to the shadow models folder structure in the competition
     for model_name, model_data_path, model_folder in iterate_model_folders(input_data_path, diffusion_model_names):
         # Load the data files as dataframes
