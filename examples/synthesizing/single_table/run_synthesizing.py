@@ -1,6 +1,7 @@
 import pickle
 from logging import INFO
 from pathlib import Path
+from typing import Any
 
 import hydra
 from omegaconf import DictConfig
@@ -9,6 +10,7 @@ from examples.training.single_table import run_training
 from midst_toolkit.common.config import GeneralConfig, MatchingConfig, SamplingConfig
 from midst_toolkit.common.logger import TOOLKIT_LOGGER, log
 from midst_toolkit.models.clavaddpm.data_loaders import load_tables
+from midst_toolkit.models.clavaddpm.enumerations import Relation
 from midst_toolkit.models.clavaddpm.synthesizer import clava_synthesizing
 
 
@@ -35,22 +37,32 @@ def main(config: DictConfig) -> None:
 
     tables, relation_order, _ = load_tables(Path(config.base_data_dir))
 
-    model_file_paths = {}
+    assert len(relation_order) == 1 and relation_order[0][0] is None, (
+        "Relation order is not configured for single-table. "
+        "For multi-table synthesizing, please use the `examples.synthesizing.multi_table.run_synthesizing` example. "
+        f"Relation order: {relation_order}"
+    )
+
+    model_file_paths: dict[Relation, dict[str, Any]] = {}
     for relation in relation_order:
         model_file_path = Path(config.results_dir) / "models" / f"{relation[0]}_{relation[1]}_ckpt.pkl"
-        model_file_paths[relation] = model_file_path
+        model_file_paths[relation] = {
+            "file_path": model_file_path,
+            "exists": model_file_path.exists(),
+        }
 
-    if all(model_file.exists() for model_file in model_file_paths.values()):
-        log(INFO, f"Found pre-trained models in {config.results_dir}. Skipping training.")
+    if all(result["exists"] for result in model_file_paths.values()):
+        log(INFO, f"Found previous results in {config.results_dir}. Skipping training.")
     else:
-        log(INFO, "No pre-trained models found, training a new model from scratch...")
+        log(INFO, "Not all previous results found. Training a new model from scratch.")
+        log(INFO, f"Summary of results: {model_file_paths}")
         run_training.main(config)
 
     log(INFO, "Loading models...")
 
     models = {}
     for relation in relation_order:
-        with open(model_file_paths[relation], "rb") as f:
+        with open(model_file_paths[relation]["file_path"], "rb") as f:
             models[relation] = pickle.load(f)
 
     log(INFO, "Synthesizing data...")

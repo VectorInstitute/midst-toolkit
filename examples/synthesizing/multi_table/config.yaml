@@ -3,6 +3,8 @@
 base_data_dir: examples/synthesizing/multi_table/data
 results_dir: examples/synthesizing/multi_table/results
 
+# diffusion_config, clustering_config, and classifier_config are only required
+# when training a new model from scratch
 diffusion_config:
   d_layers: [512, 1024, 1024, 1024, 1024, 512]
   dropout: 0.0
@@ -28,6 +30,7 @@ classifier_config:
     batch_size: 4096
     iterations: 20000
 
+# Synthesizing configuration
 general_config:
     data_dir: examples/synthesizing/multi_table/data
     test_data_dir: examples/synthesizing/multi_table/data
