@@ -67,6 +67,7 @@ def run_target_model_training(config: DictConfig) -> Path:
         configs=configs,
         save_dir=save_dir,
         synthesize=True,
+        number_of_points_to_synthesize=config.shadow_training.number_of_points_to_synthesize,
     )
 
     # TODO: Check: Selected_id_lists should be of form [[]]
@@ -83,6 +84,8 @@ def run_target_model_training(config: DictConfig) -> Path:
     result_path = Path(save_dir, "target_model.pkl")
     with open(result_path, "wb") as file:
         pickle.dump(attack_data, file)
+
+    log(INFO, f"Target model training finished and saved at {result_path}")
 
     return result_path
 
@@ -133,6 +136,7 @@ def run_shadow_model_training(config: DictConfig) -> list[Path]:
         # ``4 * n_models_per_set`` total shadow models.
         n_models_per_set=4,  # 4 based on the original code, must be even
         n_reps=12,  # Number of repetitions of challenge points in each shadow model training set. `12` based on the original code
+        number_of_points_to_synthesize=config.shadow_training.number_of_points_to_synthesize,
         random_seed=config.random_seed,
     )
     log(

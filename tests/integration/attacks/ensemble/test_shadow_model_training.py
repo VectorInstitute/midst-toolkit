@@ -55,6 +55,7 @@ def test_train_fine_tuned_shadow_models(cfg: DictConfig, tmp_path: Path) -> None
         table_name="trans",
         id_column_name="trans_id",
         pre_training_data_size=cfg.shadow_training.fine_tuning_config.pre_train_data_size,
+        number_of_points_to_synthesize=5,
         random_seed=cfg.random_seed,
     )
     # Expected saved models and synthesized data:
@@ -75,6 +76,7 @@ def test_train_fine_tuned_shadow_models(cfg: DictConfig, tmp_path: Path) -> None
         assert result.relation_order is not None
         assert result.all_group_lengths_probabilities is not None
         assert type(result.synthetic_data) is pd.DataFrame
+        assert len(result.synthetic_data) == 5
 
     # Fine tuning sets should be disjoint
     assert set(shadow_data["fine_tuning_sets"][0]).isdisjoint(set(shadow_data["fine_tuning_sets"][1]))
@@ -99,6 +101,7 @@ def test_train_shadow_on_half_challenge_data(cfg: DictConfig, tmp_path: Path) ->
         training_json_config_paths=cfg.shadow_training.training_json_config_paths,
         table_name="trans",
         id_column_name="trans_id",
+        number_of_points_to_synthesize=5,
         random_seed=cfg.random_seed,
     )
     # Expected saved models and synthesized data:
@@ -119,6 +122,7 @@ def test_train_shadow_on_half_challenge_data(cfg: DictConfig, tmp_path: Path) ->
         assert result.relation_order is not None
         assert result.all_group_lengths_probabilities is not None
         assert type(result.synthetic_data) is pd.DataFrame
+        assert len(result.synthetic_data) == 5
 
     # Training sets should be disjoint
     assert set(shadow_data["selected_sets"][0]).isdisjoint(set(shadow_data["selected_sets"][1]))
@@ -156,13 +160,8 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
     )
 
     train_result = train_tabddpm_and_synthesize(
-        train_set,
-        configs,
-        save_dir,
-        synthesize=True,
+        train_set, configs, save_dir, synthesize=True, number_of_points_to_synthesize=99
     )
-    # By default, with a sampling scale of 1, the size of the synthesized data is equal
-    # to the size of the training data.
     assert train_result.synthetic_data is not None
     assert type(train_result.synthetic_data) is pd.DataFrame
     assert len(train_result.synthetic_data) == 99

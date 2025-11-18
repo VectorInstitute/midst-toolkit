@@ -51,6 +51,16 @@ def test_min_max_normalize_sklearn() -> None:
     unset_all_random_seeds()
 
 
+def test_min_max_normalize_sklearn_empty_matrix() -> None:
+    set_all_random_seeds(42)
+
+    data_to_normalize = np.random.randint(0, 3, (5, 0))
+    normalized_data = _min_max_normalize_sklearn(data_to_normalize)
+    assert data_to_normalize is normalized_data
+
+    unset_all_random_seeds()
+
+
 def test_get_normalized_numerical_columns() -> None:
     set_all_random_seeds(42)
     child_data = np.random.randint(0, 3, (3, 3))

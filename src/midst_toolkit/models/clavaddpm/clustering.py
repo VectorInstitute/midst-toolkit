@@ -753,6 +753,10 @@ def _min_max_normalize_sklearn(matrix: np.ndarray) -> np.ndarray:
     Returns:
         Numpy array of the normalized data.
     """
+    if matrix.shape[1] == 0:
+        # If there are no features to normalize, then no-op
+        return matrix
+
     scaler = MinMaxScaler(feature_range=(-1, 1))
     return scaler.fit_transform(matrix)
 

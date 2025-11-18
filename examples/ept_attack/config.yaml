@@ -11,35 +11,13 @@ data_paths:
 
 # Pipeline control
 pipeline:
-  run_data_processing: false # Set this to false if you have already saved the processed data
-  run_shadow_model_training: false # Set this to false if shadow models are pre-trained
-  run_attribute_prediction_model_training: true # Whether to run attribute prediction model training
+  run_data_processing: false # Whether to run data processing
+  run_shadow_model_training: false # Whether to run shadow model training
+  run_feature_extraction: true # Whether to run attribute prediction model training
   run_attack_classifier_training: false # Whether to run attack classifier training
 
-# Experiment settings
 attack_settings:
-  single_table: true # Whether the data is single-table or multi-table
-  attack_classifier_model_type: "xgb" # Type of model to use for the attack classifier Options: "xgb" for XGBoost, "cat" for CatBoost, or "mlp" for MLP
-
-
-# Dataset specific information used for processing in this example
-data_processing_config:
-  collect_attack_data_types:
-        [
-          "tabddpm_black_box",
-          "tabsyn_black_box",
-          "clavaddpm_black_box",
-        ]
-  # The column name in the data to be used for stratified splitting.
-  column_to_stratify: "trans_type"  # Attention: This value is not documented in the original codebase.
-  folder_ranges:
-    train: [[1, 31]]
-    dev: [[51, 61], [91, 101]]
-    final: [[61, 71], [101, 111]]
-  # File names in MIDST data directories.
-  single_table_train_data_file_name: "train_with_id.csv"
-  multi_table_train_data_file_name: "trans.csv"
-  challenge_data_file_name: "challenge_with_id.csv"
+  single_table: true # Whether the data is single-table
 
 # General settings
 random_seed: 42

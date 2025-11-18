@@ -2,7 +2,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
+<<<<<<< HEAD
 from midst_toolkit.attacks.ept.feature_extraction import TaskType, extract_features, preprocess_train_predict
+=======
+from midst_toolkit.attacks.ept.feature_extraction import extract_features, preprocess_train_predict
+from midst_toolkit.common.enumerations import TaskType
+>>>>>>> main
 
 
 @pytest.fixture
@@ -51,7 +56,11 @@ def test_preprocess_train_predict_classification(sample_dataframes, sample_colum
         random_seed=42,
     )
 
+<<<<<<< HEAD
     assert task_type == TaskType.CLASSIFICATION
+=======
+    assert task_type == TaskType.MULTICLASS_CLASSIFICATION
+>>>>>>> main
     assert len(predictions) == len(test_df)
     assert predictions.dtype == "object"  # RandomForestClassifier predicts original class
     pd.testing.assert_series_equal(y_test, test_df[target_col], check_dtype=False, check_names=False)
@@ -81,6 +90,7 @@ def test_preprocess_train_predict_assertions(sample_dataframes, sample_column_ty
     # Tests that the assertions within preprocess_train_predict fire correctly.
 
     train_df, test_df = sample_dataframes
+<<<<<<< HEAD
 
     # Test mismatching columns
     test_df_mismatch = test_df.drop(columns=["num_col_1"])
@@ -95,6 +105,35 @@ def test_preprocess_train_predict_assertions(sample_dataframes, sample_column_ty
     bad_column_types = {"numerical": ["num_col_1"], "categorical": []}
     with pytest.raises(AssertionError, match="must match the columns in the combined dataframe"):
         preprocess_train_predict(train_df, test_df, "num_col_1", bad_column_types)
+=======
+    target_col = "num_col_1"
+
+    # 1. Target column not in train_points
+    with pytest.raises(AssertionError, match="Target column 'non_existent_col' not found in train_points."):
+        preprocess_train_predict(train_df, test_df, "non_existent_col", sample_column_types)
+
+    # 2. Target column not in test_points
+    test_df_missing_target = test_df.drop(columns=[target_col])
+    with pytest.raises(AssertionError, match=f"Target column '{target_col}' not found in test_points."):
+        preprocess_train_predict(train_df, test_df_missing_target, target_col, sample_column_types)
+
+    # 3. Mismatched columns between train and test dataframes
+    test_df_mismatched = test_df.rename(columns={"num_col_2": "new_col_name"})
+    with pytest.raises(AssertionError, match="Columns in df_train and df_test do not match"):
+        preprocess_train_predict(train_df, test_df_mismatched, target_col, sample_column_types)
+
+    # 4. Target column appears more than once in column_types
+    column_types_duplicate = sample_column_types.copy()
+    column_types_duplicate["categorical"] = column_types_duplicate["categorical"] + [target_col]
+    with pytest.raises(AssertionError, match=f"The target column '{target_col}' must appear exactly once"):
+        preprocess_train_predict(train_df, test_df, target_col, column_types_duplicate)
+
+    # 5. Mismatch between dataframe columns and column_types
+    column_types_mismatch = sample_column_types.copy()
+    column_types_mismatch["numerical"] = ["num_col_1"]  # Missing num_col_2
+    with pytest.raises(AssertionError, match="The union of numeric_columns and categorical_columns must match"):
+        preprocess_train_predict(train_df, test_df, target_col, column_types_mismatch)
+>>>>>>> main
 
 
 def test_main_feature_extraction(sample_dataframes, sample_column_types):
