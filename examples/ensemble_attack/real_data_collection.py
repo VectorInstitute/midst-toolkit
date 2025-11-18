@@ -193,7 +193,6 @@ def collect_population_data_ensemble(
     save_dataframe(df_population, save_dir, "population_all.csv")
     save_dataframe(df_population_no_id, save_dir, "population_all_no_id.csv")
 
-
     challenge_attack_names = data_processing_config.challenge_attack_data_types_to_collect
     challenge_attack_types = [AttackType(attack_name) for attack_name in challenge_attack_names]
     df_challenge = collect_midst_data(
