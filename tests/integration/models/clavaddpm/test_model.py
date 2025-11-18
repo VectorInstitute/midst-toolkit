@@ -122,7 +122,7 @@ def test_load_single_table():
         },
     )
 
-    assert relation_order == [[None, "trans"]]
+    assert relation_order == [(None, "trans")]
     assert dataset_meta["relation_order"] == [[None, "trans"]]
     assert dataset_meta["tables"] == {"trans": {"children": [], "parents": []}}
 
@@ -225,7 +225,7 @@ def test_load_tables():
         },
     )
 
-    assert relation_order == [[None, "account"], ["account", "trans"]]
+    assert relation_order == [(None, "account"), ("account", "trans")]
     assert dataset_meta["relation_order"] == [[None, "account"], ["account", "trans"]]
     assert dataset_meta["tables"] == {
         "account": {"children": ["trans"], "parents": []},

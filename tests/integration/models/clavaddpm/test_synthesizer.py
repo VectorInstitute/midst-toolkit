@@ -92,11 +92,11 @@ def test_clava_synthesize_multi_table(tmp_path: Path):
         tables,
         relation_order,
         tmp_path,
-        all_group_lengths_prob_dicts,
         models[1],
         synthesizing_config,
         SAMPLING_CONFIG,
         MATCHING_CONFIG,
+        all_group_lengths_prob_dicts,
     )
 
     # Assert

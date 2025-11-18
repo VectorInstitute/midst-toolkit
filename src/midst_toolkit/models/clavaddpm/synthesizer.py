@@ -17,7 +17,7 @@ from tqdm import tqdm
 from midst_toolkit.common.config import GeneralConfig, MatchingConfig, SamplingConfig
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import log
-from midst_toolkit.models.clavaddpm.data_loaders import Tables
+from midst_toolkit.models.clavaddpm.data_loaders import NO_PARENT_COLUMN_NAME, Tables
 from midst_toolkit.models.clavaddpm.dataset import Dataset, TableMetadata, Transformations
 from midst_toolkit.models.clavaddpm.enumerations import (
     CategoricalEncoding,
@@ -626,9 +626,9 @@ def sample_from_dict(probabilities: dict[int, float]) -> int:
     Returns:
         The sampled key.
     """
-    assert sum(probabilities.values()) == 1.0, "The sum of all probabilities must be 1.0."
+    assert np.isclose(sum(probabilities.values()), 1), "The sum of all probabilities must be 1."
 
-    # Generate a random number between 0 and 1
+    # Generate a random number between [0, 1)
     random_number = random.random()
 
     # Initialize cumulative sum and the selected key
@@ -711,11 +711,11 @@ def clava_synthesizing(
     tables: Tables,
     relation_order: RelationOrder,
     save_dir: Path,
-    all_group_lengths_prob_dicts: GroupLengthsProbDicts,
     models: dict[Relation, ModelArtifacts],
     general_config: GeneralConfig,
     sampling_config: SamplingConfig,
     matching_config: MatchingConfig,
+    all_group_lengths_prob_dicts: GroupLengthsProbDicts | None = None,
     sample_scale: float = 1.0,
 ) -> tuple[dict[str, pd.DataFrame], float, float]:
     """
@@ -726,12 +726,13 @@ def clava_synthesizing(
         tables: Tables containing dataframes and clustering information.
         relation_order: List of parent-child table relationships.
         save_dir: Directory to save intermediate and final results.
-        all_group_lengths_prob_dicts: Dictionary containing group length probabilities for each
-            parent-child relationship.
         models: Trained models for each parent-child relationship.
         general_config: General configuration settings.
         sampling_config: Configuration settings for sampling.
         matching_config: Configuration settings for matching.
+        all_group_lengths_prob_dicts: Dictionary containing group length probabilities for each
+            parent-child relationship. Optional for single-table synthesizing, required for
+            multi-table synthesizing. Defaults to None.
         sample_scale: Scale factor for the number of samples to generate
             based on the train data size. Defaults to 1.0.
 
@@ -754,6 +755,10 @@ def clava_synthesizing(
         log(INFO, "Sample size: {}".format(int(sample_scale * len(df_without_id))))
 
         if parent is None:
+            # Adding the no parent placeholder column in case it doesn't have it
+            if NO_PARENT_COLUMN_NAME not in df_without_id.columns:
+                df_without_id[NO_PARENT_COLUMN_NAME] = list(range(len(df_without_id)))
+
             # synthesize data for single table or tables with no parent
             synthesized_df, table_keys = _synthesize_single_table(
                 child,
@@ -762,7 +767,12 @@ def clava_synthesizing(
                 sample_scale,
                 sampling_config.batch_size,
             )
+
         else:
+            assert all_group_lengths_prob_dicts is not None, (
+                "all_group_lengths_prob_dicts is required for multi-table synthesizing."
+            )
+
             # Finding previously synthesized data and training results for the parent
             parent_synthetic_data = None
             parent_training_results = None

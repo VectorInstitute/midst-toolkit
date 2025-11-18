@@ -142,11 +142,11 @@ def train_tabddpm_and_synthesize(
             tables,
             relation_order,
             save_dir,
-            all_group_lengths_prob_dicts,
             models,
             configs.general,
             configs.sampling,
             configs.matching,
+            all_group_lengths_prob_dicts,
             sample_scale=sample_scale,
         )
 
@@ -235,11 +235,11 @@ def fine_tune_tabddpm_and_synthesize(
             new_tables,
             relation_order,
             save_dir,
-            all_group_lengths_prob_dicts,
             new_models,
             configs.general,
             configs.sampling,
             configs.matching,
+            all_group_lengths_prob_dicts,
             sample_scale=sample_scale,
         )
 
