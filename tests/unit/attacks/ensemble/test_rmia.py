@@ -93,16 +93,13 @@ def rmia_signal_data() -> dict[str, Any]:
         },
     ]
 
-    target_data = {
-        "selected_sets": [pd.DataFrame(np.random.rand(5, 2))],
-        "trained_results": [MockTrainingResult(syn_data_5.copy())],
-    }
+    target_synthetic_data = MockTrainingResult(syn_data_5.copy()).synthetic_data
 
     return {
         "df_input": df_input,
         "id_column_data": id_column_data,
         "shadow_data_collection": shadow_data_collection,
-        "target_data": target_data,
+        "target_synthetic_data": target_synthetic_data,
         "categorical_column_names": ["city"],
         "id_column_name": "id",
         "k": k,
@@ -155,11 +152,13 @@ class TestGetRmiaGower:
         )
 
         min_length = 3
+        shadow_synthetic_list = [
+            train_result.synthetic_data for train_result in base_data["model_data"][Key.TRAINED_RESULTS.value]
+        ]
         results = get_rmia_gower(
             df_input=base_data["df_input"],
-            model_data=base_data["model_data"],
+            model_data=shadow_synthetic_list,
             min_length=min_length,
-            key=Key.TRAINED_RESULTS,
             categorical_column_names=base_data["categorical_column_names"],
             id_column_name=base_data["id_column_name"],
             random_seed=base_data["random_seed"],
@@ -196,11 +195,11 @@ class TestGetRmiaGower:
         mock_sample = mocker.patch("pandas.DataFrame.sample", wraps=original_syn_data.sample)
 
         min_length = 2
+        synthetic_data_list = [data.synthetic_data for data in base_data["model_data"][Key.TRAINED_RESULTS.value]]
         get_rmia_gower(
             df_input=base_data["df_input"],
-            model_data=base_data["model_data"],
+            model_data=synthetic_data_list,
             min_length=min_length,
-            key=Key.TRAINED_RESULTS,
             categorical_column_names=base_data["categorical_column_names"],
             id_column_name=base_data["id_column_name"],
             random_seed=base_data["random_seed"],
@@ -224,11 +223,11 @@ class TestGetRmiaGower:
         missing_cat_cols = ["city", "non_existent_column"]
 
         with caplog.at_level("INFO"):
+            synthetic_data_list = [data.synthetic_data for data in base_data["model_data"][Key.FINE_TUNED_RESULTS.value]]
             get_rmia_gower(
                 df_input=base_data["df_input"],
-                model_data=base_data["model_data"],
+                model_data=synthetic_data_list,
                 min_length=1,
-                key=Key.FINE_TUNED_RESULTS,
                 categorical_column_names=missing_cat_cols,
                 id_column_name=base_data["id_column_name"],
             )
