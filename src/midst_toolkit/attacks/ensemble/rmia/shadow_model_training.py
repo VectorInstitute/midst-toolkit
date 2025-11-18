@@ -295,8 +295,6 @@ def train_shadow_on_half_challenge_data(
             INFO,
             f"Trained shadow model {model_id} generated {len(train_result.synthetic_data)} synthetic samples.",
         )
-        assert train_result.synthetic_data is not None, "Trained shadow model did not generate synthetic data."
-        log(INFO, f"Trained shadow model {model_id} generated {len(train_result.synthetic_data)} synthetic samples.")
 
         attack_data["trained_results"].append(train_result)
 
