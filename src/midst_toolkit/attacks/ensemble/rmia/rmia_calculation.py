@@ -22,9 +22,8 @@ class Key(Enum):
 
 def get_rmia_gower(
     df_input: pd.DataFrame,
-    model_data: dict[str, list[Any]],
+    model_data: list[pd.DataFrame],
     min_length: int,
-    key: Key,
     categorical_column_names: list[str],
     id_column_name: str,
     random_seed: int | None = None,
@@ -69,8 +68,8 @@ def get_rmia_gower(
 
     df_input[numerical_columns] = df_input[numerical_columns].astype(float)
 
-    for i in range(len(model_data[key.value])):
-        df_synthetic = model_data[key.value][i].synthetic_data.copy()
+    for i in range(len(model_data)):
+        df_synthetic = model_data[i].copy()
 
         # Convert numerical columns to float (otherwise error in the numpy divide)
         df_synthetic[numerical_columns] = df_synthetic[numerical_columns].astype(float)
@@ -117,7 +116,7 @@ def conditional_average(values: np.ndarray, condition_mask: np.ndarray) -> np.nd
 def calculate_rmia_signals(
     df_input: pd.DataFrame,
     shadow_data_collection: list[dict[str, list[Any]]],
-    target_data: dict[str, list[Any]],
+    target_synthetic_data: pd.DataFrame,
     categorical_column_names: list[str],
     id_column_name: str,
     id_column_data: pd.Series,
@@ -225,32 +224,36 @@ def calculate_rmia_signals(
     min_length = min(min(group) for group in all_lengths)
     if not (1 <= k <= min_length):
         raise ValueError(f"k={k} must be within [1, {min_length}]")
-
+    
+    shadow_synthetic_list_0 = [
+        train_result.synthetic_data for train_result in fine_tuned_shadow_data_0[Key.FINE_TUNED_RESULTS.value]
+    ]
     shadow_model_gower_0 = get_rmia_gower(
         df_input=df_input,
-        model_data=fine_tuned_shadow_data_0,
+        model_data=shadow_synthetic_list_0,
         min_length=min_length,
-        key=Key.FINE_TUNED_RESULTS,
         categorical_column_names=categorical_column_names,
         id_column_name=id_column_name,
         random_seed=random_seed,
     )
-
+    shadow_synthetic_list_1 = [
+        train_result.synthetic_data for train_result in fine_tuned_shadow_data_1[Key.FINE_TUNED_RESULTS.value]
+    ]
     shadow_model_gower_1 = get_rmia_gower(
         df_input=df_input,
-        model_data=fine_tuned_shadow_data_1,
+        model_data=shadow_synthetic_list_1,
         min_length=min_length,
-        key=Key.FINE_TUNED_RESULTS,
         categorical_column_names=categorical_column_names,
         id_column_name=id_column_name,
         random_seed=random_seed,
     )
-
+    shadow_synthetic_list_2 = [
+        train_result.synthetic_data for train_result in trained_shadow_data[Key.TRAINED_RESULTS.value]
+    ]
     shadow_model_gower_2 = get_rmia_gower(
         df_input=df_input,
-        model_data=trained_shadow_data,
+        model_data=shadow_synthetic_list_2,
         min_length=min_length,
-        key=Key.TRAINED_RESULTS,
         categorical_column_names=categorical_column_names,
         id_column_name=id_column_name,
         random_seed=random_seed,
@@ -270,9 +273,8 @@ def calculate_rmia_signals(
     # TODO: check key after we have the official target model
     target_model_gower = get_rmia_gower(
         df_input=df_input,
-        model_data=target_data,
+        model_data=[target_synthetic_data],
         min_length=min_length,
-        key=Key.TRAINED_RESULTS,
         categorical_column_names=categorical_column_names,
         id_column_name=id_column_name,
     )

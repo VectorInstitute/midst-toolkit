@@ -16,7 +16,6 @@ from midst_toolkit.attacks.ensemble.shadow_model_utils import (
 )
 from midst_toolkit.common.logger import log
 
-
 def run_target_model_training(config: DictConfig) -> Path:
     """
     Function to run the target model training for RMIA attack.
@@ -25,7 +24,7 @@ def run_target_model_training(config: DictConfig) -> Path:
         config: Configuration object set in config.yaml.
 
     Returns:
-        Path to the saved target model results.
+        Path to the saved target model's synthetic.
     """
     log(INFO, "Running target model training...")
 
@@ -70,24 +69,18 @@ def run_target_model_training(config: DictConfig) -> Path:
         synthetic_data_size=config.shadow_training.synthetic_data_size,
     )
 
-    # TODO: Check: Selected_id_lists should be of form [[]]
-    selected_id_lists = [df_real_data[id_column_name].tolist()]
+    # To train the attack model (metaclassifier), we only need to save target's synthetic data,
+    # and not the entire target model's training result object.
+    assert train_result.synthetic_data is not None,(
+         "Target model synthetic data is not generated successfully."
+    )
+    target_synthetic_data = train_result.synthetic_data
 
-    attack_data: dict[str, Any] = {
-        "selected_sets": selected_id_lists,
-        "trained_results": [],
-    }
+    # Save the target model's synthetic data
+    target_model_synthetic_path = config.shadow_training.target_synthetic_data_path
+    target_synthetic_data.to_csv(target_model_synthetic_path, index=False)
 
-    attack_data["trained_results"].append(train_result)
-
-    # Pickle dump the results
-    result_path = Path(save_dir, "target_model.pkl")
-    with open(result_path, "wb") as file:
-        pickle.dump(attack_data, file)
-
-    log(INFO, f"Target model training finished and saved at {result_path}")
-
-    return result_path
+    return target_model_synthetic_path
 
 
 def run_shadow_model_training(config: DictConfig) -> list[Path]:
