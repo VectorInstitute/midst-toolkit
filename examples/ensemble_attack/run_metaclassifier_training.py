@@ -116,7 +116,7 @@ def run_metaclassifier_training(
     )
 
     model_filename = config.metaclassifier.meta_classifier_model_name
-    model_path = Path(config.model_paths.metaclassifier_model_path) / model_filename
+    model_path = Path(config.model_paths.metaclassifier_model_path) / f"{model_filename}.pkl"
     model_path.parent.mkdir(parents=True, exist_ok=True)
     with open(model_path, "wb") as f:
         pickle.dump(blending_attacker.trained_model, f)

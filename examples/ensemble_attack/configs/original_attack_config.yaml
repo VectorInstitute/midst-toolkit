@@ -91,7 +91,7 @@ metaclassifier:
   use_gpu: false
   # Temporary. Might remove having an epoch parameter.
   epochs: 1
-  meta_classifier_model_name: ${metaclassifier.model_type}_metaclassifier_model.pkl
+  meta_classifier_model_name: ${metaclassifier.model_type}_metaclassifier_model
 
 
 # General settings
