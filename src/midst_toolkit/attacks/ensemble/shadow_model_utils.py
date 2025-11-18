@@ -82,7 +82,7 @@ def train_tabddpm_and_synthesize(
     configs: TrainingConfig,
     save_dir: Path,
     synthesize: bool = True,
-    synthetic_data_size: int = 20000,
+    number_of_points_to_synthesize: int = 20000,
 ) -> TrainingResult:
     """
     Train a TabDDPM model on the provided training set and optionally synthesize data using the trained models.
@@ -92,7 +92,7 @@ def train_tabddpm_and_synthesize(
         configs: Configuration dictionary for TabDDPM.
         save_dir: Directory path where models and results will be saved.
         synthesize: Flag indicating whether to generate synthetic data after training. Defaults to True.
-        synthetic_data_size: Number of synthetic data samples to be generated. Defaults to 20000.
+        number_of_points_to_synthesize: Number of synthetic data samples to be generated. Defaults to 20000.
 
     Returns:
         A dataclass TrainingResult object containing:
@@ -130,23 +130,23 @@ def train_tabddpm_and_synthesize(
     )
 
     if synthesize:
-        # By default, we want the length of the final synthetic data to be ``len(provided_synth_data) = 20,000``
-        # But with a smaller scale, we can generate less synthetic data for debugging purposes.
+        # By default, Ensemble attack generates a synthetic data of length ``20,000``.
         # Attack's default sample_scale is set to ``20000 / len(tables["trans"]["df"])`` to
-        # generate 20,000 samples regardless
-        # of the training data size.
-        # Sample scale is later multiplied by the size of training data (no id) to determine
+        # generate 20,000 samples regardless of the training data size. But we control the
+        # synthetic data size directly here with ``number_of_points_to_synthesize``.
+        # ``sample_scale`` is later multiplied by the size of training data (no id) to determine
         # the size of synthetic data.
-        sample_scale = synthetic_data_size / len(tables["trans"].data)
+        assert len(tables["trans"].data) > 0, "Cannot synthesize: training data is empty"
+        sample_scale = number_of_points_to_synthesize / len(tables["trans"].data)
         cleaned_tables, _, _ = clava_synthesizing(
             tables,
             relation_order,
             save_dir,
-            all_group_lengths_prob_dicts,
             models,
             configs.general,
             configs.sampling,
             configs.matching,
+            all_group_lengths_prob_dicts,
             sample_scale=sample_scale,
         )
 
@@ -163,7 +163,7 @@ def fine_tune_tabddpm_and_synthesize(
     fine_tuning_diffusion_iterations: int = 100,
     fine_tuning_classifier_iterations: int = 10,
     synthesize: bool = True,
-    synthetic_data_size: int = 20000,
+    number_of_points_to_synthesize: int = 20000,
 ) -> TrainingResult:
     """
     Given the trained models and a new training set, fine-tune the TabDDPM models.
@@ -179,7 +179,7 @@ def fine_tune_tabddpm_and_synthesize(
         fine_tuning_classifier_iterations: Number of training iterations for the new classifier model.
             Defaults to 10.
         synthesize: Flag indicating whether to generate synthetic data after training. Defaults to True.
-        synthetic_data_size: Number of synthetic data samples to be generated. Defaults to 20000.
+        number_of_points_to_synthesize: Number of synthetic data samples to be generated. Defaults to 20000.
 
 
     Returns:
@@ -223,21 +223,23 @@ def fine_tune_tabddpm_and_synthesize(
     )
 
     if synthesize:
-        # By default, we want the length of the final synthetic data to be ``len(provided_synth_data) = 20,000``
-        # But with a smaller scale, we can generate less synthetic data for debugging purposes.
-        # Ensemble Attack's default sample_scale is ``20000 / len(tables["trans"]["df"])`` to generate 20,000 samples
-        # regardless of the train data size.
-        # Sample scale is later multiplied by the size of training data to determine the size of synthetic data.
-        sample_scale = synthetic_data_size / len(new_tables["trans"].data)
+        # By default, Ensemble attack generates a synthetic data of length ``20,000``.
+        # Attack's default sample_scale is set to ``20000 / len(tables["trans"]["df"])`` to
+        # generate 20,000 samples regardless of the training data size. But we control the
+        # synthetic data size directly here with ``number_of_points_to_synthesize``.
+        # ``sample_scale`` is later multiplied by the size of training data (no id) to determine
+        # the size of synthetic data.
+        assert len(new_tables["trans"].data) > 0, "Cannot synthesize: training data is empty"
+        sample_scale = number_of_points_to_synthesize / len(new_tables["trans"].data)
         cleaned_tables, _, _ = clava_synthesizing(
             new_tables,
             relation_order,
             save_dir,
-            all_group_lengths_prob_dicts,
             new_models,
             configs.general,
             configs.sampling,
             configs.matching,
+            all_group_lengths_prob_dicts,
             sample_scale=sample_scale,
         )
 

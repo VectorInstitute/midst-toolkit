@@ -59,6 +59,8 @@ def clava_clustering(
             "tables": tables,
             "all_group_lengths_prob_dicts": all_group_lengths_prob_dicts,
         }
+
+        save_dir.mkdir(parents=True, exist_ok=True)
         with open(save_dir / "cluster_ckpt.pkl", "wb") as f:
             pickle.dump(cluster_ckpt, f)
 
@@ -753,6 +755,10 @@ def _min_max_normalize_sklearn(matrix: np.ndarray) -> np.ndarray:
     Returns:
         Numpy array of the normalized data.
     """
+    if matrix.shape[1] == 0:
+        # If there are no features to normalize, then no-op
+        return matrix
+
     scaler = MinMaxScaler(feature_range=(-1, 1))
     return scaler.fit_transform(matrix)
 
