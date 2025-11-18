@@ -49,7 +49,7 @@ def run_metaclassifier_testing(
 
     log(INFO, "Metaclassifier model loaded, starting evaluation...")
 
-    # 2) Read target model challenge data and synthetic data.
+    # 2) Read target model's challenge data and synthetic data.
 
     # Back-box attacker has only access to the target model's synthetic data and challenge points.
     # We also load challenge labels to report the attack performance.
