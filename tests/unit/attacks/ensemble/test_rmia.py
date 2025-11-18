@@ -223,7 +223,9 @@ class TestGetRmiaGower:
         missing_cat_cols = ["city", "non_existent_column"]
 
         with caplog.at_level("INFO"):
-            synthetic_data_list = [data.synthetic_data for data in base_data["model_data"][Key.FINE_TUNED_RESULTS.value]]
+            synthetic_data_list = [
+                data.synthetic_data for data in base_data["model_data"][Key.FINE_TUNED_RESULTS.value]
+            ]
             get_rmia_gower(
                 df_input=base_data["df_input"],
                 model_data=synthetic_data_list,

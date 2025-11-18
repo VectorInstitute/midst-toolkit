@@ -1,10 +1,9 @@
 import pickle
-from datetime import datetime
 from logging import INFO
 from pathlib import Path
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
@@ -98,7 +97,7 @@ def run_metaclassifier_training(
     blending_attacker = BlendingPlusPlus(
         config=config,
         shadow_data_collection=shadow_data_collection,
-        data_types_file_path = Path(config.metaclassifier.data_types_file_path),
+        data_types_file_path=Path(config.metaclassifier.data_types_file_path),
         meta_classifier_type=meta_classifier_enum,
         random_seed=config.random_seed,
     )
@@ -128,18 +127,17 @@ def run_metaclassifier_training(
     # For evaluation, we test the meta classifier on the meta test set provided the target's synthetic data.
     probabilities, pred_score = blending_attacker.predict(
         df_test=df_meta_test,
-        df_original_synthetic=target_synthetic, # For evaluation only, replace with actual target model during testing.
+        df_original_synthetic=target_synthetic,  # For evaluation only, replace with actual target model during testing.
         df_reference=df_reference,
         id_column_data=test_trans_ids,
         y_test=y_meta_test,
     )
-    
+
     # Save the evaluation prediction probabilities
     attack_evaluation_result_path = Path(config.data_paths.attack_evaluation_result_path)
     attack_evaluation_result_path.mkdir(parents=True, exist_ok=True)
     np.save(
-        attack_evaluation_result_path
-        / f"{config.metaclassifier.model_type}_val_pred_proba.npy",
+        attack_evaluation_result_path / f"{config.metaclassifier.model_type}_val_pred_proba.npy",
         probabilities,
     )
     log(INFO, "Evaluation prediction probabilities saved.")

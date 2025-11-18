@@ -1,8 +1,6 @@
-import pickle
 import shutil
 from logging import INFO
 from pathlib import Path
-from typing import Any
 
 from omegaconf import DictConfig
 
@@ -15,6 +13,7 @@ from midst_toolkit.attacks.ensemble.shadow_model_utils import (
     train_tabddpm_and_synthesize,
 )
 from midst_toolkit.common.logger import log
+
 
 def run_target_model_training(config: DictConfig) -> Path:
     """
@@ -41,7 +40,6 @@ def run_target_model_training(config: DictConfig) -> Path:
 
     # TODO: Add this to config or .json files
     table_name = "trans"
-    id_column_name = "trans_id"
 
     target_folder = target_model_output_path / "target_model"
 
@@ -71,9 +69,7 @@ def run_target_model_training(config: DictConfig) -> Path:
 
     # To train the attack model (metaclassifier), we only need to save target's synthetic data,
     # and not the entire target model's training result object.
-    assert train_result.synthetic_data is not None,(
-         "Target model synthetic data is not generated successfully."
-    )
+    assert train_result.synthetic_data is not None, "Target model synthetic data is not generated successfully."
     target_synthetic_data = train_result.synthetic_data
 
     # Save the target model's synthetic data

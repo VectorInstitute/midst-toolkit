@@ -161,10 +161,7 @@ def calculate_rmia_signals(
             which store model training metadata and the corresponding generated synthetic data.
             See ``train_three_sets_of_shadow_models`` in attacks/ensemble/rmia/shadow_model_training.py
             for additional details.
-        target_data: A dictionary containing information about the target model. It includes:
-            - ``selected_sets``: A list of DataFrames used to train the target model.
-            - ``trained_results``: A list of ``TrainingResult`` objects, each containing details about the model's
-              training process and the synthetic data generated during training.
+        target_synthetic_data: Target model's synthetic data as a DataFrame.
         categorical_column_names: A list of categorical column names.
         id_column_name: Name of the ID column.
         id_column_data: The data in the ID column extracted from df_input, ensuring that output signals are
@@ -220,7 +217,7 @@ def calculate_rmia_signals(
     min_length = min(min(group) for group in all_lengths)
     if not (1 <= k <= min_length):
         raise ValueError(f"k={k} must be within [1, {min_length}]")
-    
+
     shadow_synthetic_list_0 = [
         train_result.synthetic_data for train_result in fine_tuned_shadow_data_0[Key.FINE_TUNED_RESULTS.value]
     ]

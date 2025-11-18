@@ -15,6 +15,7 @@ from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
 
+
 def run_data_processing(config: DictConfig) -> None:
     """
     Function to run the data processing pipeline.
@@ -74,7 +75,9 @@ def main(config: DictConfig) -> None:
             target_model_synthetic_path = Path(config.shadow_training.target_synthetic_data_path)
 
         assert len(shadow_data_paths) == 3, "The attack_data_paths list must contain exactly three elements."
-        assert target_model_synthetic_path is not None, "The target_data_path must be provided for metaclassifier training."
+        assert target_model_synthetic_path is not None, (
+            "The target_data_path must be provided for metaclassifier training."
+        )
 
         meta_pipeline = importlib.import_module("examples.ensemble_attack.run_metaclassifier_training")
         meta_pipeline.run_metaclassifier_training(config, shadow_data_paths, target_model_synthetic_path)

@@ -13,15 +13,15 @@ target_model: # This is only used for testing the attack on a real target model.
   target_model_directory: /projects/midst-experiments/all_tabddpms/tabddpm_trained_with_20k/train/
   target_model_id: 21
   target_model_name: tabddpm_${target_model.target_model_id}
-  target_synthetic_data_path: ${target_model.target_model_directory}/${target_model.target_model_name}/synthetic_data/20k/20k.csv 
+  target_synthetic_data_path: ${target_model.target_model_directory}/${target_model.target_model_name}/synthetic_data/20k/20k.csv
   challenge_data_path: ${target_model.target_model_directory}/${target_model.target_model_name}/challenge_with_id.csv
   challenge_label_path: ${target_model.target_model_directory}/${target_model.target_model_name}/challenge_label.csv
-  
+
   target_attack_artifact_dir: ${base_experiment_dir}/target_${target_model.target_model_id}_attack_artifacts/
   attack_probabilities_result_path: ${target_model.target_attack_artifact_dir}/attack_model_${target_model.target_model_id}_proba
   target_shadow_models_output_path: ${target_model.target_attack_artifact_dir}/tabddpm_${target_model.target_model_id}_shadows_dir
 
-  
+
 # Data paths
 data_paths:
   midst_data_path: /projects/midst-experiments/all_tabddpms # Used to collect the data

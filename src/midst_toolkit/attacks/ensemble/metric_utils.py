@@ -26,5 +26,3 @@ def get_tpr_at_fpr(
     fpr, tpr, _ = roc_curve(true_membership, predictions)
 
     return max(tpr[fpr <= max_fpr])
-
-

@@ -27,10 +27,6 @@ class AttackType(Enum):
     TABDDPM_20K = "tabddpm_trained_with_20k"
     TABDDPM_50K = "tabddpm_trained_with_50k"
     TABDDPM_100K = "tabddpm_trained_with_100k"
-    
-
-    
-
 
 
 def expand_ranges(ranges: list[tuple[int, int]]) -> list[int]:
@@ -146,8 +142,8 @@ def collect_population_data_ensemble(
     midst_data_input_dir: Path,
     data_processing_config: DictConfig,
     save_dir: Path,
-    population_splits: list[str] = ["train"],
-    challenge_splits: list[str] = ["train", "dev", "final"],
+    population_splits: list[str] | None = None,
+    challenge_splits: list[str] | None = None,
 ) -> pd.DataFrame:
     """
     Collect the population data from the MIDST competition based on Ensemble Attack implementation.
@@ -161,17 +157,22 @@ def collect_population_data_ensemble(
         data_processing_config: Configuration dictionary containing data information and file names.
         save_dir: The path where the collected population data should be saved.
         population_splits: A list indicating the data splits to be collected for population data.
-            Could be any of train, dev, or final data splits. Default value is based on the original
-            attack implementation.
+            Could be any of train, dev, or final data splits. If None, a default value is set in the function
+            based on the original attack implementation.
         challenge_splits: A list indicating the data splits to be collected for challenge points.
-            Could be any of train, dev, or final data splits. Default value is based on the original
-            attack implementation.
+            Could be any of train, dev, or final data splits. If None, a default value is set in the function
+            based on the original attack implementation.
 
     Returns:
         The collected population data as a dataframe.
     """
     # Population data will be saved under ``save_dir``.
     save_dir.mkdir(parents=True, exist_ok=True)
+
+    if population_splits is None:
+        population_splits = ["train"]
+    if challenge_splits is None:
+        challenge_splits = ["train", "dev", "final"]
 
     # Ensemble Attack collects train data of all the attack types (black box and white box)
     attack_names = data_processing_config.population_attack_data_types_to_collect

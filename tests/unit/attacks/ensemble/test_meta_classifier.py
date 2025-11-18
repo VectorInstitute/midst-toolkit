@@ -308,7 +308,7 @@ class TestBlendingPlusPlus:
         bpp = BlendingPlusPlus(
             config=mock_config_with_json_path,
             shadow_data_collection=[],
-            data_types_file_path=mock_config_with_json_path.metaclassifier.data_types_file_path, 
+            data_types_file_path=mock_config_with_json_path.metaclassifier.data_types_file_path,
         )
         with pytest.raises(AssertionError):
             bpp.predict(
