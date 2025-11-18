@@ -21,6 +21,16 @@ class AttackType(Enum):
     TABSYN_WHITE_BOX = "tabsyn_white_box"
     CLAVADDPM_BLACK_BOX = "clavaddpm_black_box"
     CLAVADDPM_WHITE_BOX = "clavaddpm_white_box"
+    # Experiment attack types based on experiment settings
+    TABDDPM_5K = "tabddpm_trained_with_5k"
+    TABDDPM_10K = "tabddpm_trained_with_10k"
+    TABDDPM_20K = "tabddpm_trained_with_20k"
+    TABDDPM_50K = "tabddpm_trained_with_50k"
+    TABDDPM_100K = "tabddpm_trained_with_100k"
+    
+
+    
+
 
 
 def expand_ranges(ranges: list[tuple[int, int]]) -> list[int]:
@@ -136,6 +146,8 @@ def collect_population_data_ensemble(
     midst_data_input_dir: Path,
     data_processing_config: DictConfig,
     save_dir: Path,
+    population_splits: list[str] = ["train"],
+    challenge_splits: list[str] = ["train", "dev", "final"],
 ) -> pd.DataFrame:
     """
     Collect the population data from the MIDST competition based on Ensemble Attack implementation.
@@ -148,19 +160,28 @@ def collect_population_data_ensemble(
         midst_data_input_dir: The path where the MIDST data folders are stored.
         data_processing_config: Configuration dictionary containing data information and file names.
         save_dir: The path where the collected population data should be saved.
+        population_splits: A list indicating the data splits to be collected for population data.
+            Could be any of train, dev, or final data splits. Default value is based on the original
+            attack implementation.
+        challenge_splits: A list indicating the data splits to be collected for challenge points.
+            Could be any of train, dev, or final data splits. Default value is based on the original
+            attack implementation.
 
     Returns:
         The collected population data as a dataframe.
     """
+    # Population data will be saved under ``save_dir``.
+    save_dir.mkdir(parents=True, exist_ok=True)
+
     # Ensemble Attack collects train data of all the attack types (black box and white box)
-    attack_names = data_processing_config.collect_attack_data_types
+    attack_names = data_processing_config.population_attack_data_types_to_collect
     # Provided attack name are valid based on AttackType enum
-    attack_types: list[AttackType] = [AttackType(attack_name) for attack_name in attack_names]
+    population_attack_types: list[AttackType] = [AttackType(attack_name) for attack_name in attack_names]
 
     df_population = collect_midst_data(
         midst_data_input_dir,
-        attack_types,
-        data_splits=["train"],
+        population_attack_types,
+        data_splits=population_splits,
         dataset="train",
         data_processing_config=data_processing_config,
     )
@@ -170,12 +191,13 @@ def collect_population_data_ensemble(
     save_dataframe(df_population, save_dir, "population_all.csv")
     save_dataframe(df_population_no_id, save_dir, "population_all_no_id.csv")
 
-    # Collect all the challenge points from train, dev and final of "tabddpm_black_box" attack.
-    challenge_attack_types = [AttackType.TABDDPM_BLACK_BOX]
+    # Original Ensemble collects all the challenge points from train, dev and final of "tabddpm_black_box" attack.
+    challenge_attack_names = data_processing_config.challenge_attack_data_types_to_collect
+    challenge_attack_types = [AttackType(attack_name) for attack_name in challenge_attack_names]
     df_challenge = collect_midst_data(
         midst_data_input_dir,
         attack_types=challenge_attack_types,
-        data_splits=["train", "dev", "final"],
+        data_splits=challenge_splits,
         dataset="challenge",
         data_processing_config=data_processing_config,
     )
