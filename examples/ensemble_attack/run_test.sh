@@ -27,6 +27,6 @@ echo "Running test for target_model_id: $TARGET_ID"
 
 echo "Experiments Launched"
 
-python -m examples.ensemble_attack.test_attack_model target_model.target_model_id=$TARGET_ID
+python -m examples.ensemble_attack.test_attack_model target_model.target_model_id=$TARGET_ID # Overrides the target_model_id in config.
 
 echo "Experiments Completed"
