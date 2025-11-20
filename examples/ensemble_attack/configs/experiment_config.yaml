@@ -70,14 +70,15 @@ shadow_training:
   # Also, training configs for each shadow model are created under shadow_models_data_path.
   shadow_models_output_path: ${base_experiment_dir}/shadow_models_and_data
   target_model_output_path: ${base_experiment_dir}/shadow_target_model_and_data
+  # Paths to final shadow models used for metaclassifier training (relative to shadow_models_output_path)
+  # These paths are a result of running the shadow model training pipeline, specifically the
+  # train_three_sets_of_shadow_models in shadow_model_training.py
+  # Each .pkl file contains the training data, trained model and training results for all shadow models in a list.
   final_shadow_models_path: [
           "${shadow_training.shadow_models_output_path}/initial_model_rmia_1/shadow_workspace/pre_trained_model/rmia_shadows.pkl",
           "${shadow_training.shadow_models_output_path}/initial_model_rmia_2/shadow_workspace/pre_trained_model/rmia_shadows.pkl",
           "${shadow_training.shadow_models_output_path}/shadow_model_rmia_third_set/shadow_workspace/trained_model/rmia_shadows_third_set.pkl",
-      ] # Paths to final shadow models used for metaclassifier training (relative to shadow_models_output_path)
-      # These paths are a result of running the shadow model training pipeline, specifically the
-      # train_three_sets_of_shadow_models in shadow_model_training.py
-      # Each .pkl file contains the training data, trained model and training results for all shadow models in a list.
+      ]
   target_synthetic_data_path: ${shadow_training.target_model_output_path}/target_synthetic_data.csv
   # Path to final shadow target's synthetic data (relative to target_model_output_path)
   fine_tuning_config:
