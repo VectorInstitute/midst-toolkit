@@ -8,7 +8,7 @@ data_paths:
   midst_data_path: ${base_data_dir}/midst_data_all_attacks # Used only for reading the data
   population_path: ${base_data_dir}/population_data  # Path where the population data should be stored
   processed_attack_data_path: ${base_data_dir}/attack_data # Path where the processed attack real train and evaluation data is stored
-  attack_evaluation_result_path: ${base_example_dir}/attack_results # Path where the attack results will be stored
+  attack_evaluation_result_path: ${base_example_dir}/attack_results # Path where the attack evaluation results will be stored
 
 model_paths:
   metaclassifier_model_path: ${base_example_dir}/trained_models # Path where the trained metaclassifier model will be saved
@@ -47,8 +47,9 @@ data_processing_config:
   single_table_train_data_file_name: "train_with_id.csv"
   multi_table_train_data_file_name: "trans.csv"
   challenge_data_file_name: "challenge_with_id.csv"
-  population_sample_size: 40000 # Population size the total data that your attack has access to.
+  population_sample_size: 40000 # Population size is the total data that your attack has access to.
   # The size of the master challenge dataset is half of the population size based on the attack design.
+  # The other half is used for evaluation.
   # Original code: 40000
 
 # Training and data settings for shadow models (temporary, numbers subject to change)

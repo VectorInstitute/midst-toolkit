@@ -70,10 +70,10 @@ def run_metaclassifier_training(
     )
 
     # Load the target model's synthetic data
-    target_synthetic = pd.read_csv(target_model_synthetic_path)
+    target_synthetic_data = pd.read_csv(target_model_synthetic_path)
 
-    assert target_synthetic is not None, "Target model's synthetic data is missing."
-    target_synthetic = target_synthetic.copy()
+    assert target_synthetic_data is not None, "Target model's synthetic data is missing."
+    target_synthetic_data = target_synthetic_data.copy()
 
     df_reference = load_dataframe(
         Path(config.data_paths.population_path),
@@ -91,24 +91,24 @@ def run_metaclassifier_training(
     df_meta_test = df_meta_test.drop(columns=["trans_id", "account_id"])
 
     # Fit the metaclassifier.
-    meta_classifier_enum = MetaClassifierType(config.metaclassifier.model_type)
+    meta_classifier_type = MetaClassifierType(config.metaclassifier.model_type)
 
     # 1. Initialize the attacker
     blending_attacker = BlendingPlusPlus(
         config=config,
         shadow_data_collection=shadow_data_collection,
         data_types_file_path=Path(config.metaclassifier.data_types_file_path),
-        meta_classifier_type=meta_classifier_enum,
+        meta_classifier_type=meta_classifier_type,
         random_seed=config.random_seed,
     )
 
-    log(INFO, f"{meta_classifier_enum} created with random seed {config.random_seed}.")
+    log(INFO, f"{meta_classifier_type} created with random seed {config.random_seed}.")
 
     # 2. Train the attacker on the meta-train set
     blending_attacker.fit(
         df_train=df_meta_train,
         y_train=y_meta_train,
-        df_target_synthetic=target_synthetic,
+        df_target_synthetic=target_synthetic_data,
         df_reference=df_reference,
         id_column_data=train_trans_ids,
         use_gpu=config.metaclassifier.use_gpu,
@@ -127,7 +127,7 @@ def run_metaclassifier_training(
     # For evaluation, we test the meta classifier on the meta test set provided the target's synthetic data.
     probabilities, pred_score = blending_attacker.predict(
         df_test=df_meta_test,
-        df_original_synthetic=target_synthetic,  # For evaluation only, replace with actual target model during testing.
+        df_original_synthetic=target_synthetic_data,  # For evaluation only
         df_reference=df_reference,
         id_column_data=test_trans_ids,
         y_test=y_meta_test,
@@ -136,11 +136,9 @@ def run_metaclassifier_training(
     # Save the evaluation prediction probabilities
     attack_evaluation_result_path = Path(config.data_paths.attack_evaluation_result_path)
     attack_evaluation_result_path.mkdir(parents=True, exist_ok=True)
-    np.save(
-        attack_evaluation_result_path / f"{config.metaclassifier.model_type}_val_pred_proba.npy",
-        probabilities,
-    )
-    log(INFO, "Evaluation prediction probabilities saved.")
+    file_name = attack_evaluation_result_path / f"{model_filename}_val_pred_proba.npy"
+    np.save(file_name, probabilities)
+    log(INFO, f"Evaluation prediction probabilities saved at {file_name}.")
 
     if pred_score is not None:
         log(INFO, f"TPR at FPR=0.1: {pred_score:.4f}")

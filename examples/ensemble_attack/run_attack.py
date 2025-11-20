@@ -55,9 +55,13 @@ def main(config: DictConfig) -> None:
     Args:
         config: Attack configuration as an OmegaConf DictConfig object.
     """
-    set_all_random_seeds(seed=config.random_seed)
+    if config.random_seed is not None:
+        set_all_random_seeds(seed=config.random_seed)
+        log(INFO, f"Training phase random seed set to {config.random_seed}.")
+
     if config.pipeline.run_data_processing:
         run_data_processing(config)
+
     # Note: Importing the following two modules causes a segmentation fault error if imported together in this file.
     # A quick solution is to load modules dynamically if any of the pipelines is called.
     # TODO: Investigate the source of error.
