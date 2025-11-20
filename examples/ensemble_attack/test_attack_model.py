@@ -43,8 +43,8 @@ def run_metaclassifier_testing(
     # 1) Load the trained metaclassifier model to make sure it exists before proceeding.
     meta_classifier_type = MetaClassifierType(config.metaclassifier.model_type)
 
-    model_name = config.metaclassifier.meta_classifier_model_name
-    mataclassifier_path = Path(config.model_paths.metaclassifier_model_path) / model_name
+    metaclassifier_model_name = config.metaclassifier.meta_classifier_model_name
+    mataclassifier_path = Path(config.model_paths.metaclassifier_model_path) / f"{metaclassifier_model_name}.pkl"
     assert mataclassifier_path.exists(), (
         f"No metaclassifier model found at {mataclassifier_path}. Make sure to run the training script first."
     )
@@ -60,11 +60,16 @@ def run_metaclassifier_testing(
     # We also load challenge labels to report the attack performance.
     challenge_data_path = Path(config.target_model.challenge_data_path)
     challenge_label_path = Path(config.target_model.challenge_label_path)
+
     test_data = pd.read_csv(challenge_data_path)
+    log(INFO, f"Challenge data loaded from {challenge_data_path} with a size of {len(test_data)}.")
+
     test_target = pd.read_csv(challenge_label_path).to_numpy().squeeze()
+    assert len(test_data) == len(test_target), "Number of challenge labels must match number of challenge data points."
 
     target_synthetic_path = Path(config.target_model.target_synthetic_data_path)
     target_synthetic_data = pd.read_csv(target_synthetic_path)
+    log(INFO, f"Target synthetic data loaded from {target_synthetic_path} with a size of {len(target_synthetic_data)}.")
 
     # Extract trans_id from the test dataframe
     with open(Path(config.metaclassifier.data_types_file_path), "r") as f:
@@ -132,12 +137,17 @@ def run_metaclassifier_testing(
     # Save the validation prediction probabilities
     attack_results_path = Path(config.target_model.attack_probabilities_result_path)
     attack_results_path.mkdir(parents=True, exist_ok=True)
-    file_name = attack_results_path / f"{config.metaclassifier.model_type}_val_pred_proba.npy"
+    file_name = attack_results_path / f"{metaclassifier_model_name}_test_pred_proba.npy"
     np.save(file_name, probabilities)
     log(INFO, f"Test prediction probabilities saved at {file_name}.")
 
     if pred_score is not None:
         log(INFO, f"TPR at FPR=0.1: {pred_score:.4f}")
+
+        # Save the metric results into a text file.
+        metric_save_path = attack_results_path / f"prediction_score_{metaclassifier_model_name}.txt"
+        with open(metric_save_path, "w") as f:
+            f.write(f"TPR at FPR=0.1: {pred_score:.4f}\n")
 
 
 if __name__ == "__main__":

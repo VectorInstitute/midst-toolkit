@@ -116,7 +116,7 @@ def run_metaclassifier_training(
     )
 
     model_filename = config.metaclassifier.meta_classifier_model_name
-    model_path = Path(config.model_paths.metaclassifier_model_path) / model_filename
+    model_path = Path(config.model_paths.metaclassifier_model_path) / f"{model_filename}.pkl"
     model_path.parent.mkdir(parents=True, exist_ok=True)
     with open(model_path, "wb") as f:
         pickle.dump(blending_attacker.trained_model, f)
@@ -136,7 +136,7 @@ def run_metaclassifier_training(
     # Save the evaluation prediction probabilities
     attack_evaluation_result_path = Path(config.data_paths.attack_evaluation_result_path)
     attack_evaluation_result_path.mkdir(parents=True, exist_ok=True)
-    file_name = attack_evaluation_result_path / f"{config.metaclassifier.model_type}_val_pred_proba.npy"
+    file_name = attack_evaluation_result_path / f"{model_filename}_val_pred_proba.npy"
     np.save(file_name, probabilities)
     log(INFO, f"Evaluation prediction probabilities saved at {file_name}.")
 

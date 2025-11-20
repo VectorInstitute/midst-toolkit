@@ -12,7 +12,7 @@ pipeline:
 target_model: # This is only used for testing the attack on a real target model.
   # This is for models trained on 20k data and generating 20k synthetic data
   target_model_directory: /projects/midst-experiments/all_tabddpms/tabddpm_trained_with_20k/train/
-  target_model_id: 21
+  target_model_id: 21  # Will be overridden per SLURM array task
   target_model_name: tabddpm_${target_model.target_model_id}
   target_synthetic_data_path: ${target_model.target_model_directory}/${target_model.target_model_name}/synthetic_data/20k/20k.csv
   challenge_data_path: ${target_model.target_model_directory}/${target_model.target_model_name}/challenge_with_id.csv
@@ -101,7 +101,7 @@ metaclassifier:
   use_gpu: false
   # Temporary. Might remove having an epoch parameter.
   epochs: 1
-  meta_classifier_model_name: ${metaclassifier.model_type}_metaclassifier_model.pkl
+  meta_classifier_model_name: ${metaclassifier.model_type}_metaclassifier_model
 
 
 # General settings
