@@ -157,11 +157,11 @@ def collect_population_data_ensemble(
         data_processing_config: Configuration dictionary containing data information and file names.
         save_dir: The path where the collected population data should be saved.
         population_splits: A list indicating the data splits to be collected for population data.
-            Could be any of train, dev, or final data splits. If None, a default value is set in the function
-            based on the original attack implementation.
+            Could be any of `train`, `dev`, or `final` data splits. If None, the default list of ``["train"]``
+            is set in the function based on the original attack implementation.
         challenge_splits: A list indicating the data splits to be collected for challenge points.
-            Could be any of train, dev, or final data splits. If None, a default value is set in the function
-            based on the original attack implementation.
+            Could be any of `train`, `dev`, or `final` data splits. If None, the default list of
+            ``["train", "dev", "final"]`` is set in the function based on the original attack implementation.
 
     Returns:
         The collected population data as a dataframe.

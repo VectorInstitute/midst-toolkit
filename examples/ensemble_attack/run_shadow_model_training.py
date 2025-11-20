@@ -23,7 +23,7 @@ def run_target_model_training(config: DictConfig) -> Path:
         config: Configuration object set in config.yaml.
 
     Returns:
-        Path to the saved target model's synthetic.
+        Path to the saved target model's synthetic data.
     """
     log(INFO, "Running target model training...")
 

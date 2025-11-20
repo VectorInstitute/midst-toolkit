@@ -127,7 +127,7 @@ def run_metaclassifier_training(
     # For evaluation, we test the meta classifier on the meta test set provided the target's synthetic data.
     probabilities, pred_score = blending_attacker.predict(
         df_test=df_meta_test,
-        df_original_synthetic=target_synthetic_data,  # For evaluation only, replace with actual target model during testing.
+        df_original_synthetic=target_synthetic_data,  # For evaluation only
         df_reference=df_reference,
         id_column_data=test_trans_ids,
         y_test=y_meta_test,

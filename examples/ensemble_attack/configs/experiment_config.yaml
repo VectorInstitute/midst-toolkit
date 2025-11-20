@@ -1,4 +1,5 @@
 # Ensemble experiment configuration
+# This config can be used to run both the Ensemble attack training (``run_attack.py``) and testing phases (``tets_attack_model.py``).
 base_experiment_dir: examples/ensemble_attack/tabddpm_20k_experiment_data # Processed data, and experiment artifacts will be stored here
 base_data_config_dir: examples/ensemble_attack/data_configs # Training and data type configs are saved under this directory
 
