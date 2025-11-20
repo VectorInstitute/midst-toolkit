@@ -4,6 +4,7 @@ import json
 import pickle
 from logging import INFO
 from pathlib import Path
+from typing import Any
 
 import hydra
 import numpy as np
@@ -15,6 +16,37 @@ from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassi
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
+
+
+def run_rmia_shadow_training(config: DictConfig) -> list[dict[str, list[Any]]]:
+    """
+    Three sets of shadow models will be trained as a part of this attack.
+    Note that for every new target model, shadow models need to be trained.
+    RMIA signals (for the challenge points) are calculated based on these shadow models,
+    and will be fed into the metaclassifier.
+
+    Args:
+        config: Configuration object set in ``experiments_config.yaml``.
+
+    Return:
+        A list containing three dictionaries, each representing a collection of shadow
+            models with their training data and generated synthetic outputs.
+    """
+    shadow_model_paths = run_shadow_model_training(config)
+
+    assert len(shadow_model_paths) == 3, "For testing, meta classifier needs the path to three sets of shadow models."
+
+    shadow_data_collection = []
+    for model_path in shadow_model_paths:
+        assert model_path.exists(), (
+            f"No file found at {model_path}. Make sure the path is correct, or run shadow model training first."
+        )
+
+        with open(model_path, "rb") as f:
+            shadow_data_and_result = pickle.load(f)
+            shadow_data_collection.append(shadow_data_and_result)
+
+    return shadow_data_collection
 
 
 @hydra.main(config_path="configs", config_name="experiment_config", version_base=None)
@@ -69,7 +101,9 @@ def run_metaclassifier_testing(
 
     target_synthetic_path = Path(config.target_model.target_synthetic_data_path)
     target_synthetic_data = pd.read_csv(target_synthetic_path)
-    log(INFO, f"Target synthetic data loaded from {target_synthetic_path} with a size of {len(target_synthetic_data)}.")
+    log(
+        INFO, f"Target synthetic data loaded from {target_synthetic_path} with a size of {len(target_synthetic_data)}."
+    )
 
     # Extract trans_id from the test dataframe
     with open(Path(config.metaclassifier.data_types_file_path), "r") as f:
@@ -85,26 +119,10 @@ def run_metaclassifier_testing(
 
     # 3) Shadow Model Training Step.
 
-    # Three sets of shadow models will be trained as a part of this attack.
-    # Note that for every new target model, shadow models need to be trained.
-    # RMIA signals (for the challenge points) are calculated based on these shadow models,
-    # and will be fed into the metaclassifier.
     # Make sure to assign a new path for shadow models trained for target's challenge points to
     # avoid overriding train's shadow models.
     config.shadow_training.shadow_models_output_path = config.target_model.target_shadow_models_output_path
-    shadow_model_paths = run_shadow_model_training(config)
-
-    assert len(shadow_model_paths) == 3, "For testing, meta classifier needs the path to three sets of shadow models."
-
-    shadow_data_collection = []
-    for model_path in shadow_model_paths:
-        assert model_path.exists(), (
-            f"No file found at {model_path}. Make sure the path is correct, or run shadow model training first."
-        )
-
-        with open(model_path, "rb") as f:
-            shadow_data_and_result = pickle.load(f)
-            shadow_data_collection.append(shadow_data_and_result)
+    shadow_data_collection = run_rmia_shadow_training(config)
 
     # 4) Initialize the attacker object, and assign the loaded metaclassifier to it.
     target_synthetic_data = target_synthetic_data.copy()
