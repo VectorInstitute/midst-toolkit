@@ -47,7 +47,10 @@ def run_attribute_prediction(config: DictConfig) -> None:
     }
 
     # Iterating over directories specific to the shadow models folder structure in the competition
-    for model_name, model_data_path, model_folder in iterate_model_folders(input_data_path, diffusion_model_names):
+    for model_name, model_data_path, model_folder, mode in iterate_model_folders(input_data_path, diffusion_model_names):
+
+        import pdb; pdb.set_trace()
+        
         # Load the data files as dataframes
         df_synthetic_data = load_dataframe(model_data_path, "trans_synthetic.csv")
         df_challenge_data = load_dataframe(model_data_path, "challenge_with_id.csv")
@@ -73,7 +76,46 @@ def run_attribute_prediction(config: DictConfig) -> None:
         model_folder_number = int(model_folder.split("_")[-1])
         file_name = f"attribute_prediction_features_{model_folder_number}.csv"
 
+        if mode == "train":
+            file_name = f"attribute_prediction_features_with_labels_{model_folder_number}.csv"
+        
+            # Load the challenge labels and add them to the features dataframe
+            df_labels = load_dataframe(model_data_path, "challenge_label.csv")
+
+            # Check that the number of rows align
+            assert len(df_extracted_features) == len(df_labels), (
+                f"The number of rows in the extracted features ({len(df_extracted_features)}) "
+                f"does not match the number of labels ({len(df_labels)})."
+            )
+            df_extracted_features["is_train"] = df_labels.values
+
         save_dataframe(df=df_extracted_features, file_path=final_output_dir, file_name=file_name)
+
+
+# Step 4: Attack classifier training
+def run_attack_classifier_training(config: DictConfig) -> None:
+    """
+    Train the attack classifier for EPT-MIA attack.
+
+    Args:
+        config: Configuration object set in config.yaml.
+    """
+    log(INFO, "Running attack classifier training.")
+
+    # Read all the files from the attribute prediction features directory
+    features_data_path = Path(config.data_paths.output_data_path, "attribute_prediction_features")
+
+    models = ["tabddpm", "tabsyn"] if config.attack_settings.single_table else ["clavaddpm"]
+
+    for model_name in models:
+        model_features_path = features_data_path / f"{model_name}_black_box"
+
+        assert model_features_path.exists() and model_features_path.is_dir(), (
+            f"Directory not found: {model_features_path}. Make sure to run feature extraction first."
+        )
+        assert any(model_features_path.iterdir()), (
+            f"Directory is empty: {model_features_path}. Make sure to run feature extraction first."
+        )
 
 
 @hydra.main(config_path=".", config_name="config", version_base=None)
@@ -99,7 +141,8 @@ def main(config: DictConfig) -> None:
     if config.pipeline.run_feature_extraction:
         run_attribute_prediction(config)
 
-    # TODO: Implement attack classifier training step.
+    if config.pipeline.run_attack_classifier_training:
+        run_attack_classifier_training(config)
 
 
 if __name__ == "__main__":

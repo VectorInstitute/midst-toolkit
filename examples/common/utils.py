@@ -13,7 +13,8 @@ def iterate_model_folders(input_data_path: Path, diffusion_model_names: list[str
         diffusion_model_names: A list of diffusion model names to iterate over.
 
     Yields:
-        A tuple containing the model name, the path to the model's data, and the model folder name.
+        A tuple containing the model name (e.g. tabddpm), the path to the model's data,
+        the model folder name (e.g. tabddpm_1), and mode (train, dev, final).
     """
     modes = ["train", "dev", "final"]
     for model_name in diffusion_model_names:
@@ -25,4 +26,4 @@ def iterate_model_folders(input_data_path: Path, diffusion_model_names: list[str
 
             model_folders = [entry for entry in current_path.iterdir() if entry.is_dir()]
             for model_folder_path in model_folders:
-                yield model_name, model_folder_path, model_folder_path.name
+                yield model_name, model_folder_path, model_folder_path.name, mode

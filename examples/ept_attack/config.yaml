@@ -14,7 +14,7 @@ pipeline:
   run_data_processing: false # Whether to run data processing
   run_shadow_model_training: false # Whether to run shadow model training
   run_feature_extraction: true # Whether to run attribute prediction model training
-  run_attack_classifier_training: false # Whether to run attack classifier training
+  run_attack_classifier_training: true # Whether to run attack classifier training
 
 attack_settings:
   single_table: true # Whether the data is single-table
