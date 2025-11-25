@@ -32,7 +32,6 @@ def load_target_challenge_labels_and_probabilities(
             - test_prediction_probabilities: Numpy array of prediction probabilities
               outputted by the metaclassifier for the challenge points.
     """
-    #  ``attack_probabilities_result_path`` is based on the target model's id.
     attack_result_file_path = attack_results_path / f"{metaclassifier_model_name}_test_pred_proba.npy"
     assert attack_result_file_path.exists(), (
         f"No file found at {attack_result_file_path}. Make sure the path is correct, or run the attack on the target model first."
