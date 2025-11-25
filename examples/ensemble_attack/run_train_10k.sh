@@ -7,7 +7,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --qos=normal
-#SBATCH --job-name=50k_ensemble_attack_train
+#SBATCH --job-name=10k_ensemble_attack_train
 #SBATCH --output=%j_%x.out
 #SBATCH --error=%j_%x.err
 #SBATCH --time=16:00:00
@@ -21,6 +21,6 @@ which python
 
 echo "Experiments Launched"
 
-python -m examples.ensemble_attack.run_attack
+python -m examples.ensemble_attack.run_attack --config-name=experiment_config_10k
 
 echo "Experiments Completed"
