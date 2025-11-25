@@ -14,7 +14,10 @@ def get_tpr_at_fpr(
 
     Args:
         true_membership: Array of true binary labels (0 or 1).
-        predictions: Array of predicted probabilities or scores.
+        predictions: A list of values in the range [0,1] indicating the confidence
+            that a challenge point is a member. The closer the value to 1, the more
+            confident the predictor is about the hypothesis that the challenge point is
+            a member.
         max_fpr: Maximum False Positive Rate threshold. Defaults to 0.1.
 
     Returns:

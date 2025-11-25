@@ -30,11 +30,12 @@ wheels/
 **/workspace/*.bkp
 
 # Data files
-examples/**/data/
+examples/**/*data/
+examples/**/*.csv
+examples/**/*.npy
 
-# Trained metaclassifiers
-examples/ensemble_attack/trained_models/
-examples/ensemble_attack/attack_results/
+# Trained models
+examples/ensemble_attack/**/*.pkl
 
 # hydra output
 outputs/
@@ -51,3 +52,7 @@ examples/synthesizing/single_table/data/**
 examples/synthesizing/single_table/results/**
 examples/synthesizing/multi_table/data/**
 examples/synthesizing/multi_table/results/**
+
+# Training Logs
+*.err
+*.out

@@ -167,6 +167,8 @@ def process_split_data(
         num_total_samples: The number of samples randomly selected from the population. Defaults to 40,000.
         random_seed: Seed for random number generation to ensure reproducibility. Defaults to None.
     """
+    # First, make sure the output directory exists.
+    processed_attack_data_path.mkdir(parents=True, exist_ok=True)
     # Original Ensemble attack samples 40k data points to construct
     # 1) the main population (real data) used for training the synthetic data generator model,
     # 2) evaluation that is the meta train data (membership classification train dataset) used to train

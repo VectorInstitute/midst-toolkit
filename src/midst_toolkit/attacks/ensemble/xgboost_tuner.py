@@ -9,7 +9,7 @@ from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from midst_toolkit.attacks.ensemble.train_utils import get_tpr_at_fpr
+from midst_toolkit.attacks.ensemble.metric_utils import get_tpr_at_fpr
 from midst_toolkit.common.variables import DEVICE
 
 
