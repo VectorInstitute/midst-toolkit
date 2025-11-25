@@ -111,6 +111,7 @@ def run_metaclassifier_testing(
     id_column_name = column_types["id_column_name"]
 
     assert id_column_name in test_data.columns, f"Test data must have {id_column_name} column"
+
     test_trans_ids = test_data[id_column_name]
 
     # Drop id columns from test data
