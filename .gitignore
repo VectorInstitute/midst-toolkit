@@ -31,6 +31,7 @@ wheels/
 
 # Data files
 examples/**/*data/
+examples/**/*results/
 examples/**/*.csv
 examples/**/*.npy
 
@@ -42,16 +43,6 @@ outputs/
 
 # mkdocs site
 site/
-
-# Training examples
-examples/training/single_table/data/**
-examples/training/single_table/results/**
-examples/training/multi_table/data/**
-examples/training/multi_table/results/**
-examples/synthesizing/single_table/data/**
-examples/synthesizing/single_table/results/**
-examples/synthesizing/multi_table/data/**
-examples/synthesizing/multi_table/results/**
 
 # Training Logs
 *.err
