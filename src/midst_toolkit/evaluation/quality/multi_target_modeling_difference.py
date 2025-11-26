@@ -162,8 +162,14 @@ class MultiTargetModelingDifference(SynthEvalMetric):
             any custom regressors were specified for individual columns, these are keyed by the column name to which
             they are to be applied.
         """
-        with open(self.regressors_config_path, "r") as f:
-            return json.load(f)
+        with open(self.regressors_config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+
+        assert "regressors" in config, (
+            f"Configuration file {self.regressors_config_path} must contain a 'regressors' key"
+        )
+
+        return config
 
     def validate_label_column_and_filter(
         self, label_column: str, column_type: ColumnType
@@ -237,7 +243,7 @@ class MultiTargetModelingDifference(SynthEvalMetric):
             - The average F1 score and regression score difference across all target columns for each kind of
               regression score computed.
         """
-        assert holdout_data is not None, "Regression analysis must have a holdout dataset"
+        assert holdout_data is not None, "Multi-target analysis must have a holdout dataset"
 
         gathered_regression_differences: dict[str, list[float]] = defaultdict(list)
         gathered_f1_differences = []
