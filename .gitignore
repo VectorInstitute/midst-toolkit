@@ -31,6 +31,7 @@ wheels/
 
 # Dataset files
 examples/**/data/
+examples/**/results/
 
 # Trained metaclassifiers
 examples/ensemble_attack/trained_models/
