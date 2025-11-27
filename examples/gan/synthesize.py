@@ -36,6 +36,7 @@ def main(config: DictConfig) -> None:
 
     table_name = get_table_name(config.base_data_dir)
     synthetic_data_file = Path(config.results_dir) / f"{table_name}_synthetic.csv"
+
     log(INFO, f"Saving synthetic data to {synthetic_data_file}...")
     synthetic_data.to_csv(synthetic_data_file, index=False)
 
