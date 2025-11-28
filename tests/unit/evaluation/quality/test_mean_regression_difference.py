@@ -61,7 +61,7 @@ def test_mean_regression_diff_with_preprocess() -> None:
         preprocess_labels=False,
         label_column="column_e",
         include_additional_metrics=False,
-        regressors_config_path=Path("tests/assets/regression_config_1.json"),
+        regressors_config=Path("tests/assets/regression_config_1.json"),
     )
 
     with pytest.raises(AssertionError):
@@ -98,7 +98,7 @@ def test_mean_regression_diff_with_no_categorical() -> None:
         preprocess_labels=True,
         include_additional_metrics=False,
         label_column="column_e",
-        regressors_config_path=Path("tests/assets/regression_config_2.json"),
+        regressors_config=Path("tests/assets/regression_config_2.json"),
     )
 
     score = metric.compute(real_data, synthetic_data, holdout_data)
@@ -125,7 +125,7 @@ def test_mean_regression_diff_with_poor_synthetic() -> None:
         preprocess_labels=True,
         label_column="column_e",
         include_additional_metrics=True,
-        regressors_config_path=Path("tests/assets/regression_config_1.json"),
+        regressors_config=Path("tests/assets/regression_config_1.json"),
     )
 
     score = metric.compute(real_data, synthetic_data, holdout_data)
@@ -166,7 +166,7 @@ def test_mean_regression_diff_with_original_labels() -> None:
         preprocess_labels=True,
         include_additional_metrics=False,
         label_column="column_e",
-        regressors_config_path=Path("tests/assets/regression_config_2.json"),
+        regressors_config=Path("tests/assets/regression_config_2.json"),
         measure_metrics_in_original_label_space=True,
     )
 
@@ -177,7 +177,7 @@ def test_mean_regression_diff_with_original_labels() -> None:
         preprocess_labels=True,
         include_additional_metrics=False,
         label_column="column_e",
-        regressors_config_path=Path("tests/assets/regression_config_2.json"),
+        regressors_config=Path("tests/assets/regression_config_2.json"),
         measure_metrics_in_original_label_space=False,
     )
 
