@@ -191,6 +191,22 @@ def test_multi_target_modeling_difference_with_two_cat_targets() -> None:
 
     assert pytest.approx(-0.15399437057829385, abs=1e-8) == score["avg_f1_difference"]
 
+    # Test that nothing breaks when we have no numerical columns
+
+    metric = MultiTargetModelingDifference(
+        categorical_columns=["column_c", "column_e"],
+        numerical_columns=[],
+        do_preprocess=True,
+        preprocess_labels=False,
+        f1_type="macro",
+        label_columns_and_type={"column_e": ColumnType.CATEGORICAL, "column_c": ColumnType.CATEGORICAL},
+        regressors_config_path=Path("tests/assets/regression_config_1.json"),
+    )
+
+    score = metric.compute(real_data, synthetic_data, holdout_data)
+
+    assert pytest.approx(-0.060709770749946976, abs=1e-8) == score["avg_f1_difference"]
+
     unset_all_random_seeds()
 
 
