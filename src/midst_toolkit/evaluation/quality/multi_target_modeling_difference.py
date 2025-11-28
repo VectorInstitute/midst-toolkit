@@ -1,4 +1,5 @@
 import json
+import random
 from collections import defaultdict
 from functools import partial
 from multiprocessing import Pool
@@ -9,6 +10,7 @@ from typing import Any, Literal
 import pandas as pd
 
 from midst_toolkit.common.enumerations import ColumnType
+from midst_toolkit.common.random import set_all_random_seeds
 from midst_toolkit.evaluation.metrics_base import SynthEvalMetric
 from midst_toolkit.evaluation.quality import MeanF1ScoreDifference, MeanRegressionDifference
 
@@ -28,9 +30,34 @@ def compute_for_single_label(
     real_data: pd.DataFrame,
     synthetic_data: pd.DataFrame,
     holdout_data: pd.DataFrame,
-    label_column_type_metric_tuple: tuple[ColumnType, ModelBasedMetric],
+    column_type_metric_seed: tuple[ColumnType, ModelBasedMetric, int],
 ) -> dict[str, float]:
-    label_column_type, metric = label_column_type_metric_tuple
+    """
+    This function is meant to facilitate evaluating on a single target column using a pre-constructed metric as part
+    of a parallel set of processes in a multiprocessing pool.
+
+    Args:
+        real_data: Real data to which the synthetic data may be compared. In many cases this will be data used
+            to TRAIN the model that generated the synthetic data, but not always.
+        synthetic_data: Synthetically generated data whose quality is to be assessed.
+        holdout_data: A real data with labels on which to measure the performance of the trained regression models
+            performance. The holdout dataset should be preprocessed in the SAME WAY as the real and synthetic
+            datasets. This must be provided for this metric. Defaults to None.
+        column_type_metric_seed: This is a tuple, structure in the way the pool map function likes to send arguments.
+            The first entries is the kind of target column we're modeling, the second is the metric to be measured,
+            and the third is a random seed to use.
+
+            NOTE: Seeds and randomness in multiprocessing is very annoying. This seed is a way for us to get consistent
+            measurements when we fix a seed in the main code.
+
+    Raises:
+        ValueError: Will throw if the column type is not either numerical or categorical.
+
+    Returns:
+        The set of computed regression or classification metrics (depending on the column type) that were computed.
+    """
+    label_column_type, metric, seed = column_type_metric_seed
+    set_all_random_seeds(seed)
     computed_metrics = metric.compute(real_data.copy(), synthetic_data.copy(), holdout_data.copy())
     if label_column_type == ColumnType.CATEGORICAL:
         # Categorical keys should include mean_f1_difference_holdout
@@ -274,16 +301,26 @@ class MultiTargetModelingDifference(SynthEvalMetric):
         gathered_f1_differences = []
 
         # Turn dictionary into a list of tuples for multiprocessing
-        column_type_metric_tuples = [
-            (self.label_columns_and_type[label_column], metric) for label_column, metric in self.metrics.items()
+        column_type_metric_seed = [
+            (self.label_columns_and_type[label_column], metric, int.from_bytes(random.randbytes(4)))
+            for label_column, metric in self.metrics.items()
         ]
+
         compute_for_single_label_with_dataframes = partial(
             compute_for_single_label, real_data, synthetic_data, holdout_data
         )
 
-        with Pool(self.n_jobs) as pool:
-            metrics_per_label = pool.map(compute_for_single_label_with_dataframes, column_type_metric_tuples)
+        if self.n_jobs == 1:
+            # Using a pool is slightly slower if we don't want to parallelize. So we skip it.
+            metrics_per_label = [
+                compute_for_single_label_with_dataframes(column_type_metric_tuples)
+                for column_type_metric_tuples in column_type_metric_seed
+            ]
+        else:
+            with Pool(self.n_jobs) as pool:
+                metrics_per_label = pool.map(compute_for_single_label_with_dataframes, column_type_metric_seed)
 
+        # Post-process the metrics computed in parallel process
         for computed_metrics in metrics_per_label:
             for metric_name, metric_value in computed_metrics.items():
                 if metric_name == "f1_difference":
