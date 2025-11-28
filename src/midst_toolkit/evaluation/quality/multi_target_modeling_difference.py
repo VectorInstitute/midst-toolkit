@@ -1,5 +1,7 @@
 import json
 from collections import defaultdict
+from functools import partial
+from multiprocessing import Pool
 from pathlib import Path
 from statistics import mean
 from typing import Any, Literal
@@ -22,6 +24,23 @@ METRIC_FILTER = (
 )
 
 
+def compute_for_single_label(
+    real_data: pd.DataFrame,
+    synthetic_data: pd.DataFrame,
+    holdout_data: pd.DataFrame,
+    label_column_type_metric_tuple: tuple[ColumnType, ModelBasedMetric],
+) -> dict[str, float]:
+    label_column_type, metric = label_column_type_metric_tuple
+    computed_metrics = metric.compute(real_data.copy(), synthetic_data.copy(), holdout_data.copy())
+    if label_column_type == ColumnType.CATEGORICAL:
+        # Categorical keys should include mean_f1_difference_holdout
+        f1_difference = computed_metrics["mean_f1_difference_holdout"]
+        return {"f1_difference": f1_difference}
+    if label_column_type == ColumnType.NUMERICAL:
+        return computed_metrics
+    raise ValueError(f"Column type must be either NUMERICAL or CATEGORICAL. Received {label_column_type.value}")
+
+
 class MultiTargetModelingDifference(SynthEvalMetric):
     def __init__(
         self,
@@ -35,6 +54,7 @@ class MultiTargetModelingDifference(SynthEvalMetric):
         regressors_config_path: Path = Path("src/midst_toolkit/evaluation/quality/assets/regression_config.json"),
         measure_metrics_in_original_label_space: bool = False,
         include_regressor_specific_averages: bool = False,
+        n_jobs: int = 1,
     ):
         """
         This class computes the difference in metrics for regression or classification models trained on real and
@@ -95,8 +115,13 @@ class MultiTargetModelingDifference(SynthEvalMetric):
                 ``preprocess_labels`` is set to True. Defaults to False.
             include_regressor_specific_averages: Whether to include the stats broken out by specific regressor models
                 or only report the average regression metric across included regressors. Defaults to False.
+            n_jobs: If greater than 1, this will attempt to perform the various regression or classification modeling
+                tasks in parallel to speed up computation. This should specify the number of cpus available to
+                perform computations. Defaults to 1.
         """
         super().__init__(categorical_columns, numerical_columns, do_preprocess)
+
+        self.n_jobs = n_jobs
 
         assert len(label_columns_and_type) > 0, "No target columns supplied. The label_columns_and_type is empty."
 
@@ -248,18 +273,23 @@ class MultiTargetModelingDifference(SynthEvalMetric):
         gathered_regression_differences: dict[str, list[float]] = defaultdict(list)
         gathered_f1_differences = []
 
-        for label_column, metric in self.metrics.items():
-            computed_metrics = metric.compute(real_data, synthetic_data, holdout_data)
-            column_type = self.label_columns_and_type[label_column]
-            if column_type == ColumnType.CATEGORICAL:
-                # Categorical keys should include mean_f1_difference_holdout
-                f1_difference = computed_metrics["mean_f1_difference_holdout"]
-                gathered_f1_differences.append(f1_difference)
-            elif column_type == ColumnType.NUMERICAL:
-                for metric_name, metric_value in computed_metrics.items():
+        # Turn dictionary into a list of tuples for multiprocessing
+        column_type_metric_tuples = [
+            (self.label_columns_and_type[label_column], metric) for label_column, metric in self.metrics.items()
+        ]
+        compute_for_single_label_with_dataframes = partial(
+            compute_for_single_label, real_data, synthetic_data, holdout_data
+        )
+
+        with Pool(self.n_jobs) as pool:
+            metrics_per_label = pool.map(compute_for_single_label_with_dataframes, column_type_metric_tuples)
+
+        for computed_metrics in metrics_per_label:
+            for metric_name, metric_value in computed_metrics.items():
+                if metric_name == "f1_difference":
+                    gathered_f1_differences.append(metric_value)
+                else:
                     gathered_regression_differences[metric_name].append(metric_value)
-            else:
-                raise ValueError(f"Column type must be either NUMERICAL or CATEGORICAL. Received {column_type.value}")
 
         # mean regression difference (per metric) across numerical target columns
         results = {
