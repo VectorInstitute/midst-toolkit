@@ -1,3 +1,4 @@
+import multiprocessing as mp
 import os
 from pathlib import Path
 from random import choices
@@ -82,6 +83,8 @@ def test_multi_target_modeling_difference_single_regression_target() -> None:
 
     real_data, synthetic_data, holdout_data = get_regression_data()
 
+    # This is an attempt to address hanging on linux machines when tests run as a suite.
+    mp.set_start_method("spawn", force=True)
     metric = MultiTargetModelingDifference(
         categorical_columns=["column_c"],
         numerical_columns=["column_a", "column_b", "column_d", "column_e"],
@@ -267,7 +270,6 @@ def test_multi_target_modeling_difference_exceptions() -> None:
         )
 
 
-@pytest.mark.skipif(IN_GITHUB_ACTIONS, reason="Github doesn't seem to play nice with MP")
 def test_multi_target_modeling_difference_with_two_parallel_targets() -> None:
     # This should function in exactly the same way as when you don't process everything in parallel. However, due
     # to the way randomness happens in parallel processing it isn't exactly the same.

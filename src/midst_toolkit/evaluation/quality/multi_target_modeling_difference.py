@@ -1,7 +1,9 @@
 import json
+import multiprocessing as mp
 import random
 from collections import defaultdict
 from functools import partial
+from logging import WARNING
 from multiprocessing import Pool
 from pathlib import Path
 from statistics import mean
@@ -10,6 +12,7 @@ from typing import Any, Literal
 import pandas as pd
 
 from midst_toolkit.common.enumerations import ColumnType
+from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
 from midst_toolkit.evaluation.metrics_base import SynthEvalMetric
 from midst_toolkit.evaluation.quality import MeanF1ScoreDifference, MeanRegressionDifference
@@ -148,6 +151,9 @@ class MultiTargetModelingDifference(SynthEvalMetric):
         """
         super().__init__(categorical_columns, numerical_columns, do_preprocess)
 
+        available_cores = mp.cpu_count()
+        if n_jobs > available_cores:
+            log(WARNING, f"Cores requested ({n_jobs}) exceeds cores available ({available_cores})")
         self.n_jobs = n_jobs
 
         assert len(label_columns_and_type) > 0, "No target columns supplied. The label_columns_and_type is empty."
