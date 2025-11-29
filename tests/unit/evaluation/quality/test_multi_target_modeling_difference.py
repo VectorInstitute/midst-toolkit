@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from random import choices
 
@@ -8,6 +9,10 @@ import pytest
 from midst_toolkit.common.enumerations import ColumnType
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.evaluation.quality.multi_target_modeling_difference import MultiTargetModelingDifference
+
+
+# skip some tests that fail on github due to hanging issues
+IN_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
 
 
 def get_regression_data() -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -262,6 +267,7 @@ def test_multi_target_modeling_difference_exceptions() -> None:
         )
 
 
+@pytest.mark.skipif(IN_GITHUB_ACTIONS, reason="Github doesn't seem to play nice with MP")
 def test_multi_target_modeling_difference_with_two_parallel_targets() -> None:
     # This should function in exactly the same way as when you don't process everything in parallel. However, due
     # to the way randomness happens in parallel processing it isn't exactly the same.
