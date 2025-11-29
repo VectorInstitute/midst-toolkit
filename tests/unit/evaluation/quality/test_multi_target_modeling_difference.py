@@ -1,5 +1,4 @@
 import multiprocessing as mp
-import os
 from pathlib import Path
 from random import choices
 
@@ -10,10 +9,6 @@ import pytest
 from midst_toolkit.common.enumerations import ColumnType
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.evaluation.quality.multi_target_modeling_difference import MultiTargetModelingDifference
-
-
-# skip some tests that fail on github due to hanging issues
-IN_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
 
 
 def get_regression_data() -> tuple[pd.DataFrame, pd.DataFrame]:
