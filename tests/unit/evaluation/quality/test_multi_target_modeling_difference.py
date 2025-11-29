@@ -265,8 +265,8 @@ def test_multi_target_modeling_difference_exceptions() -> None:
 def test_multi_target_modeling_difference_with_two_parallel_targets() -> None:
     # This should function in exactly the same way as when you don't process everything in parallel. However, due
     # to the way randomness happens in parallel processing it isn't exactly the same.
-    # NOTE: We can force randomness to be pinned inside the threads by inserting pins inside the function, which
-    # has been done to confirm this works pro
+    # NOTE: We can force randomness inside the threads by inserting pins inside the function, which has been done to
+    # confirm this works properly
     set_all_random_seeds(42)
 
     real_data, synthetic_data = get_classification_data()
