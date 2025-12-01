@@ -2,7 +2,6 @@ import json
 import multiprocessing as mp
 import random
 from collections import defaultdict
-from functools import partial
 from logging import WARNING
 from pathlib import Path
 from statistics import mean
@@ -32,7 +31,9 @@ def compute_for_single_label(
     real_data: pd.DataFrame,
     synthetic_data: pd.DataFrame,
     holdout_data: pd.DataFrame,
-    column_type_metric_seed: tuple[ColumnType, ModelBasedMetric, int],
+    label_column_type: ColumnType,
+    metric: MeanRegressionDifference | MeanF1ScoreDifference,
+    random_seed: int,
 ) -> dict[str, float]:
     """
     This function is meant to facilitate evaluating on a single target column using a pre-constructed metric as part
@@ -45,12 +46,10 @@ def compute_for_single_label(
         holdout_data: A real data with labels on which to measure the performance of the trained regression models
             performance. The holdout dataset should be preprocessed in the SAME WAY as the real and synthetic
             datasets. This must be provided for this metric. Defaults to None.
-        column_type_metric_seed: This is a tuple, structure in the way the pool map function likes to send arguments.
-            The first entries is the kind of target column we're modeling, the second is the metric to be measured,
-            and the third is a random seed to use.
-
-            NOTE: Seeds and randomness in multiprocessing is very annoying. This seed is a way for us to get consistent
-            measurements when we fix a seed in the main code.
+        label_column_type: The kind of target column we're modeling
+        metric: The metric to be measured.
+        random_seed: The random seed to use. NOTE: Seeds and randomness in multiprocessing is very annoying. This
+            seed is a way for us to get consistent measurements when we fix a seed in the main code.
 
     Raises:
         ValueError: Will throw if the column type is not either numerical or categorical.
@@ -58,8 +57,7 @@ def compute_for_single_label(
     Returns:
         The set of computed regression or classification metrics (depending on the column type) that were computed.
     """
-    label_column_type, metric, seed = column_type_metric_seed
-    set_all_random_seeds(seed)
+    set_all_random_seeds(random_seed)
     computed_metrics = metric.compute(real_data.copy(), synthetic_data.copy(), holdout_data.copy())
     if label_column_type == ColumnType.CATEGORICAL:
         # Categorical keys should include mean_f1_difference_holdout
@@ -306,28 +304,28 @@ class MultiTargetModelingDifference(SynthEvalMetric):
         gathered_f1_differences = []
 
         # Turn dictionary into a list of tuples for multiprocessing
-        column_type_metric_seed = [
-            (self.label_columns_and_type[label_column], metric, int.from_bytes(random.randbytes(4)))
+        parameters_list = [
+            (
+                real_data,
+                synthetic_data,
+                holdout_data,
+                self.label_columns_and_type[label_column],
+                metric,
+                int.from_bytes(random.randbytes(4)),
+            )
             for label_column, metric in self.metrics.items()
         ]
 
-        compute_for_single_label_with_dataframes = partial(
-            compute_for_single_label, real_data, synthetic_data, holdout_data
-        )
-
         if self.n_jobs == 1:
             # Using a pool is slightly slower if we don't want to parallelize. So we skip it.
-            metrics_per_label = [
-                compute_for_single_label_with_dataframes(column_type_metric_tuples)
-                for column_type_metric_tuples in column_type_metric_seed
-            ]
+            metrics_per_label = [compute_for_single_label(*parameters) for parameters in parameters_list]
         else:
             # This is required to address a hanging issue on linux machines. This forces MP to use spawning instead of
             # forking for all OSs. This is to avoid known hanging issues with MP.
             # See: https://britishgeologicalsurvey.github.io/science/python-forking-vs-spawn/
             multiprocessing_context = mp.get_context("spawn")
             with multiprocessing_context.Pool(self.n_jobs) as pool:
-                metrics_per_label = pool.map(compute_for_single_label_with_dataframes, column_type_metric_seed)
+                metrics_per_label = pool.starmap(compute_for_single_label, parameters_list)
 
         # Post-process the metrics computed in parallel process
         for computed_metrics in metrics_per_label:
