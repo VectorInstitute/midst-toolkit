@@ -33,7 +33,7 @@ def compute_for_single_label(
     holdout_data: pd.DataFrame,
     label_column_type: ColumnType,
     metric: MeanRegressionDifference | MeanF1ScoreDifference,
-    random_seed: int,
+    random_seed: int | None = None,
 ) -> dict[str, float]:
     """
     This function is meant to facilitate evaluating on a single target column using a pre-constructed metric as part
@@ -48,8 +48,9 @@ def compute_for_single_label(
             datasets. This must be provided for this metric. Defaults to None.
         label_column_type: The kind of target column we're modeling
         metric: The metric to be measured.
-        random_seed: The random seed to use. NOTE: Seeds and randomness in multiprocessing is very annoying. This
-            seed is a way for us to get consistent measurements when we fix a seed in the main code.
+        random_seed: The random seed to use. If None provided then seeds will not be set in the processes. Defaults to
+            None. NOTE: Seeds and randomness in multiprocessing is very annoying. This seed is a way for us to get
+            consistent measurements when we fix a seed in the main code.
 
     Raises:
         ValueError: Will throw if the column type is not either numerical or categorical.
@@ -57,7 +58,8 @@ def compute_for_single_label(
     Returns:
         The set of computed regression or classification metrics (depending on the column type) that were computed.
     """
-    set_all_random_seeds(random_seed)
+    if random_seed is not None:
+        set_all_random_seeds(random_seed)
     computed_metrics = metric.compute(real_data.copy(), synthetic_data.copy(), holdout_data.copy())
     if label_column_type == ColumnType.CATEGORICAL:
         # Categorical keys should include mean_f1_difference_holdout
@@ -311,7 +313,7 @@ class MultiTargetModelingDifference(SynthEvalMetric):
                 holdout_data,
                 self.label_columns_and_type[label_column],
                 metric,
-                int.from_bytes(random.randbytes(4)),
+                int.from_bytes(random.randbytes(4)) if self.n_jobs > 1 else None,
             )
             for label_column, metric in self.metrics.items()
         ]
