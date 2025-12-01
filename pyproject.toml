@@ -26,6 +26,10 @@ dependencies = [
     "optuna>=4.5.0",
     "gower>=0.1.2",
     "pydantic>=2.12.3",
+    "plotly>=6.5.0",
+    "ipywidgets>=8.1.8",
+    "kaleido>=1.2.0",
+    "nbformat>=5.10.4",
 ]
 
 [build-system]
