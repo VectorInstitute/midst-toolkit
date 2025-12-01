@@ -4,7 +4,6 @@ import random
 from collections import defaultdict
 from functools import partial
 from logging import WARNING
-from multiprocessing import Pool
 from pathlib import Path
 from statistics import mean
 from typing import Any, Literal
@@ -323,7 +322,11 @@ class MultiTargetModelingDifference(SynthEvalMetric):
                 for column_type_metric_tuples in column_type_metric_seed
             ]
         else:
-            with Pool(self.n_jobs) as pool:
+            # This is required to address a hanging issue on linux machines. This forces MP to use spawning instead of
+            # forking for all OSs. This is to avoid known hanging issues with MP.
+            # See: https://britishgeologicalsurvey.github.io/science/python-forking-vs-spawn/
+            multiprocessing_context = mp.get_context("spawn")
+            with multiprocessing_context.Pool(self.n_jobs) as pool:
                 metrics_per_label = pool.map(compute_for_single_label_with_dataframes, column_type_metric_seed)
 
         # Post-process the metrics computed in parallel process

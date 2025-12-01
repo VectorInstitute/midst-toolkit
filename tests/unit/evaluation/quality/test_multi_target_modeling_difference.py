@@ -1,4 +1,3 @@
-import multiprocessing as mp
 from pathlib import Path
 from random import choices
 
@@ -272,11 +271,6 @@ def test_multi_target_modeling_difference_with_two_parallel_targets() -> None:
 
     real_data, synthetic_data = get_classification_data()
     holdout_data = real_data.copy()
-
-    # This is required to address a tests hanging issue on linux machines. This forces MP to use spawning instead of
-    # forking for all OSs. This test would hang if run as a full pytest suite but be fine run individually on linux.
-    # See https://github.com/pytest-dev/pytest/issues/11174
-    mp.set_start_method("spawn", force=True)
 
     metric = MultiTargetModelingDifference(
         categorical_columns=["column_c", "column_e"],
