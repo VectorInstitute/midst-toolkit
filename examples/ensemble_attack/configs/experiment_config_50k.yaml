@@ -1,62 +1,48 @@
-#testing 20k_20k 
-
 # Ensemble experiment configuration
 # This config can be used to run both the Ensemble attack training (``run_attack.py``) and testing phases (``tets_attack_model.py``).
-base_experiment_dir: /projects/midst-experiments/ensemble_attack/competition/ # Processed data, and experiment artifacts will be stored here
+base_experiment_dir: /projects/midst-experiments/ensemble_attack/tabddpm_50k_experiment_data # Processed data, and experiment artifacts will be stored here
 base_data_config_dir: examples/ensemble_attack/data_configs # Training and data type configs are saved under this directory
 
 # Pipeline control
-# only test: true, false, true
-# train and test: true, true, true
 pipeline:
   run_data_processing: false # Set this to false if you have already saved the processed data
-  run_shadow_model_training: true # Set this to false if shadow models are already trained and saved
+  run_shadow_model_training: false # Set this to false if shadow models are already trained and saved
   run_metaclassifier_training: true
 
 target_model: # This is only used for testing the attack on a real target model.
-  # This is for models trained on 20k data and generating 20k synthetic data
-  # target_model_directory: /projects/midst-experiments/all_tabddpms/tabddpm_trained_with_20k/train/
-  # target_model_name: tabddpm_${target_model.target_model_id}
-  # target_synthetic_data_path: ${target_model.target_model_directory}/${target_model.target_model_name}/synthetic_data/20k/20k.csv
-
-  # target_model_directory: /projects/midst-experiments/ensemble_attack/midst_data_all_attacks/tabddpm_black_box/final/ #Competition target models trained on 20k
-  target_model_directory: /projects/midst-experiments/all_tabddpms/tabddpm_trained_with_10k/train/
+  # This is for models trained on 50k data and generating 50k synthetic data
+  target_model_directory: /projects/midst-experiments/all_tabddpms/tabddpm_trained_with_50k/train/
   target_model_id: 21  # Will be overridden per SLURM array task
   target_model_name: tabddpm_${target_model.target_model_id}
-  # target_synthetic_data_path: ${target_model.target_model_directory}/${target_model.target_model_name}/trans_synthetic.csv #Original competition file structure
-  target_synthetic_data_path: ${target_model.target_model_directory}/${target_model.target_model_name}/synthetic_data/10k/10k.csv # Behnoosh's models
-
+  target_synthetic_data_path: ${target_model.target_model_directory}/${target_model.target_model_name}/synthetic_data/50k/50k.csv
   challenge_data_path: ${target_model.target_model_directory}/${target_model.target_model_name}/challenge_with_id.csv
   challenge_label_path: ${target_model.target_model_directory}/${target_model.target_model_name}/challenge_label.csv
 
-  target_attack_artifact_dir: ${base_experiment_dir}/competition_trained_attack_results_10k_test/target_${target_model.target_model_id}_attack_artifacts/
+  target_attack_artifact_dir: ${base_experiment_dir}/target_${target_model.target_model_id}_attack_artifacts/
   attack_probabilities_result_path: ${target_model.target_attack_artifact_dir}/attack_model_${target_model.target_model_id}_proba
   target_shadow_models_output_path: ${target_model.target_attack_artifact_dir}/tabddpm_${target_model.target_model_id}_shadows_dir
 
 
 # Data paths
 data_paths:
-  base_data_dir: /projects/midst-experiments/ensemble_attack/competition
   midst_data_path: /projects/midst-experiments/all_tabddpms # Used to collect the data
-  # population_path: ${base_experiment_dir}/population_data  # Path where the collected population data will be stored
-  population_path: ${data_paths.base_data_dir}/population_data #READ ONLY
+  population_path: ${base_experiment_dir}/population_data  # Path where the collected population data will be stored
   processed_attack_data_path: ${base_experiment_dir}/attack_data # Path where the processed attack real train and evaluation data is stored
   attack_evaluation_result_path: ${base_experiment_dir}/evaluation_results # Path where the attack evaluation results will be stored
 
 model_paths:
   metaclassifier_model_path: ${base_experiment_dir}/trained_models # Path where the trained metaclassifier model will be saved
-  # metaclassifier_model_path: /projects/midst-experiments/ensemble_attack/tabddpm_20k_experiment_data/20k/trained_models #When only running the tests.
 
 
 # Dataset specific information used for processing in this example
 data_processing_config:
   population_attack_data_types_to_collect:
         [
-          "tabddpm_trained_with_20k",
+          "tabddpm_trained_with_50k",
         ]
   challenge_attack_data_types_to_collect:
         [
-          "tabddpm_trained_with_20k",
+          "tabddpm_trained_with_50k",
         ]
   population_splits: ["train"]  # Data splits to be collected for population data
   challenge_splits: ["train"]  # Data splits to be collected for challenge points
@@ -68,7 +54,7 @@ data_processing_config:
   single_table_train_data_file_name: "train_with_id.csv"
   multi_table_train_data_file_name: "trans.csv"
   challenge_data_file_name: "challenge_with_id.csv"
-  population_sample_size: 40000 # Population size is the total data that your attack has access to.
+  population_sample_size: 100000 # Population size is the total data that your attack has access to.
   # In experiments, this is sampled out of all the collected training data in case the available data
   # is more than this number. Note that, half of this data is actually used for training, the other half
   # is used for evaluation. For example, with 40k population size, only 20k is used for training the attack model.
@@ -100,7 +86,7 @@ shadow_training:
     fine_tune_diffusion_iterations: 200000 # Original code: 200000
     fine_tune_classifier_iterations: 20000 # Original code: 20000
     pre_train_data_size: 60000 # Original code: 60000
-  number_of_points_to_synthesize: 20000 # Number of synthetic data samples to be generated by shadow models.
+  number_of_points_to_synthesize: 50000 # Number of synthetic data samples to be generated by shadow models.
   # Original code: 20000
 
 
@@ -115,12 +101,10 @@ metaclassifier:
   use_gpu: false
   # Temporary. Might remove having an epoch parameter.
   epochs: 1
-  meta_classifier_model_name: ${metaclassifier.model_type}_metaclassifier_model
+  meta_classifier_model_name: ${metaclassifier.model_type}_metaclassifier_model_batched_parallel
 
 attack_success_computation:
-  target_ids_to_test: [61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110] # List of target model IDs to compute the attack success for.
-  # target_ids_to_test: [61, 62, 63, 64, 65, 66, 67, 68, 69, 70]
-  # target_ids_to_test: [101, 102, 103, 104, 105, 106, 107, 108, 109, 110]
+  target_ids_to_test: [21,22,23] # List of target model IDs to compute the attack success for.
 
 # General settings
 random_seed: 42 # Set to null for no seed, or an integer for a fixed seed

@@ -3,15 +3,17 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task=8
 #SBATCH --gres=gpu:1
-#SBATCH --mem=32G
+#SBATCH --mem=160G
 #SBATCH --qos=normal
-#SBATCH --job-name=50k_ensemble_attack_train
+#SBATCH --job-name=batched_para_50k
 #SBATCH --output=%j_%x.out
 #SBATCH --error=%j_%x.err
-#SBATCH --time=16:00:00
+#SBATCH --time=8:00:00
 
+
+echo "Total memory allocated: $(($SLURM_MEM_PER_NODE / 1024)) GB"
 
 # This script sets up the environment and runs the ensemble attack example.
 source .venv/bin/activate

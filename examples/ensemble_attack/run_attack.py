@@ -13,6 +13,7 @@ from omegaconf import DictConfig
 from examples.ensemble_attack.real_data_collection import collect_population_data_ensemble
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.common.logger import log
+from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
 from midst_toolkit.common.random import set_all_random_seeds
 
 
@@ -25,14 +26,17 @@ def run_data_processing(config: DictConfig) -> None:
     """
     log(INFO, "Running data processing pipeline...")
     # Collect the real data from the MIDST challenge resources.
-    population_data = collect_population_data_ensemble(
-        midst_data_input_dir=Path(config.data_paths.midst_data_path),
-        data_processing_config=config.data_processing_config,
-        save_dir=Path(config.data_paths.population_path),
-        population_splits=config.data_processing_config.population_splits,
-        challenge_splits=config.data_processing_config.challenge_splits,
+    # population_data = collect_population_data_ensemble(
+    #     midst_data_input_dir=Path(config.data_paths.midst_data_path),
+    #     data_processing_config=config.data_processing_config,
+    #     save_dir=Path(config.data_paths.population_path),
+    #     population_splits=config.data_processing_config.population_splits,
+    #     challenge_splits=config.data_processing_config.challenge_splits,
+    # )
+    population_data = load_dataframe(Path(config.data_paths.population_path),
+        "population_all_with_challenge_no_id.csv",
     )
-    # The following function saves the required dataframe splits in the specified processed_attack_data_path path.
+    # The following function saves the required dataframe splits in the specified processed_attack_data_path path. 
     process_split_data(
         all_population_data=population_data,
         processed_attack_data_path=Path(config.data_paths.processed_attack_data_path),
@@ -67,7 +71,11 @@ def main(config: DictConfig) -> None:
     # TODO: Investigate the source of error.
     if config.pipeline.run_shadow_model_training:
         shadow_pipeline = importlib.import_module("examples.ensemble_attack.run_shadow_model_training")
-        shadow_data_paths = shadow_pipeline.run_shadow_model_training(config)
+        df_master_challenge_train = load_dataframe(
+            Path(config.data_paths.processed_attack_data_path),
+            "master_challenge_train.csv",
+        )
+        shadow_data_paths = shadow_pipeline.run_shadow_model_training(config, df_master_challenge_train)
         shadow_data_paths = [Path(path) for path in shadow_data_paths]
 
         target_model_synthetic_path = shadow_pipeline.run_target_model_training(config)

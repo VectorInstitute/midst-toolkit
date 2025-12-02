@@ -11,7 +11,7 @@ pipeline:
 
 target_model: # This is only used for testing the attack on a real target model.
   # This is for models trained on 10k data and generating `0k synthetic data
-  target_model_directory: /projects/midst-experiments/all_tabddpms/tabddpm_trained_with_10k/train/
+  target_model_directory: /projects/midst-experiments/all_tabddpms/tabddpm_trained_with_10k/test/
   target_model_id: 21  # Will be overridden per SLURM array task
   target_model_name: tabddpm_${target_model.target_model_id}
   target_synthetic_data_path: ${target_model.target_model_directory}/${target_model.target_model_name}/synthetic_data/10k/10k.csv

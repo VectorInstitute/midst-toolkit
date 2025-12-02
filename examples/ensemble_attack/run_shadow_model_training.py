@@ -79,7 +79,7 @@ def run_target_model_training(config: DictConfig) -> Path:
     return target_model_synthetic_path
 
 
-def run_shadow_model_training(config: DictConfig) -> list[Path]:
+def run_shadow_model_training(config: DictConfig, df_master_challenge_train) -> list[Path]:
     """
     Function to run the shadow model training for RMIA attack.
 
@@ -95,10 +95,10 @@ def run_shadow_model_training(config: DictConfig) -> list[Path]:
     # Load the required dataframes for shadow model training.
     # For shadow model training we need master_challenge_train and population data.
     # Master challenge is the main training (or fine-tuning) data for the shadow models.
-    df_master_challenge_train = load_dataframe(
-        Path(config.data_paths.processed_attack_data_path),
-        "master_challenge_train.csv",
-    )
+    # df_master_challenge_train = load_dataframe(
+    #     Path(config.data_paths.processed_attack_data_path),
+    #     "master_challenge_train.csv",
+    # )
     # Population data is used to pre-train some of the shadow models.
     df_population_with_challenge = load_dataframe(
         Path(config.data_paths.population_path),

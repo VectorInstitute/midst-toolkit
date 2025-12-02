@@ -18,7 +18,7 @@ from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
 
 
-def run_rmia_shadow_training(config: DictConfig) -> list[dict[str, list[Any]]]:
+def run_rmia_shadow_training(config: DictConfig, df_challenge) -> list[dict[str, list[Any]]]:
     """
     Three sets of shadow models will be trained as a part of this attack.
     Note that for every new target model, shadow models need to be trained.
@@ -32,7 +32,8 @@ def run_rmia_shadow_training(config: DictConfig) -> list[dict[str, list[Any]]]:
         A list containing three dictionaries, each representing a collection of shadow
             models with their training data and generated synthetic outputs.
     """
-    shadow_model_paths = run_shadow_model_training(config)
+    shadow_model_paths = run_shadow_model_training(config, df_master_challenge_train=df_challenge)
+    shadow_model_paths = [Path(path) for path in config.shadow_training.final_shadow_models_path]
 
     assert len(shadow_model_paths) == 3, "For testing, meta classifier needs the path to three sets of shadow models."
 
@@ -105,6 +106,14 @@ def run_metaclassifier_testing(
         INFO, f"Target synthetic data loaded from {target_synthetic_path} with a size of {len(target_synthetic_data)}."
     )
 
+    # 3) Shadow Model Training Step.
+
+    # Make sure to assign a new path for shadow models trained for target's challenge points to
+    # avoid overriding train's shadow models.
+    config.shadow_training.shadow_models_output_path = config.target_model.target_shadow_models_output_path
+    shadow_data_collection = run_rmia_shadow_training(config, test_data)
+
+    
     # Extract trans_id from the test dataframe
     with open(Path(config.metaclassifier.data_types_file_path), "r") as f:
         column_types = json.load(f)
@@ -117,15 +126,25 @@ def run_metaclassifier_testing(
     id_column_names = [column_name for column_name in test_data.columns if column_name.endswith("_id")]
     test_data = test_data.drop(columns=id_column_names)
 
-    # 3) Shadow Model Training Step.
 
-    # Make sure to assign a new path for shadow models trained for target's challenge points to
-    # avoid overriding train's shadow models.
-    config.shadow_training.shadow_models_output_path = config.target_model.target_shadow_models_output_path
-    shadow_data_collection = run_rmia_shadow_training(config)
+    
+
+
+    # Load already trained shadows (only if completely are run)
+    # shadow_model_paths = [Path(path) for path in config.shadow_training.final_shadow_models_path]
+    # shadow_data_collection = []
+    # for model_path in shadow_model_paths:
+    #     assert model_path.exists(), (
+    #         f"No file found at {model_path}. Make sure the path is correct, or run shadow model training first."
+    #     )
+
+    #     with open(model_path, "rb") as f:
+    #         shadow_data_and_result = pickle.load(f)
+    #         shadow_data_collection.append(shadow_data_and_result)
+
+
 
     # 4) Initialize the attacker object, and assign the loaded metaclassifier to it.
-    target_synthetic_data = target_synthetic_data.copy()
 
     df_reference = load_dataframe(
         Path(config.data_paths.population_path),
