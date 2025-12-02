@@ -6,8 +6,12 @@ import pickle
 import numpy as np
 import pandas as pd
 import torch
+from pathlib import Path
+from sklearn.metrics import auc, roc_curve
+from tqdm import tqdm
 
 
+import matplotlib.pyplot as plt
 class CustomUnpickler(pickle.Unpickler):
     def find_class(self, module, name):
         # Fix module renaming
@@ -641,3 +645,149 @@ def pair_clustering_keep_id(
     child_domain_dict[relation_cluster_name] = new_col_entry.copy()
 
     return parent_df_with_cluster, child_df_with_cluster, group_lengths_prob_dicts
+
+def save_results_and_plot_roc_curve(fpr, tpr, roc_auc, all_results, results_path):
+        """
+        Saves the ROC curve plot and results summary to the specified directory.
+
+        Args:
+            fpr (array-like): False Positive Rate values for the ROC curve.
+            tpr (array-like): True Positive Rate values for the ROC curve.
+            roc_auc (float): Area Under the Curve (AUC) value for the ROC curve.
+            all_results (list): List of dictionaries containing results for each run.
+            results_path (str): Path to the directory where results will be saved.
+
+        Returns:
+            None
+        """
+        os.makedirs(results_path, exist_ok=True)
+        plot_filename = "roc_curve_models.png"
+        plot_path = os.path.join(results_path, plot_filename)
+
+        # Plot ROC curve
+        plt.figure(figsize=(8, 6))
+        plt.plot(fpr, tpr, color="darkorange", lw=2, label=f"ROC curve (AUC = {roc_auc:.4f})")
+        plt.plot([0, 1], [0, 1], color="navy", lw=2, linestyle="--")
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel("False Positive Rate")
+        plt.ylabel("True Positive Rate")
+        plt.title("ROC Curve")
+        plt.legend(loc="lower right")
+        plt.grid(alpha=0.5)
+        plt.tight_layout()
+        plt.savefig(plot_path, dpi=300)  # Save figure
+        plt.close()
+
+        # Save results summary
+        results_df = pd.DataFrame(all_results)
+        results_summary_path = os.path.join(results_path, "results_summary.csv")
+        results_df.to_csv(results_summary_path, index=False)
+        print(f"✅ All runs completed. Results saved to {results_summary_path}")
+
+
+
+def prepare_data_for_attack(indices: list, model_type: str, models_base_dir: Path,
+                            keys_for_deduplication: list) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Prepares data for an attack by merging and deduplicating datasets.
+
+    Args:
+        indices (list): A list of indices representing the datasets to process.
+        model_type (str): The type of model used to generate the datasets.
+        models_base_dir (Path): The base directory containing the model datasets.
+        keys_for_dediplication (list of str): A list of strings representing column names used for deduplication.
+
+    Returns:
+        tuple: A tuple containing two DataFrames:
+            - df_merge_without_challenge: The merged dataset excluding challenge data.
+            - df_challenge: The deduplicated challenge dataset.
+    """
+    if not indices:
+        raise ValueError("The 'indices' list is empty. Please provide indices to process datasets.")
+
+    df_merge_list = []
+    df_challenge_list = []
+
+    for t in indices:
+        base_path = models_base_dir / f"{model_type}_{t}"
+        df_merge_list.append(pd.read_csv(os.path.join(base_path, "train_with_id.csv")))
+        df_challenge_list.append(pd.read_csv(os.path.join(base_path, "challenge_with_id.csv")))
+        df_challenge_labels = pd.read_csv(os.path.join(base_path, "challenge_label.csv"))
+
+    df_merge = pd.concat(df_merge_list, ignore_index=True)
+    df_challenge = pd.concat(df_challenge_list, ignore_index=True)
+
+    # Deduplicate the datasets once
+    df_merge = df_merge.drop_duplicates(subset=keys_for_deduplication)
+    df_challenge = df_challenge.drop_duplicates(subset=keys_for_deduplication)
+
+    # Ensure all keys for deduplication exist in both DataFrames
+    missing_keys_merge = [key for key in keys_for_deduplication if key not in df_merge.columns]
+    missing_keys_challenge = [key for key in keys_for_deduplication if key not in df_challenge.columns]
+    if missing_keys_merge or missing_keys_challenge:
+        raise ValueError(
+            f"Missing columns for deduplication: {missing_keys_merge + missing_keys_challenge}")
+
+
+    df_merge_without_challenge = df_merge[
+        ~df_merge.set_index(keys_for_deduplication).index.isin(
+            df_challenge.set_index(keys_for_deduplication).index
+        )
+    ]
+    
+    # Returning the merged dataset excluding challenge data (df_merge_without_challenge)
+    # and the deduplicated challenge dataset (df_challenge)
+    return df_merge_without_challenge, df_challenge, df_challenge_labels
+
+def get_tpr_at_fpr(true_membership: list, predictions: list, max_fpr=0.1) -> float:
+    """Calculates the best True Positive Rate when the False Positive Rate is
+    at most `max_fpr`.
+
+    Args:
+        true_membership (List): A list of values in {0,1} indicating the membership of a
+            challenge point. 0: "non-member", 1: "member".
+        predictions (List): A list of values in the range [0,1] indicating the confidence
+            that a challenge point is a member. The closer the value to 1, the more
+            confident the predictor is about the hypothesis that the challenge point is
+            a member.
+        max_fpr (float, optional): Threshold on the FPR. Defaults to 0.1.
+
+    Returns:
+        float: The TPR @ `max_fpr` FPR.
+    """
+    fpr, tpr, _ = roc_curve(true_membership, predictions)
+
+    return max(tpr[fpr < max_fpr])
+
+def evaluate_attack_performance(indices, description, tabddpm_data_dir, model_type, predictions_file_name):
+
+        if indices is None or len(indices) == 0:
+            print(f"No models to evaluate for {description}")
+            return 0.0
+        
+        predictions, solutions = [], []
+        for model_number in tqdm(indices, desc=f"Evaluating on {description} models", unit="model"):
+            model_folder = f"{model_type}_{model_number}"
+            path = tabddpm_data_dir / model_folder
+            try:
+                predictions.append(np.loadtxt(path / predictions_file_name))
+                solutions.append(np.loadtxt(path / "challenge_label.csv", skiprows=1))
+            except FileNotFoundError:
+                print(f"Warning: Prediction or label file not found for model {model_number}. Skipping.")
+                continue
+
+        if not predictions:
+            print(f"No predictions found for {description} models.")
+            return 0.0
+
+        predictions = np.concatenate(predictions)
+        solutions = np.concatenate(solutions)
+        
+        tpr_at_fpr = get_tpr_at_fpr(solutions, predictions)
+
+        fpr, tpr, _ = roc_curve(solutions, predictions)
+        roc_auc = auc(fpr, tpr)
+
+        attack_performance = {"max_tpr": tpr_at_fpr, "roc_auc": roc_auc}
+        return attack_performance
