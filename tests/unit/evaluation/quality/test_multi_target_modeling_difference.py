@@ -164,7 +164,7 @@ def test_multi_target_modeling_difference_with_two_targets() -> None:
     assert pytest.approx(-0.20674835173603345, abs=1e-8) == score["avg_f1_difference"]
     assert pytest.approx(-0.2652757334540877, abs=1e-8) == score["avg_r2_difference"]
     # average of the f1 and r2 difference values for the two columns of interest.
-    assert pytest.approx(-0.2360120425950606, abs=1e-8) == score["avg_r2_difference_and_f1_difference"]
+    assert pytest.approx(-0.23601204259506061, abs=1e-8) == score["avg_r2_difference_and_f1_difference"]
 
     assert pytest.approx(-0.18302644311709276, abs=1e-8) == score["MLPRegressor_r2_difference_and_f1_difference"]
 
@@ -260,3 +260,37 @@ def test_multi_target_modeling_difference_exceptions() -> None:
             label_columns_and_type={"column_e": ColumnType.NUMERICAL, "column_c": ColumnType.CATEGORICAL},
             regressors_config_path=Path("tests/assets/regression_config_1.json"),
         )
+
+
+def test_multi_target_modeling_difference_with_two_parallel_targets() -> None:
+    # This should function in exactly the same way as when you don't process everything in parallel. However, due
+    # to the way randomness happens in parallel processing it isn't exactly the same.
+    # NOTE: We can force randomness inside the threads by inserting pins inside the function, which has been done to
+    # confirm this works properly
+    set_all_random_seeds(42)
+
+    real_data, synthetic_data = get_classification_data()
+    holdout_data = real_data.copy()
+
+    metric = MultiTargetModelingDifference(
+        categorical_columns=["column_c", "column_e"],
+        numerical_columns=["column_a", "column_b", "column_d"],
+        do_preprocess=True,
+        preprocess_labels=False,
+        f1_type="macro",
+        label_columns_and_type={"column_e": ColumnType.CATEGORICAL, "column_a": ColumnType.NUMERICAL},
+        regressors_config_path=Path("tests/assets/regression_config_1.json"),
+        include_regressor_specific_averages=False,
+        n_jobs=2,
+    )
+
+    score = metric.compute(real_data, synthetic_data, holdout_data)
+
+    assert pytest.approx(-0.20674835173603345, abs=1e-8) == score["avg_f1_difference"]
+    assert pytest.approx(-0.3210234643327887, abs=1e-8) == score["avg_r2_difference"]
+    # average of the f1 and r2 difference values for the two columns of interest.
+    assert pytest.approx(-0.2638859080344111, abs=1e-8) == score["avg_r2_difference_and_f1_difference"]
+
+    assert pytest.approx(0.12331561250109607, abs=1e-8) == score["avg_mean_squared_error_difference_and_f1_difference"]
+
+    unset_all_random_seeds()
