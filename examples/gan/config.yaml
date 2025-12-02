@@ -3,5 +3,9 @@
 base_data_dir: examples/gan/data
 results_dir: examples/gan/results
 
+training:
+    epochs: 20000
+    verbose: True
+
 synthesizing:
-    sample_size: 1000
+    sample_size: 20000

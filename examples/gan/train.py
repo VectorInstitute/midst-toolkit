@@ -36,24 +36,16 @@ def main(config: DictConfig) -> None:
 
     log(INFO, "Fitting CTGAN...")
 
-    ctgan = CTGAN(epochs=10)
+    ctgan = CTGAN(epochs=config.training.epochs, verbose=config.training.verbose)
     ctgan.fit(real_data, discrete_columns)
 
+    log(INFO, "Done!")
     log(INFO, "Saving model...")
     results_file = Path(config.results_dir) / "trained_ctgan_model.pkl"
     results_file.parent.mkdir(parents=True, exist_ok=True)
 
     ctgan.save(results_file)
     log(INFO, f"Model saved to {results_file}")
-
-    log(INFO, "Sampling data...")
-
-    # Create synthetic data
-    synthetic_data = ctgan.sample(1000)
-
-    log(INFO, "Done!")
-
-    log(INFO, f"Synthetic data:\n{synthetic_data}")
 
 
 if __name__ == "__main__":
