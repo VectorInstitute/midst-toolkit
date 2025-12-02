@@ -13,6 +13,7 @@ import torch
 from sklearn.metrics import auc, roc_curve
 from torch import nn, optim
 from tqdm import tqdm
+from midst_toolkit.models.clavaddpm.dataset import Dataset
 
 from midst_toolkit.attacks.tf.data_utils import (
     CustomUnpickler,
@@ -30,7 +31,7 @@ from midst_toolkit.attacks.tf.data_utils import (
 # 🧭 Local Modules (Project)
 # ======================================================
 from midst_toolkit.attacks.tf.lib import (
-    Dataset,
+    # Dataset,
     TaskType,
     Transformations,
     prepare_fast_dataloader,
@@ -75,7 +76,8 @@ def mixed_loss(
 
     device = x.device
     if t is None:
-        t, pt = diffusion.sample_time(b, device, "uniform")
+        #the defeualt is uniform sampling 
+        t, pt = diffusion.sample_time(b, device)
 
     if return_random:
         return noise, t, pt
@@ -245,168 +247,293 @@ def transform_dataset(
     return dataset
 
 
-def make_dataset_from_df_with_loaded(
-    df, transformation, is_y_cond,df_info=None, std=0, label_encoders=None, num_transform=None
-):
-    cat_column_orders = []
-    num_column_orders = []
-    index_to_column = list(df.columns)
-    column_to_index = {col: i for i, col in enumerate(index_to_column)}
+# def make_dataset_from_df_with_loaded(
+#     df, transformation, is_y_cond,df_info=None, std=0, label_encoders=None, num_transform=None
+# ):
+#     cat_column_orders = []
+#     num_column_orders = []
+#     index_to_column = list(df.columns)
+#     column_to_index = {col: i for i, col in enumerate(index_to_column)}
 
-    if df_info["n_classes"] > 0:
-        x_cat = {} if df_info["cat_cols"] is not None or is_y_cond == "concat" else None
-        x_num = {} if df_info["num_cols"] is not None else None
-        y = {}
+#     if df_info["n_classes"] > 0:
+#         x_cat = {} if df_info["cat_cols"] is not None or is_y_cond == "concat" else None
+#         x_num = {} if df_info["num_cols"] is not None else None
+#         y = {}
 
-        cat_cols_with_y = []
-        if df_info["cat_cols"] is not None:
-            cat_cols_with_y += df_info["cat_cols"]
-        if is_y_cond == "concat":
-            cat_cols_with_y = [df_info["y_col"]] + cat_cols_with_y
+#         cat_cols_with_y = []
+#         if df_info["cat_cols"] is not None:
+#             cat_cols_with_y += df_info["cat_cols"]
+#         if is_y_cond == "concat":
+#             cat_cols_with_y = [df_info["y_col"]] + cat_cols_with_y
 
-        if len(cat_cols_with_y) > 0:
-            x_cat["train"] = df[cat_cols_with_y].to_numpy(dtype=np.str_)
+#         if len(cat_cols_with_y) > 0:
+#             x_cat["train"] = df[cat_cols_with_y].to_numpy(dtype=np.str_)
 
-        y["train"] = df[df_info["y_col"]].values.astype(np.float32)
+#         y["train"] = df[df_info["y_col"]].values.astype(np.float32)
 
-        if df_info["num_cols"] is not None:
-            x_num["train"] = df[df_info["num_cols"]].values.astype(np.float32)
+#         if df_info["num_cols"] is not None:
+#             x_num["train"] = df[df_info["num_cols"]].values.astype(np.float32)
 
-        cat_column_orders = [column_to_index[col] for col in cat_cols_with_y]
-        num_column_orders = [column_to_index[col] for col in df_info["num_cols"]]
+#         cat_column_orders = [column_to_index[col] for col in cat_cols_with_y]
+#         num_column_orders = [column_to_index[col] for col in df_info["num_cols"]]
 
-    else:
-        x_cat = {} if df_info["cat_cols"] is not None else None
-        x_num = {} if df_info["num_cols"] is not None or is_y_cond == "concat" else None
-        y = {}
+#     else:
+#         x_cat = {} if df_info["cat_cols"] is not None else None
+#         x_num = {} if df_info["num_cols"] is not None or is_y_cond == "concat" else None
+#         y = {}
 
-        num_cols_with_y = []
-        if df_info["num_cols"] is not None:
-            num_cols_with_y += df_info["num_cols"]
-        if is_y_cond == "concat":
-            num_cols_with_y = [df_info["y_col"]] + num_cols_with_y
+#         num_cols_with_y = []
+#         if df_info["num_cols"] is not None:
+#             num_cols_with_y += df_info["num_cols"]
+#         if is_y_cond == "concat":
+#             num_cols_with_y = [df_info["y_col"]] + num_cols_with_y
 
-        if len(num_cols_with_y) > 0:
-            x_num["train"] = df[num_cols_with_y].values.astype(np.float32)
+#         if len(num_cols_with_y) > 0:
+#             x_num["train"] = df[num_cols_with_y].values.astype(np.float32)
 
-        y["train"] = df[df_info["y_col"]].values.astype(np.float32)
+#         y["train"] = df[df_info["y_col"]].values.astype(np.float32)
 
-        if df_info["cat_cols"] is not None:
-            x_cat["train"] = df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
+#         if df_info["cat_cols"] is not None:
+#             x_cat["train"] = df[df_info["cat_cols"]].to_numpy(dtype=np.str_)
 
-        cat_column_orders = [column_to_index[col] for col in df_info["cat_cols"]]
-        num_column_orders = [column_to_index[col] for col in num_cols_with_y]
+#         cat_column_orders = [column_to_index[col] for col in df_info["cat_cols"]]
+#         num_column_orders = [column_to_index[col] for col in num_cols_with_y]
 
-    column_orders = num_column_orders + cat_column_orders
-    column_orders = [index_to_column[index] for index in column_orders]
+#     column_orders = num_column_orders + cat_column_orders
+#     column_orders = [index_to_column[index] for index in column_orders]
 
-    if x_cat is not None and len(df_info["cat_cols"]) > 0:
-        x_cat_all = x_cat["train"]
-        x_cat_converted = []
-        for col_index in range(x_cat_all.shape[1]):
-            if label_encoders is None:
-                raise ValueError("Should be loaded: label_encoder")
-            pass
+#     if x_cat is not None and len(df_info["cat_cols"]) > 0:
+#         x_cat_all = x_cat["train"]
+#         x_cat_converted = []
+#         for col_index in range(x_cat_all.shape[1]):
+#             if label_encoders is None:
+#                 raise ValueError("Should be loaded: label_encoder")
+#             pass
 
-            x_cat_converted.append(label_encoders[col_index].transform(x_cat_all[:, col_index]).astype(float))
+#             x_cat_converted.append(label_encoders[col_index].transform(x_cat_all[:, col_index]).astype(float))
 
-            if std > 0:
-                # add noise
-                x_cat_converted[-1] += np.random.normal(0, std, x_cat_converted[-1].shape)
+#             if std > 0:
+#                 # add noise
+#                 x_cat_converted[-1] += np.random.normal(0, std, x_cat_converted[-1].shape)
 
-        x_cat_converted = np.vstack(x_cat_converted).T
+#         x_cat_converted = np.vstack(x_cat_converted).T
 
-        train_num = x_cat["train"].shape[0]
+#         train_num = x_cat["train"].shape[0]
 
-        x_cat["train"] = x_cat_converted[:train_num, :]
+#         x_cat["train"] = x_cat_converted[:train_num, :]
 
-        if len(x_num) > 0:
-            x_num["train"] = np.concatenate((x_num["train"], x_cat["train"]), axis=1)
-        else:
-            x_num = x_cat
-            x_cat = None
+#         if len(x_num) > 0:
+#             x_num["train"] = np.concatenate((x_num["train"], x_cat["train"]), axis=1)
+#         else:
+#             x_num = x_cat
+#             x_cat = None
 
-    dataset = Dataset(
-        x_num,
-        None,
-        y,
-        y_info={},
-        task_type=TaskType(df_info["task_type"]),
-        n_classes=df_info["n_classes"],
-    )
+#     dataset = Dataset(
+#         x_num,
+#         None,
+#         y,
+#         y_info={},
+#         task_type=TaskType(df_info["task_type"]),
+#         n_classes=df_info["n_classes"],
+#     )
 
-    return transform_dataset(dataset, transformation, None, num_transform=num_transform), label_encoders, column_orders
+#     return transform_dataset(dataset, transformation, None, num_transform=num_transform), label_encoders, column_orders
+
+
+# def get_dataset(
+#     data_path, config_path=None, save_dir_tmp=None, train_name="train_with_id.csv", phase=None, batch_size=None
+# ):
+#     configs, save_dir = load_configs(config_path)
+#     tables, relation_order, dataset_meta = load_multi_table_customized(
+#         data_path,
+#         meta_dir="/h/behnzaman/midst-experiments/deps/TF_attack/midst_models/single_table_TabDDPM/configs",
+#         train_name=train_name,
+#     )
+#     tables, all_group_lengths_prob_dicts = clava_clustering_force_load(tables, relation_order, save_dir, configs)
+#     # global batch_size
+#     train_loader_list = []
+#     for parent, child in relation_order:
+#         # print(f"Getting {parent} -> {child} model from scratch")
+#         df_with_cluster = tables[child]["df"]
+
+#         id_cols = [col for col in df_with_cluster.columns if "_id" in col]
+#         df_without_id = df_with_cluster.drop(columns=id_cols)
+
+#         child_df_with_cluster, child_domain_dict, parent_name, child_name = (
+#             df_without_id,
+#             tables[child]["domain"],
+#             parent,
+#             child,
+#         )
+#         if parent_name is None:
+#             y_col = "placeholder"
+#             child_df_with_cluster["placeholder"] = list(range(len(child_df_with_cluster)))
+#         else:
+#             y_col = f"{parent_name}_{child_name}_cluster"
+#         child_info = get_table_info(child_df_with_cluster, child_domain_dict, y_col)
+#         child_model_params = get_model_params(
+#             {
+#                 "d_layers": configs["diffusion"]["d_layers"],
+#                 "dropout": configs["diffusion"]["dropout"],
+#             }
+#         )
+#         child_t_dict = get_t_dict()
+#         file_path = os.path.join(save_dir_tmp, f"{parent}_{child}_ckpt.pkl")
+#         with open(file_path, "rb") as f:
+#             model = CustomUnpickler(f).load()
+
+#         # important, dev and final model is different from train one, so retrive transform from here
+#         if phase == "train":
+#             num_transform = model["dataset"].num_transform
+#         elif phase in ("dev", "final"):
+#             num_transform = model["inverse_transform"].__self__
+#         else:
+#             raise ValueError("Unknown Phase!!!")
+#         transformations = Transformations(**child_t_dict)
+
+#         dataset, label_encoders, column_orders = make_dataset_from_df_with_loaded(
+#             child_df_with_cluster,
+#             transformations,
+#             is_y_cond=child_model_params["is_y_cond"],
+#             df_info=child_info,
+#             std=0,
+#             label_encoders=model["label_encoders"],
+#             num_transform=num_transform,
+#         )
+#         dataset.X_num["test"] = dataset.X_num["train"]
+
+#         if dataset.X_cat is not None:
+#             dataset.X_cat["test"] = dataset.X_cat["train"]
+#         dataset.y["test"] = dataset.y["train"]
+#         train_loader = prepare_fast_dataloader(dataset, split="test", batch_size=batch_size, y_type="long")
+#         train_loader_list.append([train_loader, dataset.X_num["test"].shape[0], dataset])
+#     return train_loader_list
+
 
 
 def get_dataset(
-    data_path, config_path=None, save_dir_tmp=None, train_name="train_with_id.csv", phase=None, batch_size=None
+    data_path, config_path=None, save_dir_tmp=None,
+    train_name="train_with_id.csv", phase=None, batch_size=None
 ):
     configs, save_dir = load_configs(config_path)
+
     tables, relation_order, dataset_meta = load_multi_table_customized(
         data_path,
         meta_dir="/h/behnzaman/midst-experiments/deps/TF_attack/midst_models/single_table_TabDDPM/configs",
         train_name=train_name,
     )
-    tables, all_group_lengths_prob_dicts = clava_clustering_force_load(tables, relation_order, save_dir, configs)
-    # global batch_size
+    tables, all_group_lengths_prob_dicts = clava_clustering_force_load(
+        tables, relation_order, save_dir, configs
+    )
+
     train_loader_list = []
+
     for parent, child in relation_order:
-        # print(f"Getting {parent} -> {child} model from scratch")
+
         df_with_cluster = tables[child]["df"]
 
+        # === Remove ID columns ============================
         id_cols = [col for col in df_with_cluster.columns if "_id" in col]
         df_without_id = df_with_cluster.drop(columns=id_cols)
 
-        child_df_with_cluster, child_domain_dict, parent_name, child_name = (
-            df_without_id,
-            tables[child]["domain"],
-            parent,
-            child,
-        )
+        child_df_with_cluster = df_without_id
+        child_domain_dict = tables[child]["domain"]
+        parent_name, child_name = parent, child
+
+        # === Construct y-column ============================
         if parent_name is None:
             y_col = "placeholder"
             child_df_with_cluster["placeholder"] = list(range(len(child_df_with_cluster)))
         else:
             y_col = f"{parent_name}_{child_name}_cluster"
+
+        # Metadata needed for feature ordering (still necessary)
         child_info = get_table_info(child_df_with_cluster, child_domain_dict, y_col)
+
+        # Model hyperparameters
         child_model_params = get_model_params(
             {
                 "d_layers": configs["diffusion"]["d_layers"],
                 "dropout": configs["diffusion"]["dropout"],
             }
         )
-        child_t_dict = get_t_dict()
+
+        # === Load trained model checkpoint ==================
         file_path = os.path.join(save_dir_tmp, f"{parent}_{child}_ckpt.pkl")
+
         with open(file_path, "rb") as f:
             model = CustomUnpickler(f).load()
 
-        # important, dev and final model is different from train one, so retrive transform from here
-        if phase == "train":
-            num_transform = model["dataset"].num_transform
-        elif phase in ("dev", "final"):
-            num_transform = model["inverse_transform"].__self__
-        else:
-            raise ValueError("Unknown Phase!!!")
-        transformations = Transformations(**child_t_dict)
+        # === Retrieve fitted transformations =================
+        # (instead of constructing Transformations(**child_t_dict))
+        transformations = model.transformations
 
-        dataset, label_encoders, column_orders = make_dataset_from_df_with_loaded(
-            child_df_with_cluster,
-            transformations,
-            is_y_cond=child_model_params["is_y_cond"],
-            df_info=child_info,
-            std=0,
-            label_encoders=model["label_encoders"],
-            num_transform=num_transform,
+        # === Determine numerical transform depending on phase ==
+        # if phase == "train":
+        #     num_transform = model.dataset.num_transform
+        # elif phase in ("dev", "final"):
+        #     num_transform = model.inverse_transform.__self__
+        # else:
+        #     raise ValueError("Unknown Phase!")
+
+        # === Build Dataset via new API ========================
+        dataset, label_encoders, column_orders = Dataset.from_df(
+            data=child_df_with_cluster,
+            transformations=transformations,
+            is_target_conditioned=model.model_parameters.is_target_conditioned,
+            data_split_percentages=None,               # manually set test split below
+            table_metadata=model.table_metadata,
+            noise_scale=0,
         )
-        dataset.X_num["test"] = dataset.X_num["train"]
+        print(type(dataset.numerical_features["train"]))
+        # === Create a "test" split identical to "train" ====
+        dataset.numerical_features["train"] = np.concatenate(
+        [
+            dataset.numerical_features["train"],
+            dataset.numerical_features["val"],
+            dataset.numerical_features["test"]
+        ],
+        axis=0
+        )
 
-        if dataset.X_cat is not None:
-            dataset.X_cat["test"] = dataset.X_cat["train"]
-        dataset.y["test"] = dataset.y["train"]
-        train_loader = prepare_fast_dataloader(dataset, split="test", batch_size=batch_size, y_type="long")
-        train_loader_list.append([train_loader, dataset.X_num["test"].shape[0], dataset])
+        if dataset.categorical_features is not None:
+            dataset.categorical_features["train"] = np.concatenate(
+                [
+                    dataset.categorical_features["train"],
+                    dataset.categorical_features["val"],
+                    dataset.categorical_features["test"]
+                ],
+                axis=0
+            )
+
+        dataset.target["train"] = np.concatenate(
+            [
+                dataset.target["train"],
+                dataset.target["val"],
+                dataset.target["test"]
+            ],
+            axis=0
+        )
+
+        dataset.numerical_features["test"] = dataset.numerical_features["train"].copy()
+
+        if dataset.categorical_features is not None:
+            dataset.categorical_features["test"] = dataset.categorical_features["train"].copy()
+
+        dataset.target["test"] = dataset.target["train"].copy()
+
+        # === Build DataLoader ================================
+        train_loader = prepare_fast_dataloader(
+            dataset, split="test", batch_size=batch_size, y_type="long"
+        )
+
+        train_loader_list.append([
+            train_loader,
+            dataset.numerical_features["test"].shape[0],
+            dataset
+        ])
+
     return train_loader_list
-
 
 def get_score(
     data_path,
@@ -468,10 +595,10 @@ def get_score(
         with open(filepath, "rb") as f:
             model = CustomUnpickler(f).load()
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        diffusion = model["diffusion"].to(device)
+        diffusion = model.diffusion.to(device)
 
         iter_id = 0
-
+        print(iter_max)
         iter_max = iter_max // batch_size
         return_res = torch.zeros([batch_size, parallel_batch])
         assert iter_max == 1
@@ -621,7 +748,7 @@ def fitmodel(
         loss.backward()
         optimizer.step()
 
-        if (epoch + 1) % 10 == 0:
+        if (epoch + 1) % 5 == 0:
             train_loss, train_tpr = evaluate_model(regression_model, x_train, y_train)
             if x_val is not None:
                 test_loss, test_tpr = evaluate_model(regression_model, x_val, y_test)
@@ -754,7 +881,7 @@ def tf_attack(
 
                         # store df_data in data.csv
                         df_data = pd.concat([data_exclusive, data_from_train], ignore_index=True)
-                        df_data.to_csv(os.path.join(model_dir, "data.csv"), index=False)
+                        df_data.to_csv(os.path.join(model_dir, "data_for_training_MIA.csv"), index=False)
 
                         # remove chosen data from df_train_merge
                         df_train_merge = df_train_merge[
@@ -775,7 +902,7 @@ def tf_attack(
                         data_from_test = df_test.sample(sample_per_val_model)
 
                         df_test_data = pd.concat([data_test_exclusive, data_from_test], ignore_index=True)
-                        df_test_data.to_csv(os.path.join(model_dir, "data.csv"), index=False)
+                        df_test_data.to_csv(os.path.join(model_dir, "data_for_validating_MIA.csv"), index=False)
 
                         # remove chosen data from df_test_merge
                         df_test_merge = df_test_merge[
@@ -784,12 +911,13 @@ def tf_attack(
                             )
                         ]
 
+                    print('###############')
+                    print("data train shape", df_data.shape)
                     t_value_count = 0
                     for t_value in timesteps_list:
                         for addt_value in [0]:
                             if model_number in train_indices:
                                 # define challenge_name (global variable) to make the model access that file
-                                challenge_name = "data.csv"
                                 # get predictions for these number of data
                                 batch_size = samples_per_train_model * 2
 
@@ -814,7 +942,7 @@ def tf_attack(
                                     updated_config_path,
                                     model_type,
                                     phase="train",
-                                    challenge_name=challenge_name,
+                                    challenge_name="data_for_training_MIA.csv",
                                     batch_size=batch_size,
                                     parallel_batch=num_noise_per_time_step,
                                     addt_value=addt_value,
@@ -835,7 +963,6 @@ def tf_attack(
 
                             elif model_number in val_indices:
                                 # validation sets
-                                challenge_name = "data.csv"
                                 batch_size = sample_per_val_model * 2
                                 with open(config_path, "r") as f:
                                     config_cur = json.load(f)
@@ -852,7 +979,7 @@ def tf_attack(
                                     updated_config_path,
                                     model_type,
                                     phase="train",
-                                    challenge_name=challenge_name,
+                                    challenge_name="data_for_validating_MIA.csv",
                                     batch_size=batch_size,
                                     parallel_batch=num_noise_per_time_step,
                                     addt_value=addt_value,
@@ -882,7 +1009,6 @@ def tf_attack(
 
                 else:
                     batch_size = 200
-                    challenge_name = "challenge_with_id.csv"
                     t_value_count = 0
                     current_input = []
                     for t_value in timesteps_list:
@@ -901,7 +1027,7 @@ def tf_attack(
                                 updated_config_path,
                                 model_type,
                                 phase=phase,
-                                challenge_name=challenge_name,
+                                challenge_name='challenge_with_id.csv',
                                 batch_size=batch_size,
                                 parallel_batch=num_noise_per_time_step,
                                 addt_value=addt_value,
@@ -941,5 +1067,11 @@ def tf_attack(
     MIA_performance_train = evaluate_attack_performance(train_indices, "train", tabddpm_data_dir, model_type,  predictions_file_name)
     MIA_performance_test = evaluate_attack_performance(val_indices, "test", tabddpm_data_dir, model_type,  predictions_file_name)
     MIA_performance_final = evaluate_attack_performance(final_indices, "final", tabddpm_data_dir, model_type,  predictions_file_name)
-
+    print('MIA performance for training set:' )
+    print(MIA_performance_train)
+    print('MIA performance for test set:' )
+    print(MIA_performance_test)
+    print('MIA performance for final set:' )
+    print(MIA_performance_final)
+    
     return MIA_performance_train, MIA_performance_test, MIA_performance_final
