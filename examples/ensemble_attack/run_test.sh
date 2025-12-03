@@ -9,7 +9,7 @@
 #SBATCH --job-name=20k_model_10k_test
 #SBATCH --output=%j_%x_%a.out
 #SBATCH --error=%j_%x_%a.err
-#SBATCH --time=6:00:00
+#SBATCH --time=12:00:00
 #SBATCH --array=0-9  # For 3 target_model_ids (adjust range as needed)
 
 # This script sets up the environment and runs the ensemble attack test script.

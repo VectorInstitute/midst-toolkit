@@ -5,10 +5,11 @@ MIDST competition.
 
 from enum import Enum
 from pathlib import Path
+from logging import INFO
 
 import pandas as pd
 from omegaconf import DictConfig
-
+from midst_toolkit.common.logger import log
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
 
 
@@ -142,6 +143,7 @@ def collect_population_data_ensemble(
     midst_data_input_dir: Path,
     data_processing_config: DictConfig,
     save_dir: Path,
+    original_repo_population: pd.DataFrame,
     population_splits: list[str] | None = None,
     challenge_splits: list[str] | None = None,
 ) -> pd.DataFrame:
@@ -180,13 +182,20 @@ def collect_population_data_ensemble(
     # Provided attack name are valid based on AttackType enum
     population_attack_types: list[AttackType] = [AttackType(attack_name) for attack_name in attack_names]
 
-    df_population = collect_midst_data(
+    df_population_experiment = collect_midst_data(
         midst_data_input_dir,
         population_attack_types,
         data_splits=population_splits,
         dataset="train",
         data_processing_config=data_processing_config,
     )
+
+    log(INFO, f"Collected experiment population data length before concatenation: {len(df_population_experiment)}")
+
+    df_population = pd.concat([df_population_experiment, original_repo_population]).drop_duplicates()
+    log(INFO, f"Concatenated population data length: {len(df_population)}")
+    
+    
     # Drop ids.
     df_population_no_id = df_population.drop(columns=["trans_id", "account_id"])
     # Save the population data
@@ -202,6 +211,7 @@ def collect_population_data_ensemble(
         dataset="challenge",
         data_processing_config=data_processing_config,
     )
+    log(INFO, f"Collected challenge data length: {len(df_challenge)} from splits: {challenge_splits}")
     # Save the challenge points
     save_dataframe(df_challenge, save_dir, "challenge_points_all.csv")
 
