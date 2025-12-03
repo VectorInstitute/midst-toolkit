@@ -1,0 +1,54 @@
+{
+    "general": {
+        "data_dir": "tests/integration/attacks/ensemble/assets/shadow_models_data",
+        "exp_name": "train_1",
+        "workspace_dir": "/projects/midst-experiments/tabddpm_midst_toolkit/train/tabddpm_3/workspace",
+        "sample_prefix": "",
+        "test_data_dir": "tests/integration/attacks/ensemble/assets/test"
+    },
+    "clustering": {
+        "parent_scale": 1.0,
+        "num_clusters": 1,
+        "clustering_method": "kmeans_and_gmm"
+    },
+    "diffusion": {
+        "d_layers": [
+            4,
+            8
+        ],
+        "dropout": 0.0,
+        "num_timesteps": 3,
+        "model_type": "mlp",
+        "iterations": 2,
+        "batch_size": 1,
+        "lr": 0.02,
+        "gaussian_loss_type": "mse",
+        "weight_decay": 1e-05,
+        "scheduler": "cosine",
+        "data_split_ratios": [
+            0.8,
+            0.1,
+            0.1
+        ]
+    },
+    "classifier": {
+        "d_layers": [
+            4,
+            4
+        ],
+        "lr": 0.01,
+        "dim_t": 4,
+        "batch_size": 1,
+        "iterations": 3
+    },
+    "sampling": {
+        "batch_size": 2,
+        "classifier_scale": 1.0
+    },
+    "matching": {
+        "num_matching_clusters": 1,
+        "matching_batch_size": 1,
+        "unique_matching": true,
+        "no_matching": false
+    }
+}
