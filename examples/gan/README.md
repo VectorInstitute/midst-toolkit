@@ -22,6 +22,8 @@ contains 20,000 data points.
 - `trans_domain.json`: Metadata about the columns in `trans.csv`, such as data types and sizes.
 - `dataset_meta.json`: Metadata about the relationship between the tables. Since this is a
 single-table example, it will only contain information about the `trans` table.
+- `meta_info.json`: Metadata about the dataset, namely which columns are numerical and
+which ones are categorical, the target column and the task type (e.g. `regression`).
 
 
 ## Kicking off training
@@ -55,14 +57,29 @@ results_file = Path("examples/gan/results/trained_ctgan_model.pkl")
 ctgan = CTGAN.load()
 ```
 
-## Synthesizing some data
+## Synthesizing data
 
 To synthesize some data with the trained model, run:
 
-```python
+```bash
 python -m examples.gan.synthesize
 ```
 
 If there is already a trained model in the `/results` folder, it will use that model.
 Otherwise it will train one from scratch. At the end of the script, it will save the
 synthesized data to `/results/trans_synthetic.csv`.
+
+
+## Evaluating the quality of the synthetic data
+
+To run a round of evaluation on a set of synthetic data, run the `evaluate.py` script:
+
+```bash
+python -m midst_toolkit.evaluation.quality.scripts.midst_alpha_precision_eval \
+  --synthetic_data_path examples/gan/results/trans_synthetic.csv \
+  --real_data examples/gan/data/trans.csv \
+  --meta_info_path examples/gan/data/meta_info.json \
+  --save_directory examples/gan/results/
+```
+
+It will save the evaluation results under the `/results/model.txt` file.
