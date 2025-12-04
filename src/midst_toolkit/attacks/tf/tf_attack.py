@@ -17,7 +17,7 @@ import pandas as pd
 import torch
 from tqdm import tqdm
 
-from midst_toolkit.attacks.tf.classifcation import MLP, fitmodel
+from midst_toolkit.attacks.tf.classification import MLP, fitmodel
 from midst_toolkit.attacks.tf.data_utils import (
     CustomUnpickler,
     TaskType,

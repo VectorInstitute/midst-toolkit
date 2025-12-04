@@ -1,4 +1,6 @@
 # mypy: disable-error-code=no-untyped-def
+from pathlib import Path
+
 import torch
 from torch import nn, optim
 
@@ -107,6 +109,10 @@ def fitmodel(
         )
         return loss.item(), tpr
 
+    if use_best_checkpoint and best_model_dir is not None:
+        best_model_dir = Path(".")  # or raise ValueError
+        print(f"Best model will be saved to: {best_model_dir}")
+
     best_model_path = best_model_dir / "best_model.pt"
     optimizer = optim.Adam(regression_model.parameters(), lr=learning_rate)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -128,7 +134,7 @@ def fitmodel(
         loss.backward()
         optimizer.step()
 
-        if (epoch + 1) % 5 == 0:
+        if (epoch + 1) % 100 == 0:
             train_loss, train_tpr = evaluate_model(regression_model, x_train, y_train)
             if x_val is not None:
                 test_loss, test_tpr = evaluate_model(regression_model, x_val, y_test)

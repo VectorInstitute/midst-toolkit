@@ -284,9 +284,9 @@ def prepare_fast_dataloader(dataset: Dataset, split: str, batch_size: int, y_typ
         - The generator yields batches indefinitely.
     """
     if dataset.categorical_features is not None:
-        if dataset.numerical_feautures is not None:
+        if dataset.numerical_features is not None:
             x = torch.from_numpy(
-                np.concatenate([dataset.numerical_feautures[split], dataset.categorical_features[split]], axis=1)
+                np.concatenate([dataset.numerical_features[split], dataset.categorical_features[split]], axis=1)
             ).float()
         else:
             x = torch.from_numpy(dataset.categorical_features[split]).float()
