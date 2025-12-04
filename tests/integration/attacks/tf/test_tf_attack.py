@@ -34,7 +34,7 @@ def test_tf_attack_whitebox_small_config():
         "timesteps_list": [5],
         "addt_value_list": [0],
         "predictions_file_format": "test",
-        "results_path": Path("/h/behnzaman/midst-toolkit/tests/integration/attacks/tf/test_tf_attack_results"),
+        "results_path": Path("tests/integration/attacks/tf/test_tf_attack_results"),
         "use_best_checkpoint": True,
         "test_indices": [5],
         "train_indices": [1, 2],
@@ -44,10 +44,13 @@ def test_tf_attack_whitebox_small_config():
     mia_performance_train, mia_performance_val, mia_performance_test = tf_attack(**config)
     tpr_at_fpr_train, roc_auc_train = mia_performance_train.values()
     tpr_at_fpr_val, roc_auc_val = mia_performance_val.values()
-    (
-        tpr_at_fpr_test,
-        roc_auc_test,
-    ) = mia_performance_test.values()
+    tpr_at_fpr_test, roc_auc_test = mia_performance_test.values()
+    tpr_at_fpr_train = mia_performance_train["max_tpr"]
+    roc_auc_train = mia_performance_train["roc_auc"]
+    tpr_at_fpr_val = mia_performance_val["max_tpr"]
+    roc_auc_val = mia_performance_val["roc_auc"]
+    tpr_at_fpr_test = mia_performance_test["max_tpr"]
+    roc_auc_test = mia_performance_test["roc_auc"]
 
     assert roc_auc_train == pytest.approx(0.48133750000000003, abs=1e-8)
     assert tpr_at_fpr_train == pytest.approx(0.125, abs=1e-8)

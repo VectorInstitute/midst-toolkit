@@ -117,10 +117,12 @@ def fitmodel(
     optimizer = optim.Adam(regression_model.parameters(), lr=learning_rate)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    has_validation = x_val is not None
     x_train = torch.tensor(x_train, dtype=torch.float32).to(device)
     y_train = torch.tensor(x_train_label, dtype=torch.float32).to(device)
-    x_val = torch.tensor(x_val, dtype=torch.float32).to(device)
-    y_test = torch.tensor(x_val_label, dtype=torch.float32).to(device)
+    if has_validation:
+        x_val = torch.tensor(x_val, dtype=torch.float32).to(device)
+        y_val = torch.tensor(x_val_label, dtype=torch.float32).to(device)
 
     indices = torch.randperm(x_train.size(0))
     x_train, y_train = x_train[indices], y_train[indices]
@@ -137,7 +139,7 @@ def fitmodel(
         if (epoch + 1) % 100 == 0:
             train_loss, train_tpr = evaluate_model(regression_model, x_train, y_train)
             if x_val is not None:
-                test_loss, test_tpr = evaluate_model(regression_model, x_val, y_test)
+                test_loss, test_tpr = evaluate_model(regression_model, x_val, y_val)
                 if test_tpr > best_tpr:
                     best_tpr = test_tpr
                     save_best_model(regression_model, best_model_path)
@@ -153,7 +155,7 @@ def fitmodel(
         load_best_model(regression_model, best_model_path, device)
 
     if x_val is not None:
-        test_loss, test_tpr = evaluate_model(regression_model, x_val, y_test)
+        test_loss, test_tpr = evaluate_model(regression_model, x_val, y_val)
         print(f"Final best loss: {test_loss}, best TPR: {test_tpr}")
 
     return regression_model

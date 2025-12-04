@@ -176,7 +176,11 @@ def get_tpr_at_fpr(true_membership: list[int], predictions: list[float], max_fpr
     Calculates the best True Positive Rate when the False Positive Rate is at most `max_fpr`.
     """
     fpr, tpr, _ = roc_curve(true_membership, predictions)
-    return max(tpr[fpr < max_fpr])
+
+    valid_tpr = tpr[fpr <= max_fpr]
+    if len(valid_tpr) == 0:
+        raise ValueError("No valid TPR values found for the given max FPR.")
+    return float(max(valid_tpr))
 
 
 def evaluate_attack_performance(
