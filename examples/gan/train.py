@@ -4,10 +4,10 @@ from pathlib import Path
 
 import hydra
 import pandas as pd
-from ctgan import CTGAN  # type: ignore[import-untyped]
 from omegaconf import DictConfig
+from sdv.single_table import CTGANSynthesizer  # type: ignore[import-untyped]
 
-from examples.gan.utils import get_table_name
+from examples.gan.utils import get_metadata, get_table_name
 from midst_toolkit.common.logger import log
 
 
@@ -31,13 +31,16 @@ def main(config: DictConfig) -> None:
 
     real_data = pd.read_csv(Path(config.base_data_dir) / f"{table_name}.csv")
 
-    # Names of the columns that are discrete
-    discrete_columns = [key for key, value in domain_info.items() if value["type"] == "discrete"]
+    metadata, real_data_without_ids = get_metadata(real_data, domain_info)
 
     log(INFO, "Fitting CTGAN...")
 
-    ctgan = CTGAN(epochs=config.training.epochs, verbose=config.training.verbose)
-    ctgan.fit(real_data, discrete_columns)
+    ctgan = CTGANSynthesizer(
+        metadata=metadata,
+        epochs=config.training.epochs,
+        verbose=config.training.verbose,
+    )
+    ctgan.fit(real_data_without_ids)
 
     log(INFO, "Done!")
     log(INFO, "Saving model...")

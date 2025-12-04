@@ -2,8 +2,8 @@ from logging import INFO
 from pathlib import Path
 
 import hydra
-from ctgan import CTGAN  # type: ignore[import-untyped]
 from omegaconf import DictConfig
+from sdv.single_table import CTGANSynthesizer  # type: ignore[import-untyped]
 
 from examples.gan.train import main as train_main
 from examples.gan.utils import get_table_name
@@ -29,10 +29,10 @@ def main(config: DictConfig) -> None:
         train_main(config)
 
     log(INFO, f"Loading model from {results_file}...")
-    ctgan = CTGAN.load(results_file)
+    ctgan = CTGANSynthesizer.load(results_file)
 
     log(INFO, f"Synthesizing data of size {config.synthesizing.sample_size}...")
-    synthetic_data = ctgan.sample(config.synthesizing.sample_size)
+    synthetic_data = ctgan.sample(num_rows=config.synthesizing.sample_size)
 
     table_name = get_table_name(config.base_data_dir)
     synthetic_data_file = Path(config.results_dir) / f"{table_name}_synthetic.csv"
