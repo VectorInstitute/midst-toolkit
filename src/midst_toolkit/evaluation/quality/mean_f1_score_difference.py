@@ -119,7 +119,7 @@ class MeanF1ScoreDifference(SynthEvalMetric):
         Args:
             categorical_columns: Column names corresponding to the categorical variables of any provided dataframe.
             numerical_columns: Column names corresponding to the numerical variables of any provided dataframe.
-            label_column: Name of the column is the provided datasets that corresponds to the classification label to
+            label_column: Name of the column in the provided datasets that corresponds to the classification label to
                 test dataset utility. This column MUST be present in both the real and synthetic data provided.
             do_preprocess: Whether or not to preprocess the dataframes with the default pipeline used by SynthEval.
                 Defaults to False.
