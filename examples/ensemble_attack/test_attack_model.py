@@ -12,10 +12,12 @@ import pandas as pd
 from omegaconf import DictConfig
 
 from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training
+from examples.ensemble_attack.real_data_collection import collect_midst_data, AttackType
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
+
 
 
 def run_rmia_shadow_training(config: DictConfig, df_challenge) -> list[dict[str, list[Any]]]:
@@ -106,14 +108,48 @@ def run_metaclassifier_testing(
         INFO, f"Target synthetic data loaded from {target_synthetic_path} with a size of {len(target_synthetic_data)}."
     )
 
-    # 3) Shadow Model Training Step.
+# 3) Shadow Model Training Step.
 
     # Make sure to assign a new path for shadow models trained for target's challenge points to
     # avoid overriding train's shadow models.
     config.shadow_training.shadow_models_output_path = config.target_model.target_shadow_models_output_path
-    shadow_data_collection = run_rmia_shadow_training(config, test_data)
+    shadow_data_paths = [Path(path) for path in config.shadow_training.final_shadow_models_path]
+    # if already trained for test, don't need to train again
+    # Load shadow training collection from previously trained shadow models.
+    assert (
+        len(shadow_data_paths) == 3
+    ), "The attack_data_paths list must contain exactly three elements."
 
+    shadow_data_collection = []
+    models_exist = True
+    for model_path in shadow_data_paths:
+        
+        if model_path.exists():
+            with open(model_path, "rb") as f:
+                shadow_data_and_result = pickle.load(f)
+                shadow_data_collection.append(shadow_data_and_result)
+        else:
+            models_exist = False
+            break
     
+    if not models_exist:
+        # collect all repo's challenge points
+        data_processing_config=config.data_processing_config
+        challenge_attack_names = data_processing_config.challenge_attack_data_types_to_collect
+        challenge_attack_types = [AttackType(attack_name) for attack_name in challenge_attack_names]
+        df_challenge = collect_midst_data(
+            midst_data_input_dir=Path(config.data_paths.midst_data_path),
+            attack_types=challenge_attack_types,
+            data_splits=["final"],  #change to test for 10k, and change to final for 20k
+            dataset="challenge",
+            data_processing_config=config.data_processing_config,
+        )
+        log(INFO, f"Collected challenge data length: {len(df_challenge)} for the testing phase's shadow training.")
+        shadow_data_collection = run_rmia_shadow_training(config, df_challenge=df_challenge)
+
+
+
+
     # Extract trans_id from the test dataframe
     with open(Path(config.metaclassifier.data_types_file_path), "r") as f:
         column_types = json.load(f)

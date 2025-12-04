@@ -67,11 +67,11 @@ def collect_midst_attack_data(
     Returns:
         pd.DataFrame: The specified dataset in this setting.
     """
-    assert data_split in [
-        "train",
-        "dev",
-        "final",
-    ], "data_split should be one of 'train', 'dev', or 'final'."
+    # assert data_split in [
+    #     "train",
+    #     "dev",
+    #     "final",
+    # ], "data_split should be one of 'train', 'dev', or 'final'."
     # `data_id` is the folder numbering of each training or challenge dataset,
     #  and is defined with the provided config.
     data_id = expand_ranges(data_processing_config.folder_ranges[data_split])
