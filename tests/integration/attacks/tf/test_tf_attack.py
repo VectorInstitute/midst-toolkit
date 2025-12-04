@@ -35,6 +35,7 @@ def test_tf_attack_whitebox_small_config():
         "addt_value_list": [0],
         "predictions_file_format": "test",
         "results_path": Path("tests/integration/attacks/tf/test_tf_attack_results"),
+        "meta_dir": Path("tests/integration/attacks/tf/data_configs"),
         "use_best_checkpoint": True,
         "test_indices": [5],
         "train_indices": [1, 2],
@@ -53,13 +54,13 @@ def test_tf_attack_whitebox_small_config():
     roc_auc_test = mia_performance_test["roc_auc"]
 
     assert roc_auc_train == pytest.approx(0.48133750000000003, abs=1e-8)
-    assert tpr_at_fpr_train == pytest.approx(0.125, abs=1e-8)
+    assert tpr_at_fpr_train == pytest.approx(0.145, abs=1e-8)
 
     assert roc_auc_val == pytest.approx(0.47875000000000006, abs=1e-8)
-    assert tpr_at_fpr_val == pytest.approx(0.095, abs=1e-8)
+    assert tpr_at_fpr_val == pytest.approx(0.105, abs=1e-8)
 
     assert roc_auc_test == pytest.approx(0.5228999999999999, abs=1e-8)
-    assert tpr_at_fpr_test == pytest.approx(0.1, abs=1e-8)
+    assert tpr_at_fpr_test == pytest.approx(0.12, abs=1e-8)
 
     unset_all_random_seeds()
     os.environ.pop("CUBLAS_WORKSPACE_CONFIG", None)

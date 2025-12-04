@@ -41,14 +41,13 @@ def mixed_loss(
     noise=None,
     t=None,
     return_random=False,
-    no_mean=False,
     parallel_batch=None,
     addt_value=None,
 ):
     x_num = x[:, : diffusion.num_numerical_features]
     x_cat = x[:, diffusion.num_numerical_features :]
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = x.device
     noise_tensor = torch.tensor(noise, device=device, dtype=torch.float)
     batch_noise = noise_tensor.repeat(x_num.shape[0], 1)
 
@@ -58,9 +57,8 @@ def mixed_loss(
 
     b = x_num.shape[0]
 
-    device = x.device
     if t is None:
-        # the defeualt is uniform sampling
+        # the default is uniform sampling
         t, pt = diffusion.sample_time(b, device)
 
     if return_random:
@@ -71,12 +69,11 @@ def mixed_loss(
     # forward x_num_t with (t+additional_t) timestamps
     x_num_t = diffusion.gaussian_q_sample(x_num, t + additional_t, noise=batch_noise)
 
-    if not return_random:
-        current_t = t
-        # predict noises with t timestamps
-        predicted_noise = diffusion._denoise_fn(x_num_t, current_t, **out_dict)
-        current_loss = diffusion._gaussian_loss(predicted_noise, batch_noise, batch_noise, current_t, batch_noise)
-        transformed_current_loss = current_loss.reshape(-1, parallel_batch)
+    current_t = t
+    # predict noises with t timestamps
+    predicted_noise = diffusion._denoise_fn(x_num_t, current_t, **out_dict)
+    current_loss = diffusion._gaussian_loss(predicted_noise, batch_noise, batch_noise, current_t, batch_noise)
+    transformed_current_loss = current_loss.reshape(-1, parallel_batch)
 
     return transformed_current_loss * 0, transformed_current_loss
 
@@ -113,10 +110,10 @@ class Transformations:
     y_policy: Literal["default"] | None = "default"
 
 
-def get_dataset(data_path, target_model_dir=None, train_name="train_with_id.csv", batch_size=None):
+def get_dataset(data_path, target_model_dir=None, train_name="train_with_id.csv", batch_size=None, meta_dir=""):
     tables, relation_order, _ = load_multi_table_customized(
         data_path,
-        meta_dir="/h/behnzaman/midst-experiments/deps/TF_attack/midst_models/single_table_TabDDPM/configs",
+        meta_dir=meta_dir,
         train_name=train_name,
     )
     if len(relation_order) == 1:
@@ -133,7 +130,7 @@ def get_dataset(data_path, target_model_dir=None, train_name="train_with_id.csv"
         df_without_id["placeholder"] = df_without_id.index
         transformations = model.transformations
 
-        dataset, label_encoders, column_orders = Dataset.from_df(
+        dataset, _label_encoders, _column_orders = Dataset.from_df(
             data=df_without_id,
             transformations=transformations,
             is_target_conditioned=model.model_parameters.is_target_conditioned,
@@ -185,55 +182,55 @@ def get_dataset(data_path, target_model_dir=None, train_name="train_with_id.csv"
 
 
 def get_score(
-    data_path,
-    save_dir,
-    input_noise,
-    type="tabddpm",
-    phase=None,
-    challenge_name=None,
-    batch_size=None,
-    parallel_batch=None,
-    addt_value=None,
-    t_value=None,
-):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if type == "tabddpm":
-        relation_order = [("None", "trans")]
-    elif type == "tabsyn":
-        raise ValueError("Haven't done it yet!")
-
-    train_loader_list = get_dataset(data_path, save_dir, train_name=challenge_name, batch_size=batch_size)
-
+    data_path: Path,
+    save_dir: Path,
+    input_noise: list[float],
+    model_type: str,
+    meta_dir: Path,
+    challenge_name: str,
+    batch_size: int,
+    parallel_batch: int,
+    addt_value: int,
+    t_value: int,
+) -> torch.Tensor:
     """
     Computes the score for a given dataset using a diffusion model.
 
     Args:
-        data_path (str): Path to the dataset.
-        save_dir (str): Directory where model checkpoints are saved.
-        input_noise (torch.Tensor): Noise tensor to be used in the loss computation.
-        config_path (str, optional): Path to the configuration file. Defaults to None.
-        type (str, optional): Type of model to use. Defaults to "tabddpm".
-        phase (str, optional): Phase of the dataset (e.g., train, test). Defaults to None.
-        challenge_name (str, optional): Name of the challenge dataset. Defaults to None.
-        batch_size (int, optional): Batch size for data loading. Defaults to None.
-        parallel_batch (int, optional): Number of parallel batches for processing. Defaults to None.
-        addt_value (Any, optional): Additional value to be passed to the loss function. Defaults to None.
-        t_value (Any, optional): Value of the time step `t` to be used in the loss computation. Defaults to None.
+        data_path (Path): Path to the dataset.
+        save_dir (Path): Directory where model checkpoints are saved.
+        input_noise (list[float]): List of noise values to be used in the loss computation.
+        model_type (str): Type of model to use (e.g., "tabddpm").
+        meta_dir (Path): Path to the metadata directory.
+        challenge_name (str): Name of the challenge dataset.
+        batch_size (int): Batch size for data loading.
+        parallel_batch (int): Number of parallel batches for processing.
+        addt_value (int): Additional value to be passed to the loss function.
+        t_value (int): Value of the time step `t` to be used in the loss computation.
 
     Returns:
         torch.Tensor: A tensor containing the computed loss values.
 
     Raises:
-        ValueError: If the specified `type` is not supported.
+        ValueError: If the specified `model_type` is not supported.
         AssertionError: If required model checkpoint files are not found or if `iter_max` is not equal to 1.
     """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if model_type == "tabddpm":
+        relation_order = [("None", "trans")]
+    elif model_type == "tabsyn":
+        raise ValueError("Haven't done it yet!")
+
+    train_loader_list = get_dataset(
+        data_path, save_dir, train_name=challenge_name, batch_size=batch_size, meta_dir=meta_dir
+    )
 
     # for tabddpm, relation order only contains like None_trans
     loader_count = 0
 
     for parent, child in relation_order:
         assert os.path.exists(os.path.join(save_dir, f"{parent}_{child}_ckpt.pkl"))
-        train_loader, iter_max, challenge_dataset = train_loader_list[loader_count]
+        train_loader, iter_max, _challenge_dataset = train_loader_list[loader_count]
 
         filepath = os.path.join(save_dir, f"{parent}_{child}_ckpt.pkl")
 
@@ -243,45 +240,38 @@ def get_score(
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         diffusion = model.diffusion.to(device)
 
-        iter_id = 0
-        print(iter_max)
         iter_max = iter_max // batch_size
-        return_res = torch.zeros([batch_size, parallel_batch])
         assert iter_max == 1
-        iter_id = 0
-        while iter_id < iter_max:
-            x, out_dict = next(train_loader)
-            out_dict = {"y": out_dict}
-            x = x.to(device)
-            for k in out_dict:
-                out_dict[k] = out_dict[k].long().to(device)
 
-            with torch.no_grad():
-                # get loss here
-                noise, t_cur, pt = mixed_loss(
-                    diffusion,
-                    x,
-                    out_dict,
-                    noise=input_noise,
-                    return_random=True,
-                    parallel_batch=parallel_batch,
-                    addt_value=addt_value,
-                )
-                t = t_cur * 0 + t_value
-                _, loss = mixed_loss(
-                    diffusion,
-                    x,
-                    out_dict,
-                    t=t,
-                    noise=input_noise,
-                    no_mean=True,
-                    parallel_batch=parallel_batch,
-                    addt_value=addt_value,
-                )
+        x, out_dict = next(train_loader)
+        out_dict = {"y": out_dict}
+        x = x.to(device)
+        for k in out_dict:
+            out_dict[k] = out_dict[k].long().to(device)
 
-            return_res = loss
-            iter_id += 1
-    return return_res
+        with torch.no_grad():
+            # get loss here
+            _noise, t_cur, _pt = mixed_loss(
+                diffusion,
+                x,
+                out_dict,
+                noise=input_noise,
+                return_random=True,
+                parallel_batch=parallel_batch,
+                addt_value=addt_value,
+            )
+            t = t_cur * 0 + t_value
+            _, loss = mixed_loss(
+                diffusion,
+                x,
+                out_dict,
+                t=t,
+                noise=input_noise,
+                parallel_batch=parallel_batch,
+                addt_value=addt_value,
+            )
+
+    return loss
 
 
 def tf_attack_train_classifier(
@@ -300,7 +290,7 @@ def tf_attack_train_classifier(
     addt_value_list,
     classifier_num_epochs,
     results_path,
-    input_noise,
+    meta_dir: Path,
 ):
     df_train_merge, _, _ = prepare_data_for_attack(
         indices=train_indices,
@@ -315,6 +305,10 @@ def tf_attack_train_classifier(
         models_base_dir=base_path,
         keys_for_deduplication=["trans_id", "balance"],
     )
+
+    n_feutures = [col for col in df_train_merge.columns if "_id" not in col]
+    noise_dimension = len(n_feutures)
+    input_noise = [np.random.normal(size=noise_dimension).tolist() for _ in range(num_noise_per_time_step)]
 
     total_data_num_for_train = samples_per_train_model * 2 * len(train_indices)
     x_train = np.zeros([total_data_num_for_train, len(input_noise) * len(timesteps_list) * len(addt_value_list)])
@@ -397,7 +391,7 @@ def tf_attack_train_classifier(
                         model_path,
                         input_noise,
                         model_type,
-                        phase="train",
+                        meta_dir=meta_dir,
                         challenge_name="data_for_training_MIA.csv",
                         batch_size=batch_size,
                         parallel_batch=num_noise_per_time_step,
@@ -422,7 +416,7 @@ def tf_attack_train_classifier(
                         model_path,
                         input_noise,
                         model_type,
-                        phase="train",
+                        meta_dir=meta_dir,
                         challenge_name="data_for_validating_MIA.csv",
                         batch_size=batch_size,
                         parallel_batch=num_noise_per_time_step,
@@ -444,7 +438,7 @@ def tf_attack_train_classifier(
             elif model_number in val_indices:
                 val_count += 1
 
-    return fitmodel(
+    return input_noise, fitmodel(
         regression_model,
         x_train,
         x_train_label,
@@ -474,11 +468,11 @@ def tf_attack(
     classifier_num_epochs: int,
     classifier_hidden_dim: int,
     addt_value_list: list[int],
+    meta_dir: Path,
 ) -> tuple[Any, Any, Any]:
     os.makedirs(results_path, exist_ok=True)
-    input_noise: list[list[float]] = [np.random.normal(size=8).tolist() for _ in range(num_noise_per_time_step)]
 
-    regression_model = tf_attack_train_classifier(
+    input_noise, regression_model = tf_attack_train_classifier(
         train_indices,
         val_indices,
         samples_per_train_model,
@@ -494,7 +488,7 @@ def tf_attack(
         addt_value_list,
         classifier_num_epochs,
         results_path,
-        input_noise,
+        meta_dir,
     )
 
     predictions_file_name: str = f"{predictions_file_format}.csv"
@@ -516,7 +510,7 @@ def tf_attack(
                     model_path,
                     input_noise,
                     model_type,
-                    phase="train",
+                    meta_dir=meta_dir,
                     challenge_name="challenge_with_id.csv",
                     batch_size=batch_size,
                     parallel_batch=num_noise_per_time_step,
