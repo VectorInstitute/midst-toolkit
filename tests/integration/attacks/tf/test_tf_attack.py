@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from midst_toolkit.attacks.tf.tf_attack import tf_attack
+from midst_toolkit.attacks.tartan_federer.tf_attack import tf_attack
 from midst_toolkit.common.random import (
     set_all_random_seeds,
     unset_all_random_seeds,
@@ -31,7 +31,7 @@ def test_tf_attack_whitebox_tiny_config_midst_toolkit():
         "num_noise_per_time_step": 30,
         "timesteps_list": [5, 10],
         "addt_value_list": [0],
-        "predictions_file_format": "predictions_test_222",
+        "predictions_file_format": "challenge_label_predictions",
         "results_path": Path(__file__).parent / "test_tf_attack_results",
         "test_indices": [5, 6],
         "train_indices": [1, 2],
