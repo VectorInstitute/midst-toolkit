@@ -171,7 +171,7 @@ def prepare_data_for_attack(indices, model_type, models_base_dir, keys_for_dedup
     return df_merge_without_challenge, df_challenge, df_challenge_labels
 
 
-def get_tpr_at_fpr(true_membership: list[int], predictions: list[float], max_fpr: float = 0.1) -> float:
+def get_tpr_at_fpr(true_membership: np.ndarray, predictions: np.ndarray, max_fpr: float = 0.1) -> float:
     """
     Calculates the best True Positive Rate when the False Positive Rate is at most `max_fpr`.
     """
@@ -302,3 +302,56 @@ def prepare_fast_dataloader(dataset: Dataset, split: str, batch_size: int, y_typ
     dataloader = FastTensorDataLoader(x, y, batch_size=batch_size, shuffle=(split == "train"))
     while True:
         yield from dataloader
+
+
+# def clava_clustering_force_load(tables, relation_order, save_dir, configs):
+#     relation_order_reversed = relation_order[::-1]
+#     all_group_lengths_prob_dicts = {}
+
+#     for parent, child in relation_order_reversed:
+#         if parent is not None:
+#             print(f"Clustering {parent} -> {child}")
+#             if isinstance(configs["clustering"]["num_clusters"], dict):
+#                 num_clusters = configs["clustering"]["num_clusters"][child]
+#             else:
+#                 num_clusters = configs["clustering"]["num_clusters"]
+#             (
+#                 parent_df_with_cluster,
+#                 child_df_with_cluster,
+#                 group_lengths_prob_dicts,
+#             ) = pair_clustering_keep_id(
+#                 tables[child]["df"],
+#                 tables[child]["domain"],
+#                 tables[parent]["df"],
+#                 tables[parent]["domain"],
+#                 f"{child}_id",
+#                 f"{parent}_id",
+#                 num_clusters,
+#                 configs["clustering"]["parent_scale"],
+#                 1,  # not used for now
+#                 parent,
+#                 child,
+#                 clustering_method=configs["clustering"]["clustering_method"],
+#             )
+#             tables[parent]["df"] = parent_df_with_cluster
+#             tables[child]["df"] = child_df_with_cluster
+#             all_group_lengths_prob_dicts[(parent, child)] = group_lengths_prob_dicts
+
+#     for parent, child in relation_order:
+#         if parent is None:
+#             tables[child]["df"]["placeholder"] = list(range(len(tables[child]["df"])))
+
+#     return tables, all_group_lengths_prob_dicts
+
+# def load_configs(config_path):
+#     configs = json.load(open(config_path, "r"))
+
+#     save_dir = os.path.join(configs["general"]["workspace_dir"], configs["general"]["exp_name"])
+#     os.makedirs(save_dir, exist_ok=True)
+#     os.makedirs(os.path.join(save_dir, "models"), exist_ok=True)
+#     os.makedirs(os.path.join(save_dir, "before_matching"), exist_ok=True)
+
+#     with open(os.path.join(save_dir, "args"), "w") as file:
+#         json.dump(configs, file, indent=4)
+
+#     return configs, save_dir

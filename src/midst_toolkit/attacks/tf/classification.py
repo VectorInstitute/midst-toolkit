@@ -1,14 +1,18 @@
-# mypy: disable-error-code=no-untyped-def
+# ruff: noqa: PLR0915
 from pathlib import Path
 
+import numpy as np
 import torch
 from torch import nn, optim
 
 from midst_toolkit.attacks.tf.data_utils import get_tpr_at_fpr
 
 
+Tensor = torch.Tensor
+
+
 class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim):
+    def __init__(self, input_dim: int, hidden_dim: int) -> None:
         """
         Initializes the MLP (Multi-Layer Perceptron) model.
 
@@ -26,15 +30,15 @@ class MLP(nn.Module):
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
         self.fc3 = nn.Linear(hidden_dim, 1)
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         """
         Performs a forward pass through the neural network.
 
         Args:
-            x (torch.Tensor): Input tensor to the network.
+            x (Tensor): Input tensor to the network.
 
         Returns:
-            torch.Tensor: Output tensor after passing through three fully connected layers with
+            Tensor: Output tensor after passing through three fully connected layers with
             tanh activations on the first two layers and a sigmoid activation on the final layer.
         """
         residual = torch.tanh(self.fc1(x))
@@ -42,7 +46,7 @@ class MLP(nn.Module):
         return torch.sigmoid(self.fc3(residual))
 
 
-def custom_loss_fn(model, x, y):
+def custom_loss_fn(model: torch.nn.Module, x: Tensor, y: Tensor) -> Tensor:
     """
     Computes the custom loss for a given model, input, and target.
 
@@ -52,110 +56,132 @@ def custom_loss_fn(model, x, y):
 
     Args:
         model (torch.nn.Module): The model used to generate predictions.
-        x (torch.Tensor): The input tensor to the model.
-        y (torch.Tensor): The target tensor containing ground truth values.
+        x (Tensor): The input tensor to the model.
+        y (Tensor): The target tensor containing ground truth values.
 
     Returns:
-        torch.Tensor: The computed BCE loss.
+        Tensor: The computed BCE loss.
     """
     confidences = model(x)
-    x = x.float()
-    y = y.float()
     return nn.BCELoss()(confidences, y.unsqueeze(1))
 
 
 def fitmodel(
-    regression_model,
-    x_train,
-    x_train_label,
-    x_val,
-    x_val_label,
-    num_epochs=1000,
-    learning_rate=1e-4,
-    use_best_checkpoint=None,
-    best_model_dir=None,
-):
+    regression_model: nn.Module,
+    x_train: np.ndarray | Tensor,
+    x_train_label: np.ndarray | Tensor,
+    x_val: np.ndarray | Tensor | None,
+    x_val_label: np.ndarray | Tensor | None,
+    num_epochs: int,
+    learning_rate: float,
+    best_model_checkpoint_dir: Path | None,
+    reporting_interval: int = 5,
+) -> nn.Module:
     """
-    Trains a regression model using the provided training and testing data.
+    Trains a classifier for MIA using the provided training data, with optional validation and model checkpointing.
 
     Args:
-        regression_model (torch.nn.Module): The regression model to be trained.
-        x_train (numpy.ndarray or torch.Tensor): Training input data.
-        x_train_label (numpy.ndarray or torch.Tensor): Training labels.
-        x_val (numpy.ndarray or torch.Tensor): Testing input data.
-        x_val_label (numpy.ndarray or torch.Tensor): Testing labels.
-        num_epochs (int, optional): Number of training epochs. Defaults to 1000.
-        learning_rate (float, optional): Learning rate for the optimizer. Defaults to 1e-4.
-        use_best_checkpoint (bool, optional): Whether to load the best model checkpoint after training.
-        best_model_dir (Path or str, optional): Directory to save the best model checkpoint. Defaults to None.
+        regression_model (nn.Module): The PyTorch model to be trained.
+        x_train (np.ndarray | Tensor): Training input features.
+        x_train_label (np.ndarray | Tensor): Training labels.
+        x_val (np.ndarray | Tensor | None): Validation input features, or None if not provided.
+        x_val_label (np.ndarray | Tensor | None): Validation labels, or None if not provided.
+        num_epochs (int): Number of training epochs.
+        learning_rate (float): Learning rate for the optimizer.
+        best_model_checkpoint_dir (Path | None): Directory to save the best model checkpoint.
+        reporting_interval (int): Interval (in epochs) for reporting training/validation metrics. Defaults to 5.
 
     Returns:
-        torch.nn.Module: The trained regression model.
+        nn.Module: The trained regression model (best model if validation and checkpointing are enabled).
     """
 
-    def save_best_model(model, path):
+    def save_best_model(model: nn.Module, path: Path) -> None:
         torch.save(model.state_dict(), path)
 
-    def load_best_model(model, path, device):
+    def load_best_model(model: nn.Module, path: Path, device: torch.device) -> None:
         state = torch.load(path, map_location=device)
         model.load_state_dict(state)
         model.to(device)
 
-    def evaluate_model(model, x, y):
-        loss = custom_loss_fn(model, x, y)
-        tpr = get_tpr_at_fpr(
-            y.detach().cpu().numpy(),
-            model(x).detach().cpu().numpy(),
-        )
-        return loss.item(), tpr
+    def evaluate_model(model: nn.Module, x: Tensor, y: Tensor) -> tuple[float, float]:
+        model.eval()
+        with torch.no_grad():
+            loss = custom_loss_fn(model, x, y).item()
+            probs = model(x).detach().cpu().numpy()
+            labels = y.detach().cpu().numpy()
+        tpr = get_tpr_at_fpr(labels, probs)
+        return loss, tpr
 
-    if use_best_checkpoint and best_model_dir is not None:
-        best_model_dir = Path(".")  # or raise ValueError
-        print(f"Best model will be saved to: {best_model_dir}")
+    ########## Setup ##########
 
-    best_model_path = best_model_dir / "best_model.pt"
-    optimizer = optim.Adam(regression_model.parameters(), lr=learning_rate)
+    if best_model_checkpoint_dir is not None:
+        best_model_checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        best_model_path = best_model_checkpoint_dir / "best_model.pt"
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    regression_model.to(device)
 
-    has_validation = x_val is not None
-    x_train = torch.tensor(x_train, dtype=torch.float32).to(device)
-    y_train = torch.tensor(x_train_label, dtype=torch.float32).to(device)
+    optimizer = optim.Adam(regression_model.parameters(), lr=learning_rate)
+
+    has_validation = x_val is not None and x_val_label is not None
+
+    # Convert tensors
+    x_train_t = torch.tensor(x_train, dtype=torch.float32).to(device)
+    y_train_t = torch.tensor(x_train_label, dtype=torch.float32).to(device)
+
     if has_validation:
-        x_val = torch.tensor(x_val, dtype=torch.float32).to(device)
-        y_val = torch.tensor(x_val_label, dtype=torch.float32).to(device)
+        x_val_t = torch.tensor(x_val, dtype=torch.float32).to(device)
+        y_val_t = torch.tensor(x_val_label, dtype=torch.float32).to(device)
 
-    indices = torch.randperm(x_train.size(0))
-    x_train, y_train = x_train[indices], y_train[indices]
+    best_tpr = -float("inf")
+    best_model_exists = False
 
-    regression_model.train()
-    best_tpr, best_model_exists = 0.0, False
+    ########## Training loop ##########
 
     for epoch in range(num_epochs):
+        # Shuffle every epoch
+        perm = torch.randperm(x_train_t.size(0))
+        x_batch = x_train_t[perm]
+        y_batch = y_train_t[perm]
+
+        regression_model.train()
         optimizer.zero_grad()
-        loss = custom_loss_fn(regression_model, x_train, y_train)
+        loss = custom_loss_fn(regression_model, x_batch, y_batch)
         loss.backward()
         optimizer.step()
 
-        if (epoch + 1) % 100 == 0:
-            train_loss, train_tpr = evaluate_model(regression_model, x_train, y_train)
-            if x_val is not None:
-                test_loss, test_tpr = evaluate_model(regression_model, x_val, y_val)
-                if test_tpr > best_tpr:
-                    best_tpr = test_tpr
+        ########## Reporting ##########
+        if (epoch + 1) % reporting_interval == 0:
+            train_loss, train_tpr = evaluate_model(regression_model, x_train_t, y_train_t)
+
+            if has_validation:
+                val_loss, val_tpr = evaluate_model(regression_model, x_val_t, y_val_t)
+
+                # Save best model
+                if best_model_checkpoint_dir is not None and val_tpr > best_tpr:
+                    best_tpr = val_tpr
                     save_best_model(regression_model, best_model_path)
                     best_model_exists = True
+
                 print(
-                    f"Epoch [{epoch + 1}/{num_epochs}], Train Loss: {train_loss}, "
-                    f"Test Loss: {test_loss}, Train TPR: {train_tpr}, Test TPR: {test_tpr}"
+                    f"Epoch [{epoch + 1}/{num_epochs}] "
+                    f"Train Loss: {train_loss:.4f}, Train TPR: {train_tpr:.4f} | "
+                    f"Val Loss: {val_loss:.4f}, Val TPR: {val_tpr:.4f}"
                 )
             else:
-                print(f"Epoch [{epoch + 1}/{num_epochs}], Train Loss: {train_loss}, Train TPR: {train_tpr}")
+                print(f"Epoch [{epoch + 1}/{num_epochs}] Train Loss: {train_loss:.4f}, Train TPR: {train_tpr:.4f}")
 
-    if use_best_checkpoint and best_model_exists:
+    ########## Load best model if available ##########
+    if has_validation and best_model_exists:
         load_best_model(regression_model, best_model_path, device)
 
-    if x_val is not None:
-        test_loss, test_tpr = evaluate_model(regression_model, x_val, y_val)
-        print(f"Final best loss: {test_loss}, best TPR: {test_tpr}")
+    ########## Final evaluation ##########
+    regression_model.eval()
+
+    if has_validation:
+        final_loss, final_tpr = evaluate_model(regression_model, x_val_t, y_val_t)
+        print(f"Final best validation — Loss: {final_loss:.4f}, TPR: {final_tpr:.4f}")
+    else:
+        print("Training complete (no validation set provided).")
 
     return regression_model

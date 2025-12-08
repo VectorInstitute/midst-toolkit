@@ -10,8 +10,7 @@ from midst_toolkit.common.random import (
 )
 
 
-def test_tf_attack_whitebox_small_config():
-    # Set deterministic behavior
+def test_tf_attack_whitebox_tiny_config_midst_toolkit():
     set_all_random_seeds(
         seed=133742,
         use_deterministic_torch_algos=True,
@@ -19,104 +18,48 @@ def test_tf_attack_whitebox_small_config():
     )
 
     os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
-
-    base_path = Path(os.path.join(os.path.dirname(__file__), "assets", "tabddpm_models"))
+    base_path = Path(os.path.dirname(__file__)) / "assets" / "tabddpm_models"
     config = {
         "base_path": base_path,
         "tabddpm_data_dir": base_path,
         "target_model_subdir": ".",
         "model_type": "tabddpm",
-        "classifier_hidden_dim": 10,
-        "classifier_num_epochs": 20,
-        "samples_per_train_model": 30,
+        "classifier_hidden_dim": 20,
+        "classifier_num_epochs": 50,
+        "samples_per_train_model": 3000,
         "sample_per_val_model": 10,
-        "num_noise_per_time_step": 10,
-        "timesteps_list": [5],
+        "num_noise_per_time_step": 30,
+        "timesteps_list": [5, 10],
         "addt_value_list": [0],
-        "predictions_file_format": "test",
-        "results_path": Path("tests/integration/attacks/tf/test_tf_attack_results"),
-        "meta_dir": Path("tests/integration/attacks/tf/data_configs"),
-        "use_best_checkpoint": True,
-        "test_indices": [5],
+        "predictions_file_format": "predictions_test_222",
+        "results_path": Path(__file__).parent / "test_tf_attack_results",
+        "test_indices": [5, 6],
         "train_indices": [1, 2],
         "val_indices": [3, 4],
+        "meta_dir": Path(__file__).parent / "data_configs",
+        "classifier_learning_rate": 1e-4,
     }
 
     mia_performance_train, mia_performance_val, mia_performance_test = tf_attack(**config)
-    tpr_at_fpr_train, roc_auc_train = mia_performance_train.values()
-    tpr_at_fpr_val, roc_auc_val = mia_performance_val.values()
-    tpr_at_fpr_test, roc_auc_test = mia_performance_test.values()
-    tpr_at_fpr_train = mia_performance_train["max_tpr"]
     roc_auc_train = mia_performance_train["roc_auc"]
-    tpr_at_fpr_val = mia_performance_val["max_tpr"]
+    tpr_at_fpr_train = mia_performance_train["max_tpr"]
     roc_auc_val = mia_performance_val["roc_auc"]
-    tpr_at_fpr_test = mia_performance_test["max_tpr"]
+    tpr_at_fpr_val = mia_performance_val["max_tpr"]
     roc_auc_test = mia_performance_test["roc_auc"]
+    tpr_at_fpr_test = mia_performance_test["max_tpr"]
 
-    assert roc_auc_train == pytest.approx(0.48133750000000003, abs=1e-8)
-    assert tpr_at_fpr_train == pytest.approx(0.145, abs=1e-8)
+    assert roc_auc_train == pytest.approx(0.6659875, abs=1e-8)
+    assert tpr_at_fpr_train == pytest.approx(0.265, abs=1e-8)
 
-    assert roc_auc_val == pytest.approx(0.47875000000000006, abs=1e-8)
-    assert tpr_at_fpr_val == pytest.approx(0.105, abs=1e-8)
+    assert roc_auc_val == pytest.approx(0.6328874999999999, abs=1e-8)
+    assert tpr_at_fpr_val == pytest.approx(0.23, abs=1e-8)
 
-    assert roc_auc_test == pytest.approx(0.5228999999999999, abs=1e-8)
-    assert tpr_at_fpr_test == pytest.approx(0.12, abs=1e-8)
+    assert roc_auc_test == pytest.approx(0.6519875, abs=1e-8)
+    assert tpr_at_fpr_test == pytest.approx(0.235, abs=1e-8)
 
     unset_all_random_seeds()
     os.environ.pop("CUBLAS_WORKSPACE_CONFIG", None)
 
 
-# def test_tf_attack_whitebox_small_config_new_setup():
-#     # Set deterministic behavior
-#     set_all_random_seeds(
-#         seed=133742,
-#         use_deterministic_torch_algos=True,
-#         disable_torch_benchmarking=True,
-#     )
-
-#     os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
-
-#     phases = ["src_train", "train"]
-#     base_path = Path("/projects/midst-experiments/tabddpm_midst_toolkit/train/")
-#     config = {
-#         "phases": phases,
-#         "base_path": base_path,
-#         "tabddpm_data_dir": base_path,
-#         "target_model_subdir": ".",
-#         "model_type": "tabddpm",
-#         "classifier_hidden_dim": 10,
-#         "classifier_num_epochs": 20,
-#         "samples_per_train_model": 300,
-#         "sample_per_val_model": 100,
-#         "num_noise_per_time_step": 10,
-#         "timesteps_list": [5],
-#         "addt_value_list": [0],
-#         "predictions_file_format": "predictions_test_222",
-#         "results_path": Path("/h/behnzaman/midst-toolkit/tests/integration/attacks/tf/test_tf_attack_results"),
-#         "use_best_checkpoint": True,
-#         "final_indices": [5],
-#         "train_indices": [1, 2],
-#         "val_indices": [3, 4],
-#         "config_path": Path("/h/behnzaman/midst-toolkit/tests/integration/attacks/tf/data_configs/trans.json"),
-#     }
-
-#     MIA_performance_train, MIA_performance_test, MIA_performance_final = tf_attack(**config)
-#     roc_auc_train, tpr_at_fpr_train = MIA_performance_train.values()
-#     roc_auc_test, tpr_at_fpr_test = MIA_performance_test.values()
-#     roc_auc, tpr_at_fpr = MIA_performance_final.values()
-
-#     assert roc_auc == pytest.approx(0.5179, abs=1e-8)
-#     assert tpr_at_fpr == pytest.approx(0.07, abs=1e-8)
-
-#     assert roc_auc_train == pytest.approx(0.48106250000000006, abs=1e-8)
-#     assert tpr_at_fpr_train == pytest.approx(0.12, abs=1e-8)
-
-#     assert roc_auc_test == pytest.approx(0.479625, abs=1e-8)
-#     assert tpr_at_fpr_test == pytest.approx(0.1, abs=1e-8)
-
-#     unset_all_random_seeds()
-#     os.environ.pop("CUBLAS_WORKSPACE_CONFIG", None)
-
-
 if __name__ == "__main__":
-    test_tf_attack_whitebox_small_config()
+    test_tf_attack_whitebox_tiny_config_midst_toolkit()

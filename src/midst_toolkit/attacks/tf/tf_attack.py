@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import csv
 import os
-from dataclasses import dataclass
+from dataclasses import replace
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -27,27 +27,28 @@ from midst_toolkit.attacks.tf.data_utils import (
     prepare_fast_dataloader,
 )
 from midst_toolkit.models.clavaddpm.dataset import Dataset
+from midst_toolkit.models.clavaddpm.dataset_transformations import (
+    TargetInfo,
+)
+from midst_toolkit.models.clavaddpm.train import Transformations
 
 
-# In[34]:
-
-
-# we define the loss function here
-# global variables are assigned in the main process
 def mixed_loss(
     diffusion,
     x,
     out_dict,
     noise=None,
     t=None,
+    pt=None,
     return_random=False,
+    no_mean=False,
     parallel_batch=None,
     addt_value=None,
 ):
+    device = x.device
     x_num = x[:, : diffusion.num_numerical_features]
     x_cat = x[:, diffusion.num_numerical_features :]
 
-    device = x.device
     noise_tensor = torch.tensor(noise, device=device, dtype=torch.float)
     batch_noise = noise_tensor.repeat(x_num.shape[0], 1)
 
@@ -57,8 +58,8 @@ def mixed_loss(
 
     b = x_num.shape[0]
 
+    device = x.device
     if t is None:
-        # the default is uniform sampling
         t, pt = diffusion.sample_time(b, device)
 
     if return_random:
@@ -69,11 +70,12 @@ def mixed_loss(
     # forward x_num_t with (t+additional_t) timestamps
     x_num_t = diffusion.gaussian_q_sample(x_num, t + additional_t, noise=batch_noise)
 
-    current_t = t
-    # predict noises with t timestamps
-    predicted_noise = diffusion._denoise_fn(x_num_t, current_t, **out_dict)
-    current_loss = diffusion._gaussian_loss(predicted_noise, batch_noise, batch_noise, current_t, batch_noise)
-    transformed_current_loss = current_loss.reshape(-1, parallel_batch)
+    if not return_random:
+        current_t = t
+        # predict noises with t timestamps
+        predicted_noise = diffusion._denoise_fn(x_num_t, current_t, **out_dict)
+        current_loss = diffusion._gaussian_loss(predicted_noise, batch_noise, batch_noise, current_t, batch_noise)
+        transformed_current_loss = current_loss.reshape(-1, parallel_batch)
 
     return transformed_current_loss * 0, transformed_current_loss
 
@@ -82,32 +84,174 @@ def raise_unknown(unknown_what: str, unknown_value: Any):
     raise ValueError(f"Unknown {unknown_what}: {unknown_value}")
 
 
-def build_target(
-    y: dict[str, np.ndarray], policy: Literal["default"] | None, task_type: TaskType
-) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
-    info: dict[str, Any] = {"policy": policy}
+def build_target(y, policy, task_type):
+    info = TargetInfo(policy=policy, mean=None, std=None)
+    # info: dict[str, Any] = {"policy": policy}
     if policy is None:
         pass
     elif policy == "default":
         if task_type == TaskType.REGRESSION:
             mean, std = float(y["train"].mean()), float(y["train"].std())
             y = {k: (v - mean) / std for k, v in y.items()}
-            info["mean"] = mean
-            info["std"] = std
+            info.mean = mean
+            info.mean = std
     else:
         raise_unknown("policy", policy)
     return y, info
 
 
-@dataclass(frozen=True)
-class Transformations:
-    seed: int = 0
-    normalization: Literal["standard", "quantile", "minmax"] | None = None
-    num_nan_policy: Literal["drop-rows", "mean"] | None = None
-    cat_nan_policy: Literal["most_frequent"] | None = None
-    cat_min_frequency: float | None = None
-    cat_encoding: Literal["one-hot", "counter"] | None = None
-    y_policy: Literal["default"] | None = "default"
+def transform_dataset(
+    dataset: Dataset,
+    transformations: Transformations,
+    cat_transform=None,
+    num_transform=None,
+) -> Dataset:
+    """
+    Applies specified numerical and categorical transformations to a dataset.
+    The function processes numerical and categorical features according to the provided
+    transformation objects and policies. The order of transformations is important and may
+    affect the results.
+
+    Args:
+        dataset (Dataset): The input dataset containing numerical and categorical features.
+        transformations (Transformations): An object specifying transformation policies for
+            categorical and numerical features, including handling of missing values and rare categories.
+        cat_transform: Transformer for categorical features. If None, uses the dataset's
+            categorical_transform attribute.
+        num_transform: Transformer for numerical features. If None, uses the dataset's
+            numerical_transform attribute.
+
+    Returns:
+        Dataset: A new dataset with transformed numerical and categorical features, and updated target.
+
+    Raises:
+        ValueError: If categorical transformation is required but not provided.
+
+    Notes:
+        - The order of transformations matters and may affect the output.
+        - If the dataset has no categorical features, categorical transformation policies are ignored.
+    """
+    # WARNING: the order of transformations matters. Moreover, the current
+    # implementation is not ideal in that sense.
+
+    if dataset.numerical_features is not None:
+        x_num = dataset.numerical_features
+        x_num = {k: num_transform.transform(v) for k, v in x_num.items()}
+
+    else:
+        raise NotImplementedError("Numerical features are required.")
+    if dataset.categorical_features is None:
+        assert transformations.categorical_nan_policy is None
+        assert transformations.category_minimum_frequency is None
+        # assert transformations.cat_encoding is None
+        x_cat = None
+    else:
+        raise NotImplementedError("Categorical features transformation is not implemented yet.")
+        # x_cat = process_nans_in_categorical_features(
+        #     x_cat,
+        #     transformations.categorical_nan_policy,
+        # )
+        # if transformations.category_minimum_frequency is not None:
+        #     x_cat = collapse_rare_categories(
+        #         x_cat,
+        #         transformations.category_minimum_frequency,
+        #     )
+
+        # x_cat = {k: cat_transform.transform(v).astype("float32") for k, v in x_cat.items()}
+        # x_num = x_cat if x_num is None else {x: np.hstack([x_num[x], x_cat[x]]) for x in x_num}
+        # x_cat = None
+
+    if transformations.target_policy is None:
+        y = dataset.target
+        y_info = dataset.target_info
+    else:
+        y, y_info = build_target(dataset.target, transformations.target_policy.value, dataset.task_type.value)
+    dataset = replace(dataset, numerical_features=x_num, categorical_features=x_cat, target=y, target_info=y_info)
+    dataset.numerical_transform = num_transform
+    dataset.categorical_transform = cat_transform
+
+    return dataset
+
+
+def make_dataset_from_df_with_loaded(
+    df, transformation, is_y_cond, df_info=None, std=0, label_encoders=None, num_transform=None
+):
+    cat_column_orders = []
+    num_column_orders = []
+    index_to_column = list(df.columns)
+    column_to_index = {col: i for i, col in enumerate(index_to_column)}
+
+    if df_info.n_classes == 0:
+        x_cat: dict[str, Any] | None = {} if df_info.categorical_column_names is not None else None
+        x_num: dict[str, Any] | None = (
+            {} if df_info.numerical_column_names is not None or is_y_cond == "concat" else None
+        )
+        y = {}
+
+        num_cols_with_y = []
+        if df_info.numerical_column_names is not None:
+            num_cols_with_y += df_info.numerical_column_names
+        if is_y_cond == "concat":
+            num_cols_with_y = [df_info.target_column_name] + num_cols_with_y
+
+        if len(num_cols_with_y) > 0:
+            x_num["train"] = df[num_cols_with_y].values.astype(np.float32)
+
+        y["train"] = df[df_info.target_column_name].values.astype(np.float32)
+
+        if df_info.categorical_column_names is not None:
+            x_cat["train"] = df[df_info.categorical_column_names].to_numpy(dtype=np.str_)
+
+        cat_column_orders = [column_to_index[col] for col in df_info.categorical_column_names]
+        num_column_orders = [column_to_index[col] for col in num_cols_with_y]
+    else:
+        raise NotImplementedError("Multitable with classification not supported yet")
+
+    column_orders = num_column_orders + cat_column_orders
+    column_orders = [index_to_column[index] for index in column_orders]
+
+    if x_cat is not None and len(df_info.categorical_column_names) > 0:
+        x_cat_all = x_cat["train"]
+        x_cat_converted = []
+        for col_index in range(x_cat_all.shape[1]):
+            if label_encoders is None:
+                raise ValueError("Should be loaded: label_encoder")
+            pass
+
+            x_cat_converted.append(label_encoders[col_index].transform(x_cat_all[:, col_index]).astype(float))
+
+            if std > 0:
+                # add noise
+                x_cat_converted[-1] += np.random.normal(0, std, x_cat_converted[-1].shape)
+
+        x_cat_converted = np.vstack(x_cat_converted).T
+
+        train_num = x_cat["train"].shape[0]
+
+        x_cat["train"] = np.array(x_cat_converted)[:train_num, :]
+
+        if x_num is not None and len(x_num) > 0:
+            x_num["train"] = np.concatenate((x_num["train"], x_cat["train"]), axis=1)
+        else:
+            x_num = x_cat
+            x_cat = None
+
+        target_info = TargetInfo(policy=None, mean=None, std=None)
+        dataset = Dataset(
+            numerical_features=x_num,
+            categorical_features=None,
+            target=y,
+            target_info=target_info,
+            task_type=df_info.task_type,
+            n_classes=df_info.n_classes,
+            categorical_transform=None,
+            numerical_transform=num_transform,
+        )
+    return (
+        transform_dataset(dataset, transformation, None, num_transform=num_transform),
+        label_encoders,
+        column_orders,
+    )
 
 
 def get_dataset(data_path, target_model_dir=None, train_name="train_with_id.csv", batch_size=None, meta_dir=""):
@@ -116,6 +260,7 @@ def get_dataset(data_path, target_model_dir=None, train_name="train_with_id.csv"
         meta_dir=meta_dir,
         train_name=train_name,
     )
+    train_loader_list = []
     if len(relation_order) == 1:
         parent, child = relation_order[0]
 
@@ -128,57 +273,34 @@ def get_dataset(data_path, target_model_dir=None, train_name="train_with_id.csv"
             model = CustomUnpickler(f).load()
 
         df_without_id["placeholder"] = df_without_id.index
+
+        # if phase=="train":
+        # num_transform = model.dataset.numerical_transform
+        # elif phase in ("dev", "final"):
+        #         num_transform = model.inverse_transform.numerical_transform
+        # else:
+        #     raise ValueError("Unknown Phase!!!")
         transformations = model.transformations
-
-        dataset, _label_encoders, _column_orders = Dataset.from_df(
-            data=df_without_id,
-            transformations=transformations,
-            is_target_conditioned=model.model_parameters.is_target_conditioned,
-            data_split_percentages=None,  # manually set test split below
-            table_metadata=model.table_metadata,
+        num_transform = model.dataset.numerical_transform
+        dataset, _label_encoders, _column_orders = make_dataset_from_df_with_loaded(
+            df_without_id,
+            transformations,
+            is_y_cond=model.model_parameters.is_target_conditioned,
+            # data_split_percentages=model.diffusion_config.data_split_ratios,
+            df_info=model.table_metadata,
+            std=0,
+            num_transform=num_transform,
+            label_encoders=model.label_encoders,
         )
-
-        train_loader_list = []
-        # === Create a "test" split identical to "train" ====
-        dataset.numerical_features["train"] = np.concatenate(
-            [
-                dataset.numerical_features["train"],
-                dataset.numerical_features["val"],
-                dataset.numerical_features["test"],
-            ],
-            axis=0,
-        )
-
+        dataset.numerical_features["test"] = dataset.numerical_features["train"]
         if dataset.categorical_features is not None:
-            dataset.categorical_features["train"] = np.concatenate(
-                [
-                    dataset.categorical_features["train"],
-                    dataset.categorical_features["val"],
-                    dataset.categorical_features["test"],
-                ],
-                axis=0,
-            )
-
-        dataset.target["train"] = np.concatenate(
-            [dataset.target["train"], dataset.target["val"], dataset.target["test"]], axis=0
-        )
-
-        dataset.numerical_features["test"] = dataset.numerical_features["train"].copy()
-
-        if dataset.categorical_features is not None:
-            dataset.categorical_features["test"] = dataset.categorical_features["train"].copy()
-
-        dataset.target["test"] = dataset.target["train"].copy()
-
-        # === Build DataLoader ================================
+            dataset.categorical_features["test"] = dataset.categorical_features["train"]
+        dataset.target["test"] = dataset.target["train"]
         train_loader = prepare_fast_dataloader(dataset, split="test", batch_size=batch_size, y_type="long")
-
         train_loader_list.append([train_loader, dataset.numerical_features["test"].shape[0], dataset])
 
-    else:
-        raise NotImplementedError("Only single table datasets are supported.")
-
-    return train_loader_list
+        return train_loader_list
+    raise NotImplementedError("Multitable with more than one relation not supported yet")
 
 
 def get_score(
@@ -284,25 +406,25 @@ def tf_attack_train_classifier(
     base_path,
     target_model_subdir,
     classifier_hidden_dim,
-    use_best_checkpoint,
     num_noise_per_time_step,
     timesteps_list,
     addt_value_list,
     classifier_num_epochs,
+    classifier_learning_rate: float,
     results_path,
     meta_dir: Path,
 ):
     df_train_merge, _, _ = prepare_data_for_attack(
         indices=train_indices,
         model_type=model_type,
-        models_base_dir=base_path,
+        models_base_dir=Path("/projects/midst-experiments/tabddpm_midst_toolkit/train/"),
         keys_for_deduplication=["trans_id", "balance"],
     )
 
     df_test_merge, _, _ = prepare_data_for_attack(
         indices=val_indices,
         model_type=model_type,
-        models_base_dir=base_path,
+        models_base_dir=Path("/projects/aieng/midst_competition/data/tabddpm"),
         keys_for_deduplication=["trans_id", "balance"],
     )
 
@@ -382,7 +504,7 @@ def tf_attack_train_classifier(
 
         t_value_count = 0
         for t_value in timesteps_list:
-            for addt_value in [0]:
+            for addt_value in addt_value_list:
                 if model_number in train_indices:
                     batch_size = samples_per_train_model * 2
 
@@ -433,20 +555,19 @@ def tf_attack_train_classifier(
                     )
                     t_value_count += 1
 
-            if model_number in train_indices:
-                train_count += 1
-            elif model_number in val_indices:
-                val_count += 1
-
+        if model_number in train_indices:
+            train_count += 1
+        elif model_number in val_indices:
+            val_count += 1
     return input_noise, fitmodel(
-        regression_model,
-        x_train,
-        x_train_label,
-        x_val,
-        x_val_label,
+        regression_model=regression_model,
+        x_train=x_train,
+        x_train_label=x_train_label,
+        x_val=x_val,
+        x_val_label=x_val_label,
         num_epochs=classifier_num_epochs,
-        use_best_checkpoint=use_best_checkpoint,
-        best_model_dir=results_path,
+        best_model_checkpoint_dir=results_path,
+        learning_rate=classifier_learning_rate,
     )
 
 
@@ -460,7 +581,6 @@ def tf_attack(
     model_type: str,
     target_model_subdir: str,
     timesteps_list: list[int],
-    use_best_checkpoint: bool,
     results_path: str,
     test_indices: list[int],
     predictions_file_format: str,
@@ -469,26 +589,27 @@ def tf_attack(
     classifier_hidden_dim: int,
     addt_value_list: list[int],
     meta_dir: Path,
+    classifier_learning_rate: float,
 ) -> tuple[Any, Any, Any]:
     os.makedirs(results_path, exist_ok=True)
 
     input_noise, regression_model = tf_attack_train_classifier(
-        train_indices,
-        val_indices,
-        samples_per_train_model,
-        sample_per_val_model,
-        model_type,
-        tabddpm_data_dir,
-        base_path,
-        target_model_subdir,
-        classifier_hidden_dim,
-        use_best_checkpoint,
-        num_noise_per_time_step,
-        timesteps_list,
-        addt_value_list,
-        classifier_num_epochs,
-        results_path,
-        meta_dir,
+        train_indices=train_indices,
+        val_indices=val_indices,
+        samples_per_train_model=samples_per_train_model,
+        sample_per_val_model=sample_per_val_model,
+        model_type=model_type,
+        tabddpm_data_dir=tabddpm_data_dir,
+        base_path=base_path,
+        target_model_subdir=target_model_subdir,
+        classifier_hidden_dim=classifier_hidden_dim,
+        num_noise_per_time_step=num_noise_per_time_step,
+        timesteps_list=timesteps_list,
+        addt_value_list=addt_value_list,
+        classifier_num_epochs=classifier_num_epochs,
+        results_path=results_path,
+        meta_dir=meta_dir,
+        classifier_learning_rate=classifier_learning_rate,
     )
 
     predictions_file_name: str = f"{predictions_file_format}.csv"
