@@ -73,7 +73,7 @@ def compute_gower_for_model(args):
     # ).astype(dtype)
     # Batched approach: compute row-by-row to reduce peak memory
     gower_matrix = compute_gower_batched(
-        df_input, df_synthetic, categorical_features, batch_size=5000, dtype=dtype
+        df_input, df_synthetic, categorical_features, batch_size=2000, dtype=dtype
     )
     
     return i, gower_matrix
@@ -258,9 +258,9 @@ def calculate_rmia_signals(
     trained_shadow_data = shadow_data_collection[2]
 
     all_lengths = [
-        [len(data.synthetic_data) for data in fine_tuned_shadow_data_0["fine_tuned_results"]],
-        [len(data.synthetic_data) for data in fine_tuned_shadow_data_1["fine_tuned_results"]],
-        [len(data.synthetic_data) for data in trained_shadow_data["trained_results"]],
+        [len(data) for data in fine_tuned_shadow_data_0["fine_tuned_results"]],
+        [len(data) for data in fine_tuned_shadow_data_1["fine_tuned_results"]],
+        [len(data) for data in trained_shadow_data["trained_results"]],
         [len(data) for data in fine_tuned_shadow_data_0["fine_tuning_sets"]],
         [len(data) for data in fine_tuned_shadow_data_1["fine_tuning_sets"]],
         [len(data) for data in trained_shadow_data["selected_sets"]],
@@ -275,7 +275,7 @@ def calculate_rmia_signals(
         raise ValueError(f"k={k} must be within [1, {min_length}]")
 
     shadow_synthetic_list_0 = [
-        train_result.synthetic_data for train_result in fine_tuned_shadow_data_0[Key.FINE_TUNED_RESULTS.value]
+        train_result for train_result in fine_tuned_shadow_data_0[Key.FINE_TUNED_RESULTS.value]
     ]
     # shadow_model_gower_0 = get_rmia_gower(
     #     df_input=df_input,
@@ -289,7 +289,7 @@ def calculate_rmia_signals(
     # log(INFO, "Computed Gower distance for first set of fine-tuned shadow models.")
 
     shadow_synthetic_list_1 = [
-        train_result.synthetic_data for train_result in fine_tuned_shadow_data_1[Key.FINE_TUNED_RESULTS.value]
+        train_result for train_result in fine_tuned_shadow_data_1[Key.FINE_TUNED_RESULTS.value]
     ]
     shadow_0_and_1_synthetic_data = shadow_synthetic_list_1+shadow_synthetic_list_0
     del shadow_synthetic_list_0 
@@ -309,7 +309,7 @@ def calculate_rmia_signals(
     log(INFO, "Computed Gower distance for the first two sets of fine-tuned shadow models (8 models total).")
 
     shadow_synthetic_list_2 = [
-        train_result.synthetic_data for train_result in trained_shadow_data[Key.TRAINED_RESULTS.value]
+        train_result for train_result in trained_shadow_data[Key.TRAINED_RESULTS.value]
     ]
     # shadow_synthetic_list_2 includes 8 shadow models
     shadow_model_gower_2 = get_rmia_gower(

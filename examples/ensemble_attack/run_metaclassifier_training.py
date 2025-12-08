@@ -63,6 +63,7 @@ def run_metaclassifier_training(
         with open(model_path, "rb") as f:
             shadow_data_and_result = pickle.load(f)
             shadow_data_collection.append(shadow_data_and_result)
+            log(INFO, f"Shadow model data loaded from {model_path}.")
 
     assert Path(target_model_synthetic_path).exists(), (
         f"No file found at {target_model_synthetic_path}. "
@@ -71,6 +72,7 @@ def run_metaclassifier_training(
 
     # Load the target model's synthetic data
     target_synthetic_data = pd.read_csv(target_model_synthetic_path)
+    log(INFO, f"Target model's synthetic data loaded from {target_model_synthetic_path} with size {len(target_synthetic_data)}.")
 
     assert target_synthetic_data is not None, "Target model's synthetic data is missing."
     target_synthetic_data = target_synthetic_data.copy()
@@ -79,6 +81,7 @@ def run_metaclassifier_training(
         Path(config.data_paths.population_path),
         "population_all_with_challenge_no_id.csv",
     )
+    log(INFO, f"Reference population data loaded from f{config.data_paths.population_path} with size {len(df_reference)}.")
 
     # Extract trans_id from both train and test dataframes
     assert "trans_id" in df_meta_train.columns, "Meta train data must have trans_id column"

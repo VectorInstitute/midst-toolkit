@@ -87,7 +87,7 @@ def run_metaclassifier_testing(
     with open(mataclassifier_path, "rb") as f:
         trained_mataclassifier_model = pickle.load(f)
 
-    log(INFO, "Metaclassifier model loaded, starting the test...")
+    log(INFO, f"Metaclassifier model loaded from {mataclassifier_path}, starting the test...")
 
     # 2) Read target model's challenge data and synthetic data.
 
@@ -128,11 +128,13 @@ def run_metaclassifier_testing(
             with open(model_path, "rb") as f:
                 shadow_data_and_result = pickle.load(f)
                 shadow_data_collection.append(shadow_data_and_result)
+            log(INFO, f"Loaded existing shadow model at {model_path}.")
         else:
             models_exist = False
             break
     
     if not models_exist:
+        log(INFO, "Shadow models for testing phase do not exist. Training RMIA shadow models...")
         # collect all repo's challenge points
         data_processing_config=config.data_processing_config
         challenge_attack_names = data_processing_config.challenge_attack_data_types_to_collect
@@ -140,12 +142,23 @@ def run_metaclassifier_testing(
         df_challenge = collect_midst_data(
             midst_data_input_dir=Path(config.data_paths.midst_data_path),
             attack_types=challenge_attack_types,
-            data_splits=["final"],  #change to test for 10k, and change to final for 20k
+            data_splits=["test"],  #change to test for 10k, and change to final for 20k
             dataset="challenge",
             data_processing_config=config.data_processing_config,
         )
         log(INFO, f"Collected challenge data length: {len(df_challenge)} for the testing phase's shadow training.")
+        
+        # Run RMIA shadow model training on master challenge train data
+        # df_challenge = load_dataframe(
+        #     Path(config.data_paths.processed_attack_data_path),
+        #     "master_challenge_train.csv",
+        # )
+        # log(INFO, f"Loaded master challenge train data length: {len(df_challenge)} for the testing phase's shadow training.")
+        
         shadow_data_collection = run_rmia_shadow_training(config, df_challenge=df_challenge)
+    
+    else:
+        log(INFO, "All shadow models for testing phase found. Using existing RMIA shadow models...")
 
 
 

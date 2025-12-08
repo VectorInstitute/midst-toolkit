@@ -134,7 +134,7 @@ def collect_midst_data(
                 data_processing_config=data_processing_config,
             )
 
-        population.append(df_real)
+            population.append(df_real)
 
     return pd.concat(population).drop_duplicates()
 

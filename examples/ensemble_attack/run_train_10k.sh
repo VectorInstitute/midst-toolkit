@@ -12,7 +12,6 @@
 #SBATCH --error=%j_%x.err
 #SBATCH --time=16:00:00
 
-#SBATCH --array=0-0  # For 3 target_model_ids (adjust range as needed)
 # This script sets up the environment and runs the ensemble attack example.
 source .venv/bin/activate
 
