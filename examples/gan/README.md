@@ -72,7 +72,10 @@ synthesized data to `/results/trans_synthetic.csv`.
 
 ## Evaluating the quality of the synthetic data
 
-To run a round of evaluation on a set of synthetic data, run the `evaluate.py` script:
+### Alpha Precision
+
+To run a round of evaluation with [Alpha Precision](https://arxiv.org/abs/2301.07573)
+metrics on a set of synthetic data, run the `evaluate.py` script:
 
 ```bash
 python -m midst_toolkit.evaluation.quality.scripts.midst_alpha_precision_eval \
@@ -83,3 +86,17 @@ python -m midst_toolkit.evaluation.quality.scripts.midst_alpha_precision_eval \
 ```
 
 It will save the evaluation results under the `/results/model.txt` file.
+
+###  Kolmogorov-Smirnov and Total Variation Distance
+
+To run the evaluation using the Kolmogorov-Smirnov (KS) and Total Variation Distance (TVD)
+metrics, you can run the command below. The name of the table should be defined in the
+`dataset_meta.json` file, and the file for synthetic data should be under
+`/data/{table_name}.csv` for the real data and `/results/{table_name}_synthetic.csv`
+for the synthetic data.
+
+```bash
+python -m examples.gan.evaluate_ks_tvd
+```
+
+The results will be saved in the `/results/ks_tvd_evaluation.json` file.
