@@ -47,25 +47,26 @@ def main(config: DictConfig) -> None:
     results = {}
 
     # KS and TVD
-    ks_tvd_metric = KolmogorovSmirnovAndTotalVariation(categorical_columns, numerical_columns)
+    ks_tvd_metric = KolmogorovSmirnovAndTotalVariation(categorical_columns, numerical_columns, do_preprocess=True)
     ks_tvd_score = ks_tvd_metric.compute(real_data, synthetic_data)
 
     log(INFO, f"Kolmogorov-Smirnov and Total Variation Distance score: {ks_tvd_score}")
     results["ks_tvd"] = ks_tvd_score
 
     # Correlation Matrix Difference
-    correlation_matrix_difference_metric = CorrelationMatrixDifference(categorical_columns, numerical_columns)
-    correlation_matrix_difference_score = correlation_matrix_difference_metric.compute(real_data, synthetic_data)
+    cmd_metric = CorrelationMatrixDifference(categorical_columns, numerical_columns, do_preprocess=True)
+    cmd_result = cmd_metric.compute(real_data, synthetic_data)
 
-    log(INFO, f"Correlation Matrix Difference score: {correlation_matrix_difference_score}")
-    results["correlation_matrix_difference"] = correlation_matrix_difference_score
+    log(INFO, f"Correlation Matrix Difference score: {cmd_result}")
+    results["correlation_matrix_difference"] = cmd_result
 
     # Mutual Information Difference
-    mutual_information_difference_metric = MutualInformationDifference(categorical_columns, numerical_columns)
-    mutual_information_difference_score = mutual_information_difference_metric.compute(real_data, synthetic_data)
+    mid_metric = MutualInformationDifference(categorical_columns, numerical_columns, do_preprocess=True)
+    mid_result = mid_metric.compute(real_data, synthetic_data)
+    mid_result["score"] = mid_result["mutual_inf_diff"] / mid_result["mi_mat_dims"]
 
-    log(INFO, f"Mutual Information Difference score: {mutual_information_difference_score}")
-    results["mutual_information_difference"] = mutual_information_difference_score
+    log(INFO, f"Mutual Information Difference score: {mid_result}")
+    results["mutual_information_difference"] = mid_result
 
     log(INFO, "Saving results...")
     with open(Path(config.results_dir) / "evaluation.json", "w") as f:
