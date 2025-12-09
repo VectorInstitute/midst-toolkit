@@ -8,7 +8,9 @@ from omegaconf import DictConfig
 
 from examples.gan.utils import get_table_name
 from midst_toolkit.common.logger import log
+from midst_toolkit.evaluation.quality.correlation_matrix_difference import CorrelationMatrixDifference
 from midst_toolkit.evaluation.quality.kolmogorov_smirnov_total_variation import KolmogorovSmirnovAndTotalVariation
+from midst_toolkit.evaluation.quality.mutual_information_difference import MutualInformationDifference
 
 
 @hydra.main(config_path=".", config_name="config", version_base=None)
@@ -42,17 +44,32 @@ def main(config: DictConfig) -> None:
     numerical_columns = [real_data.columns[i] for i in meta_info["num_col_idx"]]
     categorical_columns = [real_data.columns[i] for i in meta_info["cat_col_idx"]]
 
-    metric = KolmogorovSmirnovAndTotalVariation(
-        categorical_columns=categorical_columns,
-        numerical_columns=numerical_columns,
-        do_preprocess=False,
-    )
-    score = metric.compute(real_data, synthetic_data)
-    log(INFO, f"Kolmogorov-Smirnov and Total Variation Distance score: {score}")
+    results = {}
+
+    # KS and TVD
+    ks_tvd_metric = KolmogorovSmirnovAndTotalVariation(categorical_columns, numerical_columns)
+    ks_tvd_score = ks_tvd_metric.compute(real_data, synthetic_data)
+
+    log(INFO, f"Kolmogorov-Smirnov and Total Variation Distance score: {ks_tvd_score}")
+    results["ks_tvd"] = ks_tvd_score
+
+    # Correlation Matrix Difference
+    correlation_matrix_difference_metric = CorrelationMatrixDifference(categorical_columns, numerical_columns)
+    correlation_matrix_difference_score = correlation_matrix_difference_metric.compute(real_data, synthetic_data)
+
+    log(INFO, f"Correlation Matrix Difference score: {correlation_matrix_difference_score}")
+    results["correlation_matrix_difference"] = correlation_matrix_difference_score
+
+    # Mutual Information Difference
+    mutual_information_difference_metric = MutualInformationDifference(categorical_columns, numerical_columns)
+    mutual_information_difference_score = mutual_information_difference_metric.compute(real_data, synthetic_data)
+
+    log(INFO, f"Mutual Information Difference score: {mutual_information_difference_score}")
+    results["mutual_information_difference"] = mutual_information_difference_score
 
     log(INFO, "Saving results...")
-    with open(Path(config.results_dir) / "ks_tvd_evaluation.json", "w") as f:
-        json.dump(score, f, indent=4)
+    with open(Path(config.results_dir) / "evaluation.json", "w") as f:
+        json.dump(results, f, indent=4)
 
     log(INFO, "Done!")
 

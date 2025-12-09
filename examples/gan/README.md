@@ -87,16 +87,19 @@ python -m midst_toolkit.evaluation.quality.scripts.midst_alpha_precision_eval \
 
 It will save the evaluation results under the `/results/model.txt` file.
 
-###  Kolmogorov-Smirnov and Total Variation Distance
+###  Additional Metrics
 
-To run the evaluation using the Kolmogorov-Smirnov (KS) and Total Variation Distance (TVD)
-metrics, you can run the command below. The name of the table should be defined in the
-`dataset_meta.json` file, and the file for synthetic data should be under
+The calculation of assitional metrics are set up in the `evaluate.py` file. They are the
+Kolmogorov-Smirnov (KS) test, Total Variation Distance (TVD), Correlation Matrix Difference
+and Mutual Information Difference.
+
+To compute those metrics, you can run the command below. The name of the table should be
+defined in the `dataset_meta.json` file, and the file for synthetic data should be under
 `/data/{table_name}.csv` for the real data and `/results/{table_name}_synthetic.csv`
 for the synthetic data.
 
 ```bash
-python -m examples.gan.evaluate_ks_tvd
+python -m examples.gan.evaluate
 ```
 
-The results will be saved in the `/results/ks_tvd_evaluation.json` file.
+The results will be saved in the `/results/evaluation.json` file.
