@@ -72,7 +72,9 @@ class MeanRegressionDifference(SynthEvalMetric):
         label_column: str,
         do_preprocess: bool = False,
         preprocess_labels: bool = False,
-        regressors_config_path: Path = Path("src/midst_toolkit/evaluation/quality/assets/regression_config.json"),
+        regressors_config: Path | list[dict[str, Any]] = Path(
+            "src/midst_toolkit/evaluation/quality/assets/regression_config.json"
+        ),
         include_additional_metrics: bool = True,
         measure_metrics_in_original_label_space: bool = False,
     ):
@@ -80,7 +82,7 @@ class MeanRegressionDifference(SynthEvalMetric):
         This class computes the difference in metrics for regression models trained on real and synthetic data.
         Ideally, the synthetic data would be as effective at training a regression model as the real data. Note that
         this requires there to be a regression label column present for both datasets. This class will train a set of
-        regression models determined by the JSON file in the ``regressors_config_path``.
+        regression models determined by the JSON file, either provided directly or as a path.
 
         The default configuration trains four sklearn models: ``LinearRegression``, ``MLPRegressor``,
         ``XGBRegressor``, and ``RandomForestRegressor``.
@@ -114,14 +116,14 @@ class MeanRegressionDifference(SynthEvalMetric):
         Args:
             categorical_columns: Column names corresponding to the categorical variables of any provided dataframe.
             numerical_columns: Column names corresponding to the numerical variables of any provided dataframe.
-            label_column: Name of the column is the provided datasets that corresponds to the classification label to
+            label_column: Name of the column in the provided datasets that corresponds to the regression target to
                 test dataset utility. This column MUST be present in both the real and synthetic data provided.
             do_preprocess: Whether or not to preprocess the dataframes with the default pipeline used by SynthEval.
                 Defaults to False.
             preprocess_labels: Whether or not to preprocess the label column with a MinMaxScaler. Defaults to False.
-            regressors_config_path: Path to the configuration file for the regressors to be applied in the evaluation.
-                The default configuration (and a good example) are housed in the default path of this class.
-                Defaults to Path("src/midst_toolkit/evaluation/quality/assets/regression_config.json").
+            regressors_config: Path to the configuration file or a JSON structured config for the regressors to be
+                applied in the evaluation. The default configuration (and a good example) is housed the default path
+                of this class. Defaults to Path("src/midst_toolkit/evaluation/quality/assets/regression_config.json").
             include_additional_metrics: Whether or not to include the individual regressor performances in the metrics
                 dictionary. If false, only the differences in performance will be returned. Defaults to True.
             measure_metrics_in_original_label_space: Whether to transform labels into their original space prior to
@@ -137,7 +139,7 @@ class MeanRegressionDifference(SynthEvalMetric):
         )
         self.label_column = label_column
         self.all_columns = categorical_columns + numerical_columns + [label_column]
-        self.regressors_config_path = regressors_config_path
+        self.regressors_config = regressors_config
         self.include_additional_metrics = include_additional_metrics
         self.preprocess_labels = preprocess_labels
         self.measure_metrics_in_original_label_space = measure_metrics_in_original_label_space
@@ -150,8 +152,10 @@ class MeanRegressionDifference(SynthEvalMetric):
             A list containing individual regression model configurations, including their sets of hyper-parameters
             to explore.
         """
-        with open(self.regressors_config_path, "r") as f:
-            return json.load(f)["regressors"]
+        if isinstance(self.regressors_config, Path):
+            with open(self.regressors_config, "r") as f:
+                return json.load(f)["regressors"]
+        return self.regressors_config
 
     def apply_transformations(
         self, dataset: pd.DataFrame, one_hot_encoder: OneHotEncoder | None, min_max_scaler: MinMaxScaler | None
@@ -524,6 +528,12 @@ class MeanRegressionDifference(SynthEvalMetric):
 
         return merged_scores
 
+    def _validate_label_column_dtype(self, data: pd.DataFrame) -> None:
+        assert is_float_dtype(data[self.label_column]), (
+            f"Label column: {self.label_column} must have a float type for regression. Verify that the label column "
+            "is correct. If so, please cast the dtype of the column to float in your dataframe."
+        )
+
     def compute(
         self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame, holdout_data: pd.DataFrame | None = None
     ) -> dict[str, float]:
@@ -531,7 +541,7 @@ class MeanRegressionDifference(SynthEvalMetric):
         This function computes the difference in metrics for regression models trained on real and synthetic data.
         Ideally, the synthetic data would be as effective at training a regression model as the real data. Note that
         this requires there to be a regression label column present for both datasets. The regression models to be
-        trained are determined by the JSON file in the ``regressors_config_path`` of the class.
+        trained are determined by the JSON file, either provided directly to the class or loaded from a provided path.
 
         The default configuration trains four sklearn models: ``LinearRegression``, ``MLPRegressor``,
         ``XGBRegressor``, and ``RandomForestRegressor``.
@@ -574,9 +584,9 @@ class MeanRegressionDifference(SynthEvalMetric):
             Metrics associated with the difference in regression performance when training on real vs. synthetic data.
         """
         assert holdout_data is not None, "Regression analysis must have a holdout dataset"
-        assert is_float_dtype(real_data[self.label_column]), "Label column must have a float type for regression"
-        assert is_float_dtype(synthetic_data[self.label_column]), "Label column must have a float type for regression"
-        assert is_float_dtype(holdout_data[self.label_column]), "Label column must have a float type for regression"
+        self._validate_label_column_dtype(real_data)
+        self._validate_label_column_dtype(synthetic_data)
+        self._validate_label_column_dtype(holdout_data)
 
         filtered_real_data = real_data[self.all_columns]
         filtered_synthetic_data = synthetic_data[self.all_columns]
