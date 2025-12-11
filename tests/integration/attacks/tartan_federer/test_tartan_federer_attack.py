@@ -10,6 +10,7 @@ from midst_toolkit.common.random import (
 )
 
 
+@pytest.mark.integration_test()
 def test_tf_attack_whitebox_tiny_config_midst_toolkit():
     set_all_random_seeds(
         seed=133742,
