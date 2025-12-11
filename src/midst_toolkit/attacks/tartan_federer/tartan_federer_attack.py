@@ -357,7 +357,7 @@ def prepare_dataframe(
     model_dir: Path,
     merged_data: pd.DataFrame,
     columns_for_deduplication: list[str],
-    samples_per_train_model: int,
+    samples_per_model: int,
     mia_dataset_name: str,
 ) -> pd.DataFrame:
     """
@@ -368,7 +368,7 @@ def prepare_dataframe(
             "train_with_id.csv" and "data_for_training_MIA.csv"
         merged_data: Dataframe constructed with the ``prepare_data_for_attack`` function.
         columns_for_deduplication: Columns to use in filtering the dataframes.
-        samples_per_train_model: Number of samples to draw from the prepared data for model training.
+        samples_per_model: Number of samples to draw from the prepared data for model training.
         mia_dataset_name: Name of the MIA dataset file to be saved.
 
     Returns:
@@ -378,8 +378,8 @@ def prepare_dataframe(
 
     df_exclusive = filter_dataframe(merged_data, raw_data, columns_for_deduplication)
 
-    data_exclusive = df_exclusive.sample(samples_per_train_model)
-    data_from_train = raw_data.sample(samples_per_train_model)
+    data_exclusive = df_exclusive.sample(samples_per_model)
+    data_from_train = raw_data.sample(samples_per_model)
 
     df_data = pd.concat([data_exclusive, data_from_train], ignore_index=True)
     df_data.to_csv(model_dir / mia_dataset_name, index=False)
