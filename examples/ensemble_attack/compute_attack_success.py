@@ -10,8 +10,8 @@ import numpy as np
 import pandas as pd
 from omegaconf import DictConfig
 
-from midst_toolkit.attacks.ensemble.metric_utils import get_tpr_at_fpr
 from midst_toolkit.common.logger import log
+from midst_toolkit.evaluation.privacy.mia_scoring import TprAtFpr
 
 
 def load_target_challenge_labels_and_probabilities(
@@ -91,7 +91,7 @@ def compute_attack_success_for_given_targets(
     assert len(predictions) == len(targets), "Number of predictions must match number of targets."
 
     # Compute TPR@FPR for all the target models
-    tpr_at_fpr = get_tpr_at_fpr(targets, predictions, max_fpr=0.1)
+    tpr_at_fpr = TprAtFpr.get_tpr_at_fpr(targets, predictions, fpr_threshold=0.1)
 
     # Save the final attack success rate into a text file.
     metric_save_path = experiment_directory / f"attack_success_for_{metaclassifier_model_name}.txt"

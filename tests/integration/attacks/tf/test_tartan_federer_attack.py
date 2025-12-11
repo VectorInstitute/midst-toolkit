@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from midst_toolkit.attacks.tartan_federer.tf_attack import tf_attack
+from midst_toolkit.attacks.tartan_federer.tartan_federer_attack import tartan_federer_attack
 from midst_toolkit.common.random import (
     set_all_random_seeds,
     unset_all_random_seeds,
@@ -22,7 +22,7 @@ def test_tf_attack_whitebox_tiny_config_midst_toolkit():
     config = {
         "base_path": base_path,
         "tabddpm_data_dir": base_path,
-        "target_model_subdir": ".",
+        "target_model_subdir": Path("."),
         "model_type": "tabddpm",
         "classifier_hidden_dim": 20,
         "classifier_num_epochs": 50,
@@ -32,15 +32,16 @@ def test_tf_attack_whitebox_tiny_config_midst_toolkit():
         "timesteps_list": [5, 10],
         "addt_value_list": [0],
         "predictions_file_format": "challenge_label_predictions",
-        "results_path": Path(__file__).parent / "test_tf_attack_results",
+        "results_path": Path(__file__).parent / "tartan_federer_attack_results",
         "test_indices": [5, 6],
         "train_indices": [1, 2],
         "val_indices": [3, 4],
+        "columns_for_deduplication": ["trans_id", "balance"],
         "meta_dir": Path(__file__).parent / "data_configs",
         "classifier_learning_rate": 1e-4,
     }
 
-    mia_performance_train, mia_performance_val, mia_performance_test = tf_attack(**config)
+    mia_performance_train, mia_performance_val, mia_performance_test = tartan_federer_attack(**config)
     roc_auc_train = mia_performance_train["roc_auc"]
     tpr_at_fpr_train = mia_performance_train["max_tpr"]
     roc_auc_val = mia_performance_val["roc_auc"]

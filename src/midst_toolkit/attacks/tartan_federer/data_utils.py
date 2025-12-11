@@ -1,16 +1,10 @@
-# ruff: noqa: D102, D105, D103, D200
-# mypy: disable-error-code=no-untyped-def
-# mypy: disable-error-code=has-type
-# mypy: disable-error-code=index
-# mypy: disable-error-code=attr-defined
-# mypy: disable-error-code=assignment
 from __future__ import annotations
 
-import enum
 import io
 import json
 import os
 import pickle
+from logging import INFO
 from pathlib import Path
 from typing import Any
 
@@ -18,69 +12,103 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
-from sklearn.metrics import auc, roc_curve
+from sklearn.metrics import roc_auc_score
 from tqdm import tqdm
 
-from midst_toolkit.models.clavaddpm.dataset import Dataset
+from midst_toolkit.common.logger import log
+from midst_toolkit.evaluation.privacy.mia_scoring import TprAtFpr
+from midst_toolkit.models.clavaddpm.data_loaders import Table, Tables, get_info_from_domain
+from midst_toolkit.models.clavaddpm.enumerations import RelationOrder
 
 
-Arraydict = dict[str, np.ndarray]
-Tensordict = dict[str, torch.Tensor]
-
-
-class TaskType(enum.Enum):
-    BINCLASS = "binclass"
-    MULTICLASS = "multiclass"
-    REGRESSION = "regression"
-
-    def __str__(self) -> str:
-        return self.value
+ArrayDict = dict[str, np.ndarray]
+TensorDict = dict[str, torch.Tensor]
 
 
 class CustomUnpickler(pickle.Unpickler):
+    """Extending the Unpickler class to include the find_class function below."""
+
     def find_class(self, module: str, name: str) -> Any:
+        """
+        Overriding the super class find_class function to return a function that takes in bytes and uses torch.load
+        to load the object and map it to a cpu.
+
+        Args:
+            module: The kind of module to be loaded.
+            name: How to do the loading of the module.
+
+        Returns:
+            In the specific case of model == "torch.storage" and name == "_load_from_bytes" return a function that
+            takes in bytes and uses torch.load to load the object and map it to a cpu. Otherwise uses the default
+            functionality for the Unpickler.
+        """
         # Force CUDA tensors to load on CPU
         if module == "torch.storage" and name == "_load_from_bytes":
             return lambda b: torch.load(io.BytesIO(b), map_location="cpu")
         return super().find_class(module, name)
 
 
-def load_multi_table_customized(data_dir, meta_dir=None, train_name="train.csv"):
-    if meta_dir is None:
-        meta_path = os.path.join(data_dir, "dataset_meta.json")
-    else:
-        meta_path = os.path.join(meta_dir, "dataset_meta.json")
+def load_multi_table_customized(
+    data_dir: Path, meta_dir: Path | None = None, train_name: str = "train.csv"
+) -> tuple[Tables, RelationOrder, dict[str, Any]]:
+    """
+    Implements a custom loading function for the multi-table setting. This functionality is similar to that of
+    load_tables in ``midst_toolkit.models.clavaddpm.data_loaders`` but with extra filtration steps.
+
+    The meta data for the table information should be named 'dataset_meta.json' Each table should have a domain file
+    called {table_name}_domain.json.
+
+    Args:
+        data_dir: The directory to load the dataset from.
+        meta_dir: An optional separate path containing the meta data information about the tables and datasets.
+            If None, this function looks for 'dataset_meta.json' in the ``data_dir`` path. Defaults to None.
+        train_name: Name of the file containing the table data. This should exist in the ``data_dir`` path.
+            Defaults to "train.csv".
+
+    Raises:
+        ValueError: Throws a value error if any of the columns in any of the tables have ? entries
+        TypeError: Throws an error if the numerical columns end up with string value entries.
+
+    Returns:
+        A tuple with 3 values:
+            - The tables dictionary.
+            - The relation order between the tables.
+            - The dataset metadata dictionary.
+    """
+    meta_path = data_dir / "dataset_meta.json" if meta_dir is None else meta_dir / "dataset_meta.json"
     with open(meta_path, "r") as f:
         dataset_meta = json.load(f)
 
     relation_order = dataset_meta["relation_order"]
-    tables = {}
+    tables: Tables = {}
 
     for table, meta in dataset_meta["tables"].items():
-        csv_path = os.path.join(data_dir, train_name)
-        if os.path.exists(csv_path):
-            train_df = pd.read_csv(csv_path)
-        else:
-            raise ValueError(f"CSV file missing: {csv_path}")
+        csv_path = data_dir / train_name
+        train_df = pd.read_csv(csv_path)
 
-        domain_path = os.path.join(data_dir, f"{table}_domain.json")
+        domain_path = data_dir / f"{table}_domain.json"
         with open(domain_path, "r") as domain_file:
             domain = json.load(domain_file)
-        tables[table] = {
-            "df": train_df,
-            "domain": domain,
-            "children": meta["children"],
-            "parents": meta["parents"],
-        }
-        tables[table]["original_cols"] = list(tables[table]["df"].columns)
-        tables[table]["original_df"] = tables[table]["df"].copy()
-        id_cols = [col for col in tables[table]["df"].columns if "_id" in col]
-        df_no_id = tables[table]["df"].drop(columns=id_cols)
+
+        info = get_info_from_domain(train_df, domain)
+
+        tables[table] = Table(
+            data=train_df,
+            domain=domain,
+            children=meta["children"],
+            parents=meta["parents"],
+            original_column_names=list(train_df.columns),
+            original_data=train_df.copy(),
+            info=info,
+        )
+
+        id_cols = [col for col in tables[table].data.columns if "_id" in col]
+        df_no_id = tables[table].data.drop(columns=id_cols)
 
         # Columns containing '?'
-        qmark_cols = (df_no_id == "?").any()
-        if qmark_cols.any():
-            bad_cols = qmark_cols[qmark_cols].index.tolist()
+        question_mark_cols = (df_no_id == "?").any()
+        if question_mark_cols.any():
+            bad_cols = question_mark_cols[question_mark_cols].index.tolist()
             raise ValueError(f"Invalid values '?' detected in columns {bad_cols} of table '{table}'.")
 
         # Numeric columns containing strings
@@ -93,14 +121,20 @@ def load_multi_table_customized(data_dir, meta_dir=None, train_name="train.csv")
 
 
 def save_results_and_plot_roc_curve(
-    fpr: np.ndarray, tpr: np.ndarray, roc_auc: float, all_results: list[dict[str, Any]], results_path: str
+    fpr: np.ndarray, tpr: np.ndarray, roc_auc: float, all_results: list[dict[str, Any]], results_path: Path
 ) -> None:
     """
     Saves the ROC curve plot and results summary to the specified directory.
+
+    Args:
+        fpr: FPR values across a number of classification thresholds.
+        tpr: TPR values across a number of classification thresholds.
+        roc_auc: The roc_auc value for these curves.
+        all_results: A collection of results
+        results_path: Where to save the plots and the results values.
     """
     os.makedirs(results_path, exist_ok=True)
-    plot_filename = "roc_curve_models.png"
-    plot_path = os.path.join(results_path, plot_filename)
+    plot_path = results_path / "roc_curve_models.png"
 
     # Plot ROC curve
     plt.figure(figsize=(8, 6))
@@ -119,24 +153,41 @@ def save_results_and_plot_roc_curve(
 
     # Save results summary
     results_df = pd.DataFrame(all_results)
-    results_summary_path = os.path.join(results_path, "results_summary.csv")
+    results_summary_path = results_path / "results_summary.csv"
     results_df.to_csv(results_summary_path, index=False)
-    print(f"✅ All runs completed. Results saved to {results_summary_path}")
+    log(INFO, f"✅ All runs completed. Results saved to {results_summary_path}")
 
 
-def prepare_data_for_attack(indices, model_type, models_base_dir, keys_for_deduplication):
+def prepare_data_for_attack(
+    model_indices: list[int], model_type: str, models_base_dir: Path, columns_for_deduplication: list[str]
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Prepares data for an attack by merging and deduplicating datasets.
+
+    Args:
+        model_indices: List of model indices over which to iterate and for which to gather information.
+        model_type: Name of the model type for which we're loading data.
+        models_base_dir: Where the various models' data lives.
+        columns_for_deduplication: Names of columns to use in de-duplicating the dataframes
+
+    Raises:
+        ValueError: Throws if the list of model indices is empty.
+        ValueError: Throws if any of the dataframes to be de-duplicated do not have the specified columns in
+            ``columns_for_deduplication``
+
+    Returns:
+        Tuple of three dataframes corresponding to the merged training data, challenge points, and challenge labels
+        across the various models.
     """
-    if not indices:
+    if len(model_indices) == 0:
         raise ValueError("The 'indices' list is empty. Please provide indices to process datasets.")
 
     df_merge_list = []
     df_challenge_list = []
     df_challenge_labels_list = []
 
-    for t in indices:
-        base_path = models_base_dir / f"{model_type}_{t}"
+    for model_index in model_indices:
+        base_path = models_base_dir / f"{model_type}_{model_index}"
         df_merge_list.append(pd.read_csv(os.path.join(base_path, "train_with_id.csv")))
         df_challenge_list.append(pd.read_csv(os.path.join(base_path, "challenge_with_id.csv")))
         df_challenge_labels_list.append(pd.read_csv(os.path.join(base_path, "challenge_label.csv")))
@@ -146,203 +197,71 @@ def prepare_data_for_attack(indices, model_type, models_base_dir, keys_for_dedup
     df_challenge_labels = pd.concat(df_challenge_labels_list, ignore_index=True)
 
     # Deduplicate the datasets once
-    df_merge = df_merge.drop_duplicates(subset=keys_for_deduplication)
-    df_challenge = df_challenge.drop_duplicates(subset=keys_for_deduplication)
+    df_merge = df_merge.drop_duplicates(subset=columns_for_deduplication)
+    df_challenge = df_challenge.drop_duplicates(subset=columns_for_deduplication)
+    # TODO: Do we need to de-duplicate the labels dataframes as well?
 
     # Ensure all keys for deduplication exist in both DataFrames
-    missing_keys_merge = [key for key in keys_for_deduplication if key not in df_merge.columns]
-    missing_keys_challenge = [key for key in keys_for_deduplication if key not in df_challenge.columns]
+    missing_keys_merge = [key for key in columns_for_deduplication if key not in df_merge.columns]
+    missing_keys_challenge = [key for key in columns_for_deduplication if key not in df_challenge.columns]
     if missing_keys_merge or missing_keys_challenge:
         raise ValueError(f"Missing columns for deduplication: {missing_keys_merge + missing_keys_challenge}")
 
     df_merge_without_challenge = df_merge[
-        ~df_merge.set_index(keys_for_deduplication).index.isin(df_challenge.set_index(keys_for_deduplication).index)
+        ~df_merge.set_index(columns_for_deduplication).index.isin(
+            df_challenge.set_index(columns_for_deduplication).index
+        )
     ]
 
     return df_merge_without_challenge, df_challenge, df_challenge_labels
 
 
-def get_tpr_at_fpr(true_membership: np.ndarray, predictions: np.ndarray, max_fpr: float = 0.1) -> float:
-    """
-    Calculates the best True Positive Rate when the False Positive Rate is at most `max_fpr`.
-    """
-    fpr, tpr, _ = roc_curve(true_membership, predictions)
-    valid_tpr = tpr[fpr <= max_fpr]
-    if len(valid_tpr) == 0:
-        return 0.0
-    return float(max(valid_tpr))
-
-
 def evaluate_attack_performance(
-    indices: list[int] | None,
+    model_indices: list[int],
     description: str,
     tabddpm_data_dir: Path,
     model_type: str,
     predictions_file_name: str,
 ) -> dict[str, float]:
-    if indices is None or len(indices) == 0:
+    """
+    Load saved challenge prediction and label data for a collection of models, concatenate the predictions and labels
+    together and then measure MIA attack success on the concatenation of these values.
+
+    Args:
+        model_indices: Model indices for each of the models prediction and label data that we'll be loading.
+        description: A description of the models being loaded to be logged.
+        tabddpm_data_dir: The top-level data directory where all of the model predictions and labels are stored.
+        model_type: The model type/name being loaded. Together with the model index, this will form a folder name with
+            the structure "{model_type}_{model_index}"
+        predictions_file_name: Name of the prediction file output by all models. This will be the same for all models
+            in question. (Must include file suffix)
+
+    Raises:
+        ValueError: If no model indices are provided.
+
+    Returns:
+        A dictionary containing the TPR@FPR=0.1 and the auc of the combined predictions. These are keyed by
+        "max_tpr" and "roc_auc," respectively.
+    """
+    if len(model_indices) == 0:
         raise ValueError(f"Indices list is empty for {description}. Cannot evaluate attack performance.")
 
     predictions: list[np.ndarray] = []
-    solutions: list[np.ndarray] = []
-    for model_number in tqdm(indices, desc=f"Evaluating on {description} models", unit="model"):
+    labels: list[np.ndarray] = []
+    for model_number in tqdm(model_indices, desc=f"Evaluating on {description} models", unit="model"):
         model_folder = f"{model_type}_{model_number}"
-        path = tabddpm_data_dir / model_folder
-        try:
-            predictions.append(np.loadtxt(path / predictions_file_name))
-            solutions.append(np.loadtxt(path / "challenge_label.csv", skiprows=1))
-        except FileNotFoundError:
-            print(f"Warning: Prediction or label file not found for model {model_number}. Skipping.")
-            continue
+        model_artifacts_path = tabddpm_data_dir / model_folder
 
-    if not predictions:
-        print(f"No predictions found for {description} models.")
-        return {"max_tpr": 0.0, "roc_auc": 0.0}
+        predictions.append(np.loadtxt(model_artifacts_path / predictions_file_name))
+        labels.append(np.loadtxt(model_artifacts_path / "challenge_label.csv", skiprows=1))
+
+    if len(predictions) == 0:
+        raise ValueError("No predictions found!")
 
     predictions_arr = np.concatenate(predictions)
-    solutions_arr = np.concatenate(solutions)
+    solutions_arr = np.concatenate(labels)
 
-    tpr_at_fpr = get_tpr_at_fpr(solutions_arr, predictions_arr)
-    fpr, tpr, _ = roc_curve(solutions_arr, predictions_arr)
-    roc_auc = auc(fpr, tpr)
+    tpr_at_fpr = TprAtFpr.get_tpr_at_fpr(solutions_arr, predictions_arr)
+    roc_auc = roc_auc_score(solutions_arr, predictions_arr)
 
     return {"max_tpr": tpr_at_fpr, "roc_auc": roc_auc}
-
-
-class FastTensorDataLoader:
-    """
-    A DataLoader-like object for a set of tensors that can be much faster than TensorDataset + DataLoader because
-    dataloader grabs individual indices of the dataset and calls cat (slow).
-    Source: https://discuss.pytorch.org/t/dataloader-much-slower-than-manual-batching/27014/6.
-    """
-
-    def __init__(self, *tensors: torch.Tensor, batch_size: int = 32, shuffle: bool = False) -> None:
-        """
-        Initialize a FastTensorDataLoader.
-        :param *tensors: tensors to store. Must have the same length @ dim 0.
-        :param batch_size: batch size to load.
-        :param shuffle: if True, shuffle the data *in-place* whenever an
-            iterator is created out of this object.
-        :returns: A FastTensorDataLoader.
-        """
-        assert all(t.shape[0] == tensors[0].shape[0] for t in tensors)
-        self.tensors = tensors
-        self.dataset_len = self.tensors[0].shape[0]
-        self.batch_size = batch_size
-        self.shuffle = shuffle
-
-        # Calculate # batches
-        n_batches, remainder = divmod(self.dataset_len, self.batch_size)
-        if remainder > 0:
-            n_batches += 1
-        self.n_batches = n_batches
-
-    def __iter__(self) -> "FastTensorDataLoader":
-        if self.shuffle:
-            r = torch.randperm(self.dataset_len)
-            self.tensors = [t[r] for t in self.tensors]
-        self.i = 0
-        return self
-
-    def __next__(self) -> tuple[torch.Tensor, ...]:
-        if self.i >= self.dataset_len:
-            raise StopIteration
-        batch = tuple(t[self.i : self.i + self.batch_size] for t in self.tensors)
-        self.i += self.batch_size
-        return batch
-
-    def __len__(self) -> int:
-        return self.n_batches
-
-
-def prepare_fast_dataloader(dataset: Dataset, split: str, batch_size: int, y_type: str = "float"):
-    """
-    Prepares and yields batches of data from a given dataset for a specified split using FastTensorDataLoader.
-
-    This function combines numerical and categorical features (if available) for the specified split,
-    converts them to PyTorch tensors, and creates a dataloader that yields batches indefinitely.
-    The target variable can be returned as either float or long tensors based on `y_type`.
-
-    Args:
-        dataset (Dataset): The dataset object containing numerical and/or categorical features and targets.
-        split (str): The split of the dataset to use (e.g., "train", "val", "test").
-        batch_size (int): The number of samples per batch.
-        y_type (str, optional): The type of the target tensor, either "float" or "long". Defaults to "float".
-
-    Yields:
-        tuple[torch.Tensor, torch.Tensor]: A tuple containing a batch of features and corresponding targets.
-
-    Note:
-        - If both numerical and categorical features are present, they are concatenated along the feature axis.
-        - The dataloader shuffles data only if the split is "train".
-        - The generator yields batches indefinitely.
-    """
-    if dataset.categorical_features is not None:
-        if dataset.numerical_features is not None:
-            x = torch.from_numpy(
-                np.concatenate([dataset.numerical_features[split], dataset.categorical_features[split]], axis=1)
-            ).float()
-        else:
-            x = torch.from_numpy(dataset.categorical_features[split]).float()
-    else:
-        x = torch.from_numpy(dataset.numerical_features[split]).float()
-    if y_type == "float":
-        y = torch.from_numpy(dataset.target[split]).float()
-    else:
-        y = torch.from_numpy(dataset.target[split]).long()
-    dataloader = FastTensorDataLoader(x, y, batch_size=batch_size, shuffle=(split == "train"))
-    while True:
-        yield from dataloader
-
-
-# def clava_clustering_force_load(tables, relation_order, save_dir, configs):
-#     relation_order_reversed = relation_order[::-1]
-#     all_group_lengths_prob_dicts = {}
-
-#     for parent, child in relation_order_reversed:
-#         if parent is not None:
-#             print(f"Clustering {parent} -> {child}")
-#             if isinstance(configs["clustering"]["num_clusters"], dict):
-#                 num_clusters = configs["clustering"]["num_clusters"][child]
-#             else:
-#                 num_clusters = configs["clustering"]["num_clusters"]
-#             (
-#                 parent_df_with_cluster,
-#                 child_df_with_cluster,
-#                 group_lengths_prob_dicts,
-#             ) = pair_clustering_keep_id(
-#                 tables[child]["df"],
-#                 tables[child]["domain"],
-#                 tables[parent]["df"],
-#                 tables[parent]["domain"],
-#                 f"{child}_id",
-#                 f"{parent}_id",
-#                 num_clusters,
-#                 configs["clustering"]["parent_scale"],
-#                 1,  # not used for now
-#                 parent,
-#                 child,
-#                 clustering_method=configs["clustering"]["clustering_method"],
-#             )
-#             tables[parent]["df"] = parent_df_with_cluster
-#             tables[child]["df"] = child_df_with_cluster
-#             all_group_lengths_prob_dicts[(parent, child)] = group_lengths_prob_dicts
-
-#     for parent, child in relation_order:
-#         if parent is None:
-#             tables[child]["df"]["placeholder"] = list(range(len(tables[child]["df"])))
-
-#     return tables, all_group_lengths_prob_dicts
-
-# def load_configs(config_path):
-#     configs = json.load(open(config_path, "r"))
-
-#     save_dir = os.path.join(configs["general"]["workspace_dir"], configs["general"]["exp_name"])
-#     os.makedirs(save_dir, exist_ok=True)
-#     os.makedirs(os.path.join(save_dir, "models"), exist_ok=True)
-#     os.makedirs(os.path.join(save_dir, "before_matching"), exist_ok=True)
-
-#     with open(os.path.join(save_dir, "args"), "w") as file:
-#         json.dump(configs, file, indent=4)
-
-#     return configs, save_dir
