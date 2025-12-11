@@ -47,7 +47,7 @@ def mixed_loss(
     noise: list[list[float]],
     parallel_batch: int,
     additional_timestep: int,
-    timestep: Tensor,
+    timestep: int,
 ) -> Tensor:
     """
     Compute the loss function for the Tartan Federer classifier.
@@ -70,6 +70,9 @@ def mixed_loss(
     categorical_features = features[:, diffusion_model.num_numerical_features :]
 
     noise_tensor = torch.tensor(noise, device=device, dtype=torch.float)
+    # Here we're repeating the noise tensor for each sample in the dataset so that each point gets the same set of
+    # different noise values. This happens because parallel_batch is set to num_noise_per_time_step in preceding
+    # calling functions
     batch_noise = noise_tensor.repeat(batch_size, 1)
 
     # TODO: Handle the categorical features more effectively. Because the numerical features were originally ignored
@@ -77,15 +80,21 @@ def mixed_loss(
     numerical_features = numerical_features.repeat_interleave(parallel_batch, dim=0)
     categorical_features = categorical_features.repeat_interleave(parallel_batch, dim=0)
 
+    # Note that the shape here is not equivalent to batch_size after the interleave
+    zero_timestep = torch.zeros(numerical_features.shape[0], device=DEVICE).long()
+    current_timestep = zero_timestep + timestep
+
     # forward x_num_t with (t + additional_t) timesteps
     # TODO: Expand this to also include categorical features
     numerical_features_t = diffusion_model.gaussian_q_sample(
-        numerical_features, timestep + additional_timestep, noise=batch_noise
+        numerical_features, current_timestep + additional_timestep, noise=batch_noise
     )
 
     # predict noises with t timesteps
-    predicted_noise = diffusion_model._denoise_fn(numerical_features_t, timestep, **outputs)
-    current_loss = diffusion_model._gaussian_loss(predicted_noise, batch_noise, batch_noise, timestep, batch_noise)
+    predicted_noise = diffusion_model._denoise_fn(numerical_features_t, current_timestep, **outputs)
+    current_loss = diffusion_model._gaussian_loss(
+        predicted_noise, batch_noise, batch_noise, current_timestep, batch_noise
+    )
     return current_loss.reshape(-1, parallel_batch)
 
 
@@ -120,7 +129,7 @@ def make_dataset_from_df_with_loaded(
     )
 
     numerical_features = {"train": data[numerical_column_names].values.astype(np.float32)}
-    categorical_features = {"train": data[categorical_column_names].values.astype(np.float32)}
+    categorical_features = {"train": data[categorical_column_names].to_numpy(dtype=np.str_)}
     targets = {"train": data[[table_metadata.target_column_name]].values.astype(np.float32)}
 
     if len(categorical_column_names) > 0:
@@ -307,8 +316,6 @@ def get_score(
 
         with torch.no_grad():
             # get loss here
-            current_timestep, _ = diffusion_model.sample_time(batch_size, DEVICE)
-
             loss = mixed_loss(
                 diffusion_model=diffusion_model,
                 features=features,
@@ -316,7 +323,7 @@ def get_score(
                 noise=input_noise,
                 parallel_batch=parallel_batch,
                 additional_timestep=additional_timestep,
-                timestep=current_timestep * 0 + timestep,
+                timestep=timestep,
             )
 
     # TODO: Should we be summing this loss or something? We're only going to get the last loss in the iteration.
@@ -347,7 +354,11 @@ def filter_dataframe(
 
 
 def prepare_dataframe(
-    model_dir: Path, merged_data: pd.DataFrame, columns_for_deduplication: list[str], samples_per_train_model: int
+    model_dir: Path,
+    merged_data: pd.DataFrame,
+    columns_for_deduplication: list[str],
+    samples_per_train_model: int,
+    mia_dataset_name: str,
 ) -> pd.DataFrame:
     """
     Prepare the dataframes for Tartan Federer Attack Classifier training.
@@ -358,6 +369,7 @@ def prepare_dataframe(
         merged_data: Dataframe constructed with the ``prepare_data_for_attack`` function.
         columns_for_deduplication: Columns to use in filtering the dataframes.
         samples_per_train_model: Number of samples to draw from the prepared data for model training.
+        mia_dataset_name: Name of the MIA dataset file to be saved.
 
     Returns:
         Filtered dataframe reading for classifier training (or testing)
@@ -370,7 +382,7 @@ def prepare_dataframe(
     data_from_train = raw_data.sample(samples_per_train_model)
 
     df_data = pd.concat([data_exclusive, data_from_train], ignore_index=True)
-    df_data.to_csv(model_dir / "data_for_training_MIA.csv", index=False)
+    df_data.to_csv(model_dir / mia_dataset_name, index=False)
 
     return filter_dataframe(merged_data, df_data, columns_for_deduplication)
 
@@ -421,14 +433,14 @@ def train_tartan_federer_attack_classifier(
     df_train_merge, _, _ = prepare_data_for_attack(
         model_indices=train_indices,
         model_type=model_type,
-        models_base_dir=Path("/projects/midst-experiments/tabddpm_midst_toolkit/train/"),
+        models_base_dir=model_data_dir,
         columns_for_deduplication=columns_for_deduplication,
     )
 
     df_test_merge, _, _ = prepare_data_for_attack(
         model_indices=val_indices,
         model_type=model_type,
-        models_base_dir=Path("/projects/aieng/midst_competition/data/tabddpm"),
+        models_base_dir=model_data_dir,
         columns_for_deduplication=columns_for_deduplication,
     )
 
@@ -461,12 +473,20 @@ def train_tartan_federer_attack_classifier(
 
         if model_number in train_indices:
             df_train_merge = prepare_dataframe(
-                model_dir, df_train_merge, columns_for_deduplication, samples_per_train_model
+                model_dir,
+                df_train_merge,
+                columns_for_deduplication,
+                samples_per_train_model,
+                "data_for_training_MIA.csv",
             )
 
         elif model_number in val_indices:
             df_test_merge = prepare_dataframe(
-                model_dir, df_test_merge, columns_for_deduplication, sample_per_val_model
+                model_dir,
+                df_test_merge,
+                columns_for_deduplication,
+                sample_per_val_model,
+                "data_for_validating_MIA.csv",
             )
 
         timestep_count = 0

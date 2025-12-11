@@ -90,7 +90,9 @@ def load_multi_table_customized(
         with open(domain_path, "r") as domain_file:
             domain = json.load(domain_file)
 
-        info = get_info_from_domain(train_df, domain)
+        id_cols = [col for col in train_df.columns if "_id" in col]
+        df_no_id = train_df.drop(columns=id_cols)
+        info = get_info_from_domain(df_no_id, domain)
 
         tables[table] = Table(
             data=train_df,
@@ -101,9 +103,6 @@ def load_multi_table_customized(
             original_data=train_df.copy(),
             info=info,
         )
-
-        id_cols = [col for col in tables[table].data.columns if "_id" in col]
-        df_no_id = tables[table].data.drop(columns=id_cols)
 
         # Columns containing '?'
         question_mark_cols = (df_no_id == "?").any()
