@@ -31,12 +31,12 @@ def test_tf_attack_whitebox_tiny_config_midst_toolkit():
         "timesteps": [5, 10, 15],
         "additional_timesteps": [0],
         "predictions_file_format": "challenge_label_predictions",
-        "results_path": Path(__file__).parent / "tartan_federer_attack_results",
+        "results_path": Path(__file__).parent / "assets" / "tartan_federer_attack_results",
         "test_indices": [5, 6],
         "train_indices": [1, 2],
         "val_indices": [3, 4],
         "columns_for_deduplication": ["trans_id", "balance"],
-        "meta_dir": Path(__file__).parent / "data_configs",
+        "meta_dir": Path(__file__).parent / "assets" / "data_configs",
         "classifier_learning_rate": 1e-4,
     }
 
