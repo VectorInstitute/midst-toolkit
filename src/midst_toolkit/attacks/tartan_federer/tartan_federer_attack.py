@@ -22,7 +22,7 @@ from midst_toolkit.attacks.tartan_federer.data_utils import (
     prepare_population_dataset_for_attack,
 )
 from midst_toolkit.common.enumerations import DataSplit
-from midst_toolkit.common.logger import log
+from midst_toolkit.common.logger import configure, log
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
 from midst_toolkit.models.clavaddpm.dataset import (
@@ -621,12 +621,15 @@ def tartan_federer_attack(
         meta_dir: Directory containing metadata about the datasets, including a file named `dataset_meta.json`.
         target_model_subdir: Sub-directory within each model directory containing the trained diffusion model
                              checkpoint.
-        results_path: Directory where the attack results and the binary classifier will be saved.
+        results_path: Directory where the training log, attack results, and the binary classifier will be saved.
         save_results: Boolean flag indicating whether to save the results to a text file. Defaults to True.
 
     Returns:
         A tuple containing the MIA performance metrics for the training, validation, and test datasets.
     """
+    configure(identifier="tartan_federer_attack", filename=str(results_path / "tartan_federer_attack.log"))
+    log(INFO, "Starting Tartan Federer Attack.")
+
     os.makedirs(results_path, exist_ok=True)
     val_indices = [] if val_indices is None else val_indices
 
@@ -700,21 +703,16 @@ def tartan_federer_attack(
         test_indices, "final", model_data_dir, model_type, predictions_file_name
     )
 
-    log(INFO, "MIA performance for training set:")
-    log(INFO, mia_performance_train)
-    log(INFO, "MIA performance for test set:")
-    log(INFO, mia_performance_val)
-    log(INFO, "MIA performance for final set:")
-    log(INFO, mia_performance_test)
-
     if save_results:
-        with open(results_path / "mia_performance.txt", "w") as f:
-            f.write("MIA performance for training set:\n")
-            f.write(str(mia_performance_train) + "\n")
-            f.write("MIA performance for validation set:\n")
-            f.write(str(mia_performance_val) + "\n")
-            f.write("MIA performance for test set:\n")
-            f.write(str(mia_performance_test) + "\n")
-        print(f"MIA performance results saved to {results_path / 'mia_performance.txt'}")
+        configure(
+            identifier="tartan_federer_attack_results",
+            filename=str(results_path / "tartan_federer_attack_results.log"),
+        )
+        log(INFO, "MIA performance for training set:")
+        log(INFO, mia_performance_train)
+        log(INFO, "MIA performance for test set:")
+        log(INFO, mia_performance_val)
+        log(INFO, "MIA performance for final set:")
+        log(INFO, mia_performance_test)
 
     return mia_performance_train, mia_performance_val, mia_performance_test
