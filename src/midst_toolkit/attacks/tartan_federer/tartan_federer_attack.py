@@ -19,7 +19,7 @@ from midst_toolkit.attacks.tartan_federer.data_utils import (
     CustomUnpickler,
     evaluate_attack_performance,
     load_multi_table_customized,
-    prepare_data_for_attack,
+    prepare_population_dataset_for_attack,
 )
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import log
@@ -366,7 +366,7 @@ def prepare_dataframe(
     Args:
         model_dir: Model directory from which to load data. This directory must contain a file named
             "train_with_id.csv" and "data_for_training_MIA.csv"
-        merged_data: Dataframe constructed with the ``prepare_data_for_attack`` function.
+        merged_data: Dataframe constructed with the ``prepare_population_dataset_for_attack`` function.
         columns_for_deduplication: Columns to use in filtering the dataframes.
         samples_per_model: Number of samples to draw from the prepared data for model training.
         mia_dataset_name: Name of the MIA dataset file to be saved.
@@ -409,42 +409,46 @@ def train_tartan_federer_attack_classifier(
     Train a Tartan Federer MIA classifier using the provided information.
 
     Args:
-        train_indices: Model indices associated with training the classifier
-        val_indices: Model indices for validating the trained classifier
-        timesteps: Values of the time step `t` to be used in the loss computation.
-        columns_for_deduplication: Columns to be used in de-duplication of the dataframe for training. For example,
-            this list is ["trans_id", "balance"] for the Berka dataset in the MIDST competition.
-        additional_timesteps: Additional values to be passed to the loss function.
-        num_noise_per_time_step: How many noise values to use for each specified time step.
-        samples_per_train_model: _description_
-        sample_per_val_model: _description_
-        classifier_num_epochs: _description_
-        classifier_hidden_dim: _description_
-        classifier_learning_rate: _description_
-        model_type: _description_
-        model_data_dir: _description_
-        results_path: _description_
-        target_model_subdir: _description_
-        meta_dir: _description_
+        train_indices: List of model indices used to extract features for training the binary classifier.
+        val_indices: List of model indices used to extract features for validating the binary classifier.
+        timesteps: List of timesteps of the diffusion model to be used in the loss computation.
+        columns_for_deduplication: List of column names used to ensure that training, validation, and test datasets
+                                   are distinct. For example, this list might include ["trans_id", "balance"] for the
+                                   Berka dataset in the MIDST competition.
+        additional_timesteps: List of additional timesteps to be used in the loss computation.
+        num_noise_per_time_step: Number of Gaussian noise samples to be used for each timestep in the loss computation.
+        samples_per_train_model: Number of samples drawn from the training data (members) of train indices and
+                                 non-members for training the binary classifier.
+        sample_per_val_model: Number of samples drawn from the training data (members) of validation indices and
+                              non-members for validating the binary classifier.
+        classifier_num_epochs: Number of epochs used to train the MLP as the binary classifier.
+        classifier_hidden_dim: The width of the 3-layer MLP trained as the binary classifier.
+        classifier_learning_rate: Learning rate used to train the binary classifier.
+        model_type: Type of diffusion model, e.g., "tabddpm" for ClavaDDPM-single-table.
+        model_data_dir: Base directory containing all the trained diffusion models.
+        results_path: Directory where the attack results will be saved.
+        target_model_subdir: Sub-directory within each model directory containing the trained diffusion model
+                             checkpoint.
+        meta_dir: Directory containing metadata about the datasets, including a file named `dataset_meta.json`.
 
     Returns:
-        _description_
+        A tuple containing the noise samples used in the loss computation and the trained classifier model.
     """
-    df_train_merge, _, _ = prepare_data_for_attack(
+    population_df_for_training = prepare_population_dataset_for_attack(
         model_indices=train_indices,
         model_type=model_type,
         models_base_dir=model_data_dir,
         columns_for_deduplication=columns_for_deduplication,
     )
 
-    df_test_merge, _, _ = prepare_data_for_attack(
+    population_df_for_validation = prepare_population_dataset_for_attack(
         model_indices=val_indices,
         model_type=model_type,
         models_base_dir=model_data_dir,
         columns_for_deduplication=columns_for_deduplication,
     )
 
-    noise_dimension = len([col for col in df_train_merge.columns if "_id" not in col])
+    noise_dimension = len([col for col in population_df_for_training.columns if "_id" not in col])
     input_noise = [np.random.normal(size=noise_dimension).tolist() for _ in range(num_noise_per_time_step)]
     input_dimension = len(input_noise) * len(timesteps) * len(additional_timesteps)
 
@@ -472,18 +476,18 @@ def train_tartan_federer_attack_classifier(
         model_path = model_dir / target_model_subdir
 
         if model_number in train_indices:
-            df_train_merge = prepare_dataframe(
+            population_df_for_training = prepare_dataframe(
                 model_dir,
-                df_train_merge,
+                population_df_for_training,
                 columns_for_deduplication,
                 samples_per_train_model,
                 "data_for_training_MIA.csv",
             )
 
         elif model_number in val_indices:
-            df_test_merge = prepare_dataframe(
+            population_df_for_validation = prepare_dataframe(
                 model_dir,
-                df_test_merge,
+                population_df_for_validation,
                 columns_for_deduplication,
                 sample_per_val_model,
                 "data_for_validating_MIA.csv",
@@ -587,33 +591,41 @@ def tartan_federer_attack(
     meta_dir: Path,
     target_model_subdir: Path,
     results_path: Path,
+    save_results: bool = True,
 ) -> tuple[Any, Any, Any]:
     """
-    _summary_.
+    Executes the Tartan Federer Membership Inference Attack (MIA) on a set of diffusion models.
 
     Args:
-        train_indices: _description_
-        val_indices: _description_
-        test_indices: _description_
-        columns_for_deduplication: Columns to be used in de-duplication of the dataframe for training. For example,
-            this list is ["trans_id", "balance"] for the Berka dataset in the MIDST competition.
-        timesteps: _description_
-        additional_timesteps: _description_
-        num_noise_per_time_step: _description_
-        samples_per_train_model: _description_
-        sample_per_val_model: _description_
-        classifier_num_epochs: _description_
-        classifier_hidden_dim: _description_
-        classifier_learning_rate: _description_
-        model_type: _description_
-        predictions_file_format: _description_
-        model_data_dir: _description_
-        meta_dir: _description_
-        target_model_subdir: _description_
-        results_path: _description_
+        train_indices: List of model indices used to extract features for training the binary classifier.
+        val_indices: List of model indices used to extract features for validating the binary classifier.
+                     If None, no validation is performed.
+        test_indices: List of model indices to report the final MIA performance on their respective challenge points.
+        columns_for_deduplication: List of column names used to ensure that training, validation, and test datasets
+                                   are distinct. For example, this list might include ["trans_id", "balance"] for the
+                                   Berka dataset in the MIDST competition.
+        timesteps: List of timesteps of the diffusion model to be used in the loss computation.
+        additional_timesteps: List of additional timesteps to be used in the loss computation for the multi-table
+                              attack. Defaults to [0] for single-table attacks.
+        num_noise_per_time_step: Number of Gaussian noise samples to be used for each timestep in the loss computation.
+        samples_per_train_model: Number of samples drawn from the training data (members) of train indices and
+                                 non-members for training the binary classifier.
+        sample_per_val_model: Number of samples drawn from the training data (members) of validation indices and
+                              non-members for validating the binary classifier.
+        classifier_num_epochs: Number of epochs used to train the MLP as the binary classifier.
+        classifier_hidden_dim: The width of the 3-layer MLP trained as the binary classifier.
+        classifier_learning_rate: Learning rate used to train the binary classifier.
+        model_type: Type of diffusion model, e.g., "tabddpm" for ClavaDDPM-single-table.
+        predictions_file_format: Format for naming the MIA prediction files.
+        model_data_dir: Base directory containing all the trained diffusion models.
+        meta_dir: Directory containing metadata about the datasets, including a file named `dataset_meta.json`.
+        target_model_subdir: Sub-directory within each model directory containing the trained diffusion model
+                             checkpoint.
+        results_path: Directory where the attack results and the binary classifier will be saved.
+        save_results: Boolean flag indicating whether to save the results to a text file. Defaults to True.
 
     Returns:
-        _description_
+        A tuple containing the MIA performance metrics for the training, validation, and test datasets.
     """
     os.makedirs(results_path, exist_ok=True)
     val_indices = [] if val_indices is None else val_indices
@@ -694,5 +706,15 @@ def tartan_federer_attack(
     log(INFO, mia_performance_val)
     log(INFO, "MIA performance for final set:")
     log(INFO, mia_performance_test)
+
+    if save_results:
+        with open(results_path / "mia_performance.txt", "w") as f:
+            f.write("MIA performance for training set:\n")
+            f.write(str(mia_performance_train) + "\n")
+            f.write("MIA performance for validation set:\n")
+            f.write(str(mia_performance_val) + "\n")
+            f.write("MIA performance for test set:\n")
+            f.write(str(mia_performance_test) + "\n")
+        print(f"MIA performance results saved to {results_path / 'mia_performance.txt'}")
 
     return mia_performance_train, mia_performance_val, mia_performance_test
