@@ -1,6 +1,0 @@
-MIA performance for training set:
-{'max_tpr': 0.08, 'roc_auc': 0.4469875}
-MIA performance for validation set:
-{'max_tpr': 0.125, 'roc_auc': 0.5054624999999999}
-MIA performance for test set:
-{'max_tpr': 0.115, 'roc_auc': 0.4937875}

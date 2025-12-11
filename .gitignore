@@ -55,7 +55,7 @@ examples/synthesizing/multi_table/results/**
 
 # Test artifacts
 tests/integration/attacks/tartan_federer/assets/tabddpm_models/**/challenge_label_predictions.csv
-
+tests/integration/attacks/tartan_federer/assets/tartan_federer_attack_results
 # Training Logs
 *.err
 *.out
