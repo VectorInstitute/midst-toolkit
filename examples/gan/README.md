@@ -14,7 +14,7 @@ extract the files and place them in a `/data` folder in within this folder
 
 > [!NOTE]
 > If you wish to change the data folder, you can do so by editing the `base_data_dir` attribute
-> of the (`config.yaml`)[config.yaml] file.
+> of the [`config.yaml`](config.yaml) file.
 
 Here is a description of the files that have been extracted:
 - `trans.csv`: The training data. It consists of information about bank transactions and it
@@ -42,7 +42,7 @@ The result files will be saved inside a `/results` folder within this folder
 
 > [!NOTE]
 > If you wish to change the save folder, you can do so by editing the `results_dir` attribute
-> of the (`config.yaml`)[config.yaml] file.
+> of the [`config.yaml`](config.yaml) file.
 
 In the `/results` folder, there will be a file called `trained_ctgan_model.pkl`,
 which is a pickle file containing the trained model. You can load it using CTGAN's
@@ -54,7 +54,7 @@ from ctgan import CTGAN
 
 results_file = Path("examples/gan/results/trained_ctgan_model.pkl")
 
-ctgan = CTGAN.load()
+ctgan = CTGAN.load(results_file)
 ```
 
 ## Synthesizing data
@@ -87,9 +87,9 @@ python -m midst_toolkit.evaluation.quality.scripts.midst_alpha_precision_eval \
 
 It will save the evaluation results under the `/results/model.txt` file.
 
-###  Additional Metrics
+### Additional Metrics
 
-The calculation of assitional metrics are set up in the `evaluate.py` file. They are the
+The calculation of additional metrics are set up in the `evaluate.py` file. They are the
 Kolmogorov-Smirnov (KS) test, Total Variation Distance (TVD), Correlation Matrix Difference
 and Mutual Information Difference.
 
