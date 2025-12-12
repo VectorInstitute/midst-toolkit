@@ -475,8 +475,6 @@ def train_tartan_federer_attack_classifier(
         model_path = model_dir / target_model_subdir
 
         if model_number in train_indices:
-            print("Preparing training dataframe...")
-            print(f"Model dir: {model_dir}")
             population_df_for_training = prepare_dataframe(
                 model_dir,
                 population_df_for_training,
@@ -530,7 +528,6 @@ def train_tartan_federer_attack_classifier(
                     timestep_count += 1
 
                 elif val_indices is not None and model_number in val_indices:
-                    print("Getting validation scores...")
                     batch_size = sample_per_val_model * 2
                     predictions = get_score(
                         model_dir,
@@ -560,7 +557,6 @@ def train_tartan_federer_attack_classifier(
             train_count += 1
         elif val_indices is not None and model_number in val_indices:
             val_count += 1
-    print("Val count:", val_count)
     fitted_regression_model = fit_model(
         regression_model=regression_model,
         train_features=x_train,
