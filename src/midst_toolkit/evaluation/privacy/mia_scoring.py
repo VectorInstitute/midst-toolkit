@@ -256,6 +256,30 @@ class TprAtFpr(AttackScore):
             else:
                 self.tpr_at_fprs[formatted_score_key] = 0.0
 
+    @classmethod
+    def get_tpr_at_fpr(
+        cls, true_membership: np.ndarray, predicted_membership: np.ndarray, fpr_threshold: float = 0.1
+    ) -> float:
+        """
+        Simplified class method for when you just need a quick and dirty calculation of TPR at a single FPR threshold.
+
+        Args:
+            true_membership: Array of true binary labels (0 or 1).
+            predicted_membership: A list of values in the range [0,1] indicating the confidence that a challenge point
+                is a member. The closer the value to 1, the more confident the predictor is about the hypothesis that
+                the challenge point is a member.
+            fpr_threshold: Maximum False Positive Rate threshold. Defaults to 0.1.
+
+        Returns:
+            TPR at the specified FPR threshold.
+        """
+        fpr, tpr, _ = roc_curve(true_membership, predicted_membership)
+        valid_tpr = tpr[fpr <= fpr_threshold]
+
+        if len(valid_tpr) == 0:
+            return 0.0
+        return float(max(valid_tpr))
+
     def to_dict(self) -> dict[str, float | np.ndarray]:
         """
         Converts the computed TPR at FPR metrics at various thresholds into a dictionary for processing or reporting.
