@@ -26,7 +26,7 @@ To run the steps first make sure to activate your virtual environment and adjust
 
 
 ```bash
-python -m examples.ensemble_attack.run_attack
+python -m examples.tartan_federer_attack.run_attack
 ```
 
 Or you can directly run the bash script:
