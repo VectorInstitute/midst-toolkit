@@ -1,12 +1,10 @@
 import os
-import importlib
 from logging import INFO
 from pathlib import Path
-import pandas as pd
-from typing import Any, Dict, cast
-
+from typing import Any, cast
 
 import hydra
+import pandas as pd
 from omegaconf import DictConfig, OmegaConf
 
 from midst_toolkit.attacks.tartan_federer.tartan_federer_attack import tartan_federer_attack
@@ -14,13 +12,11 @@ from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 
 
-
-
 def prepare_population_dataset_for_attack(
-    model_indices: list[int], 
-    model_type: str, 
-    models_base_dir: Path, 
-    columns_for_deduplication: list[str], 
+    model_indices: list[int],
+    model_type: str,
+    models_base_dir: Path,
+    columns_for_deduplication: list[str],
 ) -> pd.DataFrame:
     """
     Prepares data for an attack by merging and deduplicating datasets.
@@ -68,12 +64,13 @@ def prepare_population_dataset_for_attack(
             df_challenge.set_index(columns_for_deduplication).index
         )
     ]
-    
+
 
 def run_data_processing(config: dict[str, Any]) -> None:
     """
     Run the data processing pipeline for the Tartan–Federer attack example.
     This function prepares the population datasets required for training and validating the attack.
+
     Args:
         config: Attack configuration as an OmegaConf DictConfig object.
     """
@@ -81,7 +78,6 @@ def run_data_processing(config: dict[str, Any]) -> None:
 
     # 🔑 Hydra → plain Python
     Path(config["data_paths"]["population_data_path"]).mkdir(parents=True, exist_ok=True)
-
 
     population_data_for_training_attack = prepare_population_dataset_for_attack(
         model_indices=config["data_processing_config"]["population_attack_indices_to_collect_for_training"],
@@ -94,8 +90,7 @@ def run_data_processing(config: dict[str, Any]) -> None:
         Path(config["data_paths"]["population_data_path"]) / "population_dataset_for_training_attack.csv",
         index=False,
     )
-    
-    
+
     population_data_for_validating_attack = prepare_population_dataset_for_attack(
         model_indices=config["data_processing_config"]["population_attack_indices_to_collect_for_validation"],
         model_type=config["data_processing_config"]["model_type"],
@@ -114,24 +109,21 @@ def run_data_processing(config: dict[str, Any]) -> None:
 @hydra.main(config_path="configs", config_name="experiment_config", version_base=None)
 def run_attack(config: DictConfig) -> None:
     """
-        Run the Tartan–Federer attack example pipeline.
-        Args:
-            config: Attack configuration as an OmegaConf DictConfig object.
-    """
+    Run the Tartan–Federer attack example pipeline.
 
+    Args:
+        config: Attack configuration as an OmegaConf DictConfig object.
+    """
     log(INFO, "Running Tartan–Federer attack...")
-    
+
     set_all_random_seeds(
         seed=133742,
         use_deterministic_torch_algos=True,
         disable_torch_benchmarking=True,
     )
 
+    cfg = cast(dict[str, Any], OmegaConf.to_container(config, resolve=True))
 
-
-    cfg = cast(Dict[str, Any], OmegaConf.to_container(config, resolve=True))
-
-    
     if config["pipeline"]["run_data_processing"]:
         run_data_processing(cfg)
 
@@ -158,7 +150,7 @@ def run_attack(config: DictConfig) -> None:
         classifier_num_epochs=classifier_cfg["num_epochs"],
         classifier_learning_rate=classifier_cfg["learning_rate"],
         meta_dir=Path(config["data_paths"]["metadata_dir"]),
-        population_data_dir= Path(data_cfg["population_data_path"])
+        population_data_dir=Path(data_cfg["population_data_path"]),
     )
 
     unset_all_random_seeds()
