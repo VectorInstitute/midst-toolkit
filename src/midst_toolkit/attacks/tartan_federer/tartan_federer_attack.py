@@ -98,6 +98,7 @@ def mixed_loss(
     return current_loss.reshape(-1, parallel_batch)
 
 
+# TODO: Unify this with the Dataset.from_df function.
 def make_dataset_from_df_with_loaded(
     data: pd.DataFrame,
     transformation: Transformations,
@@ -108,10 +109,10 @@ def make_dataset_from_df_with_loaded(
     noise_scale: float = 0,
 ) -> Dataset:
     """
-    Create a dataset using artifacts drawn from a checkpoint.
+    Create a dataset using artifacts.
 
     Args:
-        data: Raw data to be used for the checkpoint.
+        data: Raw data to be used for creating the dataset.
         transformation: Transformations that one might apply to the dataset, including NaN policies etc.
         is_target_conditioned: Enum indicating how, if at all, the model uses a target for generation conditioning.
         table_metadata: Meta data about the table or tables.
@@ -127,13 +128,12 @@ def make_dataset_from_df_with_loaded(
         table_metadata,
         is_target_conditioned,
     )
-
-    numerical_features = {"train": data[numerical_column_names].values.astype(np.float32)}
-    categorical_features = {"train": data[categorical_column_names].to_numpy(dtype=np.str_)}
-    targets = {"train": data[[table_metadata.target_column_name]].values.astype(np.float32)}
+    numerical_features = {DataSplit.TRAIN.value: data[numerical_column_names].values.astype(np.float32)}
+    categorical_features = {DataSplit.TRAIN.value: data[categorical_column_names].to_numpy(dtype=np.str_)}
+    targets = {DataSplit.TRAIN.value: data[[table_metadata.target_column_name]].values.astype(np.float32)}
 
     if len(categorical_column_names) > 0:
-        all_categorical_features = categorical_features["train"]
+        all_categorical_features = categorical_features[DataSplit.TRAIN.value]
         encoded_categorical_features = []
         for column_index in range(all_categorical_features.shape[1]):
             encoded_column = (
@@ -144,11 +144,11 @@ def make_dataset_from_df_with_loaded(
                 encoded_column += np.random.normal(0, noise_scale, encoded_column.shape)
             encoded_categorical_features.append(encoded_column)
 
-        categorical_features["train"] = np.vstack(encoded_categorical_features).T
+        categorical_features[DataSplit.TRAIN.value] = np.vstack(encoded_categorical_features).T
 
     if len(numerical_column_names) >= 0:
-        numerical_features["train"] = np.concatenate(
-            (numerical_features["train"], categorical_features["train"]), axis=1
+        numerical_features[DataSplit.TRAIN.value] = np.concatenate(
+            (numerical_features[DataSplit.TRAIN.value], categorical_features[DataSplit.TRAIN.value]), axis=1
         )
     else:
         numerical_features = categorical_features
@@ -186,17 +186,13 @@ def get_dataset(
         batch_size: Size of the batches for the data loader. Defaults to 32.
         meta_dir: A separate path containing the meta data information about the tables and datasets.
             If None, this function looks for 'dataset_meta.json' in the ``data_dir`` path. Defaults to Path("").
-        meta_dir: An optional separate path containing the meta data information about the tables and datasets.
-            If None, this function looks for 'dataset_meta.json' in the ``data_dir`` path. Defaults to None.
-        train_name: Name of the file containing the table data. This should exist in the ``data_dir`` path.
-            Defaults to "train.csv".
 
     Raises:
         NotImplementedError: If we're trying to load a multi-table dataset, as the attack isn't implemented for
             multi-table yet.
 
     Returns:
-        A tuple with a dataloader, size of the dataset, and dataset object.
+        A list of tuples with a dataloader, size of the dataset, and dataset object.
     """
     tables, relation_order, _ = load_multi_table_customized(data_path, meta_dir=meta_dir, train_name=train_name)
 
@@ -227,10 +223,10 @@ def get_dataset(
             label_encoders=model.label_encoders,
         )
         if dataset.numerical_features is not None:
-            dataset.numerical_features["test"] = dataset.numerical_features["train"]
+            dataset.numerical_features[DataSplit.TEST.value] = dataset.numerical_features[DataSplit.TRAIN.value]
         if dataset.categorical_features is not None:
-            dataset.categorical_features["test"] = dataset.categorical_features["train"]
-        dataset.target["test"] = dataset.target["train"]
+            dataset.categorical_features[DataSplit.TEST.value] = dataset.categorical_features[DataSplit.TRAIN.value]
+        dataset.target[DataSplit.TEST.value] = dataset.target[DataSplit.TRAIN.value]
 
         train_loader = prepare_fast_dataloader(
             dataset,
@@ -239,7 +235,7 @@ def get_dataset(
             target_type=TargetType.LONG,
         )
         assert dataset.numerical_features is not None, "Numerical features are assumed to be present for this attack"
-        train_loader_list.append((train_loader, dataset.numerical_features["test"].shape[0], dataset))
+        train_loader_list.append((train_loader, dataset.numerical_features[DataSplit.TEST.value].shape[0], dataset))
 
         return train_loader_list
 
@@ -265,7 +261,7 @@ def get_score(
         data_path: Path to the dataset.
         save_dir: Directory where model checkpoints are saved.
         input_noise: List of noise values to be used in the loss computation.
-        model_type: Type of model to use (e.g., "tabddpm").
+        model_type: Type of model to use. Currently, only "tabddpm" is supported.
         meta_dir: Path to the metadata directory.
         challenge_name: Name of the challenge dataset.
         batch_size: Batch size for data loading.
@@ -280,6 +276,7 @@ def get_score(
         ValueError: If the specified `model_type` is not supported.
         AssertionError: If required model checkpoint files are not found or if `iter_max` is not equal to 1.
     """
+    # TODO: This needs to be an Enum.
     if model_type == "tabddpm":
         relation_order = [("None", "trans")]
     elif model_type == "tabsyn":
@@ -623,7 +620,7 @@ def tartan_federer_attack(
                              checkpoint.
         results_path: Directory where the training log, attack results, and the binary classifier will be saved.
         save_results: Boolean flag indicating whether to save the results to a text file. Defaults to True.
-    '/Users/david/Desktop/VectorRepositories/midst-toolkit/tests/integration/attacks/tartan_federer/assets/tartan_federer_attack_results/tartan_federer_attack.log'
+
     Returns:
         A tuple containing the MIA performance metrics for the training, validation, and test datasets.
     """
