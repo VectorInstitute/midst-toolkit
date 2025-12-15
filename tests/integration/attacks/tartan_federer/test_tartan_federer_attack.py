@@ -100,7 +100,6 @@ def test_tf_attack_whitebox_tiny_config_midst_toolkit_single_model():
     }
 
     mia_performance_train, mia_performance_val, mia_performance_test = tartan_federer_attack(**config)
-    print(mia_performance_train, mia_performance_val, mia_performance_test)
     roc_auc_train = mia_performance_train["roc_auc"]
     tpr_at_fpr_train = mia_performance_train["max_tpr"]
     roc_auc_val = mia_performance_val["roc_auc"]
@@ -156,7 +155,6 @@ def test_tf_attack_whitebox_tiny_config_midst_toolkit_no_validation():
     }
 
     mia_performance_train, mia_performance_val, mia_performance_test = tartan_federer_attack(**config)
-    print(mia_performance_train, mia_performance_val, mia_performance_test)
     roc_auc_train = mia_performance_train["roc_auc"]
     tpr_at_fpr_train = mia_performance_train["max_tpr"]
     roc_auc_test = mia_performance_test["roc_auc"]
