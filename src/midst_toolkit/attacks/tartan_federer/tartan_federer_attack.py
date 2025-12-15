@@ -19,7 +19,6 @@ from midst_toolkit.attacks.tartan_federer.data_utils import (
     CustomUnpickler,
     evaluate_attack_performance,
     load_multi_table_customized,
-    # prepare_population_dataset_for_attack,
 )
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import log
