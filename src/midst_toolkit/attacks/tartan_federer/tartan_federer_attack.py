@@ -443,7 +443,6 @@ def train_tartan_federer_attack_classifier(
     Returns:
         A tuple containing the noise samples used in the loss computation and the trained classifier model.
     """
-
     population_df_for_training = pd.read_csv(population_data_dir / "population_dataset_for_training_attack.csv")
     log(INFO, "Population datasets for training loaded.")
     population_df_for_validation = pd.read_csv(population_data_dir / "population_dataset_for_validating_attack.csv")

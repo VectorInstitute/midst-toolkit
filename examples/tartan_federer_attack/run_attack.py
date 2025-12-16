@@ -56,8 +56,10 @@ def prepare_population_dataset_for_attack(
     missing_keys_merge = [key for key in columns_for_deduplication if key not in df_merge.columns]
     missing_keys_challenge = [key for key in columns_for_deduplication if key not in df_challenge.columns]
     if missing_keys_merge or missing_keys_challenge:
-        raise ValueError(f"Missing columns for deduplication in training data: {missing_keys_merge}"
-                         + f" and in challenge data: {missing_keys_challenge}")
+        raise ValueError(
+            f"Missing columns for deduplication in training data: {missing_keys_merge}"
+            + f" and in challenge data: {missing_keys_challenge}"
+        )
 
     # Remove challenge entries from the merged dataset
     return df_merge[
@@ -79,7 +81,6 @@ def run_data_processing(config: dict[str, Any]) -> None:
 
     population_data_path = Path(config["data_paths"]["population_data_path"])
     population_data_path.mkdir(parents=True, exist_ok=True)
-
 
     population_data_for_training_attack = prepare_population_dataset_for_attack(
         model_indices=config["data_processing_config"]["population_attack_indices_to_collect_for_training"],

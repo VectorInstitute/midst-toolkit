@@ -2,7 +2,7 @@
 
 This example runs a Tartan–Federer membership inference attack using trained TabDDPM models. The pipeline optionally performs a data processing step to prepare population datasets for tratining and validating the attack and then executes the attack using the trained classifier.
 
-## 
+##
 
 ## Data Processing
 

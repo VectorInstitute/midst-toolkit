@@ -10,7 +10,7 @@ pipeline:
 data_paths:
   midst_data_path: examples/tartan_federer_attack/tabddpm_20k_experiment_data/tabddpm_white_box # Used to collect the data
   population_data_path: ${base_experiment_dir}/population_data # Path where the processed population data will be stored
-  metadata_dir: ${base_experiment_dir}/data_configs # Path where dataset metadata file ('dataset_meta.json') should be stored 
+  metadata_dir: ${base_experiment_dir}/data_configs # Path where dataset metadata file ('dataset_meta.json') should be stored
 
 
 # Dataset specific information used for processing in this example
