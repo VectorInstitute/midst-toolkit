@@ -27,12 +27,12 @@ def get_table_name(base_data_dir: Path) -> str:
     return list(dataset_meta["tables"].keys())[0]
 
 
-def get_metadata(
+def get_single_table_svd_metadata(
     data: pd.DataFrame,
     domain_dictionary: dict[str, Any] | None = None,
 ) -> tuple[SingleTableMetadata, pd.DataFrame]:
     """
-    Get the metadata for a single-table dataset.
+    Get the metadata for a single-table dataset for SDV models.
 
     Args:
         data: The dataframe containing the data.
@@ -43,7 +43,7 @@ def get_metadata(
     """
     metadata = SingleTableMetadata()
     data_without_ids = data.drop(columns=[column_name for column_name in data.columns if "_id" in column_name])
-    metadata.detect_from_dataframe(data_without_ids)
+    metadata.detect_from_dataframe(data_without_ids)  # Starts up the metadata info from the dataframe's columns.
 
     if domain_dictionary is not None:
         for column_name in data_without_ids.columns:

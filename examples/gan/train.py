@@ -7,7 +7,7 @@ import pandas as pd
 from omegaconf import DictConfig
 from sdv.single_table import CTGANSynthesizer  # type: ignore[import-untyped]
 
-from examples.gan.utils import get_metadata, get_table_name
+from examples.gan.utils import get_single_table_svd_metadata, get_table_name
 from midst_toolkit.common.logger import log
 
 
@@ -31,7 +31,7 @@ def main(config: DictConfig) -> None:
 
     real_data = pd.read_csv(Path(config.base_data_dir) / f"{table_name}.csv")
 
-    metadata, real_data_without_ids = get_metadata(real_data, domain_info)
+    metadata, real_data_without_ids = get_single_table_svd_metadata(real_data, domain_info)
 
     log(INFO, "Fitting CTGAN...")
 
