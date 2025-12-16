@@ -170,9 +170,3 @@ def test_tf_attack_whitebox_tiny_config_midst_toolkit_no_validation():
 
     unset_all_random_seeds()
     os.environ.pop("CUBLAS_WORKSPACE_CONFIG", None)
-
-
-if __name__ == "__main__":
-    test_tf_attack_whitebox_tiny_config_midst_toolkit()
-    test_tf_attack_whitebox_tiny_config_midst_toolkit_single_model()
-    test_tf_attack_whitebox_tiny_config_midst_toolkit_no_validation()

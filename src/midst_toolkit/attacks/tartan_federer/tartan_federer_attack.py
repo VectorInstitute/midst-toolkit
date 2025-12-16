@@ -443,8 +443,11 @@ def train_tartan_federer_attack_classifier(
     Returns:
         A tuple containing the noise samples used in the loss computation and the trained classifier model.
     """
+
     population_df_for_training = pd.read_csv(population_data_dir / "population_dataset_for_training_attack.csv")
+    log(INFO, "Population datasets for training loaded.")
     population_df_for_validation = pd.read_csv(population_data_dir / "population_dataset_for_validating_attack.csv")
+    log(INFO, "Population datasets for validating loaded.")
 
     noise_dimension = len([col for col in population_df_for_training.columns if "_id" not in col])
     input_noise = [np.random.normal(size=noise_dimension).tolist() for _ in range(num_noise_per_time_step)]
@@ -466,7 +469,6 @@ def train_tartan_federer_attack_classifier(
     train_count = 0
     val_count = 0
 
-    # val_indices = [] if val_indices is None else val_indices
     model_folders_indices = train_indices if val_indices is None else train_indices + val_indices
     for model_number in tqdm(model_folders_indices, desc="Processing models", unit="model"):
         model_folder = f"{model_type}_{model_number}"

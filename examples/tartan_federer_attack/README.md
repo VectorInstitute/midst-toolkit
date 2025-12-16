@@ -1,12 +1,13 @@
 # Tartan Federer Attack
 
-This example runs a Tartan–Federer membership inference attack using trained TabDDPM models. The pipeline optionally performs a data processing step to prepare population datasets and then executes the attack using a binary classifier.
+This example runs a Tartan–Federer membership inference attack using trained TabDDPM models. The pipeline optionally performs a data processing step to prepare population datasets for tratining and validating the attack and then executes the attack using the trained classifier.
+
+## 
 
 ## Data Processing
 
-The data processing step constructs population datasets representing the real data available to the attacker.
-
-A selected subset of `train_with_id.csv` files is collected from `tabddpm_1` to `tabddpm_6` located under:
+#TODO: Train 30 target models with real data and synthetic data in the same way of the MIDST # competition and store them under attack_config.models_base_dir. Upload them to a google # drive and add the link here.
+The data processing step constructs population datasets resembling the real data available to the attacker. A selected subset of `train_with_id.csv` files is collected from `tabddpm_1` to `tabddpm_6` located under:
 
 ```
 examples/tartan_federer_attack/tabddpm_trained_with_20k/tabddpm_white_box

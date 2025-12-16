@@ -1,5 +1,4 @@
 # Ensemble experiment configuration
-# This config can be used to run both the Ensemble attack training (``run_attack.py``) and testing phases (``tets_attack_model.py``).
 base_experiment_dir: examples/tartan_federer_attack/tabddpm_20k_experiment_data # Processed data, and experiment artifacts will be stored here
 base_data_config_dir: examples/tartan_federer_attack/data_configs # Training and data type configs are saved under this directory
 
@@ -7,12 +6,11 @@ base_data_config_dir: examples/tartan_federer_attack/data_configs # Training and
 pipeline:
   run_data_processing: true
 
-
 # Data paths
 data_paths:
   midst_data_path: examples/tartan_federer_attack/tabddpm_20k_experiment_data/tabddpm_white_box # Used to collect the data
   population_data_path: ${base_experiment_dir}/population_data # Path where the processed population data will be stored
-  metadata_dir: ${base_experiment_dir}/data_configs # Path where metadata about the experiment will be stored
+  metadata_dir: ${base_experiment_dir}/data_configs # Path where dataset metadata file ('dataset_meta.json') should be stored 
 
 
 # Dataset specific information used for processing in this example
@@ -27,14 +25,16 @@ data_processing_config:
 
 attack_config:
   model_type: tabddpm
+  # The base directory where all the model_type_i foders are saved.
   models_base_dir: examples/tartan_federer_attack/tabddpm_20k_experiment_data/tabddpm_white_box
-  target_model_subdir: "."
+  # The subdirectory relative to models_base_dir where the taget/shadow models are saved.
+  target_shadow_model_subdir: "."
   samples_per_train_model: 3000
-  sample_per_val_model: 10
+  samples_per_val_model: 10
   num_noise_per_time_step: 30
   timesteps: [5, 10, 15]
   additional_timesteps: [0]
-  predictions_file_format: challenge_label_predictions
+  predictions_file_name: challenge_label_predictions
   results_path: ${base_experiment_dir}/tartan_federer_attack_results
   test_indices: [3]
   train_indices: [1]

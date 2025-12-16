@@ -56,7 +56,8 @@ def prepare_population_dataset_for_attack(
     missing_keys_merge = [key for key in columns_for_deduplication if key not in df_merge.columns]
     missing_keys_challenge = [key for key in columns_for_deduplication if key not in df_challenge.columns]
     if missing_keys_merge or missing_keys_challenge:
-        raise ValueError(f"Missing columns for deduplication: {missing_keys_merge + missing_keys_challenge}")
+        raise ValueError(f"Missing columns for deduplication in training data: {missing_keys_merge}"
+                         + f" and in challenge data: {missing_keys_challenge}")
 
     # Remove challenge entries from the merged dataset
     return df_merge[
@@ -76,8 +77,9 @@ def run_data_processing(config: dict[str, Any]) -> None:
     """
     log(INFO, "Running data processing pipeline...")
 
-    # 🔑 Hydra → plain Python
-    Path(config["data_paths"]["population_data_path"]).mkdir(parents=True, exist_ok=True)
+    population_data_path = Path(config["data_paths"]["population_data_path"])
+    population_data_path.mkdir(parents=True, exist_ok=True)
+
 
     population_data_for_training_attack = prepare_population_dataset_for_attack(
         model_indices=config["data_processing_config"]["population_attack_indices_to_collect_for_training"],
@@ -87,7 +89,7 @@ def run_data_processing(config: dict[str, Any]) -> None:
     )
 
     population_data_for_training_attack.to_csv(
-        Path(config["data_paths"]["population_data_path"]) / "population_dataset_for_training_attack.csv",
+        population_data_path / "population_dataset_for_training_attack.csv",
         index=False,
     )
 
@@ -99,7 +101,7 @@ def run_data_processing(config: dict[str, Any]) -> None:
     )
 
     population_data_for_validating_attack.to_csv(
-        Path(config["data_paths"]["population_data_path"]) / "population_dataset_for_validating_attack.csv",
+        population_data_path / "population_dataset_for_validating_attack.csv",
         index=False,
     )
 
@@ -134,13 +136,13 @@ def run_attack(config: DictConfig) -> None:
     mia_performance_train, mia_performance_val, mia_performance_test = tartan_federer_attack(
         model_type=attack_cfg["model_type"],
         model_data_dir=Path(attack_cfg["models_base_dir"]),
-        target_model_subdir=Path(attack_cfg["target_model_subdir"]),
+        target_model_subdir=Path(attack_cfg["target_shadow_model_subdir"]),
         samples_per_train_model=attack_cfg["samples_per_train_model"],
-        sample_per_val_model=attack_cfg["sample_per_val_model"],
+        sample_per_val_model=attack_cfg["samples_per_val_model"],
         num_noise_per_time_step=attack_cfg["num_noise_per_time_step"],
         timesteps=attack_cfg["timesteps"],
         additional_timesteps=attack_cfg["additional_timesteps"],
-        predictions_file_format=attack_cfg["predictions_file_format"],
+        predictions_file_format=attack_cfg["predictions_file_name"],
         results_path=Path(attack_cfg["results_path"]),
         test_indices=attack_cfg["test_indices"],
         train_indices=attack_cfg["train_indices"],
