@@ -107,8 +107,14 @@ def run_metaclassifier_testing(
     log(
         INFO, f"Target synthetic data loaded from {target_synthetic_path} with a size of {len(target_synthetic_data)}."
     )
+    if len(target_synthetic_data)> config.shadow_training.number_of_points_to_synthesize:
+        # Take only the required number of synthetic data points
+        target_synthetic_data = target_synthetic_data.head(config.shadow_training.number_of_points_to_synthesize)
+        log(
+            INFO, f"Target synthetic data size adjusted to {len(target_synthetic_data)} based on the config setting."
+        )
 
-# 3) Shadow Model Training Step.
+    # 3) Shadow Model Training Step.
 
     # Make sure to assign a new path for shadow models trained for target's challenge points to
     # avoid overriding train's shadow models.
@@ -139,22 +145,24 @@ def run_metaclassifier_testing(
         data_processing_config=config.data_processing_config
         challenge_attack_names = data_processing_config.challenge_attack_data_types_to_collect
         challenge_attack_types = [AttackType(attack_name) for attack_name in challenge_attack_names]
-        df_challenge = collect_midst_data(
+        df_challenge_experiment = collect_midst_data(
             midst_data_input_dir=Path(config.data_paths.midst_data_path),
             attack_types=challenge_attack_types,
             data_splits=["test"],  #change to test for 10k, and change to final for 20k
             dataset="challenge",
             data_processing_config=config.data_processing_config,
         )
-        log(INFO, f"Collected challenge data length: {len(df_challenge)} for the testing phase's shadow training.")
+        log(INFO, f"Collected challenge data length: {len(df_challenge_experiment)} for the testing phase's shadow training.")
         
-        # Run RMIA shadow model training on master challenge train data
-        # df_challenge = load_dataframe(
-        #     Path(config.data_paths.processed_attack_data_path),
-        #     "master_challenge_train.csv",
-        # )
-        # log(INFO, f"Loaded master challenge train data length: {len(df_challenge)} for the testing phase's shadow training.")
-        
+        # Load master challenge train data
+        df_master_train = load_dataframe(
+            Path(config.data_paths.processed_attack_data_path),
+            "master_challenge_train.csv",
+        )
+        log(INFO, f"Loaded master challenge train data length: {len(df_master_train)} for the testing phase's shadow training.")
+
+        # Run RMIA shadow model training on experiments challenge points + master challenge train data
+        df_challenge = pd.concat([df_challenge_experiment, df_master_train]).drop_duplicates()
         shadow_data_collection = run_rmia_shadow_training(config, df_challenge=df_challenge)
     
     else:
@@ -177,21 +185,6 @@ def run_metaclassifier_testing(
 
 
     
-
-
-    # Load already trained shadows (only if completely are run)
-    # shadow_model_paths = [Path(path) for path in config.shadow_training.final_shadow_models_path]
-    # shadow_data_collection = []
-    # for model_path in shadow_model_paths:
-    #     assert model_path.exists(), (
-    #         f"No file found at {model_path}. Make sure the path is correct, or run shadow model training first."
-    #     )
-
-    #     with open(model_path, "rb") as f:
-    #         shadow_data_and_result = pickle.load(f)
-    #         shadow_data_collection.append(shadow_data_and_result)
-
-
 
     # 4) Initialize the attacker object, and assign the loaded metaclassifier to it.
 
