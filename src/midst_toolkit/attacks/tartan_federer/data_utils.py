@@ -157,57 +157,6 @@ def save_results_and_plot_roc_curve(
     log(INFO, f"✅ All runs completed. Results saved to {results_summary_path}")
 
 
-def prepare_population_dataset_for_attack(
-    model_indices: list[int], model_type: str, models_base_dir: Path, columns_for_deduplication: list[str]
-) -> pd.DataFrame:
-    """
-    Prepares data for an attack by merging and deduplicating datasets.
-
-    Args:
-        model_indices: List of model indices over which to iterate and for which to gather information.
-        model_type: Name of the model type for which we're loading data.
-        models_base_dir: Where the various models' data lives.
-        columns_for_deduplication: Names of columns to use in de-duplicating the dataframes
-
-    Raises:
-        ValueError: Throws if the list of model indices is empty.
-        ValueError: Throws if any of the dataframes to be de-duplicated do not have the specified columns in
-            ``columns_for_deduplication``
-
-    Returns:
-        A DataFrame containing the merged trainig data that has been deduplicated and is free from challenge data.
-    """
-    if len(model_indices) == 0:
-        raise ValueError("The 'indices' list is empty. Please provide indices to process datasets.")
-
-    df_merge_list = []
-    df_challenge_list = []
-
-    for model_index in model_indices:
-        base_path = models_base_dir / f"{model_type}_{model_index}"
-        df_merge_list.append(pd.read_csv(os.path.join(base_path, "train_with_id.csv")))
-        df_challenge_list.append(pd.read_csv(os.path.join(base_path, "challenge_with_id.csv")))
-
-    df_merge = pd.concat(df_merge_list, ignore_index=True)
-    df_challenge = pd.concat(df_challenge_list, ignore_index=True)
-    # Deduplicate the datasets once
-    df_merge = df_merge.drop_duplicates(subset=columns_for_deduplication)
-    df_challenge = df_challenge.drop_duplicates(subset=columns_for_deduplication)
-
-    # Ensure all keys for deduplication exist in both DataFrames
-    missing_keys_merge = [key for key in columns_for_deduplication if key not in df_merge.columns]
-    missing_keys_challenge = [key for key in columns_for_deduplication if key not in df_challenge.columns]
-    if missing_keys_merge or missing_keys_challenge:
-        raise ValueError(f"Missing columns for deduplication: {missing_keys_merge + missing_keys_challenge}")
-
-    # Remove challenge entries from the merged dataset
-    return df_merge[
-        ~df_merge.set_index(columns_for_deduplication).index.isin(
-            df_challenge.set_index(columns_for_deduplication).index
-        )
-    ]
-
-
 def evaluate_attack_performance(
     model_indices: list[int],
     description: str,
