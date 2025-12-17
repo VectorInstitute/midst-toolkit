@@ -1,0 +1,47 @@
+# Tartan-Federer experiment configuration
+base_experiment_dir: examples/tartan_federer_attack/tabddpm_single_table_data # Processed data, and experiment artifacts will be stored here
+base_data_config_dir: examples/tartan_federer_attack/data_configs # Training and data type configs are saved under this directory
+
+# Pipeline control
+pipeline:
+  run_data_processing: true
+
+# Data paths
+data_paths:
+  midst_data_path: ${base_experiment_dir}/tabddpm_white_box # Used to collect the data
+  population_data_path: ${base_experiment_dir}/population_data # Path where the processed population data will be stored
+  metadata_dir: ${base_experiment_dir}/data_configs # Path where dataset metadata file ('dataset_meta.json') should be stored
+
+
+# Dataset specific information used for processing in this example
+data_processing_config:
+  population_attack_indices_to_collect_for_training:
+        [1,2]
+  population_attack_indices_to_collect_for_validation:
+        [3,4]
+  model_type: tabddpm
+  columns_for_deduplication: ['trans_id', 'balance']
+
+
+attack_config:
+  model_type: tabddpm
+  # The subdirectory relative to data_paths.midst_data_path where the taget/shadow models are saved.
+  # If the shadow model is trained on real data this would be a white-box attack.
+  # If the shadow model is trained on synthetic data, this would be a black-box attack.
+  target_shadow_model_subdir: "."
+  samples_per_train_model: 3000
+  samples_per_val_model: 10
+  num_noise_per_time_step: 30
+  timesteps: [5, 10, 15]
+  additional_timesteps: [0]
+  predictions_file_name: challenge_label_predictions
+  results_path: ${base_experiment_dir}/tartan_federer_attack_results
+  test_indices: [3]
+  train_indices: [1]
+  val_indices: [2]
+  columns_for_deduplication: [trans_id, balance]
+
+classifier_config:
+  hidden_dim: 100
+  learning_rate: 1e-4
+  num_epochs: 200
