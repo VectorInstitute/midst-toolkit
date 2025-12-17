@@ -1,6 +1,6 @@
 # Tartan-Federer experiment configuration
-base_experiment_dir: examples/tartan_federer_attack/tabddpm_single_table_data # Processed data, and experiment artifacts will be stored here
-base_data_config_dir: examples/tartan_federer_attack/data_configs # Training and data type configs are saved under this directory
+base_experiment_dir: examples/tartan_federer_attack/tabddpm_data # Processed data, and experiment artifacts will be stored here
+base_data_config_dir: examples/tartan_federer_attack/configs/data_configs # Training and data type configs are saved under this directory
 
 # Pipeline control
 pipeline:
@@ -10,7 +10,7 @@ pipeline:
 data_paths:
   midst_data_path: ${base_experiment_dir}/tabddpm_white_box # Used to collect the data
   population_data_path: ${base_experiment_dir}/population_data # Path where the processed population data will be stored
-  metadata_dir: ${base_experiment_dir}/data_configs # Path where dataset metadata file ('dataset_meta.json') should be stored
+  metadata_dir: ${base_experiment_dir}/configs/data_configs # Path where dataset metadata file ('dataset_meta.json') should be stored
 
 
 # Dataset specific information used for processing in this example
