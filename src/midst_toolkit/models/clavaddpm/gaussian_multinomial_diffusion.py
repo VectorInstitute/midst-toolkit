@@ -1070,7 +1070,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
     @torch.no_grad()
     def gaussian_ddim_step(
         self,
-        model_mumerical_output: Tensor,
+        model_numerical_output: Tensor,
         features: Tensor,
         timestep: Tensor,
         eta: float = 0.0,
@@ -1081,7 +1081,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         Calculate the Gaussian DDIM step.
 
         Args:
-            model_mumerical_output: The numerical features of themodel output.
+            model_numerical_output: The numerical features of the model output.
             features: The features.
             timestep: The timestep.
             eta: The DDIM stochasticity coefficient. Optional, default is 0.0.
@@ -1095,7 +1095,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             model_kwargs = {}
 
         out = self.gaussian_p_mean_variance(
-            model_mumerical_output,
+            model_numerical_output,
             features,
             timestep,
             model_kwargs=None,

@@ -78,7 +78,6 @@ def run_target_model_training(config: DictConfig) -> Path:
 
     return target_model_synthetic_path
 
-
 def run_shadow_model_training(config: DictConfig, df_challenge_train:pd.DataFrame) -> list[Path]:
     """
     Function to run the shadow model training for RMIA attack.

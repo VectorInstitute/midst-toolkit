@@ -12,7 +12,9 @@ import pandas as pd
 from omegaconf import DictConfig
 
 from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training
+
 from examples.ensemble_attack.real_data_collection import collect_midst_data, AttackType
+
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.common.logger import log
@@ -25,12 +27,11 @@ def run_rmia_shadow_training(config: DictConfig, df_challenge: pd.DataFrame) -> 
     Three sets of shadow models will be trained as a part of this attack.
     Note that shadow models need to be trained on the collection of challenge points once and used
     for all the target models in a setting.
-    RMIA signals (for the challenge points) are calculated based on these shadow models,
-    and will be fed into the metaclassifier.
 
     Args:
         config: Configuration object set in ``experiments_config.yaml``.
         df_challenge: DataFrame containing the challenge data points for shadow model training.
+
     Return:
         A list containing three dictionaries, each representing a collection of shadow
             models with their training data and generated synthetic outputs.
@@ -51,6 +52,7 @@ def run_rmia_shadow_training(config: DictConfig, df_challenge: pd.DataFrame) -> 
             shadow_data_collection.append(shadow_data_and_result)
 
     return shadow_data_collection
+
 
 def train_rmia_shadows_for_test_phase(config: DictConfig):
     # Collect all repo's challenge points
@@ -87,8 +89,6 @@ def train_rmia_shadows_for_test_phase(config: DictConfig):
         raise ValueError(f"Invalid choice for attack_rmia_shadow_training_data_choice. Must be one of 'combined', 'only_challenge', or 'only_train'.")
 
     return run_rmia_shadow_training(config, df_challenge=df_challenge)
-
-
 
 @hydra.main(config_path="configs", config_name="experiment_config", version_base=None)
 def run_metaclassifier_testing(
@@ -128,7 +128,6 @@ def run_metaclassifier_testing(
     log(INFO, f"Metaclassifier model loaded from {mataclassifier_path}, starting the test...")
 
     # 2) Read target model's challenge data and synthetic data.
-
     # Back-box attacker has only access to the target model's synthetic data and challenge points.
     # We also load challenge labels to report the attack performance.
     challenge_data_path = Path(config.target_model.challenge_data_path)
@@ -191,15 +190,13 @@ def run_metaclassifier_testing(
         column_types = json.load(f)
     id_column_name = column_types["id_column_name"]
 
-    assert id_column_name in test_data.columns, "Test data must have trans_id column"
+    assert id_column_name in test_data.columns, f"Test data must have {id_column_name} column"
     test_trans_ids = test_data[id_column_name]
 
     # Drop id columns from test data
     id_column_names = [column_name for column_name in test_data.columns if column_name.endswith("_id")]
     test_data = test_data.drop(columns=id_column_names)
 
-
-    
 
     # 4) Initialize the attacker object, and assign the loaded metaclassifier to it.
     df_reference = load_dataframe(

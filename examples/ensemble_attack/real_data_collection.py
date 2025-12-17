@@ -28,6 +28,12 @@ class AttackType(Enum):
     TABDDPM_20K = "tabddpm_trained_with_20k"
     TABDDPM_50K = "tabddpm_trained_with_50k"
     TABDDPM_100K = "tabddpm_trained_with_100k"
+    # Experiment attack types based on experiment settings
+    TABDDPM_5K = "tabddpm_trained_with_5k"
+    TABDDPM_10K = "tabddpm_trained_with_10k"
+    TABDDPM_20K = "tabddpm_trained_with_20k"
+    TABDDPM_50K = "tabddpm_trained_with_50k"
+    TABDDPM_100K = "tabddpm_trained_with_100k"
 
 
 def expand_ranges(ranges: list[tuple[int, int]]) -> list[int]:
@@ -164,10 +170,25 @@ def collect_population_data_ensemble(
         challenge_splits: A list indicating the data splits to be collected for challenge points.
             Could be any of `train`, `dev`, or `final` data splits. If None, the default list of
             ``["train", "dev", "final"]`` is set in the function based on the original attack implementation.
+        population_splits: A list indicating the data splits to be collected for population data.
+            Could be any of `train`, `dev`, or `final` data splits. If None, the default list of ``["train"]``
+            is set in the function based on the original attack implementation.
+        challenge_splits: A list indicating the data splits to be collected for challenge points.
+            Could be any of `train`, `dev`, or `final` data splits. If None, the default list of
+            ``["train", "dev", "final"]`` is set in the function based on the original attack implementation.
 
     Returns:
         The collected population data as a dataframe.
     """
+    # Population data will be saved under ``save_dir``.
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    if population_splits is None:
+        population_splits = ["train"]
+    if challenge_splits is None:
+        # Original Ensemble collects all the challenge points from train, dev and final of "tabddpm_black_box" attack.
+        challenge_splits = ["train", "dev", "final"]
+
     # Population data will be saved under ``save_dir``.
     save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -204,9 +225,12 @@ def collect_population_data_ensemble(
 
     challenge_attack_names = data_processing_config.challenge_attack_data_types_to_collect
     challenge_attack_types = [AttackType(attack_name) for attack_name in challenge_attack_names]
+    challenge_attack_names = data_processing_config.challenge_attack_data_types_to_collect
+    challenge_attack_types = [AttackType(attack_name) for attack_name in challenge_attack_names]
     df_challenge = collect_midst_data(
         midst_data_input_dir,
         attack_types=challenge_attack_types,
+        data_splits=challenge_splits,
         data_splits=challenge_splits,
         dataset="challenge",
         data_processing_config=data_processing_config,

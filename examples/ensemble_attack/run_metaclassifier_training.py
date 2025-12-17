@@ -25,6 +25,8 @@ def run_metaclassifier_training(
             The list should contain three paths, one for each set of shadow models.
         target_model_synthetic_path: Path to the target model's synthetic data. This is all we need from a target
             model to train the metaclassifier in the black-box setting.
+        target_model_synthetic_path: Path to the target model's synthetic data. This is all we need from a target
+            model to train the metaclassifier in the black-box setting.
     """
     log(INFO, "Running metaclassifier training...")
 
