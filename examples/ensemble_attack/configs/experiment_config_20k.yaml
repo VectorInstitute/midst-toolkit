@@ -18,17 +18,15 @@ target_model: # This is only used for testing the attack on a real target model.
   challenge_data_path: ${target_model.target_model_directory}/${target_model.target_model_name}/challenge_with_id.csv
   challenge_label_path: ${target_model.target_model_directory}/${target_model.target_model_name}/challenge_label.csv
 
-  target_shadow_models_output_path: ${base_experiment_dir}/test_shadows_dir
-
-  # target_attack_artifact_dir: ${base_experiment_dir}/target_${target_model.target_model_id}_attack_artifacts/
+  target_shadow_models_output_path: ${base_experiment_dir}/test_all_targets_dir
   attack_probabilities_result_path: ${target_model.target_shadow_models_output_path}/test_probabilities/attack_model_${target_model.target_model_id}_proba
-  # target_shadow_models_output_path: ${target_model.target_attack_artifact_dir}/tabddpm_${target_model.target_model_id}_shadows_dir
+  attack_rmia_shadow_training_data_choice: "combined" # Options: "combined", "only_challenge", "only_train". This determines which data to use for training RMIA attack model in testing phase.
   
 
 # Data paths
 data_paths:
-  base_data_dir: /projects/midst-experiments/ensemble_attack/competition # READ from competition
   midst_data_path: /projects/midst-experiments/ensemble_attack/midst_data_all_attacks/ # Used to collect the data (input)
+  base_data_dir: /projects/midst-experiments/ensemble_attack/competition # Data path where the train pipeline saved data processing results
   population_path: ${data_paths.base_data_dir}/population_data #READ ONLY  # Path where the collected population data will be stored (output/input)
   processed_attack_data_path: ${data_paths.base_data_dir}/attack_data # Path where the processed attack real train and evaluation data is stored (output/input)
   attack_evaluation_result_path: ${base_experiment_dir}/evaluation_results # Path where the attack evaluation results will be stored (output)

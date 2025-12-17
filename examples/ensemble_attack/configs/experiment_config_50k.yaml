@@ -1,12 +1,12 @@
 # Ensemble experiment configuration
 # This config can be used to run both the Ensemble attack training (``run_attack.py``) and testing phases (``tets_attack_model.py``).
-base_experiment_dir: /projects/midst-experiments/ensemble_attack/new_runs/tabddpm_50k_experiment_data/50k_save_synth_only # Processed data, and experiment artifacts will be stored here
+base_experiment_dir: /projects/midst-experiments/ensemble_attack/new_runs/tabddpm_50k_experiment_data/50k_competition_classifier_tests/ # Processed data, and experiment artifacts will be stored here
 base_data_config_dir: examples/ensemble_attack/data_configs # Training and data type configs are saved under this directory
 
 # Pipeline control
 pipeline:
-  run_data_processing: true # Set this to false if you have already saved the processed data
-  run_shadow_model_training: true # Set this to false if shadow models are already trained and saved
+  run_data_processing: false # Set this to false if you have already saved the processed data
+  run_shadow_model_training: false # Set this to false if shadow models are already trained and saved
   run_metaclassifier_training: true
 
 target_model: # This is only used for testing the attack on a real target model.
@@ -18,24 +18,23 @@ target_model: # This is only used for testing the attack on a real target model.
   challenge_data_path: ${target_model.target_model_directory}/${target_model.target_model_name}/challenge_with_id.csv
   challenge_label_path: ${target_model.target_model_directory}/${target_model.target_model_name}/challenge_label.csv
 
-  target_shadow_models_output_path: ${base_experiment_dir}/test_shadows_dir
-
-  # target_attack_artifact_dir: ${base_experiment_dir}/target_${target_model.target_model_id}_attack_artifacts/
+  target_shadow_models_output_path: ${base_experiment_dir}/test_20_targets_shadows_dir
   attack_probabilities_result_path: ${target_model.target_shadow_models_output_path}/test_probabilities/attack_model_${target_model.target_model_id}_proba
-  # target_shadow_models_output_path: ${target_model.target_attack_artifact_dir}/tabddpm_${target_model.target_model_id}_shadows_dir
+  attack_rmia_shadow_training_data_choice: "combined" # Options: "combined", "only_challenge", "only_train". This determines which data to use for training RMIA attack model in testing phase.
 
 # Data paths
 data_paths:
   midst_data_path: /projects/midst-experiments/all_tabddpms/ # Used to collect the data (input) in data processing
-  population_path: ${base_experiment_dir}/population_data #READ ONLY  # Path where the collected population data will be stored (output/input)
-  processed_attack_data_path: ${base_experiment_dir}/attack_data # Path where the processed attack real train and evaluation data is stored (output/input)
+  processed_data_dir: /projects/midst-experiments/ensemble_attack/new_runs/tabddpm_50k_experiment_data/50k_save_synth_only # Data path where the train pipeline saved data processing results
+  population_path: ${data_paths.processed_data_dir}/population_data #READ ONLY  # Path where the collected population data will be stored (output/input)
+  processed_attack_data_path: ${data_paths.processed_data_dir}/attack_data # Path where the processed attack real train and evaluation data is stored (output/input)
   attack_evaluation_result_path: ${base_experiment_dir}/evaluation_results # Path where the attack evaluation results will be stored (output)
 
 
 model_paths:
-# Use 20k's meta
-  # metaclassifier_model_path: /projects/midst-experiments/ensemble_attack/competition/trained_models # Path where the trained metaclassifier model will be saved
-  metaclassifier_model_path: ${base_experiment_dir}/trained_models 
+  metaclassifier_model_path: /projects/midst-experiments/ensemble_attack/competition/trained_models # Path where the trained metaclassifier model will be saved
+  # metaclassifier_model_path: /projects/midst-experiments/ensemble_attack/new_runs/tabddpm_50k_experiment_data/50k_save_synth_only/trained_models
+
 
 # Dataset specific information used for processing in this example
 data_processing_config:

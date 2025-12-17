@@ -3,13 +3,13 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mem=64G
-#SBATCH --job-name=test50_all_with_meta_train
+#SBATCH --job-name=test50_comp_classifier_all
 #SBATCH --output=%j_%x_%a.out
 #SBATCH --error=%j_%x_%a.err
-#SBATCH --time=2:00:00
+#SBATCH --time=1:00:00
 #SBATCH --array=0-18
 
 # This script sets up the environment and runs the ensemble attack test script.
