@@ -25,7 +25,7 @@ data_processing_config:
 
 attack_config:
   model_type: tabddpm
-  # The subdirectory relative to data_paths.midst_data_path where the taget/shadow models are saved.
+  # The subdirectory relative to data_paths.midst_data_path where the target/shadow models are saved.
   # If the shadow model is trained on real data this would be a white-box attack.
   # If the shadow model is trained on synthetic data, this would be a black-box attack.
   target_shadow_model_subdir: "."
@@ -39,7 +39,7 @@ attack_config:
   test_indices: [3]
   train_indices: [1]
   val_indices: [2]
-  columns_for_deduplication: [trans_id, balance]
+  columns_for_deduplication: ['trans_id', 'balance']
 
 classifier_config:
   hidden_dim: 100

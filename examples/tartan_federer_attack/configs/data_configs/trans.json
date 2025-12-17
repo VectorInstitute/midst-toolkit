@@ -1,10 +1,10 @@
 {
     "general": {
-        "data_dir": "examples/ensemble_attack/data/shadow_models_data",
-        "exp_name": "ensemble_attack",
-        "workspace_dir": "examples/ensemble_attack/data/shadow_models_data/workspace",
+        "data_dir": "examples/tartan_federer_attack/data/shadow_models_data",
+        "exp_name": "tartan_federer_attack",
+        "workspace_dir": "examples/tartan_federer_attack/data/shadow_models_data/workspace",
         "sample_prefix": "",
-        "test_data_dir": "examples/ensemble_attack/data/shadow_models_data/test"
+        "test_data_dir": "examples/tartan_federer_attack/data/shadow_models_data/test"
     },
     "clustering": {
         "parent_scale": 1.0,
