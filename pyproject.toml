@@ -27,6 +27,7 @@ dependencies = [
     "gower>=0.1.2",
     "pydantic>=2.12.3",
     "filelock>=3.20.1",
+    "sdv>=1.18.0",
 ]
 
 [build-system]
