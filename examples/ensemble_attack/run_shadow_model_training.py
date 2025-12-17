@@ -3,7 +3,7 @@ from logging import INFO
 from pathlib import Path
 
 from omegaconf import DictConfig
-
+import pandas as pd
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
     train_three_sets_of_shadow_models,
@@ -79,12 +79,13 @@ def run_target_model_training(config: DictConfig) -> Path:
     return target_model_synthetic_path
 
 
-def run_shadow_model_training(config: DictConfig, df_master_challenge_train) -> list[Path]:
+def run_shadow_model_training(config: DictConfig, df_challenge_train:pd.DataFrame) -> list[Path]:
     """
     Function to run the shadow model training for RMIA attack.
 
     Args:
         config: Configuration object set in config.yaml.
+        df_challenge_train: DataFrame containing the data that is used to train RMIA shadow models.
 
     Returns:
         Paths to the saved shadow model results for the three sets of shadow models. For more details,
@@ -95,27 +96,23 @@ def run_shadow_model_training(config: DictConfig, df_master_challenge_train) -> 
     # Load the required dataframes for shadow model training.
     # For shadow model training we need master_challenge_train and population data.
     # Master challenge is the main training (or fine-tuning) data for the shadow models.
-    # df_master_challenge_train = load_dataframe(
-    #     Path(config.data_paths.processed_attack_data_path),
-    #     "master_challenge_train.csv",
-    # )
     # Population data is used to pre-train some of the shadow models.
     df_population_with_challenge = load_dataframe(
         Path(config.data_paths.population_path),
         "population_all_with_challenge.csv",
     )
     # Make sure master challenge train and population data have the "trans_id" column.
-    assert "trans_id" in df_master_challenge_train.columns, (
+    assert "trans_id" in df_challenge_train.columns, (
         "trans_id column should be present in master train data for the shadow model pipeline."
     )
     assert "trans_id" in df_population_with_challenge.columns
-    assert "trans_id" in df_master_challenge_train.columns
+    assert "trans_id" in df_challenge_train.columns
     # ``population_data`` in ensemble attack is used for shadow pre-training, and
     # ``master_challenge_df`` is used for fine-tuning for half of the shadow models.
     # For the other half of the shadow models, only ``master_challenge_df`` is used for training.
     first_set_result_path, second_set_result_path, third_set_result_path = train_three_sets_of_shadow_models(
         population_data=df_population_with_challenge,
-        master_challenge_data=df_master_challenge_train,
+        master_challenge_data=df_challenge_train,
         shadow_models_output_path=Path(config.shadow_training.shadow_models_output_path),
         training_json_config_paths=config.shadow_training.training_json_config_paths,
         fine_tuning_config=config.shadow_training.fine_tuning_config,

@@ -20,16 +20,17 @@ from midst_toolkit.common.random import set_all_random_seeds
 
 
 
-def run_rmia_shadow_training(config: DictConfig, df_challenge) -> list[dict[str, list[Any]]]:
+def run_rmia_shadow_training(config: DictConfig, df_challenge: pd.DataFrame) -> list[dict[str, list[Any]]]:
     """
     Three sets of shadow models will be trained as a part of this attack.
-    Note that for every new target model, shadow models need to be trained.
+    Note that shadow models need to be trained on the collection of challenge points once and used
+    for all the target models in a setting.
     RMIA signals (for the challenge points) are calculated based on these shadow models,
     and will be fed into the metaclassifier.
 
     Args:
         config: Configuration object set in ``experiments_config.yaml``.
-
+        df_challenge: DataFrame containing the challenge data points for shadow model training.
     Return:
         A list containing three dictionaries, each representing a collection of shadow
             models with their training data and generated synthetic outputs.
@@ -50,6 +51,43 @@ def run_rmia_shadow_training(config: DictConfig, df_challenge) -> list[dict[str,
             shadow_data_collection.append(shadow_data_and_result)
 
     return shadow_data_collection
+
+def train_rmia_shadows_for_test_phase(config: DictConfig):
+    # Collect all repo's challenge points
+    data_processing_config=config.data_processing_config
+    challenge_attack_names = data_processing_config.challenge_attack_data_types_to_collect
+    challenge_attack_types = [AttackType(attack_name) for attack_name in challenge_attack_names]
+    df_challenge_experiment = collect_midst_data(
+        midst_data_input_dir=Path(config.data_paths.midst_data_path),
+        attack_types=challenge_attack_types,
+        data_splits=["test"],  #change to test for 10k, and change to final for 20k
+        dataset="challenge",
+        data_processing_config=config.data_processing_config,
+    )
+    log(INFO, f"Collected challenge data length: {len(df_challenge_experiment)} for the testing phase's shadow training.")
+    
+    # Load master challenge train data
+    df_master_train = load_dataframe(
+        Path(config.data_paths.processed_attack_data_path),
+        "master_challenge_train.csv",
+    )
+    log(INFO, f"Loaded master challenge train data length: {len(df_master_train)} for the testing phase's shadow training.")
+
+    if config.target_model.attack_rmia_shadow_training_data_choice == "combined":
+        # Run RMIA shadow model training on experiments challenge points + master challenge train data
+        df_challenge = pd.concat([df_challenge_experiment, df_master_train]).drop_duplicates()
+        log(INFO, f"Combined challenge data length for RMIA shadow training: {len(df_challenge)}.")
+    elif config.target_model.attack_rmia_shadow_training_data_choice == "only_challenge":
+        df_challenge = df_challenge_experiment
+        log(INFO, f"Using only challenge data points for RMIA shadow training.")
+    elif config.target_model.attack_rmia_shadow_training_data_choice == "only_train":
+        df_challenge = df_master_train
+        log(INFO, f"Using only master challenge train data points for RMIA shadow training.")
+    else:
+        raise ValueError(f"Invalid choice for attack_rmia_shadow_training_data_choice. Must be one of 'combined', 'only_challenge', or 'only_train'.")
+
+    return run_rmia_shadow_training(config, df_challenge=df_challenge)
+
 
 
 @hydra.main(config_path="configs", config_name="experiment_config", version_base=None)
@@ -107,6 +145,8 @@ def run_metaclassifier_testing(
     log(
         INFO, f"Target synthetic data loaded from {target_synthetic_path} with a size of {len(target_synthetic_data)}."
     )
+
+    # If the synthetic data has more points than specified in the config, take only the required number.
     if len(target_synthetic_data)> config.shadow_training.number_of_points_to_synthesize:
         # Take only the required number of synthetic data points
         target_synthetic_data = target_synthetic_data.head(config.shadow_training.number_of_points_to_synthesize)
@@ -115,7 +155,6 @@ def run_metaclassifier_testing(
         )
 
     # 3) Shadow Model Training Step.
-
     # Make sure to assign a new path for shadow models trained for target's challenge points to
     # avoid overriding train's shadow models.
     config.shadow_training.shadow_models_output_path = config.target_model.target_shadow_models_output_path
@@ -141,34 +180,10 @@ def run_metaclassifier_testing(
     
     if not models_exist:
         log(INFO, "Shadow models for testing phase do not exist. Training RMIA shadow models...")
-        # collect all repo's challenge points
-        data_processing_config=config.data_processing_config
-        challenge_attack_names = data_processing_config.challenge_attack_data_types_to_collect
-        challenge_attack_types = [AttackType(attack_name) for attack_name in challenge_attack_names]
-        df_challenge_experiment = collect_midst_data(
-            midst_data_input_dir=Path(config.data_paths.midst_data_path),
-            attack_types=challenge_attack_types,
-            data_splits=["test"],  #change to test for 10k, and change to final for 20k
-            dataset="challenge",
-            data_processing_config=config.data_processing_config,
-        )
-        log(INFO, f"Collected challenge data length: {len(df_challenge_experiment)} for the testing phase's shadow training.")
+        shadow_data_collection = train_rmia_shadows_for_test_phase(config)
         
-        # Load master challenge train data
-        df_master_train = load_dataframe(
-            Path(config.data_paths.processed_attack_data_path),
-            "master_challenge_train.csv",
-        )
-        log(INFO, f"Loaded master challenge train data length: {len(df_master_train)} for the testing phase's shadow training.")
-
-        # Run RMIA shadow model training on experiments challenge points + master challenge train data
-        df_challenge = pd.concat([df_challenge_experiment, df_master_train]).drop_duplicates()
-        shadow_data_collection = run_rmia_shadow_training(config, df_challenge=df_challenge)
-    
     else:
         log(INFO, "All shadow models for testing phase found. Using existing RMIA shadow models...")
-
-
 
 
     # Extract trans_id from the test dataframe
@@ -187,7 +202,6 @@ def run_metaclassifier_testing(
     
 
     # 4) Initialize the attacker object, and assign the loaded metaclassifier to it.
-
     df_reference = load_dataframe(
         Path(config.data_paths.population_path),
         "population_all_with_challenge_no_id.csv",

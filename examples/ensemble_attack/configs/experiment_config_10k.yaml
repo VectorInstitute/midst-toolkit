@@ -1,16 +1,15 @@
 # Ensemble experiment configuration
 # This config can be used to run both the Ensemble attack training (``run_attack.py``) and testing phases (``tets_attack_model.py``).
-base_experiment_dir: /projects/midst-experiments/ensemble_attack/new_runs/tabddpm_10k_experiment_data/10k/test_no_meta_all_tests # Processed data, and experiment artifacts will be stored here
-base_data_config_dir: examples/ensemble_attack/data_configs # Training and data type configs are saved under this directory
+base_experiment_dir: /projects/midst-experiments/ensemble_attack/new_runs/tabddpm_10k_experiment_data/10k/ # Processed data, and experiment artifacts will be stored under this directory.
+base_data_config_dir: examples/ensemble_attack/data_configs # Training and data type configs are saved under this directory.
 
-# Pipeline control
+# Training Pipeline Control
 pipeline:
   run_data_processing: true # Set this to false if you have already saved the processed data
   run_shadow_model_training: true # Set this to false if shadow models are already trained and saved
   run_metaclassifier_training: true
 
 target_model: # This is only used for testing the attack on a real target model.
-  # This is for models trained on 10k data and generating 10k synthetic data
   target_model_directory: /projects/midst-experiments/all_tabddpms/tabddpm_trained_with_10k/test/
   target_model_id: 21  # Will be overridden per SLURM array task
   target_model_name: tabddpm_${target_model.target_model_id}
@@ -18,25 +17,22 @@ target_model: # This is only used for testing the attack on a real target model.
   challenge_data_path: ${target_model.target_model_directory}/${target_model.target_model_name}/challenge_with_id.csv
   challenge_label_path: ${target_model.target_model_directory}/${target_model.target_model_name}/challenge_label.csv
 
-  target_shadow_models_output_path: ${base_experiment_dir}/test_shadows_dir
-
-  # target_attack_artifact_dir: ${base_experiment_dir}/target_${target_model.target_model_id}_attack_artifacts/
+  target_shadow_models_output_path: ${base_experiment_dir}/test_all_targets # Sub-directory to store test shadows and results
   attack_probabilities_result_path: ${target_model.target_shadow_models_output_path}/test_probabilities/attack_model_${target_model.target_model_id}_proba
-  # target_shadow_models_output_path: ${target_model.target_attack_artifact_dir}/tabddpm_${target_model.target_model_id}_shadows_dir
+  attack_rmia_shadow_training_data_choice: "combined" # Options: "combined", "only_challenge", "only_train". This determines which data to use for training RMIA attack model in testing phase.
   
 
 # Data paths
 data_paths:
   midst_data_path: /projects/midst-experiments/all_tabddpms/ # Used to collect the data (input) as defined in data_processing_config
-  processed_base_data_dir: /projects/midst-experiments/ensemble_attack/new_runs/tabddpm_10k_experiment_data/10k/ # READ from previously collected and processed data
+  processed_base_data_dir: ${base_experiment_dir} # To save new processed data for training, or read from previously collected and processed data (testing phase).
   population_path: ${data_paths.processed_base_data_dir}/population_data  # Path where the collected population data will be stored (output/input)
   processed_attack_data_path: ${data_paths.processed_base_data_dir}/attack_data # Path where the processed attack real train and evaluation data is stored (output/input)
-  attack_evaluation_result_path: ${base_experiment_dir}/evaluation_results # Path where the attack evaluation results will be stored (output)
+  attack_evaluation_result_path: ${base_experiment_dir}/evaluation_results # Path where the attack (train phase) evaluation results will be stored (output)
 
 
 model_paths:
-# Use 20k's meta
-  metaclassifier_model_path: /projects/midst-experiments/ensemble_attack/new_runs/tabddpm_10k_experiment_data/10k/trained_models # Path where the trained metaclassifier model will be saved
+  metaclassifier_model_path: ${base_experiment_dir}/trained_models # Path where the trained metaclassifier model will be saved
 
 
 # Dataset specific information used for processing in this example
@@ -51,7 +47,7 @@ data_processing_config:
         ]
   population_splits: ["train"]  # Data splits to be collected for population data
   challenge_splits: ["train" , "test"]  # Data splits to be collected for challenge points
-  original_population_data_path: /projects/midst-experiments/ensemble_attack/competition/population_data/
+  original_population_data_path: /projects/midst-experiments/ensemble_attack/competition/population_data/ #Attack's collected population for DOMIAS
   # The column name in the data to be used for stratified splitting.
   column_to_stratify: "trans_type"  # Attention: This value is not documented in the original codebase.
   folder_ranges: #Specify folder ranges for any of the mentioned splits.
@@ -111,7 +107,7 @@ metaclassifier:
   meta_classifier_model_name: ${metaclassifier.model_type}_metaclassifier_model
 
 attack_success_computation:
-  target_ids_to_test: [21,22,23,24, 25, 26, 26, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40] # List of target model IDs to compute the attack success for.
+  target_ids_to_test: [21, 22, 23, 24, 25, 26, 26, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40] # List of target model IDs to compute the attack success for.
 
 # General settings
 random_seed: 42 # Set to null for no seed, or an integer for a fixed seed

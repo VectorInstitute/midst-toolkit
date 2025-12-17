@@ -438,4 +438,5 @@ def train_three_sets_of_shadow_models(
         INFO,
         f"Third set of shadow model training completed and saved at: {third_set_result_path}",
     )
+
     return first_set_result_path, second_set_result_path, third_set_result_path
