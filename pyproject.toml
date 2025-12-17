@@ -26,6 +26,7 @@ dependencies = [
     "optuna>=4.5.0",
     "gower>=0.1.2",
     "pydantic>=2.12.3",
+    "sdv>=1.18.0",
 ]
 
 [build-system]

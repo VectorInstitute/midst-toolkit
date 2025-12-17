@@ -82,7 +82,7 @@ def clava_training(
     """
     models = {}
     for parent, child in relation_order:
-        print(f"Training {parent} -> {child} model from scratch")
+        log(INFO, f"Training {parent} -> {child} model from scratch")
         df_with_cluster = tables[child].data
         id_cols = [col for col in df_with_cluster.columns if "_id" in col]
         df_without_id = df_with_cluster.drop(columns=id_cols)
@@ -244,7 +244,7 @@ def train_model(
     input_dimension = np.sum(category_sizes) + num_numerical_features
     model_params.input_dimension = input_dimension
 
-    print("Model params: {}".format(model_params))
+    log(INFO, "Model params: {}".format(model_params))
     model = diffusion_config.model_type.get_model(model_params)
     model.to(device)
 
@@ -334,7 +334,7 @@ def train_classifier(
         table_metadata=table_metadata,
         noise_scale=0,
     )
-    print(dataset.n_features)
+    log(INFO, f"Number of dataset features: {dataset.n_features}")
     train_loader = prepare_fast_dataloader(
         dataset,
         split=DataSplit.TRAIN,
@@ -357,7 +357,7 @@ def train_classifier(
     category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
     if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = np.array([0])
-    print(category_sizes)
+    log(INFO, f"Size of categories: {category_sizes}")
 
     # TODO: understand what's going on here
     if dataset.numerical_features is None:
