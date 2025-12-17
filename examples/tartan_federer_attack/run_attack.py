@@ -80,12 +80,13 @@ def run_data_processing(config: dict[str, Any]) -> None:
     log(INFO, "Running data processing pipeline...")
 
     population_data_path = Path(config["data_paths"]["population_data_path"])
+    midst_data_path = Path(config["data_paths"]["midst_data_path"])
     population_data_path.mkdir(parents=True, exist_ok=True)
 
     population_data_for_training_attack = prepare_population_dataset_for_attack(
         model_indices=config["data_processing_config"]["population_attack_indices_to_collect_for_training"],
         model_type=config["data_processing_config"]["model_type"],
-        models_base_dir=Path(config["data_paths"]["midst_data_path"]),
+        models_base_dir=midst_data_path,
         columns_for_deduplication=config["data_processing_config"]["columns_for_deduplication"],
     )
 
@@ -97,7 +98,7 @@ def run_data_processing(config: dict[str, Any]) -> None:
     population_data_for_validating_attack = prepare_population_dataset_for_attack(
         model_indices=config["data_processing_config"]["population_attack_indices_to_collect_for_validation"],
         model_type=config["data_processing_config"]["model_type"],
-        models_base_dir=Path(config["data_paths"]["midst_data_path"]),
+        models_base_dir=midst_data_path,
         columns_for_deduplication=config["data_processing_config"]["columns_for_deduplication"],
     )
 
@@ -134,26 +135,26 @@ def run_attack(config: DictConfig) -> None:
     attack_cfg = cfg["attack_config"]
     classifier_cfg = cfg["classifier_config"]
 
-    mia_performance_train, mia_performance_val, mia_performance_test = tartan_federer_attack(
-        model_type=attack_cfg["model_type"],
-        model_data_dir=Path(attack_cfg["models_base_dir"]),
-        target_model_subdir=Path(attack_cfg["target_shadow_model_subdir"]),
-        samples_per_train_model=attack_cfg["samples_per_train_model"],
-        sample_per_val_model=attack_cfg["samples_per_val_model"],
-        num_noise_per_time_step=attack_cfg["num_noise_per_time_step"],
-        timesteps=attack_cfg["timesteps"],
-        additional_timesteps=attack_cfg["additional_timesteps"],
-        predictions_file_format=attack_cfg["predictions_file_name"],
-        results_path=Path(attack_cfg["results_path"]),
-        test_indices=attack_cfg["test_indices"],
+    _mia_performance_train, _mia_performance_val, _mia_performance_test = tartan_federer_attack(
         train_indices=attack_cfg["train_indices"],
         val_indices=attack_cfg["val_indices"],
+        test_indices=attack_cfg["test_indices"],
         columns_for_deduplication=attack_cfg["columns_for_deduplication"],
-        classifier_hidden_dim=classifier_cfg["hidden_dim"],
+        timesteps=attack_cfg["timesteps"],
+        additional_timesteps=attack_cfg["additional_timesteps"],
+        num_noise_per_time_step=attack_cfg["num_noise_per_time_step"],
+        samples_per_train_model=attack_cfg["samples_per_train_model"],
+        samples_per_val_model=attack_cfg["samples_per_val_model"],
         classifier_num_epochs=classifier_cfg["num_epochs"],
+        classifier_hidden_dim=classifier_cfg["hidden_dim"],
         classifier_learning_rate=classifier_cfg["learning_rate"],
-        meta_dir=Path(config["data_paths"]["metadata_dir"]),
+        model_type=attack_cfg["model_type"],
+        predictions_file_name=attack_cfg["predictions_file_name"],
         population_data_dir=Path(data_cfg["population_data_path"]),
+        model_data_dir=Path(config["data_paths"]["midst_data_path"]),
+        meta_dir=Path(config["data_paths"]["metadata_dir"]),
+        target_model_subdir=Path(attack_cfg["target_shadow_model_subdir"]),
+        results_path=Path(attack_cfg["results_path"]),
     )
 
     unset_all_random_seeds()
