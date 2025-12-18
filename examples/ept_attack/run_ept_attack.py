@@ -7,14 +7,17 @@ https://github.com/eyalgerman/MIA-EPT.
 """
 
 import json
+from datetime import datetime
 from logging import INFO
 from pathlib import Path
 
 import hydra
+import pandas as pd
 from omegaconf import DictConfig
 
 from examples.common.utils import iterate_model_folders
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
+from midst_toolkit.attacks.ept.classification import train_attack_classifier
 from midst_toolkit.attacks.ept.feature_extraction import extract_features
 from midst_toolkit.common.logger import log
 
@@ -34,7 +37,7 @@ def run_attribute_prediction(config: DictConfig) -> None:
 
     diffusion_model_names = ["tabddpm", "tabsyn"] if config.attack_settings.single_table else ["clavaddpm"]
     input_data_path = Path(config.data_paths.input_data_path)
-    output_features_path = Path(config.data_paths.output_data_path, "attribute_prediction_features")
+    output_features_path = Path(config.data_paths.attribute_features_path)
 
     # Load column types specific to the competition dataset
     with open(config.data_paths.data_types_file_path, "r") as f:
@@ -46,11 +49,16 @@ def run_attribute_prediction(config: DictConfig) -> None:
         "categorical": [col for col in column_types.get("categorical", []) if not col.endswith("_id")],
     }
 
-    # Iterating over directories specific to the shadow models folder structure in the competition
-    for model_name, model_data_path, model_folder, mode in iterate_model_folders(input_data_path, diffusion_model_names):
+    # Assert that the input data path exists and is not empty
+    assert input_data_path.exists() and input_data_path.is_dir(), f"Input data directory not found: {input_data_path}"
+    assert any(input_data_path.iterdir()), f"Input data directory is empty: {input_data_path}"
 
-        import pdb; pdb.set_trace()
-        
+    # Iterating over directories specific to the shadow models folder structure in the competition
+    for model_name, model_data_path, model_folder, mode in iterate_model_folders(
+        input_data_path, diffusion_model_names
+    ):
+        print(f"Processing model: {model_name}, path: {model_data_path}, folder: {model_folder}, mode: {mode}")
+
         # Load the data files as dataframes
         df_synthetic_data = load_dataframe(model_data_path, "trans_synthetic.csv")
         df_challenge_data = load_dataframe(model_data_path, "challenge_with_id.csv")
@@ -68,7 +76,7 @@ def run_attribute_prediction(config: DictConfig) -> None:
             random_seed=config.random_seed,
         )
 
-        final_output_dir = output_features_path / f"{model_name}_black_box"
+        final_output_dir = output_features_path / f"{model_name}_black_box" / mode
 
         final_output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -78,7 +86,7 @@ def run_attribute_prediction(config: DictConfig) -> None:
 
         if mode == "train":
             file_name = f"attribute_prediction_features_with_labels_{model_folder_number}.csv"
-        
+
             # Load the challenge labels and add them to the features dataframe
             df_labels = load_dataframe(model_data_path, "challenge_label.csv")
 
@@ -102,20 +110,61 @@ def run_attack_classifier_training(config: DictConfig) -> None:
     """
     log(INFO, "Running attack classifier training.")
 
-    # Read all the files from the attribute prediction features directory
-    features_data_path = Path(config.data_paths.output_data_path, "attribute_prediction_features")
+    data_format, models = (
+        ("single_table", ["tabddpm", "tabsyn"])
+        if config.attack_settings.single_table
+        else ("multi_table", ["clavaddpm"])
+    )
 
-    models = ["tabddpm", "tabsyn"] if config.attack_settings.single_table else ["clavaddpm"]
+    # Read all the files from the attribute prediction features directory
+    features_data_path = Path(config.data_paths.attribute_features_path)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     for model_name in models:
-        model_features_path = features_data_path / f"{model_name}_black_box"
+        train_features_path = features_data_path / f"{model_name}_black_box" / "train"
 
-        assert model_features_path.exists() and model_features_path.is_dir(), (
-            f"Directory not found: {model_features_path}. Make sure to run feature extraction first."
+        assert train_features_path.exists() and train_features_path.is_dir(), (
+            f"Directory not found: {train_features_path}. Make sure to run feature extraction first."
         )
-        assert any(model_features_path.iterdir()), (
-            f"Directory is empty: {model_features_path}. Make sure to run feature extraction first."
+        assert any(train_features_path.iterdir()), (
+            f"Directory is empty: {train_features_path}. Make sure to run feature extraction first."
         )
+
+        sorted_feature_files = sorted(train_features_path.glob("*.csv"))
+
+        # Get the first 25 feature files
+        train_feature_files = sorted_feature_files[:25]
+        # Concatenate all the train feature files into a single dataframe
+        df_train_features = pd.concat([pd.read_csv(f) for f in train_feature_files], ignore_index=True)
+        train_labels = df_train_features["is_train"]
+        df_train_features = df_train_features.drop(columns=["is_train"])
+
+        test_feature_files = sorted_feature_files[26:]
+        df_test_features = pd.concat([pd.read_csv(f) for f in test_feature_files], ignore_index=True)
+        test_labels = df_test_features["is_train"]
+        df_test_features = df_test_features.drop(columns=["is_train"])
+
+        classifier_types = ["XGBoost", "CatBoost", "MLP"]
+        column_types = ["actual", "error", "error_ratio", "accuracy", "prediction"]
+
+        results = train_attack_classifier(
+            classifier_types=classifier_types,
+            column_types=column_types,
+            x_train=df_train_features,
+            y_train=train_labels,
+            x_test=df_test_features,
+            y_test=test_labels,
+        )
+
+        summary_file_name = "attack_classifier_summary.txt"
+        output_summary_path = Path(config.classifier_settings.results_output_path) / data_format / f"{timestamp}_train"
+        output_summary_path.mkdir(parents=True, exist_ok=True)
+
+        with open(output_summary_path / summary_file_name, "w") as f:
+            json.dump(results, f, indent=4)
+
+        log(INFO, f"Saved attack classifier summary to {output_summary_path / summary_file_name}")
 
 
 @hydra.main(config_path=".", config_name="config", version_base=None)

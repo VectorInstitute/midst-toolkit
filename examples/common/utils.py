@@ -4,7 +4,9 @@ from collections.abc import Generator
 from pathlib import Path
 
 
-def iterate_model_folders(input_data_path: Path, diffusion_model_names: list[str]) -> Generator[tuple[str, Path, str]]:
+def iterate_model_folders(
+    input_data_path: Path, diffusion_model_names: list[str]
+) -> Generator[tuple[str, Path, str, str]]:
     """
     Iterates over the competition's shadow model folder structure and yields model information.
 
