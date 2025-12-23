@@ -4,13 +4,14 @@ MIDST competition.
 """
 
 from enum import Enum
-from pathlib import Path
 from logging import INFO
+from pathlib import Path
 
 import pandas as pd
 from omegaconf import DictConfig
-from midst_toolkit.common.logger import log
+
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
+from midst_toolkit.common.logger import log
 
 
 class AttackType(Enum):
@@ -22,12 +23,6 @@ class AttackType(Enum):
     TABSYN_WHITE_BOX = "tabsyn_white_box"
     CLAVADDPM_BLACK_BOX = "clavaddpm_black_box"
     CLAVADDPM_WHITE_BOX = "clavaddpm_white_box"
-    # Experiment attack types based on experiment settings
-    TABDDPM_5K = "tabddpm_trained_with_5k"
-    TABDDPM_10K = "tabddpm_trained_with_10k"
-    TABDDPM_20K = "tabddpm_trained_with_20k"
-    TABDDPM_50K = "tabddpm_trained_with_50k"
-    TABDDPM_100K = "tabddpm_trained_with_100k"
     # Experiment attack types based on experiment settings
     TABDDPM_5K = "tabddpm_trained_with_5k"
     TABDDPM_10K = "tabddpm_trained_with_10k"
@@ -164,6 +159,7 @@ def collect_population_data_ensemble(
         midst_data_input_dir: The path where the MIDST data folders are stored.
         data_processing_config: Configuration dictionary containing data information and file names.
         save_dir: The path where the collected population data should be saved.
+        original_repo_population: The original population data collected from the MIDST challenge repository.
         population_splits: A list indicating the data splits to be collected for population data.
             Could be any of `train`, `dev`, or `final` data splits. If None, the default list of ``["train"]``
             is set in the function based on the original attack implementation.
@@ -215,8 +211,7 @@ def collect_population_data_ensemble(
 
     df_population = pd.concat([df_population_experiment, original_repo_population]).drop_duplicates()
     log(INFO, f"Concatenated population data length: {len(df_population)}")
-    
-    
+
     # Drop ids.
     df_population_no_id = df_population.drop(columns=["trans_id", "account_id"])
     # Save the population data
@@ -230,7 +225,6 @@ def collect_population_data_ensemble(
     df_challenge = collect_midst_data(
         midst_data_input_dir,
         attack_types=challenge_attack_types,
-        data_splits=challenge_splits,
         data_splits=challenge_splits,
         dataset="challenge",
         data_processing_config=data_processing_config,

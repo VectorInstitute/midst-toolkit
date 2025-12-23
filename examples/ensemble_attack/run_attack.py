@@ -11,9 +11,9 @@ import hydra
 from omegaconf import DictConfig
 
 from examples.ensemble_attack.real_data_collection import collect_population_data_ensemble
+from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.common.logger import log
-from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
 from midst_toolkit.common.random import set_all_random_seeds
 
 
@@ -25,8 +25,9 @@ def run_data_processing(config: DictConfig) -> None:
         config: Configuration object set in config.yaml.
     """
     # Load original repo's population
-    
-    original_population_data = load_dataframe(Path(config.data_processing_config.original_population_data_path),
+
+    original_population_data = load_dataframe(
+        Path(config.data_processing_config.original_population_data_path),
         "population_all_with_challenge.csv",
     )
     log(INFO, "Running data processing pipeline...")
@@ -35,12 +36,12 @@ def run_data_processing(config: DictConfig) -> None:
         midst_data_input_dir=Path(config.data_paths.midst_data_path),
         data_processing_config=config.data_processing_config,
         save_dir=Path(config.data_paths.population_path),
-        original_repo_population = original_population_data,
+        original_repo_population=original_population_data,
         population_splits=config.data_processing_config.population_splits,
         challenge_splits=config.data_processing_config.challenge_splits,
     )
 
-    # The following function saves the required dataframe splits in the specified processed_attack_data_path path. 
+    # The following function saves the required dataframe splits in the specified processed_attack_data_path path.
     process_split_data(
         all_population_data=population_data,
         processed_attack_data_path=Path(config.data_paths.processed_attack_data_path),

@@ -6,6 +6,7 @@ https://github.com/CRCHUM-CITADEL/ensemble-mia.
 
 from enum import Enum
 from logging import INFO
+from multiprocessing import Pool
 from typing import Any
 
 import gower
@@ -14,57 +15,60 @@ import pandas as pd
 
 from midst_toolkit.common.logger import log
 
-from multiprocessing import Pool
 
 class Key(Enum):
     TRAINED_RESULTS = "trained_results"
     FINE_TUNED_RESULTS = "fine_tuned_results"
 
+
 def compute_gower_batched(
     df_x: pd.DataFrame,
     df_y: pd.DataFrame,
-    cat_features: list[bool],
+    cat_features: list[str],
     batch_size: int,
     dtype: np.dtype,
 ) -> np.ndarray:
     """
     Compute Gower distance matrix in batches to reduce peak memory usage.
-    
+
     This processes df_x in batches, computing distances against all of df_y,
     then stacks results.
 
     Args:
         df_x: First dataframe.
         df_y: Second dataframe.
-        cat_features: List indicating which columns are categorical.
+        cat_features: List containing categorical columns.
         batch_size: Number of rows from df_x to process in each batch.
         dtype: The data type to which numerical columns will be cast.
-    
+
     Returns:
         Gower distance matrix as a numpy array.
     """
     n_x = len(df_x)
     n_y = len(df_y)
-    
+
     # Pre-allocate output matrix
     gower_matrix = np.zeros((n_x, n_y), dtype=dtype)
-    
+
     for start_idx in range(0, n_x, batch_size):
         end_idx = min(start_idx + batch_size, n_x)
-        
+
         # Compute distance for this batch
         batch_matrix = gower.gower_matrix(
             data_x=df_x.iloc[start_idx:end_idx],
             data_y=df_y,
             cat_features=cat_features,
         )
-        
+
         # Store in output matrix
         gower_matrix[start_idx:end_idx] = batch_matrix.astype(dtype)
-    
+
     return gower_matrix
 
-def compute_gower_for_model(args: tuple[int, pd.DataFrame, pd.DataFrame, int, str, int | None, list[str], list[str], np.dtype]) -> tuple[int, np.ndarray]:
+
+def compute_gower_for_model(
+    args: tuple[int, pd.DataFrame, pd.DataFrame, int, str, int | None, list[str], list[str], np.dtype],
+) -> tuple[int, np.ndarray]:
     """
     Computes the Gower distance matrix between df_input and a single synthetic dataframe.
 
@@ -76,7 +80,7 @@ def compute_gower_for_model(args: tuple[int, pd.DataFrame, pd.DataFrame, int, st
             - min_length: Minimum length for downsampling.
             - id_column_name: Name of the ID column.
             - random_seed: Random seed for reproducibility.
-            - categorical_features: List indicating which columns are categorical.
+            - categorical_features: A list of input dataframe's categorical features.
             - numerical_columns: List of numerical column names.
             - dtype: The data type to which numerical columns will be cast.
 
@@ -85,24 +89,33 @@ def compute_gower_for_model(args: tuple[int, pd.DataFrame, pd.DataFrame, int, st
             - i: Index of the model (same as input).
             - gower_matrix: The computed Gower distance matrix as a numpy array.
     """
-    i, df_synthetic_raw, df_input, min_length, id_column_name, random_seed, categorical_features, numerical_columns, dtype = args
-    
+    (
+        i,
+        df_synthetic_raw,
+        df_input,
+        min_length,
+        id_column_name,
+        random_seed,
+        categorical_features,
+        numerical_columns,
+        dtype,
+    ) = args
+
     df_synthetic = df_synthetic_raw.copy()
-    
+
     if id_column_name in df_synthetic.columns:
         df_synthetic = df_synthetic.drop(columns=[id_column_name])
-    
+
     df_synthetic[numerical_columns] = df_synthetic[numerical_columns].astype(dtype)
-    
+
     if len(df_synthetic) > min_length:
         df_synthetic = df_synthetic.sample(n=min_length, random_state=random_seed)
-    
+
     # Batched computation: compute row-by-row to reduce peak memory
-    gower_matrix = compute_gower_batched(
-        df_input, df_synthetic, categorical_features, batch_size=5000, dtype=dtype
-    )
-    
+    gower_matrix = compute_gower_batched(df_input, df_synthetic, categorical_features, batch_size=5000, dtype=dtype)
+
     return i, gower_matrix
+
 
 def get_rmia_gower(
     df_input: pd.DataFrame,
@@ -127,7 +140,8 @@ def get_rmia_gower(
         id_column_name: Name of the ID column.
         random_seed: Random seed for reproducibility.
         n_jobs: Number of parallel jobs to use for computation. Default is 4.
-        dtype: The data type to which numerical columns will be cast for Gower distance computation. Default is np.float32.
+        dtype: The data type to which numerical columns will be cast for Gower distance computation.
+            Default is np.float32.
 
     Returns:
         A list of numpy arrays, each representing the Gower distance matrix between the input dataframe and the
@@ -153,20 +167,28 @@ def get_rmia_gower(
 
     # Prepare arguments for each processing task
     args_list = [
-        (i, df_synthetic, df_input, min_length, id_column_name, 
-        random_seed, categorical_features, numerical_columns, dtype)
+        (
+            i,
+            df_synthetic,
+            df_input,
+            min_length,
+            id_column_name,
+            random_seed,
+            categorical_features,
+            numerical_columns,
+            dtype,
+        )
         for i, df_synthetic in enumerate(model_data)
     ]
-    
+
     # Process in parallel
     results = {}
     with Pool(processes=n_jobs) as pool:
         for i, gower_matrix in pool.imap_unordered(compute_gower_for_model, args_list):
             results[i] = gower_matrix
-    
+
     # Return in original order
     return [results[i] for i in range(len(model_data))]
-
 
 
 def conditional_average(values: np.ndarray, condition_mask: np.ndarray) -> np.ndarray:
@@ -190,7 +212,6 @@ def conditional_average(values: np.ndarray, condition_mask: np.ndarray) -> np.nd
 
     mask_sum = condition_mask.sum(axis=0)
     return np.where(mask_sum > 0, np.sum(values * condition_mask, axis=0) / mask_sum, np.nan)
-
 
 
 def calculate_rmia_signals(
@@ -302,9 +323,7 @@ def calculate_rmia_signals(
     if not (1 <= k <= min_length):
         raise ValueError(f"k={k} must be within [1, {min_length}]")
 
-    shadow_synthetic_list_0 = [
-        train_result for train_result in fine_tuned_shadow_data_0[Key.FINE_TUNED_RESULTS.value]
-    ]
+    shadow_synthetic_list_0 = list(fine_tuned_shadow_data_0[Key.FINE_TUNED_RESULTS.value])
     shadow_model_gower_0 = get_rmia_gower(
         df_input=df_input,
         model_data=shadow_synthetic_list_0,
@@ -316,9 +335,7 @@ def calculate_rmia_signals(
     )
     log(INFO, "Computed Gower distance for fine-tuned shadow models (first set of shadow models).")
 
-    shadow_synthetic_list_1 = [
-        train_result for train_result in fine_tuned_shadow_data_1[Key.FINE_TUNED_RESULTS.value]
-    ]
+    shadow_synthetic_list_1 = list(fine_tuned_shadow_data_1[Key.FINE_TUNED_RESULTS.value])
 
     shadow_model_gower_1 = get_rmia_gower(
         df_input=df_input,
@@ -331,10 +348,8 @@ def calculate_rmia_signals(
     )
     log(INFO, "Computed Gower distance for fine-tuned shadow models (second set of shadow models).")
 
-    shadow_synthetic_list_2 = [
-        train_result for train_result in trained_shadow_data[Key.TRAINED_RESULTS.value]
-    ]
-    
+    shadow_synthetic_list_2 = list(trained_shadow_data[Key.TRAINED_RESULTS.value])
+
     # shadow_synthetic_list_2 includes 8 shadow models
     shadow_model_gower_2 = get_rmia_gower(
         df_input=df_input,
@@ -346,7 +361,6 @@ def calculate_rmia_signals(
         n_jobs=4,
     )
 
-
     log(INFO, "Computed Gower distance for trained shadow models (third set of shadow models).")
 
     gower_shadows = np.vstack(
@@ -356,7 +370,6 @@ def calculate_rmia_signals(
     # Process shadow model distances. Gower_shadows is a 3D matrix of shape:
     # ((total number of shadow models), len(df_input), len(shadow_synthetic))
     sorted_shadow_gower = np.sort(gower_shadows, axis=2)
-
 
     # TODO: check key after we have the official target model
     target_model_gower = get_rmia_gower(

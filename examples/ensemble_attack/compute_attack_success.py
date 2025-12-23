@@ -14,7 +14,6 @@ from midst_toolkit.common.logger import log
 from midst_toolkit.evaluation.privacy.mia_scoring import TprAtFpr
 
 
-
 def load_target_challenge_labels_and_probabilities(
     metaclassifier_model_name: str, attack_results_path: Path, challenge_label_path: Path
 ) -> tuple[np.ndarray, np.ndarray]:
