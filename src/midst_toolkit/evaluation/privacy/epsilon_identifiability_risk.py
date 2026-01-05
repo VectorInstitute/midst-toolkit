@@ -1,9 +1,10 @@
 from enum import Enum
 
 import pandas as pd
-from syntheval.metrics.privacy.metric_epsilon_identifiability import EpsilonIdentifiability
 
+# from syntheval.metrics.privacy.metric_epsilon_identifiability import EpsilonIdentifiability
 from midst_toolkit.evaluation.metrics_base import SynthEvalMetric
+from midst_toolkit.evaluation.privacy.batched_eir import EpsilonIdentifiability
 
 
 class EpsilonIdentifiabilityNorm(Enum):
