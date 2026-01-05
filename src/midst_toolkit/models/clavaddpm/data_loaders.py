@@ -96,7 +96,7 @@ def load_tables(
     with open(data_dir / "dataset_meta.json", "r") as f:
         dataset_meta = json.load(f)
 
-    relation_order = dataset_meta["relation_order"]
+    relation_order = [tuple(relation) for relation in dataset_meta["relation_order"]]
 
     tables = {}
 

@@ -1,0 +1,153 @@
+import numpy as np
+import pandas as pd
+import pytest
+
+from midst_toolkit.attacks.ept.feature_extraction import extract_features, preprocess_train_predict
+from midst_toolkit.common.enumerations import TaskType
+
+
+@pytest.fixture
+def sample_column_types() -> dict:
+    """Provides a sample column_types dictionary."""
+    return {
+        "numerical": ["num_col_1", "num_col_2"],
+        "categorical": ["cat_col_1", "cat_col_2"],
+    }
+
+
+@pytest.fixture
+def sample_dataframes() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Provides sample synthetic and challenge dataframes."""
+    synthetic_data = pd.DataFrame(
+        {
+            "num_col_1": [1.0, 2.5, 3.0, 4.1, 5.8],
+            "num_col_2": [10, 20, 30, 40, 50],
+            "cat_col_1": ["A", "B", "A", "C", "B"],
+            "cat_col_2": ["X", "X", "Y", "Y", "X"],
+        }
+    )
+
+    challenge_data = pd.DataFrame(
+        {
+            "num_col_1": [1.2, 2.3, 3.1, 4.0, 5.5],
+            "num_col_2": [11, 22, 33, 44, 55],
+            "cat_col_1": ["A", "B", "B", "C", "A"],
+            "cat_col_2": ["X", "Y", "Y", "X", "Y"],
+        }
+    )
+    return synthetic_data, challenge_data
+
+
+def test_preprocess_train_predict_classification(sample_dataframes, sample_column_types):
+    # Tests the preprocess_train_predict function for a classification task.
+
+    train_df, test_df = sample_dataframes
+    target_col = "cat_col_1"
+
+    predictions, y_test, task_type = preprocess_train_predict(
+        train_points=train_df,
+        test_points=test_df,
+        target_col=target_col,
+        column_types=sample_column_types,
+        random_seed=42,
+    )
+
+    assert task_type == TaskType.MULTICLASS_CLASSIFICATION
+    assert len(predictions) == len(test_df)
+    assert predictions.dtype == "object"  # RandomForestClassifier predicts original class
+    pd.testing.assert_series_equal(y_test, test_df[target_col], check_dtype=False, check_names=False)
+
+
+def test_preprocess_train_predict_regression(sample_dataframes, sample_column_types):
+    # Tests the preprocess_train_predict function for a regression task.
+
+    train_df, test_df = sample_dataframes
+    target_col = "num_col_1"
+
+    predictions, y_test, task_type = preprocess_train_predict(
+        train_points=train_df,
+        test_points=test_df,
+        target_col=target_col,
+        column_types=sample_column_types,
+        random_seed=42,
+    )
+
+    assert task_type == TaskType.REGRESSION
+    assert len(predictions) == len(test_df)
+    assert np.issubdtype(predictions.dtype, np.number)  # Should be numeric
+    pd.testing.assert_series_equal(y_test, test_df[target_col], check_dtype=False, check_names=False)
+
+
+def test_preprocess_train_predict_assertions(sample_dataframes, sample_column_types):
+    # Tests that the assertions within preprocess_train_predict fire correctly.
+
+    train_df, test_df = sample_dataframes
+    target_col = "num_col_1"
+
+    # 1. Target column not in train_points
+    with pytest.raises(AssertionError, match="Target column 'non_existent_col' not found in train_points."):
+        preprocess_train_predict(train_df, test_df, "non_existent_col", sample_column_types)
+
+    # 2. Target column not in test_points
+    test_df_missing_target = test_df.drop(columns=[target_col])
+    with pytest.raises(AssertionError, match=f"Target column '{target_col}' not found in test_points."):
+        preprocess_train_predict(train_df, test_df_missing_target, target_col, sample_column_types)
+
+    # 3. Mismatched columns between train and test dataframes
+    test_df_mismatched = test_df.rename(columns={"num_col_2": "new_col_name"})
+    with pytest.raises(AssertionError, match="Columns in df_train and df_test do not match"):
+        preprocess_train_predict(train_df, test_df_mismatched, target_col, sample_column_types)
+
+    # 4. Target column appears more than once in column_types
+    column_types_duplicate = sample_column_types.copy()
+    column_types_duplicate["categorical"] = column_types_duplicate["categorical"] + [target_col]
+    with pytest.raises(AssertionError, match=f"The target column '{target_col}' must appear exactly once"):
+        preprocess_train_predict(train_df, test_df, target_col, column_types_duplicate)
+
+    # 5. Mismatch between dataframe columns and column_types
+    column_types_mismatch = sample_column_types.copy()
+    column_types_mismatch["numerical"] = ["num_col_1"]  # Missing num_col_2
+    with pytest.raises(AssertionError, match="The union of numeric_columns and categorical_columns must match"):
+        preprocess_train_predict(train_df, test_df, target_col, column_types_mismatch)
+
+
+def test_main_feature_extraction(sample_dataframes, sample_column_types):
+    # Tests the main orchestrator function for feature extraction.
+
+    synthetic_data, challenge_data = sample_dataframes
+
+    df_results = extract_features(
+        synthetic_data=synthetic_data, challenge_data=challenge_data, column_types=sample_column_types, random_seed=42
+    )
+
+    assert isinstance(df_results, pd.DataFrame)
+    assert len(df_results) == len(challenge_data)
+
+    # Check for expected columns
+    expected_columns = [
+        # Numerical 1
+        "num_col_1",
+        "num_col_1_error",
+        "num_col_1_error_ratio",
+        "num_col_1_prediction",
+        # Numerical 2
+        "num_col_2",
+        "num_col_2_error",
+        "num_col_2_error_ratio",
+        "num_col_2_prediction",
+        # Categorical 1
+        "cat_col_1",
+        "cat_col_1_accuracy",
+        "cat_col_1_prediction",
+        # Categorical 2
+        "cat_col_2",
+        "cat_col_2_accuracy",
+        "cat_col_2_prediction",
+    ]
+
+    assert sorted(df_results.columns) == sorted(expected_columns)
+
+    # Check that accuracy is 0 or 1
+    assert df_results["cat_col_1_accuracy"].isin([0, 1]).all()
+    # Check that error is non-negative
+    assert (df_results["num_col_1_error"] >= 0).all()

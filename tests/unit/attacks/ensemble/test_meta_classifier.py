@@ -8,6 +8,7 @@ from hydra import compose, initialize
 from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
+from midst_toolkit.evaluation.privacy.mia_metrics import TprAtFpr
 
 
 MOCK_COLUMN_TYPES_CONTENT = {
@@ -38,6 +39,7 @@ def mock_config_with_json_path():
                 "num_optuna_trials": 100,
                 "num_kfolds": 5,
                 "epochs": 1,
+                "meta_classifier_model_name": "mock_model_name",
             }
         }
     )
@@ -95,7 +97,7 @@ class TestBlendingPlusPlus:
         bpp_xgb = BlendingPlusPlus(
             config=mock_config_with_json_path,
             shadow_data_collection=[],
-            target_data=MOCK_TARGET_DATA,
+            data_types_file_path=mock_config_with_json_path.metaclassifier.data_types_file_path,
             meta_classifier_type=MetaClassifierType("xgb"),
         )
 
@@ -111,7 +113,7 @@ class TestBlendingPlusPlus:
         bpp_lr = BlendingPlusPlus(
             config=mock_config_with_json_path,
             shadow_data_collection=[],
-            target_data=MOCK_TARGET_DATA,
+            data_types_file_path=mock_config_with_json_path.metaclassifier.data_types_file_path,
             meta_classifier_type=MetaClassifierType("lr"),
         )
         assert bpp_lr.meta_classifier_type == MetaClassifierType.LR
@@ -129,7 +131,7 @@ class TestBlendingPlusPlus:
             BlendingPlusPlus(
                 config=mock_config_with_json_path,
                 shadow_data_collection=[],
-                target_data=MOCK_TARGET_DATA,
+                data_types_file_path=mock_config_with_json_path.metaclassifier.data_types_file_path,
                 meta_classifier_type=MetaClassifierType("svm"),
             )
 
@@ -151,7 +153,7 @@ class TestBlendingPlusPlus:
         bpp = BlendingPlusPlus(
             config=mock_config_with_json_path,
             shadow_data_collection=[],
-            target_data=MOCK_TARGET_DATA,
+            data_types_file_path=mock_config_with_json_path.metaclassifier.data_types_file_path,
         )
 
         categorical_cols = MOCK_COLUMN_TYPES_CONTENT["categorical"]
@@ -201,7 +203,7 @@ class TestBlendingPlusPlus:
         bpp = BlendingPlusPlus(
             config=mock_config_with_json_path,
             shadow_data_collection=attack_collection,
-            target_data=MOCK_TARGET_DATA,
+            data_types_file_path=mock_config_with_json_path.metaclassifier.data_types_file_path,
         )
 
         df_train = sample_dataframes["df_train"]
@@ -245,7 +247,7 @@ class TestBlendingPlusPlus:
         bpp = BlendingPlusPlus(
             config=mock_config_with_json_path,
             shadow_data_collection=[],
-            target_data=MOCK_TARGET_DATA,
+            data_types_file_path=mock_config_with_json_path.metaclassifier.data_types_file_path,
             meta_classifier_type=MetaClassifierType("lr"),
         )
         bpp.fit(
@@ -279,7 +281,7 @@ class TestBlendingPlusPlus:
         bpp = BlendingPlusPlus(
             config=mock_config_with_json_path,
             shadow_data_collection=[],
-            target_data=MOCK_TARGET_DATA,
+            data_types_file_path=mock_config_with_json_path.metaclassifier.data_types_file_path,
             meta_classifier_type=MetaClassifierType("xgb"),
         )
         bpp.fit(
@@ -305,7 +307,9 @@ class TestBlendingPlusPlus:
         mock_file.return_value.read.return_value = json.dumps(MOCK_COLUMN_TYPES_CONTENT)
 
         bpp = BlendingPlusPlus(
-            config=mock_config_with_json_path, shadow_data_collection=[], target_data=MOCK_TARGET_DATA
+            config=mock_config_with_json_path,
+            shadow_data_collection=[],
+            data_types_file_path=mock_config_with_json_path.metaclassifier.data_types_file_path,
         )
         with pytest.raises(AssertionError):
             bpp.predict(
@@ -318,7 +322,7 @@ class TestBlendingPlusPlus:
 
     @patch("builtins.open", new_callable=mock_open)
     @patch("midst_toolkit.attacks.ensemble.blending.BlendingPlusPlus._prepare_meta_features")
-    @patch("midst_toolkit.attacks.ensemble.blending.get_tpr_at_fpr")
+    @patch.object(TprAtFpr, "get_tpr_at_fpr")
     def test_predict_flow(
         self, mock_get_tpr, mock_prepare_features, mock_file, mock_config_with_json_path, sample_dataframes
     ):
@@ -333,7 +337,7 @@ class TestBlendingPlusPlus:
         bpp = BlendingPlusPlus(
             config=mock_config_with_json_path,
             shadow_data_collection=[],
-            target_data=MOCK_TARGET_DATA,
+            data_types_file_path=mock_config_with_json_path.metaclassifier.data_types_file_path,
         )
         bpp.trained_model = mock_classifier
 
