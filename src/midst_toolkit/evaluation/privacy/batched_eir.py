@@ -118,7 +118,8 @@ class EpsilonIdentifiability(MetricClass):  # type: ignore[misc]
         weights = [_column_entropy(np_real_data[:, feauture]) for feauture in range(n_feautures)]
         weights_adjusted = 1 / (np.array(weights) + 1e-16)
 
-        # INTERNAL KNN: REAL → REAL
+        # internal (original syntheval logic)
+        # hardcoding of k=1 refers to only needing to compute the distance to the closest neighbor.
         internal_distances = _knn_distance(
             self.real_data,
             self.real_data,
@@ -128,7 +129,7 @@ class EpsilonIdentifiability(MetricClass):  # type: ignore[misc]
             weights_adjusted,
         )[0]
 
-        # EXTERNAL KNN: REAL → SYNTHETIC (safe to batch reference)
+        # external (batched)
         external_distances = batched_reference_knn(
             self.real_data,
             self.synt_data,
@@ -142,12 +143,18 @@ class EpsilonIdentifiability(MetricClass):  # type: ignore[misc]
         self.results["eps_risk"] = identifiability_risk
 
         if self.hout_data is not None:
-            # INTERNAL: HOUT → HOUT (original logic)
+            # internal (original syntheval logic)
+            # hardcoding of k=1 refers to only needing to compute the distance to the closest neighbor.
             hout_internal_distances = _knn_distance(
-                self.hout_data, self.hout_data, self.cat_cols, 1, self.nn_dist, weights_adjusted
+                self.hout_data,
+                self.hout_data,
+                self.cat_cols,
+                1,
+                self.nn_dist,
+                weights_adjusted
             )[0]
 
-            # EXTERNAL: HOUT → SYNTHETIC (batched)
+            # external (batched)
             hout_external_distances = batched_reference_knn(
                 self.hout_data,
                 self.synt_data,
