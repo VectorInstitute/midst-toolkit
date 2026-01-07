@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -10,50 +11,51 @@ from tqdm.auto import tqdm
 
 def _column_entropy(labels: list | np.ndarray) -> np.number:
     """Compute the entropy of a single column."""
-    value, counts = np.unique(np.round(labels), return_counts=True)
+    _, counts = np.unique(np.round(labels), return_counts=True)
     return entropy(counts)
 
 
 def batched_reference_knn(
     query_df: pd.DataFrame,
     reference_df: pd.DataFrame,
-    cat_cols: list[int],
-    nn_dist: str,
+    categorical_columns: list[int],
+    nn_distance_metric: Literal["gower", "euclid"],
     weights: np.ndarray,
     ref_batch_size: int = 128,
     show_progress: bool = True,
 ) -> np.ndarray:
     """
-    Compute k-nearest neighbor distances from query rows to reference rows in a memory-efficient way.
+    Compute nearest neighbor distances from the points in query_df to reference_df in a memory-efficient way.
 
     Instead of comparing all query rows to all reference rows at once, the reference DataFrame
     is split into batches. For each batch:
-      1. Compute the distances from all query rows to the current batch.
+      1. Compute the distances from all query rows to the current reference_df batch.
       2. Keep track of the smallest distance per query row across all batches.
 
     Args:
-        query_df : The data points for which kNN distances are computed.
+        query_df : The data points for which nearest neighbor distances are computed.
         reference_df : The data points used as the reference for computing distances.
-        cat_cols : Indices of categorical columns.
-        nn_dist : Distance metric to use for nearest neighbor computation.
+        categorical_columns : Indices of categorical columns.
+        nn_distance_metric : Distance metric to use for nearest neighbor distance computation. Possible values are the
+                             Gower distance metric ('gower') and the Euclidean distance metric ('euclid').
         weights : Feature weights to apply when computing distances.
         ref_batch_size :  Number of reference rows per batch.
         show_progress : Whether to display a progress bar over reference batches.
 
-    Returns :
-        Array of minimum distances per query row after considering all reference batches.
+    Returns:
+        Array of nearest neighbor distance per query row after considering all reference batches.
     """
     n_query = len(query_df)
 
-    # best distances so far = +inf
-    best_d = np.full(n_query, np.inf, dtype=float)
+    # Initizalizing a list of best distances with np.inf so they can be replaced with the actual best distances later.
+    nearest_neighbor_distance = np.full(n_query, np.inf, dtype=float)
 
     iterator: Iterable[int]
     if show_progress:
         iterator = tqdm(
             range(0, len(reference_df), ref_batch_size),
             total=(len(reference_df) + ref_batch_size - 1) // ref_batch_size,
-            desc="Computing ref-batched kNN distances",
+            desc="Computing nearest neighbor distances from real/holdout dataset to synthetic dataset.",
         )
     else:
         iterator = range(0, len(reference_df), ref_batch_size)
@@ -62,35 +64,62 @@ def batched_reference_knn(
         end = min(start + ref_batch_size, len(reference_df))
         ref_batch = reference_df.iloc[start:end]
 
-        # compute distances to this reference batch (k=1 → index 0)
-        d_batch = _knn_distance(query_df, ref_batch, cat_cols, 1, nn_dist, weights)[0]
+        # compute distances for each row of the reference batch to its closest neigbour in ref_batch
+        # hardcoding of k=1 refers to only needing to compute the distance to the closest neighbor.
+        batch_distances = _knn_distance(query_df, ref_batch, categorical_columns, 1, nn_distance_metric, weights)[0]
 
         # keep smallest per query row
-        best_d = np.minimum(best_d, d_batch)
+        nearest_neighbor_distance = np.minimum(nearest_neighbor_distance, batch_distances)
 
-    return best_d
+    return nearest_neighbor_distance
 
 
 class EpsilonIdentifiability(MetricClass):  # type: ignore[misc]
     def name(self) -> str:
-        """Return the name of the metric."""
+        """
+        Returns the identifier of the metric.
+
+        Returns:
+            "eps_risk"
+        """
         return "eps_risk"
 
     def type(self) -> str:
-        """Return the type of the metric."""
+        """
+        Returns the type of the evaluation metric.
+
+        Returns:
+            "privacy"
+        """
         return "privacy"
 
     def evaluate(self) -> dict:
-        """Compute the Epsilon Identifiability Risk and Privacy Loss."""
-        real = np.asarray(self.real_data)
-        no, x_dim = real.shape
+        """
+        Compute epsilon-identifiability risk and privacy loss.
+
+        The epsilon-identifiability risk (eps_risk) is defined as the fraction of real
+        records whose nearest neighbor in the synthetic dataset is closer than their
+        nearest neighbor in the real dataset, using an entropy-weighted distance metric.
+
+        If holdout data is provided, the privacy loss (priv_loss) is computed as the
+        difference between the identifiability risk on the training data and the
+        identifiability risk on the holdout data.
+
+        Returns:
+            dict:
+                - 'eps_risk': Fraction of real records vulnerable to re-identification.
+                - 'priv_loss': Difference between training and holdout identifiability risks
+                (only present if holdout data is not None).
+        """
+        np_real_data = np.asarray(self.real_data)
+        real_size, n_feautures = np_real_data.shape
 
         # Column entropies → weights (inverted)
-        weights = [_column_entropy(real[:, i]) for i in range(x_dim)]
+        weights = [_column_entropy(np_real_data[:, feauture]) for feauture in range(n_feautures)]
         weights_adjusted = 1 / (np.array(weights) + 1e-16)
 
         # INTERNAL KNN: REAL → REAL
-        in_dists = _knn_distance(
+        internal_distances = _knn_distance(
             self.real_data,
             self.real_data,
             self.cat_cols,
@@ -100,7 +129,7 @@ class EpsilonIdentifiability(MetricClass):  # type: ignore[misc]
         )[0]
 
         # EXTERNAL KNN: REAL → SYNTHETIC (safe to batch reference)
-        ext_dists = batched_reference_knn(
+        external_distances = batched_reference_knn(
             self.real_data,
             self.synt_data,
             self.cat_cols,
@@ -108,18 +137,18 @@ class EpsilonIdentifiability(MetricClass):  # type: ignore[misc]
             weights_adjusted,
         )
 
-        r_diff = ext_dists - in_dists
-        identifiability = np.sum(r_diff < 0) / float(no)
-        self.results["eps_risk"] = identifiability
+        real_data_distance_differences = external_distances - internal_distances
+        identifiability_risk = np.sum(real_data_distance_differences < 0) / float(real_size)
+        self.results["eps_risk"] = identifiability_risk
 
         if self.hout_data is not None:
             # INTERNAL: HOUT → HOUT (original logic)
-            hout_in = _knn_distance(self.hout_data, self.hout_data, self.cat_cols, 1, self.nn_dist, weights_adjusted)[
-                0
-            ]
+            hout_internal_distances = _knn_distance(
+                self.hout_data, self.hout_data, self.cat_cols, 1, self.nn_dist, weights_adjusted
+            )[0]
 
             # EXTERNAL: HOUT → SYNTHETIC (batched)
-            hout_ext = batched_reference_knn(
+            hout_external_distances = batched_reference_knn(
                 self.hout_data,
                 self.synt_data,
                 self.cat_cols,
@@ -127,10 +156,10 @@ class EpsilonIdentifiability(MetricClass):  # type: ignore[misc]
                 weights_adjusted,
             )
 
-            hout_diff = hout_ext - hout_in
-            hout_val = np.sum(hout_diff < 0) / float(len(self.hout_data))
+            holdout_data_distance_differences = hout_external_distances - hout_internal_distances
+            hout_identifiability_risk = np.sum(holdout_data_distance_differences < 0) / float(len(self.hout_data))
 
-            self.results["priv_loss"] = self.results["eps_risk"] - hout_val
+            self.results["priv_loss"] = self.results["eps_risk"] - hout_identifiability_risk
 
         return self.results
 
@@ -141,17 +170,33 @@ class EpsilonIdentifiability(MetricClass):  # type: ignore[misc]
             string += f"\n| Privacy loss (diff. in eps. risk)        :   {self.results['priv_loss']:.4f}           |"
         return string
 
-    def normalize_output(self) -> list | None:
-        """Standardize the output format."""
+    def normalize_output(self) -> list[dict[str, Any]] | None:
+        """
+        Convert computed privacy metrics into a standardized list of dictionaries.
+
+        Each dictionary contains:
+            - 'metric': The metric identifier
+            - 'val': The raw metric value
+
+        The metrics included are:
+            - 'eps_identif_risk': The epsilon-identifiability risk of the real data
+            - 'priv_loss_eps': The difference in epsilon risk between training and holdout
+            data (only included if holdout data is provided)
+
+        If the evaluation has not been run yet (i.e., results are empty),
+        the method returns None.
+
+        Returns:
+            A list of metric dictionaries if results are available;
+            otherwise, None.
+        """
         if self.results == {}:
             return None
 
         output = [
             {
                 "metric": "eps_identif_risk",
-                "dim": "p",
                 "val": self.results["eps_risk"],
-                "n_val": 1 - self.results["eps_risk"],
             }
         ]
 
@@ -159,9 +204,7 @@ class EpsilonIdentifiability(MetricClass):  # type: ignore[misc]
             output.append(
                 {
                     "metric": "priv_loss_eps",
-                    "dim": "p",
                     "val": self.results["priv_loss"],
-                    "n_val": 1 - abs(self.results["priv_loss"]),
                 }
             )
 
