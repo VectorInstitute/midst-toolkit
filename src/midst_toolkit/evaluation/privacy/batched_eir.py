@@ -146,12 +146,7 @@ class EpsilonIdentifiability(MetricClass):  # type: ignore[misc]
             # internal (original syntheval logic)
             # hardcoding of k=1 refers to only needing to compute the distance to the closest neighbor.
             hout_internal_distances = _knn_distance(
-                self.hout_data,
-                self.hout_data,
-                self.cat_cols,
-                1,
-                self.nn_dist,
-                weights_adjusted
+                self.hout_data, self.hout_data, self.cat_cols, 1, self.nn_dist, weights_adjusted
             )[0]
 
             # external (batched)
