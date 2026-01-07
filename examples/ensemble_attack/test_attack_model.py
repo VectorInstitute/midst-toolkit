@@ -20,7 +20,7 @@ from midst_toolkit.common.random import set_all_random_seeds
 
 
 def save_results(
-    attack_results_path: Path, metaclassifier_model_name: str, probabilities: np.ndarray, pred_score: float|None
+    attack_results_path: Path, metaclassifier_model_name: str, probabilities: np.ndarray, pred_score: float | None
 ) -> None:
     """
     Saves the test prediction probabilities and metric results.

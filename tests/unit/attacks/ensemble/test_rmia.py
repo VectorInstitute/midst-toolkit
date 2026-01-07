@@ -1,4 +1,3 @@
-from collections import namedtuple
 from typing import Any
 
 import numpy as np
@@ -149,9 +148,7 @@ class TestGetRmiaGower:
         )
 
         min_length = 3
-        shadow_synthetic_list = [
-            train_result for train_result in base_data["model_data"][Key.TRAINED_RESULTS.value]
-        ]
+        shadow_synthetic_list = list(base_data["model_data"][Key.TRAINED_RESULTS.value])
         results = get_rmia_gower(
             df_input=base_data["df_input"],
             model_data=shadow_synthetic_list,
@@ -193,7 +190,7 @@ class TestGetRmiaGower:
         mock_sample = mocker.patch("pandas.DataFrame.sample", wraps=original_syn_data.sample)
 
         min_length = 2
-        synthetic_data_list = [data for data in base_data["model_data"][Key.TRAINED_RESULTS.value]]
+        synthetic_data_list = list(base_data["model_data"][Key.TRAINED_RESULTS.value])
         get_rmia_gower(
             df_input=base_data["df_input"],
             model_data=synthetic_data_list,
@@ -201,7 +198,7 @@ class TestGetRmiaGower:
             categorical_column_names=base_data["categorical_column_names"],
             id_column_name=base_data["id_column_name"],
             random_seed=base_data["random_seed"],
-            use_multiprocessing=False, # Disable multiprocessing to ensure mock is used in the main process
+            use_multiprocessing=False,  # Disable multiprocessing to ensure mock is used in the main process
         )
 
         assert mock_gower_matrix.call_count == 2
@@ -211,7 +208,12 @@ class TestGetRmiaGower:
         expected_sampled_data = original_syn_data.sample(n=min_length, random_state=base_data["random_seed"]).drop(
             columns=[base_data["id_column_name"]]
         )
-        pdt.assert_frame_equal(call_args_2["data_y"], expected_sampled_data, check_dtype=False, obj=f"mistake in call args: {call_args_2['data_y'].columns} and {expected_sampled_data.columns}")
+        pdt.assert_frame_equal(
+            call_args_2["data_y"],
+            expected_sampled_data,
+            check_dtype=False,
+            obj=f"mistake in call args: {call_args_2['data_y'].columns} and {expected_sampled_data.columns}",
+        )
 
     def test_get_rmia_gower_missing_categorical_column(self, base_data, mocker, caplog):
         """Tests that a warning is logged for missing categorical columns."""
@@ -222,9 +224,7 @@ class TestGetRmiaGower:
         missing_cat_cols = ["city", "non_existent_column"]
 
         with caplog.at_level("INFO"):
-            synthetic_data_list = [
-                data for data in base_data["model_data"][Key.FINE_TUNED_RESULTS.value]
-            ]
+            synthetic_data_list = list(base_data["model_data"][Key.FINE_TUNED_RESULTS.value])
             get_rmia_gower(
                 df_input=base_data["df_input"],
                 model_data=synthetic_data_list,

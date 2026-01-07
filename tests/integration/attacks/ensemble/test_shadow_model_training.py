@@ -14,7 +14,6 @@ from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
     train_shadow_on_half_challenge_data,
 )
 from midst_toolkit.attacks.ensemble.shadow_model_utils import (
-    TrainingResult,
     fine_tune_tabddpm_and_synthesize,
     save_additional_tabddpm_config,
     train_tabddpm_and_synthesize,
