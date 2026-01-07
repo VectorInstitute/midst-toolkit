@@ -270,9 +270,9 @@ def calculate_rmia_signals(
             models with their training data and generated synthetic outputs. Each collection can contain multiple
             shadow models. The first two dictionaries have keys ``fine_tuning_sets`` and ``fine_tuned_results``, while
             the third has keys ``selected_sets`` and ``trained_results``. The ``fine_tuning_sets`` and
-            ``selected_sets`` keys map to lists of DataFrames containing the data used to fine-tune or train the shadow
-            models. The ``fine_tuned_results`` and ``trained_results`` keys map to lists of ``TrainingResult`` objects,
-            which store model training metadata and the corresponding generated synthetic data.
+            ``selected_sets`` keys map to lists of DataFrames containing the data IDs used to fine-tune or train the shadow
+            models. The ``fine_tuned_results`` and ``trained_results`` keys map to lists of DataFrame objects,
+            which store model generated synthetic data.
             See ``train_three_sets_of_shadow_models`` in attacks/ensemble/rmia/shadow_model_training.py
             for additional details.
         target_synthetic_data: Target model's synthetic data as a DataFrame.
