@@ -15,9 +15,6 @@ from midst_toolkit.attacks.ensemble.rmia.rmia_calculation import (
 )
 
 
-MockTrainingResult = namedtuple("TrainingResult", ["synthetic_data"])
-
-
 @pytest.fixture
 def base_data() -> dict[str, Any]:
     """Provides base data for testing."""
@@ -48,11 +45,11 @@ def base_data() -> dict[str, Any]:
 
     model_data = {
         "trained_results": [
-            MockTrainingResult(synthetic_data=df_syn1),
-            MockTrainingResult(synthetic_data=df_syn2),
+            df_syn1,
+            df_syn2,
         ],
         "fine_tuned_results": [
-            MockTrainingResult(synthetic_data=df_syn1),
+            df_syn1,
         ],
     }
 
@@ -81,19 +78,19 @@ def rmia_signal_data() -> dict[str, Any]:
     shadow_data_collection = [
         {
             "fine_tuning_sets": [train_set_0["id"].tolist()],
-            "fine_tuned_results": [MockTrainingResult(syn_data_5.copy())],
+            "fine_tuned_results": [syn_data_5.copy()],
         },
         {
             "fine_tuning_sets": [train_set_1["id"].tolist()],
-            "fine_tuned_results": [MockTrainingResult(syn_data_5.copy())],
+            "fine_tuned_results": [syn_data_5.copy()],
         },
         {
             "selected_sets": [train_set_2["id"].tolist()],
-            "trained_results": [MockTrainingResult(syn_data_5.copy())],
+            "trained_results": [syn_data_5.copy()],
         },
     ]
 
-    target_synthetic_data = MockTrainingResult(syn_data_5.copy()).synthetic_data
+    target_synthetic_data = syn_data_5.copy()
 
     return {
         "df_input": df_input,
@@ -153,7 +150,7 @@ class TestGetRmiaGower:
 
         min_length = 3
         shadow_synthetic_list = [
-            train_result.synthetic_data for train_result in base_data["model_data"][Key.TRAINED_RESULTS.value]
+            train_result for train_result in base_data["model_data"][Key.TRAINED_RESULTS.value]
         ]
         results = get_rmia_gower(
             df_input=base_data["df_input"],
@@ -162,25 +159,26 @@ class TestGetRmiaGower:
             categorical_column_names=base_data["categorical_column_names"],
             id_column_name=base_data["id_column_name"],
             random_seed=base_data["random_seed"],
+            use_multiprocessing=False,  # Disable multiprocessing to ensure mock is called as expected in the main process.
         )
 
         assert len(results) == 2
-        npt.assert_array_equal(results[0], np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]]))
+        npt.assert_array_equal(results[0], np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]], dtype=np.float32))
         npt.assert_array_equal(
             results[1],
-            np.array([[0.7, 0.8, 0.9], [0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]),
+            np.array([[0.7, 0.8, 0.9], [0.1, 0.2, 0.3], [0.4, 0.5, 0.6]], dtype=np.float32),
         )
 
         assert mock_gower_matrix.call_count == 2
 
         call_args_1 = mock_gower_matrix.call_args_list[0].kwargs
         pdt.assert_frame_equal(call_args_1["data_x"], base_data["df_input"], check_dtype=False)
-        syn_data_1_dropped = base_data["model_data"]["trained_results"][0].synthetic_data.drop(columns=["id"])
+        syn_data_1_dropped = base_data["model_data"]["trained_results"][0].drop(columns=["id"])
         pdt.assert_frame_equal(call_args_1["data_y"], syn_data_1_dropped, check_dtype=False)
         assert call_args_1["cat_features"] == [False, True, False]
 
         call_args_2 = mock_gower_matrix.call_args_list[1].kwargs
-        syn_data_2_dropped = base_data["model_data"]["trained_results"][1].synthetic_data.drop(columns=["id"])
+        syn_data_2_dropped = base_data["model_data"]["trained_results"][1].drop(columns=["id"])
         pdt.assert_frame_equal(call_args_2["data_y"], syn_data_2_dropped, check_dtype=False)
 
     def test_get_rmia_gower_with_sampling(self, base_data, mocker):
@@ -190,12 +188,12 @@ class TestGetRmiaGower:
             return_value=np.array([[0.1], [0.2], [0.3]]),
         )
 
-        original_syn_data = base_data["model_data"]["trained_results"][1].synthetic_data
+        original_syn_data = base_data["model_data"]["trained_results"][1]
 
         mock_sample = mocker.patch("pandas.DataFrame.sample", wraps=original_syn_data.sample)
 
         min_length = 2
-        synthetic_data_list = [data.synthetic_data for data in base_data["model_data"][Key.TRAINED_RESULTS.value]]
+        synthetic_data_list = [data for data in base_data["model_data"][Key.TRAINED_RESULTS.value]]
         get_rmia_gower(
             df_input=base_data["df_input"],
             model_data=synthetic_data_list,
@@ -203,6 +201,7 @@ class TestGetRmiaGower:
             categorical_column_names=base_data["categorical_column_names"],
             id_column_name=base_data["id_column_name"],
             random_seed=base_data["random_seed"],
+            use_multiprocessing=False, # Disable multiprocessing to ensure mock is used in the main process
         )
 
         assert mock_gower_matrix.call_count == 2
@@ -212,7 +211,7 @@ class TestGetRmiaGower:
         expected_sampled_data = original_syn_data.sample(n=min_length, random_state=base_data["random_seed"]).drop(
             columns=[base_data["id_column_name"]]
         )
-        pdt.assert_frame_equal(call_args_2["data_y"], expected_sampled_data, check_dtype=False)
+        pdt.assert_frame_equal(call_args_2["data_y"], expected_sampled_data, check_dtype=False, obj=f"mistake in call args: {call_args_2['data_y'].columns} and {expected_sampled_data.columns}")
 
     def test_get_rmia_gower_missing_categorical_column(self, base_data, mocker, caplog):
         """Tests that a warning is logged for missing categorical columns."""
@@ -224,7 +223,7 @@ class TestGetRmiaGower:
 
         with caplog.at_level("INFO"):
             synthetic_data_list = [
-                data.synthetic_data for data in base_data["model_data"][Key.FINE_TUNED_RESULTS.value]
+                data for data in base_data["model_data"][Key.FINE_TUNED_RESULTS.value]
             ]
             get_rmia_gower(
                 df_input=base_data["df_input"],

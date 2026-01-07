@@ -103,15 +103,17 @@ def compute_gower_for_model(
 
     df_synthetic = df_synthetic_raw.copy()
 
-    if id_column_name in df_synthetic.columns:
-        df_synthetic = df_synthetic.drop(columns=[id_column_name])
-
+    # Convert numerical columns to float (otherwise error in the numpy divide)
     df_synthetic[numerical_columns] = df_synthetic[numerical_columns].astype(dtype)
 
+    # Sample synthetic data points if there's too many
     if len(df_synthetic) > min_length:
         df_synthetic = df_synthetic.sample(n=min_length, random_state=random_seed)
 
-    # Batched computation: compute row-by-row to reduce peak memory
+    if id_column_name in df_synthetic.columns:
+        df_synthetic = df_synthetic.drop(columns=[id_column_name])
+
+    # Batched computation to reduce peak memory
     gower_matrix = compute_gower_batched(df_input, df_synthetic, categorical_features, batch_size=5000, dtype=dtype)
 
     return i, gower_matrix
@@ -124,6 +126,7 @@ def get_rmia_gower(
     categorical_column_names: list[str],
     id_column_name: str,
     random_seed: int | None = None,
+    use_multiprocessing: bool = True,
     n_jobs: int = 4,
     dtype: np.dtype = np.float32,
 ) -> list[np.ndarray]:
@@ -139,9 +142,10 @@ def get_rmia_gower(
         categorical_column_names: A list of categorical column names. We assume that all other columns are numerical.
         id_column_name: Name of the ID column.
         random_seed: Random seed for reproducibility.
-        n_jobs: Number of parallel jobs to use for computation. Default is 4.
-        dtype: The data type to which numerical columns will be cast for Gower distance computation.
-            Default is np.float32.
+        use_multiprocessing: Whether to use multiprocessing for parallel computation of Gower distances.
+        n_jobs: Number of parallel jobs to use for computation if ``use_multiprocessing`` is ``True``. Default is 4.
+        dtype: The data type to which numerical columns will be cast for Gower distance computation. np.float32 is more
+            memory efficient. Default is np.float32.
 
     Returns:
         A list of numpy arrays, each representing the Gower distance matrix between the input dataframe and the
@@ -181,10 +185,15 @@ def get_rmia_gower(
         for i, df_synthetic in enumerate(model_data)
     ]
 
-    # Process in parallel
+    # Process in parallel or sequentially based on use_multiprocessing
     results = {}
-    with Pool(processes=n_jobs) as pool:
-        for i, gower_matrix in pool.imap_unordered(compute_gower_for_model, args_list):
+    if use_multiprocessing:
+        with Pool(processes=n_jobs) as pool:
+            for i, gower_matrix in pool.imap_unordered(compute_gower_for_model, args_list):
+                results[i] = gower_matrix
+    else:
+        for args in args_list:
+            i, gower_matrix = compute_gower_for_model(args)
             results[i] = gower_matrix
 
     # Return in original order
