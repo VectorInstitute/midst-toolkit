@@ -10,7 +10,16 @@ from tqdm.auto import tqdm
 
 
 def _column_entropy(labels: list | np.ndarray) -> np.number:
-    """Compute the entropy of a single column."""
+    """
+    Compute the entropy of a single column of labels.
+
+    Args:
+        labels: One-dimensional collection of labels. Values are rounded
+            before computing entropy.
+
+    Returns:
+        The entropy of the distribution of rounded labels.
+    """
     _, counts = np.unique(np.round(labels), return_counts=True)
     return entropy(counts)
 
@@ -45,10 +54,10 @@ def batched_reference_knn(
     Returns:
         Array of nearest neighbor distance per query row after considering all reference batches.
     """
-    n_query = len(query_df)
+    query_df_size = len(query_df)
 
     # Initizalizing a list of best distances with np.inf so they can be replaced with the actual best distances later.
-    nearest_neighbor_distance = np.full(n_query, np.inf, dtype=float)
+    nearest_neighbor_distance = np.full(query_df_size, np.inf, dtype=float)
 
     iterator: Iterable[int]
     if show_progress:
@@ -93,7 +102,7 @@ class EpsilonIdentifiability(MetricClass):  # type: ignore[misc]
         """
         return "privacy"
 
-    def evaluate(self) -> dict:
+    def evaluate(self) -> dict[str, float]:
         """
         Compute epsilon-identifiability risk and privacy loss.
 
