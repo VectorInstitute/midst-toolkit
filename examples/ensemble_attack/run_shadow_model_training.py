@@ -15,6 +15,10 @@ from midst_toolkit.attacks.ensemble.shadow_model_utils import (
 from midst_toolkit.common.logger import log
 
 
+DEFAULT_TABLE_NAME = "trans"
+DEFAULT_ID_COLUMN_NAME = "trans_id"
+
+
 def run_target_model_training(config: DictConfig) -> Path:
     """
     Function to run the target model training for RMIA attack.
@@ -38,8 +42,7 @@ def run_target_model_training(config: DictConfig) -> Path:
     target_model_output_path = Path(config.shadow_training.target_model_output_path)
     target_training_json_config_paths = config.shadow_training.training_json_config_paths
 
-    # TODO: Add this to config or .json files
-    table_name = "trans"
+    table_name = config.table_name if "table_name" in config else DEFAULT_TABLE_NAME
 
     target_folder = target_model_output_path / "target_model"
 
@@ -104,12 +107,20 @@ def run_shadow_model_training(config: DictConfig) -> list[Path]:
         Path(config.data_paths.population_path),
         "population_all_with_challenge.csv",
     )
+
+    table_name = config.table_name if "table_name" in config else DEFAULT_TABLE_NAME
+    id_column_name = config.table_id_column_name if "table_id_column_name" in config else DEFAULT_ID_COLUMN_NAME
+
     # Make sure master challenge train and population data have the "trans_id" column.
-    assert "trans_id" in df_master_challenge_train.columns, (
-        "trans_id column should be present in master train data for the shadow model pipeline."
+    assert id_column_name in df_master_challenge_train.columns, (
+        f"{id_column_name} column should be present in master train data for the shadow model pipeline."
     )
-    assert "trans_id" in df_population_with_challenge.columns
-    assert "trans_id" in df_master_challenge_train.columns
+    assert id_column_name in df_population_with_challenge.columns, (
+        f"{id_column_name} column should be present in population data for the shadow model pipeline."
+    )
+    assert id_column_name in df_master_challenge_train.columns, (
+        f"{id_column_name} column should be present in master train data for the shadow model pipeline."
+    )
     # ``population_data`` in ensemble attack is used for shadow pre-training, and
     # ``master_challenge_df`` is used for fine-tuning for half of the shadow models.
     # For the other half of the shadow models, only ``master_challenge_df`` is used for training.
@@ -119,8 +130,8 @@ def run_shadow_model_training(config: DictConfig) -> list[Path]:
         shadow_models_output_path=Path(config.shadow_training.shadow_models_output_path),
         training_json_config_paths=config.shadow_training.training_json_config_paths,
         fine_tuning_config=config.shadow_training.fine_tuning_config,
-        table_name="trans",
-        id_column_name="trans_id",
+        table_name=table_name,
+        id_column_name=id_column_name,
         # Number of shadow models to train in each set of shadow training (3 sets total) results in
         # ``4 * n_models_per_set`` total shadow models.
         n_models_per_set=4,  # 4 based on the original code, must be even

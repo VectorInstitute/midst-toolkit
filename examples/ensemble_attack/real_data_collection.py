@@ -29,6 +29,21 @@ class AttackType(Enum):
     TABDDPM_100K = "tabddpm_trained_with_100k"
 
 
+class AttackDataSplit(Enum):
+    """Enum for the different attack data splits."""
+
+    TRAIN = "train"
+    DEV = "dev"
+    FINAL = "final"
+
+
+class AttackDataset(Enum):
+    """Enum for the different attack datasets."""
+
+    TRAIN = "train"
+    CHALLENGE = "challenge"
+
+
 def expand_ranges(ranges: list[tuple[int, int]]) -> list[int]:
     """
     Reads a list of tuples representing ranges and expands them into a flat list of integers.
@@ -49,8 +64,8 @@ def expand_ranges(ranges: list[tuple[int, int]]) -> list[int]:
 def collect_midst_attack_data(
     attack_type: AttackType,
     data_dir: Path,
-    data_split: str,
-    dataset: str,
+    data_split: AttackDataSplit,
+    dataset: AttackDataset,
     data_processing_config: DictConfig,
 ) -> pd.DataFrame:
     """
@@ -66,21 +81,16 @@ def collect_midst_attack_data(
     Returns:
         pd.DataFrame: The specified dataset in this setting.
     """
-    assert data_split in [
-        "train",
-        "dev",
-        "final",
-    ], "data_split should be one of 'train', 'dev', or 'final'."
     # `data_id` is the folder numbering of each training or challenge dataset,
     #  and is defined with the provided config.
-    data_id = expand_ranges(data_processing_config.folder_ranges[data_split])
+    data_id = expand_ranges(data_processing_config.folder_ranges[data_split.value])
 
     # Get file name based on the kind of dataset to be collected (i.e. train vs challenge).
     # TODO: Make the below parsing a bit more robust and less brittle
     generation_name = attack_type.value.split("_")[0]
-    if dataset == "challenge":
+    if dataset == AttackDataset.CHALLENGE:
         file_name = data_processing_config.challenge_data_file_name
-    else:  # dataset == "train"
+    else:  # dataset == AttackDataset.TRAIN
         # Multi-table attacks have different file names.
         file_name = (
             data_processing_config.multi_table_train_data_file_name
@@ -103,7 +113,7 @@ def collect_midst_data(
     midst_data_input_dir: Path,
     attack_types: list[AttackType],
     data_splits: list[str],
-    dataset: str,
+    dataset: AttackDataset,
     data_processing_config: DictConfig,
 ) -> pd.DataFrame:
     """
@@ -121,7 +131,6 @@ def collect_midst_data(
     Returns:
         Collected train or challenge data as a dataframe.
     """
-    assert dataset in {"train", "challenge"}, "Only 'train' and 'challenge' collection is supported."
     population = []
     for attack_type in attack_types:
         for data_split in data_splits:
@@ -170,10 +179,10 @@ def collect_population_data_ensemble(
     save_dir.mkdir(parents=True, exist_ok=True)
 
     if population_splits is None:
-        population_splits = ["train"]
+        population_splits = [AttackDataSplit.TRAIN]
     if challenge_splits is None:
         # Original Ensemble collects all the challenge points from train, dev and final of "tabddpm_black_box" attack.
-        challenge_splits = ["train", "dev", "final"]
+        challenge_splits = [AttackDataSplit.TRAIN, AttackDataSplit.DEV, AttackDataSplit.FINAL]
 
     # Ensemble Attack collects train data of all the attack types (black box and white box)
     attack_names = data_processing_config.population_attack_data_types_to_collect
@@ -184,7 +193,7 @@ def collect_population_data_ensemble(
         midst_data_input_dir,
         population_attack_types,
         data_splits=population_splits,
-        dataset="train",
+        dataset=AttackDataset.TRAIN,
         data_processing_config=data_processing_config,
     )
     # Drop ids.
@@ -199,7 +208,7 @@ def collect_population_data_ensemble(
         midst_data_input_dir,
         attack_types=challenge_attack_types,
         data_splits=challenge_splits,
-        dataset="challenge",
+        dataset=AttackDataset.CHALLENGE,
         data_processing_config=data_processing_config,
     )
     # Save the challenge points
