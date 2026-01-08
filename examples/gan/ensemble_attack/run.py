@@ -1,15 +1,12 @@
 import importlib
-from pathlib import Path
 from logging import INFO
+from pathlib import Path
 
-from omegaconf import DictConfig
 import hydra
+from omegaconf import DictConfig
 
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
-from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
-from examples.ensemble_attack.real_data_collection import collect_population_data_ensemble
-
 
 
 @hydra.main(config_path="../", config_name="config", version_base=None)
@@ -24,8 +21,9 @@ def main(config: DictConfig) -> None:
     Args:
         config: Attack configuration as an OmegaConf DictConfig object.
     """
+    import ipdb
 
-    import ipdb;ipdb.set_trace()
+    ipdb.set_trace()
 
     if config.ensemble_attack.random_seed is not None:
         set_all_random_seeds(seed=config.ensemble_attack.random_seed)
