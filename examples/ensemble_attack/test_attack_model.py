@@ -44,11 +44,12 @@ def save_results(
             f.write(f"TPR at FPR=0.1: {pred_score:.4f}\n")
 
 
-def extract_and_drop_id_columns(
-    data_frame: pd.DataFrame, data_types_file_path: Path
+def extract_and_drop_id_column(
+    data_frame: pd.DataFrame, data_types_file_path: Path,
 ) -> tuple[pd.DataFrame, pd.Series]:
     """
-    Extracts IDs from the data frame and drops all ID columns.
+    Extracts IDs from the data frame and drops the ID column. ID column is identified based on
+    the data types JSON file with "id_column_name" key.
 
     Args:
         data_frame: Input data frame.
@@ -57,19 +58,18 @@ def extract_and_drop_id_columns(
     Returns:
         A tuple containing:
             - The modified data frame with ID columns dropped.
-            - A Series containing the extracted transaction IDs.
+            - A Series containing the extracted data of ID columns.
     """
-    # Extract trans_id from the dataframe
+    # Extract ID column from the dataframe
     with open(data_types_file_path, "r") as f:
         column_types = json.load(f)
     id_column_name = column_types["id_column_name"]
 
-    assert id_column_name in data_frame.columns, f"Test data must have {id_column_name} column"
+    assert id_column_name in data_frame.columns, f"Dataframe must have {id_column_name} column"
     data_trans_ids = data_frame[id_column_name]
 
-    # Drop id columns from data
-    id_column_names = [column_name for column_name in data_frame.columns if column_name.endswith("_id")]
-    data_frame = data_frame.drop(columns=id_column_names)
+    # Drop ID column from data
+    data_frame = data_frame.drop(columns=id_column_name)
 
     return data_frame, data_trans_ids
 
@@ -78,7 +78,9 @@ def run_rmia_shadow_training(config: DictConfig, df_challenge: pd.DataFrame) -> 
     """
     Three sets of shadow models will be trained as a part of this attack.
     Note that shadow models need to be trained on the collection of challenge points once and used
-    for all the target models in a setting.
+    for all the target models in a setting. In other words, in a standard setting, the
+    testing points (experiment challenge points) are used as training or included in training data of the shadow models,
+    and these shadow models are used to attack all target models.
 
     Args:
         config: Configuration object set in ``experiments_config.yaml``.
@@ -110,7 +112,8 @@ def load_trained_rmia_shadows_for_test_phase(
     shadow_data_paths: list[Path],
 ) -> tuple[list[dict[str, list[Any]]], bool]:
     """
-    Loads previously trained RMIA shadow models for the testing phase.
+    Loads previously trained RMIA shadow models for the testing phase. Makes sure
+    all shadow models exist before loading. Otherwise, returns an empty list and False.
 
     Args:
         shadow_data_paths: List of paths to the saved shadow model data.
@@ -136,7 +139,7 @@ def load_trained_rmia_shadows_for_test_phase(
     return shadow_data_collection, models_exists
 
 
-def collect_challenge_data(
+def collect_challenge_and_train_data(
     data_processing_config: DictConfig, processed_attack_data_path: Path, targets_data_path: Path
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -183,11 +186,17 @@ def select_challenge_data_for_training(
 ) -> pd.DataFrame:
     """
     Select the appropriate challenge data based on config choice.
-
     Args:
         attack_rmia_shadow_training_data_choice: Strategy for creating challenge train data for RMIA shadow training.
-        df_challenge_experiment: Challenge experiment data.
-        df_master_train: Master train data.
+            It can be one of the following:
+            - "only_challenge": Use only challenge experiment data.
+            - "only_train": Use only master train data. Note that this option contracts with the original
+                design and purpose of training RMIA shadow models on the challenge points as RMIA signals (IN train signals)
+                for challenge points could only be computed if shadow models are trained on these points.
+            - "combined": Combine both challenge experiment data and master train data. This can potentially be advantages
+                based on the experiments as RMIA shadows are trained on more data points.
+        df_challenge_experiment: Challenge points in this experiment.
+        df_master_train: Master train data used to train the meta classifier.
 
     Raises:
         ValueError: If an invalid choice is provided.
@@ -216,6 +225,7 @@ def select_challenge_data_for_training(
 def train_rmia_shadows_for_test_phase(config: DictConfig) -> list[dict[str, list[Any]]]:
     """
     Function to train RMIA shadow models for the testing phase using the dataset containing challenge data points.
+    Note that 
 
     Args:
         config: Configuration object set in ``experiments_config.yaml``.
@@ -224,11 +234,12 @@ def train_rmia_shadows_for_test_phase(config: DictConfig) -> list[dict[str, list
         A list containing three dictionaries, each representing a collection of shadow
             models with their training data IDs and generated synthetic outputs.
     """
-    df_challenge_experiment, df_master_train = collect_challenge_data(
+    df_challenge_experiment, df_master_train = collect_challenge_and_train_data(
         config.data_processing_config,
         processed_attack_data_path=Path(config.data_paths.processed_attack_data_path),
         targets_data_path=Path(config.data_paths.midst_data_path),
     )
+    # Load the challenge dataframe for training RMIA shadow models.
     df_challenge = select_challenge_data_for_training(
         str(config.target_model.attack_rmia_shadow_training_data_choice), df_challenge_experiment, df_master_train
     )
@@ -299,12 +310,13 @@ def run_metaclassifier_testing(
     # 3) Shadow Model Training Step.
     # Make sure to assign a new path for shadow models trained for target's challenge points to
     # avoid overriding train's shadow models.
+    # TODO: Assign specific shadow collection path for test phase.
     config.shadow_training.shadow_models_output_path = config.target_model.target_shadow_models_output_path
     shadow_data_paths = [Path(path) for path in config.shadow_training.final_shadow_models_path]
-    # if already trained for test, don't need to train again
-    # Load shadow training collection from previously trained shadow models.
     assert len(shadow_data_paths) == 3, "The attack_data_paths list must contain exactly three elements."
 
+    # If shadows are already trained for test (models_exists is True), don't need to train again.
+    # Load shadow training collection from previously trained shadow models.
     shadow_data_collection, models_exists = load_trained_rmia_shadows_for_test_phase(shadow_data_paths)
 
     if not models_exists:
@@ -315,16 +327,11 @@ def run_metaclassifier_testing(
         log(INFO, "All shadow models for testing phase found. Using existing RMIA shadow models...")
 
     # Extract and drop id columns from the test data
-    test_data, test_trans_ids = extract_and_drop_id_columns(
+    test_data, test_trans_ids = extract_and_drop_id_column(
         test_data, Path(config.metaclassifier.data_types_file_path)
     )
 
     # 4) Initialize the attacker object, and assign the loaded metaclassifier to it.
-    df_reference = load_dataframe(
-        Path(config.data_paths.population_path),
-        "population_all_with_challenge_no_id.csv",
-    )
-
     blending_attacker = BlendingPlusPlus(
         config=config,
         shadow_data_collection=shadow_data_collection,
@@ -337,6 +344,13 @@ def run_metaclassifier_testing(
     blending_attacker.trained_model = trained_mataclassifier_model
 
     # 5) Get predictions on the challenge data (test set).
+
+    # Load the reference population data for DOMIAS signals.
+    df_reference = load_dataframe(
+        Path(config.data_paths.population_path),
+        "population_all_with_challenge_no_id.csv",
+    )
+
     probabilities, pred_score = blending_attacker.predict(
         df_test=test_data,
         df_original_synthetic=target_synthetic_data,

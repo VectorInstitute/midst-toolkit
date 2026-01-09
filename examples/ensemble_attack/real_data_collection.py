@@ -151,9 +151,11 @@ def collect_population_data_ensemble(
     """
     Collect the population data from the MIDST competition based on Ensemble Attack implementation.
     Returns real data population that consists of the train data of all the attacks
-    (black box and white box), and challenge points from `train`, `dev` and `final` of
-    "tabddpm_black_box" attack. The population data is saved in the provided path,
-    and returned as a dataframe.
+    (black box and white box) as specified in ``data_processing_config.population_attack_data_types_to_collect``
+    , and challenge points from `train`, `dev` and `final` of attacks as specified by
+    ``data_processing_config.challenge_attack_data_types_to_collect``. The collected population data is concatenated
+    with ``original_repo_population`` to be large enough for the attack (specially DOMIAS) and then is saved in
+    the provided path, and returned as a dataframe.
 
     Args:
         midst_data_input_dir: The path where the MIDST data folders are stored.

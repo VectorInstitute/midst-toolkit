@@ -24,8 +24,10 @@ def run_data_processing(config: DictConfig) -> None:
     Args:
         config: Configuration object set in config.yaml.
     """
-    # Load original repo's population
-
+    # Load original repo's population to be concatenated to the experiment's population data.
+    # This is done to align the experiments with the original attack code because
+    # this attack needs a large population dataset, and only using the experiment's collected population
+    # is not enough.
     original_population_data = load_dataframe(
         Path(config.data_processing_config.original_population_data_path),
         "population_all_with_challenge.csv",
