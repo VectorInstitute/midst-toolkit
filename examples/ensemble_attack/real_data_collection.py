@@ -185,15 +185,6 @@ def collect_population_data_ensemble(
         # Original Ensemble collects all the challenge points from train, dev and final of "tabddpm_black_box" attack.
         challenge_splits = ["train", "dev", "final"]
 
-    # Population data will be saved under ``save_dir``.
-    save_dir.mkdir(parents=True, exist_ok=True)
-
-    if population_splits is None:
-        population_splits = ["train"]
-    if challenge_splits is None:
-        # Original Ensemble collects all the challenge points from train, dev and final of "tabddpm_black_box" attack.
-        challenge_splits = ["train", "dev", "final"]
-
     # Ensemble Attack collects train data of all the attack types (black box and white box)
     population_attack_names = data_processing_config.population_attack_data_types_to_collect
     # Provided attack name are valid based on AttackType enum

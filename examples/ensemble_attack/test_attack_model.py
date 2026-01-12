@@ -94,7 +94,6 @@ def run_rmia_shadow_training(config: DictConfig, df_challenge: pd.DataFrame) -> 
             models with their training data and generated synthetic outputs.
     """
     shadow_model_paths = run_shadow_model_training(config, df_challenge_train=df_challenge)
-    shadow_model_paths = [Path(path) for path in config.shadow_training.final_shadow_models_path]
 
     assert len(shadow_model_paths) == 3, "For testing, meta classifier needs the path to three sets of shadow models."
 

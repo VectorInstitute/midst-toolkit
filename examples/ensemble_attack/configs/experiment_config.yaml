@@ -1,5 +1,5 @@
 # Ensemble experiment configuration
-# This config can be used to run both the Ensemble attack training (``run_attack.py``) and testing phases (``tets_attack_model.py``).
+# This config can be used to run both the Ensemble attack training (``run_attack.py``) and testing phases (``test_attack_model.py``).
 base_experiment_dir: /projects/midst-experiments/ensemble_attack/tabddpm_10k_experiment_data/10k/ # Processed data, and experiment artifacts will be stored under this directory.
 base_data_config_dir: examples/ensemble_attack/data_configs # Training and data type configs are saved under this directory.
 
@@ -107,7 +107,7 @@ metaclassifier:
   meta_classifier_model_name: ${metaclassifier.model_type}_metaclassifier_model
 
 attack_success_computation:
-  target_ids_to_test: [21, 22, 23, 24, 25, 26, 26, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40] # List of target model IDs to compute the attack success for.
+  target_ids_to_test: [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40] # List of target model IDs to compute the attack success for.
 
 # General settings
 random_seed: 42 # Set to null for no seed, or an integer for a fixed seed
