@@ -61,18 +61,15 @@ def collect_midst_attack_data(
     Args:
         attack_type: The attack setting.
         data_dir: The path where the data is stored.
-        data_split: Indicates if this is train, dev, or final data.
+        data_split: Indicates if this is train, dev, or final data. Note that, this is in fact
+            the name of the folder that contains model folders for data collection. For example,
+            f"{generation_name}_{i}" should be located under ``data_split`` folder.
         dataset: The dataset to be collected. Either "train" or "challenge".
         data_processing_config: Configuration dictionary containing data specific information.
 
     Returns:
         pd.DataFrame: The specified dataset in this setting.
     """
-    # assert data_split in [
-    #     "train",
-    #     "dev",
-    #     "final",
-    # ], "data_split should be one of 'train', 'dev', or 'final'."
     # `data_id` is the folder numbering of each training or challenge dataset,
     #  and is defined with the provided config.
     data_id = expand_ranges(data_processing_config.folder_ranges[data_split])
@@ -82,7 +79,7 @@ def collect_midst_attack_data(
     generation_name = attack_type.value.split("_")[0]
     if dataset == "challenge":
         file_name = data_processing_config.challenge_data_file_name
-    else:  # dataset == "train"
+    else:
         # Multi-table attacks have different file names.
         file_name = (
             data_processing_config.multi_table_train_data_file_name
@@ -110,13 +107,18 @@ def collect_midst_data(
 ) -> pd.DataFrame:
     """
     Collect train or challenge data of the specified attack type from the provided data folders
-    in the MIDST competition.
+    in the MIDST competition. The data is going to be collected from all the folders specified
+    in ``data_splits`` argument under each attack type folder. For example, if ``data_splits``
+    contains `train` and `dev`, the function collects data from both `train` and `dev` folders
+    under each attack type folder. For more information about the data collection structure, see
+    the implementation of ``collect_midst_attack_data`` function.
 
     Args:
         midst_data_input_dir: The path where the MIDST data folders are stored.
         attack_types: List of attack types for data collection.
-        data_splits: A list indicating the data split to be collected.
-            Could be any of train, dev, or final data splits.
+        data_splits: A list indicating the data split to be collected. This is a list of folder names
+            under each attack type folder where we collect model's data from. For example, it could
+            contain strings like `train`, `dev`, `final`, or `test` based on the directory structure.
         dataset: The dataset to be collected. Either `train` or `challenge`.
         data_processing_config: Configuration dictionary containing data paths and file names.
 
@@ -163,17 +165,13 @@ def collect_population_data_ensemble(
         save_dir: The path where the collected population data should be saved.
         original_repo_population: The original population data collected from the MIDST challenge repository.
         population_splits: A list indicating the data splits to be collected for population data.
-            Could be any of `train`, `dev`, or `final` data splits. If None, the default list of ``["train"]``
-            is set in the function based on the original attack implementation.
+            This is basically a list of strings containing the folder names under attack folders that are
+            considered for population collection. If None, the default list of ``["train"]`` is set in the
+            function based on the original attack implementation.
         challenge_splits: A list indicating the data splits to be collected for challenge points.
-            Could be any of `train`, `dev`, or `final` data splits. If None, the default list of
-            ``["train", "dev", "final"]`` is set in the function based on the original attack implementation.
-        population_splits: A list indicating the data splits to be collected for population data.
-            Could be any of `train`, `dev`, or `final` data splits. If None, the default list of ``["train"]``
+            This is basically a list of strings containing the folder names under attack folders that are
+            considered for challenge data collection. If None, the default list of ``["train", "dev", "final"]``
             is set in the function based on the original attack implementation.
-        challenge_splits: A list indicating the data splits to be collected for challenge points.
-            Could be any of `train`, `dev`, or `final` data splits. If None, the default list of
-            ``["train", "dev", "final"]`` is set in the function based on the original attack implementation.
 
     Returns:
         The collected population data as a dataframe.
@@ -197,9 +195,9 @@ def collect_population_data_ensemble(
         challenge_splits = ["train", "dev", "final"]
 
     # Ensemble Attack collects train data of all the attack types (black box and white box)
-    attack_names = data_processing_config.population_attack_data_types_to_collect
+    population_attack_names = data_processing_config.population_attack_data_types_to_collect
     # Provided attack name are valid based on AttackType enum
-    population_attack_types: list[AttackType] = [AttackType(attack_name) for attack_name in attack_names]
+    population_attack_types: list[AttackType] = [AttackType(attack_name) for attack_name in population_attack_names]
 
     df_population_experiment = collect_midst_data(
         midst_data_input_dir,
@@ -222,8 +220,7 @@ def collect_population_data_ensemble(
 
     challenge_attack_names = data_processing_config.challenge_attack_data_types_to_collect
     challenge_attack_types = [AttackType(attack_name) for attack_name in challenge_attack_names]
-    challenge_attack_names = data_processing_config.challenge_attack_data_types_to_collect
-    challenge_attack_types = [AttackType(attack_name) for attack_name in challenge_attack_names]
+
     df_challenge = collect_midst_data(
         midst_data_input_dir,
         attack_types=challenge_attack_types,

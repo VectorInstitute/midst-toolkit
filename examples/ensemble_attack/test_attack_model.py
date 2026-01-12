@@ -45,7 +45,8 @@ def save_results(
 
 
 def extract_and_drop_id_column(
-    data_frame: pd.DataFrame, data_types_file_path: Path,
+    data_frame: pd.DataFrame,
+    data_types_file_path: Path,
 ) -> tuple[pd.DataFrame, pd.Series]:
     """
     Extracts IDs from the data frame and drops the ID column. ID column is identified based on
@@ -79,8 +80,8 @@ def run_rmia_shadow_training(config: DictConfig, df_challenge: pd.DataFrame) -> 
     Three sets of shadow models will be trained as a part of this attack.
     Note that shadow models need to be trained on the collection of challenge points once and used
     for all the target models in a setting. In other words, in a standard setting, the
-    testing points (experiment challenge points) are used as training or included in training data of the shadow models,
-    and these shadow models are used to attack all target models.
+    testing points (experiment challenge points) are used as training or included in training data
+    of the shadow models, and these shadow models are used to attack all target models.
 
     Args:
         config: Configuration object set in ``experiments_config.yaml``.
@@ -186,15 +187,18 @@ def select_challenge_data_for_training(
 ) -> pd.DataFrame:
     """
     Select the appropriate challenge data based on config choice.
+
     Args:
         attack_rmia_shadow_training_data_choice: Strategy for creating challenge train data for RMIA shadow training.
             It can be one of the following:
             - "only_challenge": Use only challenge experiment data.
             - "only_train": Use only master train data. Note that this option contracts with the original
-                design and purpose of training RMIA shadow models on the challenge points as RMIA signals (IN train signals)
-                for challenge points could only be computed if shadow models are trained on these points.
-            - "combined": Combine both challenge experiment data and master train data. This can potentially be advantages
-                based on the experiments as RMIA shadows are trained on more data points.
+                design and purpose of training RMIA shadow models on the challenge points as
+                RMIA signals (IN train signals) for challenge points could only be computed if
+                shadow models are trained on these points.
+            - "combined": Combine both challenge experiment data and master train data. This can
+                potentially be advantages based on the experiments as RMIA shadows are trained on
+                more data points.
         df_challenge_experiment: Challenge points in this experiment.
         df_master_train: Master train data used to train the meta classifier.
 
@@ -224,8 +228,8 @@ def select_challenge_data_for_training(
 
 def train_rmia_shadows_for_test_phase(config: DictConfig) -> list[dict[str, list[Any]]]:
     """
-    Function to train RMIA shadow models for the testing phase using the dataset containing challenge data points.
-    Note that 
+    Function to train RMIA shadow models for the testing phase using the dataset containing
+    challenge data points.
 
     Args:
         config: Configuration object set in ``experiments_config.yaml``.
@@ -327,9 +331,7 @@ def run_metaclassifier_testing(
         log(INFO, "All shadow models for testing phase found. Using existing RMIA shadow models...")
 
     # Extract and drop id columns from the test data
-    test_data, test_trans_ids = extract_and_drop_id_column(
-        test_data, Path(config.metaclassifier.data_types_file_path)
-    )
+    test_data, test_trans_ids = extract_and_drop_id_column(test_data, Path(config.metaclassifier.data_types_file_path))
 
     # 4) Initialize the attacker object, and assign the loaded metaclassifier to it.
     blending_attacker = BlendingPlusPlus(
