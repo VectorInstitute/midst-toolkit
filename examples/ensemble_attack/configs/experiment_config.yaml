@@ -50,7 +50,7 @@ data_processing_config:
   original_population_data_path: /projects/midst-experiments/ensemble_attack/competition/population_data/ #Attack's collected population for DOMIAS
   # The column name in the data to be used for stratified splitting.
   column_to_stratify: "trans_type"  # Attention: This value is not documented in the original codebase.
-  folder_ranges: #Specify folder ranges for any of the mentioned splits.
+  folder_ranges: # Specify folder ranges for any of the mentioned splits.
     train: [[1, 21]] # Folders to be used for train data collection in the experiments
     test: [[21, 31] , [31, 41]]
   # File names in MIDST data directories.

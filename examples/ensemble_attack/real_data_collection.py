@@ -165,11 +165,11 @@ def collect_population_data_ensemble(
         save_dir: The path where the collected population data should be saved.
         original_repo_population: The original population data collected from the MIDST challenge repository.
         population_splits: A list indicating the data splits to be collected for population data.
-            This is basically a list of strings containing the folder names under attack folders that are
+            This is a list of strings containing the folder names under attack folders that are
             considered for population collection. If None, the default list of ``["train"]`` is set in the
             function based on the original attack implementation.
         challenge_splits: A list indicating the data splits to be collected for challenge points.
-            This is basically a list of strings containing the folder names under attack folders that are
+            This is a list of strings containing the folder names under attack folders that are
             considered for challenge data collection. If None, the default list of ``["train", "dev", "final"]``
             is set in the function based on the original attack implementation.
 

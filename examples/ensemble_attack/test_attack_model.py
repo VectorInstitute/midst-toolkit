@@ -64,6 +64,8 @@ def extract_and_drop_id_column(
     # Extract ID column from the dataframe
     with open(data_types_file_path, "r") as f:
         column_types = json.load(f)
+
+    assert "id_column_name" in column_types, f"{data_types_file_path} must contain 'id_column_name' key."
     id_column_name = column_types["id_column_name"]
 
     assert id_column_name in data_frame.columns, f"Dataframe must have {id_column_name} column"
@@ -160,7 +162,7 @@ def collect_challenge_and_train_data(
     df_challenge_experiment = collect_midst_data(
         midst_data_input_dir=targets_data_path,
         attack_types=challenge_attack_types,
-        data_splits=["test"],  # change to test for 10k, and change to final for 20k
+        data_splits=["test"],  # For ensemble experiments, change to ``test`` for 10k, and change to ``final`` for 20k
         dataset="challenge",
         data_processing_config=data_processing_config,
     )
@@ -191,9 +193,9 @@ def select_challenge_data_for_training(
     Args:
         attack_rmia_shadow_training_data_choice: Strategy for creating challenge train data for RMIA shadow training.
             It can be one of the following:
-            - "only_challenge": Use only challenge experiment data.
-            - "only_train": Use only master train data. Note that this option contracts with the original
-                design and purpose of training RMIA shadow models on the challenge points as
+            - "only_challenge": Use only challenge experiment data (``df_challenge_experiment``).
+            - "only_train": Use only master train data (``df_master_train``). Note that this option contracts
+                with the original design and purpose of training RMIA shadow models on the challenge points as
                 RMIA signals (IN train signals) for challenge points could only be computed if
                 shadow models are trained on these points.
             - "combined": Combine both challenge experiment data and master train data. This can
@@ -255,13 +257,14 @@ def run_metaclassifier_testing(
     config: DictConfig,
 ) -> None:
     """
-    Function to run the attack on a target model using a trained metaclassifier.
-    Note that RMIA shadow models need to be trained for every new target model's challenge dataset.
-    However, we load the previously trained metaclassifier model and use it for new target models.
-    Unlike the training phase, in the testing phase, we don't need to train a shadow target model
+    Function to run the attack on a single target model using a trained metaclassifier.
+    Note that RMIA shadow models need to be trained for every new set of target models on
+    their collected challenge data, but once they are trained for the first target, we can reuse them
+    for the other targets in the same experiment.
+    Unlike the training phase, in the testing phase, we don't need to train a target shadow model
     since we already have access to the synthetic data of a real target model.
     All the collected population data that is used for training, is still needed during testing to compute some
-    of the signals.
+    of the signals (DOMIAS).
     Test prediction probabilities are saved to the specified attack result path in the config.
 
     Args:
@@ -289,7 +292,7 @@ def run_metaclassifier_testing(
 
     # 2) Read target model's challenge data and synthetic data.
     # Back-box attacker has only access to the target model's synthetic data and challenge points.
-    # We also load challenge labels to report the attack performance.
+    # We also load challenge labels to report the attack performance at the end.
     challenge_data_path = Path(config.target_model.challenge_data_path)
     challenge_label_path = Path(config.target_model.challenge_label_path)
 
@@ -319,7 +322,7 @@ def run_metaclassifier_testing(
     shadow_data_paths = [Path(path) for path in config.shadow_training.final_shadow_models_path]
     assert len(shadow_data_paths) == 3, "The attack_data_paths list must contain exactly three elements."
 
-    # If shadows are already trained for test (models_exists is True), don't need to train again.
+    # If shadows are already trained for test (``models_exists`` is True), don't need to train again.
     # Load shadow training collection from previously trained shadow models.
     shadow_data_collection, models_exists = load_trained_rmia_shadows_for_test_phase(shadow_data_paths)
 
