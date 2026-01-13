@@ -10,7 +10,7 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig
 
-from examples.ensemble_attack.real_data_collection import collect_population_data_ensemble
+from examples.ensemble_attack.real_data_collection import AttackDataSplit, collect_population_data_ensemble
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
@@ -25,12 +25,14 @@ def run_data_processing(config: DictConfig) -> None:
     """
     log(INFO, "Running data processing pipeline...")
     # Collect the real data from the MIDST challenge resources.
+    population_splits = [AttackDataSplit(split) for split in config.data_processing_config.population_splits]
+    challenge_splits = [AttackDataSplit(split) for split in config.data_processing_config.challenge_splits]
     population_data = collect_population_data_ensemble(
         midst_data_input_dir=Path(config.data_paths.midst_data_path),
         data_processing_config=config.data_processing_config,
         save_dir=Path(config.data_paths.population_path),
-        population_splits=config.data_processing_config.population_splits,
-        challenge_splits=config.data_processing_config.challenge_splits,
+        population_splits=population_splits,
+        challenge_splits=challenge_splits,
     )
     # The following function saves the required dataframe splits in the specified processed_attack_data_path path.
     process_split_data(

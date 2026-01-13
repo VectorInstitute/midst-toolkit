@@ -100,7 +100,7 @@ def collect_midst_attack_data(
 
     df_real = pd.DataFrame()
     for i in data_id:
-        data_path_ith = data_dir / attack_type.value / data_split / f"{generation_name}_{i}"
+        data_path_ith = data_dir / attack_type.value / data_split.value / f"{generation_name}_{i}"
         # Will raise FileNotFoundError if the file does not exist or if it is not a CSV file.
         df_real_ith = load_dataframe(data_path_ith, file_name)
         df_real = df_real_ith if df_real.empty else pd.concat([df_real, df_real_ith])
@@ -112,7 +112,7 @@ def collect_midst_attack_data(
 def collect_midst_data(
     midst_data_input_dir: Path,
     attack_types: list[AttackType],
-    data_splits: list[str],
+    data_splits: list[AttackDataSplit],
     dataset: AttackDataset,
     data_processing_config: DictConfig,
 ) -> pd.DataFrame:
@@ -151,8 +151,8 @@ def collect_population_data_ensemble(
     midst_data_input_dir: Path,
     data_processing_config: DictConfig,
     save_dir: Path,
-    population_splits: list[str] | None = None,
-    challenge_splits: list[str] | None = None,
+    population_splits: list[AttackDataSplit] | None = None,
+    challenge_splits: list[AttackDataSplit] | None = None,
 ) -> pd.DataFrame:
     """
     Collect the population data from the MIDST competition based on Ensemble Attack implementation.

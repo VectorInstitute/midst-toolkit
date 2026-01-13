@@ -9,7 +9,8 @@ from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
     train_three_sets_of_shadow_models,
 )
 from midst_toolkit.attacks.ensemble.shadow_model_utils import (
-    save_additional_tabddpm_config,
+    ModelType,
+    save_additional_training_config,
     train_tabddpm_and_synthesize,
 )
 from midst_toolkit.common.logger import log
@@ -17,6 +18,7 @@ from midst_toolkit.common.logger import log
 
 DEFAULT_TABLE_NAME = "trans"
 DEFAULT_ID_COLUMN_NAME = "trans_id"
+DEFAULT_MODEL_TYPE = ModelType.TABDDPM
 
 
 def run_target_model_training(config: DictConfig) -> Path:
@@ -55,7 +57,7 @@ def run_target_model_training(config: DictConfig) -> Path:
         target_training_json_config_paths.dataset_meta_file_path,
         target_folder / "dataset_meta.json",
     )
-    configs, save_dir = save_additional_tabddpm_config(
+    configs, save_dir = save_additional_training_config(
         data_dir=target_folder,
         training_config_json_path=Path(target_training_json_config_paths.tabddpm_training_config_path),
         final_config_json_path=target_folder / f"{table_name}.json",  # Path to the new json
@@ -110,6 +112,9 @@ def run_shadow_model_training(config: DictConfig) -> list[Path]:
 
     table_name = config.table_name if "table_name" in config else DEFAULT_TABLE_NAME
     id_column_name = config.table_id_column_name if "table_id_column_name" in config else DEFAULT_ID_COLUMN_NAME
+    model_type = (
+        ModelType(config.shadow_training.model_name) if "model_name" in config.shadow_training else DEFAULT_MODEL_TYPE
+    )
 
     # Make sure master challenge train and population data have the "trans_id" column.
     assert id_column_name in df_master_challenge_train.columns, (
@@ -138,6 +143,7 @@ def run_shadow_model_training(config: DictConfig) -> list[Path]:
         n_reps=12,  # Number of repetitions of challenge points in each shadow model training set. `12` based on the original code
         number_of_points_to_synthesize=config.shadow_training.number_of_points_to_synthesize,
         random_seed=config.random_seed,
+        model_type=model_type,
     )
     log(
         INFO,

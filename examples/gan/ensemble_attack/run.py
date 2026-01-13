@@ -1,15 +1,17 @@
 import importlib
+import json
 from logging import INFO
 from pathlib import Path
 
 import hydra
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
+from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training, run_target_model_training
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
 
 
-@hydra.main(config_path="../", config_name="config", version_base=None)
+@hydra.main(config_path="./", config_name="config", version_base=None)
 def main(config: DictConfig) -> None:
     """
     Run the Ensemble Attack pipeline with the CTGAN model.
@@ -21,22 +23,30 @@ def main(config: DictConfig) -> None:
     Args:
         config: Attack configuration as an OmegaConf DictConfig object.
     """
-    import ipdb
-
-    ipdb.set_trace()
-
     if config.ensemble_attack.random_seed is not None:
         set_all_random_seeds(seed=config.ensemble_attack.random_seed)
         log(INFO, f"Training phase random seed set to {config.ensemble_attack.random_seed}.")
 
-    # Note: Importing the following two modules causes a segmentation fault error if imported together in this file.
-    # A quick solution is to load modules dynamically if any of the pipelines is called.
-    # TODO: Investigate the source of error.
-    shadow_pipeline = importlib.import_module("examples.ensemble_attack.run_shadow_model_training")
-    shadow_data_paths = shadow_pipeline.run_shadow_model_training(config.ensemble_attack)
+    # Saving the model config from the config.yaml into a json file
+    # because that's what the ensemble attack code will be looking for
+    training_config_path = Path(config.ensemble_attack.shadow_training.training_json_config_paths.training_config_path)
+    training_config_path.unlink(missing_ok=True)
+    with open(training_config_path, "w") as f:
+        training_config = OmegaConf.to_container(config.ensemble_attack.shadow_training.model_config)
+        training_config["general"] = {
+            "test_data_dir": config.base_data_dir,
+            "sample_prefix": "ctgan",
+            # The values below will be overriden
+            "exp_name": "",
+            "data_dir": "",
+            "workspace_dir": "",
+        }
+        json.dump(training_config, f)
+
+    shadow_data_paths = run_shadow_model_training(config.ensemble_attack)
     shadow_data_paths = [Path(path) for path in shadow_data_paths]
 
-    target_model_synthetic_path = shadow_pipeline.run_target_model_training(config)
+    target_model_synthetic_path = run_target_model_training(config)
 
     if config.pipeline.run_metaclassifier_training:
         if not config.pipeline.run_shadow_model_training:

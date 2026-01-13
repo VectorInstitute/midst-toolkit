@@ -2,13 +2,14 @@ import copy
 import json
 import os
 from dataclasses import dataclass
+from enum import Enum
 from logging import INFO
 from pathlib import Path
 
 import pandas as pd
 
 from midst_toolkit.attacks.ensemble.clavaddpm_fine_tuning import clava_fine_tuning
-from midst_toolkit.common.config import TrainingConfig
+from midst_toolkit.common.config import ClavaDDPMTrainingConfig, CTGANTrainingConfig, GeneralConfig, TrainingConfig
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
@@ -22,10 +23,15 @@ from midst_toolkit.models.clavaddpm.synthesizer import clava_synthesizing
 from midst_toolkit.models.clavaddpm.train import ModelArtifacts, clava_training
 
 
+class ModelType(Enum):
+    TABDDPM = "tabddpm"
+    CTGAN = "ctgan"
+
+
 @dataclass
 class TrainingResult:
     save_dir: Path
-    configs: TrainingConfig
+    configs: ClavaDDPMTrainingConfig
     tables: Tables
     relation_order: RelationOrder
     all_group_lengths_probabilities: GroupLengthsProbDicts
@@ -33,12 +39,13 @@ class TrainingResult:
     synthetic_data: pd.DataFrame | None = None
 
 
-def save_additional_tabddpm_config(
+def save_additional_training_config(
     data_dir: Path,
     training_config_json_path: Path,
     final_config_json_path: Path,
     experiment_name: str = "attack_experiment",
     workspace_name: str = "shadow_workspace",
+    model_type: ModelType = ModelType.TABDDPM,
 ) -> tuple[TrainingConfig, Path]:
     """
     Modifies a TabDDPM configuration JSON file with the specified data directory, experiment name and workspace name,
@@ -50,14 +57,24 @@ def save_additional_tabddpm_config(
             final_config_json_path: Path where the modified configuration JSON file will be saved.
             experiment_name: Name of the experiment, used to create a unique save directory.
             workspace_name: Name of the workspace, used to create a unique save directory.
+            model_type: Type of model to be used for training the shadow models. Defaults to ModelType.TABDDPM.
 
     Returns:
-            configs: Loaded configuration dictionary for TabDDPM.
+            configs: Loaded configuration dictionary for the model type.
             save_dir: Directory path where results will be saved.
     """
     # Modify the config file to give the correct training data and saving directory
     with open(training_config_json_path, "r") as file:
-        configs = TrainingConfig(**json.load(file))
+        configs: TrainingConfig
+        if model_type == ModelType.TABDDPM:
+            configs = ClavaDDPMTrainingConfig(**json.load(file))
+        elif model_type == ModelType.CTGAN:
+            configs = CTGANTrainingConfig(**json.load(file))
+        else:
+            raise ValueError(f"Invalid model type: {model_type}")
+
+    if configs.general is None:
+        configs.general = GeneralConfig()
 
     configs.general.data_dir = data_dir
     # Save dir is set by joining the workspace_dir and exp_name
@@ -79,7 +96,7 @@ def save_additional_tabddpm_config(
 # TODO: This and the next function should be unified later.
 def train_tabddpm_and_synthesize(
     train_set: pd.DataFrame,
-    configs: TrainingConfig,
+    configs: ClavaDDPMTrainingConfig,
     save_dir: Path,
     synthesize: bool = True,
     number_of_points_to_synthesize: int = 20000,
@@ -158,7 +175,7 @@ def train_tabddpm_and_synthesize(
 def fine_tune_tabddpm_and_synthesize(
     trained_models: dict[Relation, ModelArtifacts],
     fine_tune_set: pd.DataFrame,
-    configs: TrainingConfig,
+    configs: ClavaDDPMTrainingConfig,
     save_dir: Path,
     fine_tuning_diffusion_iterations: int = 100,
     fine_tuning_classifier_iterations: int = 10,

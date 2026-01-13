@@ -12,7 +12,7 @@ import pandas as pd
 import torch
 from torch import optim
 
-from midst_toolkit.common.config import ClassifierConfig, DiffusionConfig
+from midst_toolkit.common.config import ClavaDDPMClassifierConfig, ClavaDDPMDiffusionConfig
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.common.variables import DEVICE
@@ -246,8 +246,8 @@ def child_fine_tuning(
     child_domain_dict: dict[str, Any],
     parent_name: str | None,
     child_name: str,
-    diffusion_config: DiffusionConfig,
-    classifier_config: ClassifierConfig | None,
+    diffusion_config: ClavaDDPMDiffusionConfig,
+    classifier_config: ClavaDDPMClassifierConfig | None,
     fine_tuning_diffusion_iterations: int,
     fine_tuning_classifier_iterations: int,
     device: torch.device = DEVICE,
@@ -343,8 +343,8 @@ def clava_fine_tuning(
     trained_models: dict[Relation, ModelArtifacts],
     new_tables: Tables,
     relation_order: RelationOrder,
-    diffusion_config: DiffusionConfig,
-    classifier_config: ClassifierConfig,
+    diffusion_config: ClavaDDPMDiffusionConfig,
+    classifier_config: ClavaDDPMClassifierConfig,
     fine_tuning_diffusion_iterations: int,
     fine_tuning_classifier_iterations: int,
 ) -> dict[Relation, ModelArtifacts]:

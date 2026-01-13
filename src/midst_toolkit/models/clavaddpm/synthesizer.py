@@ -14,7 +14,7 @@ from sklearn.preprocessing import LabelEncoder
 from torch.nn import functional
 from tqdm import tqdm
 
-from midst_toolkit.common.config import GeneralConfig, MatchingConfig, SamplingConfig
+from midst_toolkit.common.config import ClavaDDPMMatchingConfig, ClavaDDPMSamplingConfig, GeneralConfig
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.data_loaders import NO_PARENT_COLUMN_NAME, Tables
@@ -675,7 +675,7 @@ def clava_synthesizing_matching_process(
     synthetic_tables: dict[Relation, dict[str, Any]],
     tables: Tables,
     relation_order: RelationOrder,
-    matching_config: MatchingConfig,
+    matching_config: ClavaDDPMMatchingConfig,
 ) -> dict[str, pd.DataFrame]:
     """
     Matches synthetic child tables to synthetic parent tables based on clustering information.
@@ -713,8 +713,8 @@ def clava_synthesizing(
     save_dir: Path,
     models: dict[Relation, ModelArtifacts],
     general_config: GeneralConfig,
-    sampling_config: SamplingConfig,
-    matching_config: MatchingConfig,
+    sampling_config: ClavaDDPMSamplingConfig,
+    matching_config: ClavaDDPMMatchingConfig,
     all_group_lengths_prob_dicts: GroupLengthsProbDicts | None = None,
     sample_scale: float = 1.0,
 ) -> tuple[dict[str, pd.DataFrame], float, float]:

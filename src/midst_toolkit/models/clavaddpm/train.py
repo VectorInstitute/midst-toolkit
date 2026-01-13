@@ -13,7 +13,7 @@ import torch
 from sklearn.preprocessing import LabelEncoder
 from torch import Tensor, optim
 
-from midst_toolkit.common.config import ClassifierConfig, DiffusionConfig
+from midst_toolkit.common.config import ClavaDDPMClassifierConfig, ClavaDDPMDiffusionConfig
 from midst_toolkit.common.enumerations import DataSplit, DomainDataType, TaskType
 from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.common.variables import DEVICE
@@ -58,8 +58,8 @@ def clava_training(
     tables: Tables,
     relation_order: RelationOrder,
     save_dir: Path,
-    diffusion_config: DiffusionConfig,
-    classifier_config: ClassifierConfig | None = None,
+    diffusion_config: ClavaDDPMDiffusionConfig,
+    classifier_config: ClavaDDPMClassifierConfig | None = None,
     device: torch.device = DEVICE,
 ) -> tuple[Tables, dict[Relation, ModelArtifacts]]:
     """
@@ -123,8 +123,8 @@ def child_training(
     child_domain: dict[str, Any],
     parent_name: str | None,
     child_name: str,
-    diffusion_config: DiffusionConfig,
-    classifier_config: ClassifierConfig | None = None,
+    diffusion_config: ClavaDDPMDiffusionConfig,
+    classifier_config: ClavaDDPMClassifierConfig | None = None,
     device: torch.device = DEVICE,
 ) -> ModelArtifacts:
     """
@@ -205,7 +205,7 @@ def train_model(
     table_metadata: TableMetadata,
     model_params: ModelParameters,
     transformations: Transformations,
-    diffusion_config: DiffusionConfig,
+    diffusion_config: ClavaDDPMDiffusionConfig,
     device: torch.device = DEVICE,
 ) -> ModelArtifacts:
     """
@@ -299,8 +299,8 @@ def train_classifier(
     table_metadata: TableMetadata,
     model_params: ModelParameters,
     transformations: Transformations,
-    diffusion_config: DiffusionConfig,
-    classifier_config: ClassifierConfig,
+    diffusion_config: ClavaDDPMDiffusionConfig,
+    classifier_config: ClavaDDPMClassifierConfig,
     device: torch.device = DEVICE,
     cluster_col: str = "cluster",
     classifier_evaluation_interval: int = 5,

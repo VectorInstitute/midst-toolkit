@@ -16,7 +16,7 @@ from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
 from midst_toolkit.attacks.ensemble.shadow_model_utils import (
     TrainingResult,
     fine_tune_tabddpm_and_synthesize,
-    save_additional_tabddpm_config,
+    save_additional_training_config,
     train_tabddpm_and_synthesize,
 )
 
@@ -151,7 +151,7 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
         cfg.shadow_training.training_json_config_paths.dataset_meta_file_path,
         tmp_training_dir / "dataset_meta.json",
     )
-    configs, save_dir = save_additional_tabddpm_config(
+    configs, save_dir = save_additional_training_config(
         data_dir=tmp_training_dir,
         training_config_json_path=tabddpm_config_path,
         final_config_json_path=tmp_training_dir / "trans.json",
