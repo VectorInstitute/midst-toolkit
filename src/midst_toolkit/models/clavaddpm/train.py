@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import torch
+from sdv.single_table import CTGANSynthesizer  # type: ignore[import-untyped]
 from sklearn.preprocessing import LabelEncoder
 from torch import Tensor, optim
 
@@ -39,6 +40,17 @@ from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 
 @dataclass
 class ModelArtifacts:
+    pass
+
+
+@dataclass
+class CTGANModelArtifacts(ModelArtifacts):
+    model: CTGANSynthesizer
+    model_file_path: Path
+
+
+@dataclass
+class ClavaDDPMModelArtifacts(ModelArtifacts):
     diffusion: GaussianMultinomialDiffusion
     label_encoders: dict[int, LabelEncoder]
     dataset: Dataset
@@ -61,7 +73,7 @@ def clava_training(
     diffusion_config: ClavaDDPMDiffusionConfig,
     classifier_config: ClavaDDPMClassifierConfig | None = None,
     device: torch.device = DEVICE,
-) -> tuple[Tables, dict[Relation, ModelArtifacts]]:
+) -> tuple[Tables, dict[Relation, ClavaDDPMModelArtifacts]]:
     """
     Training function for the ClavaDDPM model.
 
@@ -126,7 +138,7 @@ def child_training(
     diffusion_config: ClavaDDPMDiffusionConfig,
     classifier_config: ClavaDDPMClassifierConfig | None = None,
     device: torch.device = DEVICE,
-) -> ModelArtifacts:
+) -> ClavaDDPMModelArtifacts:
     """
     Training function for a single child table.
 
@@ -207,7 +219,7 @@ def train_model(
     transformations: Transformations,
     diffusion_config: ClavaDDPMDiffusionConfig,
     device: torch.device = DEVICE,
-) -> ModelArtifacts:
+) -> ClavaDDPMModelArtifacts:
     """
     Training function for the diffusion model.
 
@@ -281,7 +293,7 @@ def train_model(
     if dataset.numerical_transform is not None:
         inverse_transform_function = dataset.numerical_transform.inverse_transform
 
-    return ModelArtifacts(
+    return ClavaDDPMModelArtifacts(
         diffusion=diffusion,
         label_encoders=label_encoders,
         dataset=dataset,
@@ -486,7 +498,7 @@ def get_table_metadata(df: pd.DataFrame, table_domain: dict[str, Any], target_co
 def save_table_info(
     tables: Tables,
     relation_order: RelationOrder,
-    models: dict[Relation, ModelArtifacts],
+    models: dict[Relation, ClavaDDPMModelArtifacts],
     save_dir: Path,
 ) -> None:
     """

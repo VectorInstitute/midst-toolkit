@@ -10,7 +10,7 @@ from midst_toolkit.common.logger import TOOLKIT_LOGGER, log
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 from midst_toolkit.models.clavaddpm.data_loaders import Table, load_tables
-from midst_toolkit.models.clavaddpm.train import ModelArtifacts, clava_training
+from midst_toolkit.models.clavaddpm.train import ClavaDDPMModelArtifacts, clava_training
 
 
 # Preventing some excessive logging
@@ -65,7 +65,7 @@ def main(config: DictConfig) -> None:
             result = pickle.load(f)
 
         # Asserting the results are the correct type
-        assert isinstance(result, ModelArtifacts)
+        assert isinstance(result, ClavaDDPMModelArtifacts)
 
         log(INFO, f"Result size (in bytes): {results_file.stat().st_size}")
 

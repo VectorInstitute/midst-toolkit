@@ -5,11 +5,14 @@ from dataclasses import dataclass
 from enum import Enum
 from logging import INFO
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
+from sdv.single_table import CTGANSynthesizer  # type: ignore[import-untyped]
 
+from examples.gan.utils import get_single_table_svd_metadata, get_table_name
 from midst_toolkit.attacks.ensemble.clavaddpm_fine_tuning import clava_fine_tuning
-from midst_toolkit.common.config import ClavaDDPMTrainingConfig, CTGANTrainingConfig, GeneralConfig, TrainingConfig
+from midst_toolkit.common.config import ClavaDDPMTrainingConfig, CTGANTrainingConfig, TrainingConfig
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
@@ -20,7 +23,11 @@ from midst_toolkit.models.clavaddpm.enumerations import (
     RelationOrder,
 )
 from midst_toolkit.models.clavaddpm.synthesizer import clava_synthesizing
-from midst_toolkit.models.clavaddpm.train import ModelArtifacts, clava_training
+from midst_toolkit.models.clavaddpm.train import (
+    ClavaDDPMModelArtifacts,
+    CTGANModelArtifacts,
+    clava_training,
+)
 
 
 class ModelType(Enum):
@@ -28,15 +35,27 @@ class ModelType(Enum):
     CTGAN = "ctgan"
 
 
-@dataclass
+@dataclass(kw_only=True)  # Setting kw_only=True avoids and error with default values and inheritance
 class TrainingResult:
     save_dir: Path
+    configs: TrainingConfig
+    models: Any
+    synthetic_data: pd.DataFrame | None = None
+
+
+@dataclass
+class CTGANTrainingResult(TrainingResult):
+    configs: CTGANTrainingConfig
+    models: dict[Relation, CTGANModelArtifacts]
+
+
+@dataclass
+class TabDDPMTrainingResult(TrainingResult):
     configs: ClavaDDPMTrainingConfig
+    models: dict[Relation, ClavaDDPMModelArtifacts]
     tables: Tables
     relation_order: RelationOrder
     all_group_lengths_probabilities: GroupLengthsProbDicts
-    models: dict[Relation, ModelArtifacts]
-    synthetic_data: pd.DataFrame | None = None
 
 
 def save_additional_training_config(
@@ -73,9 +92,6 @@ def save_additional_training_config(
         else:
             raise ValueError(f"Invalid model type: {model_type}")
 
-    if configs.general is None:
-        configs.general = GeneralConfig()
-
     configs.general.data_dir = data_dir
     # Save dir is set by joining the workspace_dir and exp_name
     configs.general.workspace_dir = data_dir / workspace_name
@@ -100,7 +116,7 @@ def train_tabddpm_and_synthesize(
     save_dir: Path,
     synthesize: bool = True,
     number_of_points_to_synthesize: int = 20000,
-) -> TrainingResult:
+) -> TabDDPMTrainingResult:
     """
     Train a TabDDPM model on the provided training set and optionally synthesize data using the trained models.
 
@@ -137,7 +153,7 @@ def train_tabddpm_and_synthesize(
         classifier_config=configs.classifier,
         device=DEVICE,
     )
-    result = TrainingResult(
+    result = TabDDPMTrainingResult(
         save_dir=save_dir,
         configs=configs,
         tables=tables,
@@ -173,7 +189,7 @@ def train_tabddpm_and_synthesize(
 
 
 def fine_tune_tabddpm_and_synthesize(
-    trained_models: dict[Relation, ModelArtifacts],
+    trained_models: dict[Relation, ClavaDDPMModelArtifacts],
     fine_tune_set: pd.DataFrame,
     configs: ClavaDDPMTrainingConfig,
     save_dir: Path,
@@ -181,7 +197,7 @@ def fine_tune_tabddpm_and_synthesize(
     fine_tuning_classifier_iterations: int = 10,
     synthesize: bool = True,
     number_of_points_to_synthesize: int = 20000,
-) -> TrainingResult:
+) -> TabDDPMTrainingResult:
     """
     Given the trained models and a new training set, fine-tune the TabDDPM models.
     If ``synthesize`` is True, synthesizes data using the fine-tuned models. Number of
@@ -230,7 +246,7 @@ def fine_tune_tabddpm_and_synthesize(
         fine_tuning_diffusion_iterations=fine_tuning_diffusion_iterations,
         fine_tuning_classifier_iterations=fine_tuning_classifier_iterations,
     )
-    result = TrainingResult(
+    result = TabDDPMTrainingResult(
         save_dir=save_dir,
         configs=configs,
         tables=new_tables,
@@ -261,6 +277,63 @@ def fine_tune_tabddpm_and_synthesize(
         )
 
         result.synthetic_data = cleaned_tables["trans"]
+
+    return result
+
+
+def train_ctgan_and_synthesize(
+    train_set: pd.DataFrame,
+    configs: CTGANTrainingConfig,
+    save_dir: Path,
+    synthesize: bool = True,
+) -> CTGANTrainingResult:
+    """
+    Train a CTGAN model on the provided training set and optionally synthesize data using the trained models.
+
+    Args:
+        train_set: The training dataset as a pandas DataFrame.
+        configs: Configuration dictionary for CTGAN.
+        save_dir: Directory path where models and results will be saved.
+        synthesize: Flag indicating whether to generate synthetic data after training. Defaults to True.
+
+    Returns:
+        A dataclass TrainingResult object containing:
+            - save_dir: Directory where results are saved.
+            - configs: Configuration dictionary used for training.
+            - models: The trained models.
+            - synthetic_data: The synthesized data as a pandas DataFrame, if synthesis was performed,
+              otherwise, None.
+    """
+    table_name = get_table_name(configs.general.data_dir)
+    domain_file_path = configs.general.data_dir / f"{table_name}_domain.json"
+    with open(domain_file_path, "r") as file:
+        domain_dictionary = json.load(file)
+
+    metadata, train_data_without_ids = get_single_table_svd_metadata(train_set, domain_dictionary)
+
+    log(INFO, "Fitting CTGAN...")
+
+    ctgan = CTGANSynthesizer(
+        metadata=metadata,
+        epochs=configs.training.epochs,
+        verbose=configs.training.verbose,
+    )
+    ctgan.fit(train_data_without_ids)
+
+    results_file = Path(save_dir) / "trained_ctgan_model.pkl"
+    results_file.parent.mkdir(parents=True, exist_ok=True)
+
+    ctgan.save(results_file)
+
+    result = CTGANTrainingResult(
+        save_dir=save_dir,
+        configs=configs,
+        models={(None, table_name): CTGANModelArtifacts(model=ctgan, model_file_path=results_file)},
+    )
+
+    if synthesize:
+        synthetic_data = ctgan.sample(num_rows=configs.synthesizing.sample_size)
+        result.synthetic_data = synthetic_data
 
     return result
 

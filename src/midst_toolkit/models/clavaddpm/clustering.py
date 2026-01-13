@@ -112,7 +112,7 @@ def _run_clustering(
             - The tables dictionary.
             - The dictionary with the group lengths probability for all the parent-child pairs.
     """
-    all_group_lengths_prob_dicts = {}
+    all_group_lengths_prob_dicts: GroupLengthsProbDicts = {}
     relation_order_reversed = relation_order[::-1]
     for parent, child in relation_order_reversed:
         if parent is not None:

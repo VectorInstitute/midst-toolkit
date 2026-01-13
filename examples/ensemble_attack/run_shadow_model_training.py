@@ -1,6 +1,7 @@
 import shutil
 from logging import INFO
 from pathlib import Path
+from typing import cast
 
 from omegaconf import DictConfig
 
@@ -13,6 +14,7 @@ from midst_toolkit.attacks.ensemble.shadow_model_utils import (
     save_additional_training_config,
     train_tabddpm_and_synthesize,
 )
+from midst_toolkit.common.config import ClavaDDPMTrainingConfig
 from midst_toolkit.common.logger import log
 
 
@@ -66,7 +68,7 @@ def run_target_model_training(config: DictConfig) -> Path:
 
     train_result = train_tabddpm_and_synthesize(
         train_set=df_real_data,
-        configs=configs,
+        configs=cast(ClavaDDPMTrainingConfig, configs),
         save_dir=save_dir,
         synthesize=True,
         number_of_points_to_synthesize=config.shadow_training.number_of_points_to_synthesize,
@@ -112,9 +114,10 @@ def run_shadow_model_training(config: DictConfig) -> list[Path]:
 
     table_name = config.table_name if "table_name" in config else DEFAULT_TABLE_NAME
     id_column_name = config.table_id_column_name if "table_id_column_name" in config else DEFAULT_ID_COLUMN_NAME
-    model_type = (
-        ModelType(config.shadow_training.model_name) if "model_name" in config.shadow_training else DEFAULT_MODEL_TYPE
-    )
+    model_type = DEFAULT_MODEL_TYPE
+    if "model_name" in config.shadow_training:
+        model_type = ModelType(config.shadow_training.model_name)
+    log(INFO, f"Training shadow models with model type: {model_type.value}")
 
     # Make sure master challenge train and population data have the "trans_id" column.
     assert id_column_name in df_master_challenge_train.columns, (

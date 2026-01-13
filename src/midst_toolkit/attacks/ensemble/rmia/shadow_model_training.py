@@ -3,17 +3,20 @@ import random
 import shutil
 from logging import INFO
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.shadow_model_utils import (
     ModelType,
+    TrainingResult,
     fine_tune_tabddpm_and_synthesize,
     save_additional_training_config,
+    train_ctgan_and_synthesize,
     train_tabddpm_and_synthesize,
 )
+from midst_toolkit.common.config import ClavaDDPMTrainingConfig, CTGANTrainingConfig
 from midst_toolkit.common.logger import log
 
 
@@ -129,8 +132,25 @@ def train_fine_tuned_shadow_models(
     # Train the initial model if it is not already trained and saved.
     initial_model_path = save_dir / f"initial_model_rmia_{init_model_id}.pkl"
     if not initial_model_path.exists():
-        log(INFO, f"Training initial model with ID {init_model_id}...")
-        initial_model_training_results = train_tabddpm_and_synthesize(train, configs, save_dir, synthesize=False)
+        log(INFO, f"Training initial {model_type.value} model with ID {init_model_id}...")
+
+        initial_model_training_results: TrainingResult
+        if model_type == ModelType.TABDDPM:
+            initial_model_training_results = train_tabddpm_and_synthesize(
+                train,
+                cast(ClavaDDPMTrainingConfig, configs),
+                save_dir,
+                synthesize=False,
+            )
+        elif model_type == ModelType.CTGAN:
+            initial_model_training_results = train_ctgan_and_synthesize(
+                train,
+                cast(CTGANTrainingConfig, configs),
+                save_dir,
+                synthesize=False,
+            )
+        else:
+            raise ValueError(f"Invalid model type: {model_type}")
 
         # Save the initial model
         # Pickle dump the results
@@ -176,7 +196,7 @@ def train_fine_tuned_shadow_models(
         train_result = fine_tune_tabddpm_and_synthesize(
             trained_models=initial_model_training_results.models,
             fine_tune_set=selected_challenges,
-            configs=configs,
+            configs=cast(ClavaDDPMTrainingConfig, configs),
             save_dir=save_dir,
             fine_tuning_diffusion_iterations=fine_tuning_config.fine_tune_diffusion_iterations,
             fine_tuning_classifier_iterations=fine_tuning_config.fine_tune_classifier_iterations,
@@ -289,7 +309,7 @@ def train_shadow_on_half_challenge_data(
 
         train_result = train_tabddpm_and_synthesize(
             selected_challenges,
-            configs,
+            cast(ClavaDDPMTrainingConfig, configs),
             save_dir,
             synthesize=True,
             number_of_points_to_synthesize=number_of_points_to_synthesize,

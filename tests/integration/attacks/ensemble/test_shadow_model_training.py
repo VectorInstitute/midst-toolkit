@@ -2,6 +2,7 @@ import copy
 import pickle
 import shutil
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 import pytest
@@ -14,11 +15,12 @@ from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
     train_shadow_on_half_challenge_data,
 )
 from midst_toolkit.attacks.ensemble.shadow_model_utils import (
-    TrainingResult,
+    TabDDPMTrainingResult,
     fine_tune_tabddpm_and_synthesize,
     save_additional_training_config,
     train_tabddpm_and_synthesize,
 )
+from midst_toolkit.common.config import ClavaDDPMTrainingConfig
 
 
 POPULATION_DATA = load_dataframe(
@@ -67,7 +69,7 @@ def test_train_fine_tuned_shadow_models(cfg: DictConfig, tmp_path: Path) -> None
     assert len(shadow_data["fine_tuning_sets"]) == 2  # n_models
     assert len(shadow_data["fine_tuned_results"]) == 2  # n_models
     for result in shadow_data["fine_tuned_results"]:
-        assert type(result) is TrainingResult
+        assert type(result) is TabDDPMTrainingResult
         assert result.synthetic_data is not None
         assert result.tables is not None
         assert result.models is not None
@@ -113,7 +115,7 @@ def test_train_shadow_on_half_challenge_data(cfg: DictConfig, tmp_path: Path) ->
     assert len(shadow_data["selected_sets"]) == 2  # n_models
     assert len(shadow_data["trained_results"]) == 2  # n_models
     for result in shadow_data["trained_results"]:
-        assert type(result) is TrainingResult
+        assert type(result) is TabDDPMTrainingResult
         assert result.synthetic_data is not None
         assert result.tables is not None
         assert result.models is not None
@@ -160,7 +162,11 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
     )
 
     train_result = train_tabddpm_and_synthesize(
-        train_set, configs, save_dir, synthesize=True, number_of_points_to_synthesize=99
+        train_set,
+        cast(ClavaDDPMTrainingConfig, configs),
+        save_dir,
+        synthesize=True,
+        number_of_points_to_synthesize=99,
     )
     assert train_result.synthetic_data is not None
     assert type(train_result.synthetic_data) is pd.DataFrame
@@ -174,7 +180,7 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
     fine_tuned_results = fine_tune_tabddpm_and_synthesize(
         trained_models=train_result.models,
         fine_tune_set=fine_tuning_set,  # fine-tuning on the same data for testing purposes
-        configs=configs,
+        configs=cast(ClavaDDPMTrainingConfig, configs),
         save_dir=save_dir,
         fine_tuning_diffusion_iterations=cfg.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations,
         fine_tuning_classifier_iterations=cfg.shadow_training.fine_tuning_config.fine_tune_classifier_iterations,
