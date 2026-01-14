@@ -19,7 +19,6 @@ from midst_toolkit.attacks.tartan_federer.data_utils import (
     CustomUnpickler,
     evaluate_attack_performance,
     load_multi_table_customized,
-    prepare_population_dataset_for_attack,
 )
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import log
@@ -375,6 +374,17 @@ def prepare_dataframe(
 
     df_exclusive = filter_dataframe(merged_data, raw_data, columns_for_deduplication)
 
+    if df_exclusive.shape[0] < samples_per_model:
+        raise ValueError(
+            f"Not enough data to sample non-members from. Requested {samples_per_model} but only "
+            f"{df_exclusive.shape[0]} available."
+        )
+
+    if raw_data.shape[0] < samples_per_model:
+        raise ValueError(
+            f"Not enough data to sample members members from. Requested {samples_per_model} but only "
+            f"{raw_data.shape[0]} available."
+        )
     data_exclusive = df_exclusive.sample(samples_per_model)
     data_from_train = raw_data.sample(samples_per_model)
 
@@ -386,16 +396,17 @@ def prepare_dataframe(
 
 def train_tartan_federer_attack_classifier(
     train_indices: list[int],
-    val_indices: list[int],
+    val_indices: list[int] | None,
     timesteps: list[int],
     columns_for_deduplication: list[str],
     additional_timesteps: list[int],
     num_noise_per_time_step: int,
     samples_per_train_model: int,
-    sample_per_val_model: int,
+    samples_per_val_model: int,
     classifier_num_epochs: int,
     classifier_hidden_dim: int,
     classifier_learning_rate: float,
+    population_data_dir: Path,
     model_type: str,
     model_data_dir: Path,
     results_path: Path,
@@ -416,11 +427,12 @@ def train_tartan_federer_attack_classifier(
         num_noise_per_time_step: Number of Gaussian noise samples to be used for each timestep in the loss computation.
         samples_per_train_model: Number of samples drawn from the training data (members) of train indices and
                                  non-members for training the binary classifier.
-        sample_per_val_model: Number of samples drawn from the training data (members) of validation indices and
+        samples_per_val_model: Number of samples drawn from the training data (members) of validation indices and
                               non-members for validating the binary classifier.
         classifier_num_epochs: Number of epochs used to train the MLP as the binary classifier.
         classifier_hidden_dim: The width of the 3-layer MLP trained as the binary classifier.
         classifier_learning_rate: Learning rate used to train the binary classifier.
+        population_data_dir: Directory containing the population datasets used to train and validate the attack.
         model_type: Type of diffusion model, e.g., "tabddpm" for ClavaDDPM-single-table.
         model_data_dir: Base directory containing all the trained diffusion models.
         results_path: Directory where the attack results will be saved.
@@ -431,19 +443,10 @@ def train_tartan_federer_attack_classifier(
     Returns:
         A tuple containing the noise samples used in the loss computation and the trained classifier model.
     """
-    population_df_for_training = prepare_population_dataset_for_attack(
-        model_indices=train_indices,
-        model_type=model_type,
-        models_base_dir=model_data_dir,
-        columns_for_deduplication=columns_for_deduplication,
-    )
-
-    population_df_for_validation = prepare_population_dataset_for_attack(
-        model_indices=val_indices,
-        model_type=model_type,
-        models_base_dir=model_data_dir,
-        columns_for_deduplication=columns_for_deduplication,
-    )
+    population_df_for_training = pd.read_csv(population_data_dir / "population_dataset_for_training_attack.csv")
+    log(INFO, "Population datasets for training loaded.")
+    population_df_for_validation = pd.read_csv(population_data_dir / "population_dataset_for_validating_attack.csv")
+    log(INFO, "Population datasets for validating loaded.")
 
     noise_dimension = len([col for col in population_df_for_training.columns if "_id" not in col])
     input_noise = [np.random.normal(size=noise_dimension).tolist() for _ in range(num_noise_per_time_step)]
@@ -454,7 +457,7 @@ def train_tartan_federer_attack_classifier(
     y_train = np.zeros([total_data_num_for_train])
 
     if val_indices is not None:
-        total_data_num_for_validation = sample_per_val_model * 2 * len(val_indices)
+        total_data_num_for_validation = samples_per_val_model * 2 * len(val_indices)
         x_val = np.zeros([total_data_num_for_validation, input_dimension])
         y_val = np.zeros([total_data_num_for_validation])
     else:
@@ -464,9 +467,8 @@ def train_tartan_federer_attack_classifier(
 
     train_count = 0
     val_count = 0
-    val_indices = [] if val_indices is None else val_indices
 
-    model_folders_indices = np.concatenate((train_indices, val_indices))
+    model_folders_indices = train_indices if val_indices is None else train_indices + val_indices
     for model_number in tqdm(model_folders_indices, desc="Processing models", unit="model"):
         model_folder = f"{model_type}_{model_number}"
         model_dir = model_data_dir / model_folder
@@ -481,12 +483,12 @@ def train_tartan_federer_attack_classifier(
                 "data_for_training_MIA.csv",
             )
 
-        elif model_number in val_indices:
+        elif val_indices is not None and model_number in val_indices:
             population_df_for_validation = prepare_dataframe(
                 model_dir,
                 population_df_for_validation,
                 columns_for_deduplication,
-                sample_per_val_model,
+                samples_per_val_model,
                 "data_for_validating_MIA.csv",
             )
 
@@ -525,8 +527,8 @@ def train_tartan_federer_attack_classifier(
 
                     timestep_count += 1
 
-                elif model_number in val_indices:
-                    batch_size = sample_per_val_model * 2
+                elif val_indices is not None and model_number in val_indices:
+                    batch_size = samples_per_val_model * 2
                     predictions = get_score(
                         model_dir,
                         model_path,
@@ -541,21 +543,20 @@ def train_tartan_federer_attack_classifier(
                     )
                     assert x_val is not None and y_val is not None
                     x_val[
-                        sample_per_val_model * 2 * val_count : sample_per_val_model * 2 * (val_count + 1),
+                        samples_per_val_model * 2 * val_count : samples_per_val_model * 2 * (val_count + 1),
                         timestep_count * num_noise_per_time_step : (timestep_count + 1) * num_noise_per_time_step,
                     ] = predictions.detach().squeeze().cpu().numpy()
 
-                    y_val[sample_per_val_model * 2 * val_count : sample_per_val_model * 2 * (val_count + 1)] = (
-                        np.concatenate([np.zeros(sample_per_val_model), np.ones(sample_per_val_model)])
+                    y_val[samples_per_val_model * 2 * val_count : samples_per_val_model * 2 * (val_count + 1)] = (
+                        np.concatenate([np.zeros(samples_per_val_model), np.ones(samples_per_val_model)])
                     )
 
                     timestep_count += 1
 
         if model_number in train_indices:
             train_count += 1
-        elif model_number in val_indices:
+        elif val_indices is not None and model_number in val_indices:
             val_count += 1
-
     fitted_regression_model = fit_model(
         regression_model=regression_model,
         train_features=x_train,
@@ -578,12 +579,13 @@ def tartan_federer_attack(
     additional_timesteps: list[int],
     num_noise_per_time_step: int,
     samples_per_train_model: int,
-    sample_per_val_model: int,
+    samples_per_val_model: int,
     classifier_num_epochs: int,
     classifier_hidden_dim: int,
     classifier_learning_rate: float,
     model_type: str,
-    predictions_file_format: str,
+    predictions_file_name: str,
+    population_data_dir: Path,
     model_data_dir: Path,
     meta_dir: Path,
     target_model_subdir: Path,
@@ -607,13 +609,14 @@ def tartan_federer_attack(
         num_noise_per_time_step: Number of Gaussian noise samples to be used for each timestep in the loss computation.
         samples_per_train_model: Number of samples drawn from the training data (members) of train indices and
                                  non-members for training the binary classifier.
-        sample_per_val_model: Number of samples drawn from the training data (members) of validation indices and
+        samples_per_val_model: Number of samples drawn from the training data (members) of validation indices and
                               non-members for validating the binary classifier.
         classifier_num_epochs: Number of epochs used to train the MLP as the binary classifier.
         classifier_hidden_dim: The width of the 3-layer MLP trained as the binary classifier.
         classifier_learning_rate: Learning rate used to train the binary classifier.
+        population_data_dir: Directory containing the population datasets used to train and validate the attack.
         model_type: Type of diffusion model, e.g., "tabddpm" for ClavaDDPM-single-table.
-        predictions_file_format: Format for naming the MIA prediction files.
+        predictions_file_name: Format for naming the MIA prediction files.
         model_data_dir: Base directory containing all the trained diffusion models.
         meta_dir: Directory containing metadata about the datasets, including a file named `dataset_meta.json`.
         target_model_subdir: Sub-directory within each model directory containing the trained diffusion model
@@ -628,14 +631,13 @@ def tartan_federer_attack(
 
     os.makedirs(results_path, exist_ok=True)
 
-    val_indices = [] if val_indices is None else val_indices
-
     input_noise, regression_model = train_tartan_federer_attack_classifier(
         train_indices=train_indices,
         val_indices=val_indices,
         columns_for_deduplication=columns_for_deduplication,
         samples_per_train_model=samples_per_train_model,
-        sample_per_val_model=sample_per_val_model,
+        samples_per_val_model=samples_per_val_model,
+        population_data_dir=population_data_dir,
         model_type=model_type,
         model_data_dir=model_data_dir,
         target_model_subdir=target_model_subdir,
@@ -649,9 +651,12 @@ def tartan_federer_attack(
         classifier_learning_rate=classifier_learning_rate,
     )
 
-    predictions_file_name = f"{predictions_file_format}.csv"
+    predictions_file_name = f"{predictions_file_name}.csv"
 
-    model_folders_indices = np.concatenate((train_indices, val_indices, test_indices))
+    if val_indices is None:
+        model_folders_indices = np.concatenate((train_indices, test_indices))
+    else:
+        model_folders_indices = np.concatenate((train_indices, val_indices, test_indices))
     for model_number in tqdm(model_folders_indices, desc="Processing models", unit="model"):
         model_folder: str = f"{model_type}_{model_number}"
         model_dir = model_data_dir / model_folder
@@ -693,9 +698,12 @@ def tartan_federer_attack(
     mia_performance_train = evaluate_attack_performance(
         train_indices, "train", model_data_dir, model_type, predictions_file_name
     )
-    mia_performance_val = evaluate_attack_performance(
-        val_indices, "test", model_data_dir, model_type, predictions_file_name
-    )
+    if val_indices is not None:
+        mia_performance_val = evaluate_attack_performance(
+            val_indices, "test", model_data_dir, model_type, predictions_file_name
+        )
+    else:
+        mia_performance_val = None
     mia_performance_test = evaluate_attack_performance(
         test_indices, "final", model_data_dir, model_type, predictions_file_name
     )
