@@ -6,6 +6,7 @@ https://github.com/eyalgerman/MIA-EPT.
 
 """
 
+import itertools
 import json
 from datetime import datetime
 from logging import INFO
@@ -57,7 +58,7 @@ def run_attribute_prediction(config: DictConfig) -> None:
     for model_name, model_data_path, model_folder, mode in iterate_model_folders(
         input_data_path, diffusion_model_names
     ):
-        print(f"Processing model: {model_name}, path: {model_data_path}, folder: {model_folder}, mode: {mode}")
+        log(INFO, f"Processing model: {model_name}, path: {model_data_path}, folder: {model_folder}, mode: {mode}")
 
         # Load the data files as dataframes
         df_synthetic_data = load_dataframe(model_data_path, "trans_synthetic.csv")
@@ -110,7 +111,7 @@ def run_attack_classifier_training(config: DictConfig) -> None:
     """
     log(INFO, "Running attack classifier training.")
 
-    data_format, models = (
+    data_format, diffusion_models = (
         ("single_table", ["tabddpm", "tabsyn"])
         if config.attack_settings.single_table
         else ("multi_table", ["clavaddpm"])
@@ -121,8 +122,8 @@ def run_attack_classifier_training(config: DictConfig) -> None:
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    for model_name in models:
-        train_features_path = features_data_path / f"{model_name}_black_box" / "train"
+    for diffusion_model_name in diffusion_models:
+        train_features_path = features_data_path / f"{diffusion_model_name}_black_box" / "train"
 
         assert train_features_path.exists() and train_features_path.is_dir(), (
             f"Directory not found: {train_features_path}. Make sure to run feature extraction first."
@@ -148,18 +149,45 @@ def run_attack_classifier_training(config: DictConfig) -> None:
         classifier_types = ["XGBoost", "CatBoost", "MLP"]
         column_types = ["actual", "error", "error_ratio", "accuracy", "prediction"]
 
-        results = train_attack_classifier(
-            classifier_types=classifier_types,
-            column_types=column_types,
-            x_train=df_train_features,
-            y_train=train_labels,
-            x_test=df_test_features,
-            y_test=test_labels,
-        )
-
-        summary_file_name = "attack_classifier_summary.txt"
         output_summary_path = Path(config.classifier_settings.results_output_path) / data_format / f"{timestamp}_train"
         output_summary_path.mkdir(parents=True, exist_ok=True)
+
+        for classifier in classifier_types:  # XGBoost, CatBoost, MLP
+            for r in range(1, len(column_types) + 1):
+                for selected_columns_tuple in itertools.combinations(column_types, r):
+
+
+                    results = train_attack_classifier(
+                        classifier_type=classifier,
+                        columns_list=list(selected_columns_tuple),
+                        x_train=df_train_features,
+                        y_train=train_labels,
+                        x_test=df_test_features,
+                        y_test=test_labels,
+                    )
+
+                    trianing_directory_name = f"{classifier}_" + "_".join(selected_columns_tuple)
+                    trianing_output_path = output_summary_path / trianing_directory_name
+                    trianing_output_path.mkdir(parents=True, exist_ok=True)
+
+                    # Save prediction results
+                    prediction_results_df = results["prediction_results"]
+                    prediction_results_file_name = f"{diffusion_model_name}_prediction_results.csv"
+                    save_dataframe(
+                        df=pd.DataFrame(prediction_results_df),
+                        file_path=trianing_output_path,
+                        file_name=prediction_results_file_name,
+                    )
+
+                    # Save scores
+                    scores_file_name = f"{diffusion_model_name}_results.txt"
+                    with open(trianing_output_path / scores_file_name, "w") as f:
+                        for score_name, score_value in results["scores"].items():
+                            f.write(f"{score_name}: {score_value}\n")
+
+        # _________________________________________________________________________________
+
+        summary_file_name = "attack_classifier_summary.txt"
 
         with open(output_summary_path / summary_file_name, "w") as f:
             json.dump(results, f, indent=4)
