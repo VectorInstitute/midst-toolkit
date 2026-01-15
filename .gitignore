@@ -52,5 +52,5 @@ tests/integration/attacks/tartan_federer/assets/tartan_federer_attack_results
 *.err
 *.out
 
-+# CatBoost training artifacts
-+catboost_info/
+# CatBoost training artifacts
+catboost_info/
