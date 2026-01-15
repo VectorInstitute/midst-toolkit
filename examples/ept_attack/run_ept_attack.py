@@ -162,7 +162,7 @@ def run_attack_classifier_training(config: DictConfig) -> None:
         train_labels = df_train_features["is_train"]
         df_train_features = df_train_features.drop(columns=["is_train"])
 
-        test_feature_files = sorted_feature_files[26:]
+        test_feature_files = sorted_feature_files[25:]
         df_test_features = pd.concat([pd.read_csv(f) for f in test_feature_files], ignore_index=True)
         test_labels = df_test_features["is_train"]
         df_test_features = df_test_features.drop(columns=["is_train"])
@@ -207,22 +207,22 @@ def run_attack_classifier_training(config: DictConfig) -> None:
                         col_name = col_name.replace("_at_", "_").replace(".0", "")
                         row[f"{diffusion_model_name}_{col_name}"] = score_value
 
-                    trianing_directory_name = f"{classifier}_" + "_".join(selected_columns_tuple)
-                    trianing_output_path = output_summary_path / trianing_directory_name
-                    trianing_output_path.mkdir(parents=True, exist_ok=True)
+                    training_directory_name = f"{classifier}_" + "_".join(selected_columns_tuple)
+                    training_output_path = output_summary_path / training_directory_name
+                    training_output_path.mkdir(parents=True, exist_ok=True)
 
                     # Save prediction results
                     prediction_results_df = results["prediction_results"]
                     prediction_results_file_name = f"{diffusion_model_name}_prediction_results.csv"
                     save_dataframe(
                         df=pd.DataFrame(prediction_results_df),
-                        file_path=trianing_output_path,
+                        file_path=training_output_path,
                         file_name=prediction_results_file_name,
                     )
 
                     # Save scores
                     scores_file_name = f"{diffusion_model_name}_results.txt"
-                    with open(trianing_output_path / scores_file_name, "w") as f:
+                    with open(training_output_path / scores_file_name, "w") as f:
                         for score_name, score_value in results["scores"].items():
                             f.write(f"{score_name}: {score_value}\n")
 

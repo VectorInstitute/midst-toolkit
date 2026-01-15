@@ -1,15 +1,16 @@
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pandas as pd
 import pytest
 import torch
-from unittest.mock import patch, MagicMock
 
 from midst_toolkit.attacks.ept.classification import (
-    filter_data,
     MLPClassifier,
-    train_mlp,
+    filter_data,
     get_scores,
     train_attack_classifier,
+    train_mlp,
 )
 
 
@@ -22,7 +23,7 @@ def sample_features_df():
         "feature2_error_ratio": [0.01, 0.02, 0.03],
         "feature3_accuracy": [0.9, 0.8, 0.7],
         "feature4_prediction": [1, 0, 1],
-        "another_feature": [4, 5, 6], 
+        "another_feature": [4, 5, 6],
     }
     return pd.DataFrame(data)
 
@@ -69,7 +70,7 @@ def test_mlp_classifier():
     input_tensor = torch.randn(4, input_size)
     output = model(input_tensor)
     assert output.shape == (4, output_size)
-    assert torch.all(output >= 0) and torch.all(output <= 1) 
+    assert torch.all(output >= 0) and torch.all(output <= 1)
 
 
 @patch("midst_toolkit.attacks.ept.classification.MLPClassifier")
@@ -81,13 +82,11 @@ def test_train_mlp(mock_mlp_class):
     mock_model.return_value = torch.rand(10, 1, requires_grad=True)
 
     eval_output_mock = MagicMock()
-    eval_output_mock.squeeze.return_value.cpu.return_value.numpy.return_value = np.array(
-        [0.6, 0.4, 0.7]
-    )
+    eval_output_mock.squeeze.return_value.cpu.return_value.numpy.return_value = np.array([0.6, 0.4, 0.7])
 
     mock_model.side_effect = [
         torch.rand(10, 1, requires_grad=True),  # 1st call (training)
-        eval_output_mock,                       # 2nd call (evaluation)
+        eval_output_mock,  # 2nd call (evaluation)
     ]
 
     mock_mlp_class.return_value.to.return_value = mock_model
@@ -111,9 +110,7 @@ def test_train_mlp(mock_mlp_class):
     ]
 
     # Test with eval=False
-    y_pred_no_eval, y_proba_no_eval = train_mlp(
-        x_train, y_train, x_test, device, eval=False, epochs=1
-    )
+    y_pred_no_eval, y_proba_no_eval = train_mlp(x_train, y_train, x_test, device, eval=False, epochs=1)
     assert y_pred_no_eval is None
     assert y_proba_no_eval is None
 
@@ -153,9 +150,7 @@ def attack_data():
 @pytest.mark.parametrize("classifier_type", ["XGBoost", "CatBoost"])
 @patch("midst_toolkit.attacks.ept.classification.XGBClassifier")
 @patch("midst_toolkit.attacks.ept.classification.CatBoostClassifier")
-def test_train_attack_classifier_tree_models(
-    mock_catboost, mock_xgboost, classifier_type, attack_data
-):
+def test_train_attack_classifier_tree_models(mock_catboost, mock_xgboost, classifier_type, attack_data):
     # Tests train_attack_classifier for XGBoost and CatBoost
     x_train, y_train, x_test, y_test = attack_data
     columns_list = ["error"]
@@ -168,9 +163,7 @@ def test_train_attack_classifier_tree_models(
     else:
         mock_catboost.return_value = mock_model
 
-    results = train_attack_classifier(
-        classifier_type, columns_list, x_train, y_train, x_test, y_test
-    )
+    results = train_attack_classifier(classifier_type, columns_list, x_train, y_train, x_test, y_test)
 
     assert "prediction_results" in results
     assert "scores" in results
@@ -187,20 +180,14 @@ def test_train_attack_classifier_mismatched_data(attack_data):
 
     # Test mismatches
     with pytest.raises(AssertionError, match="Mismatch in number of training samples and labels"):
-        train_attack_classifier(
-            "XGBoost", columns_list, x_train.head(10), y_train, x_test, y_test
-        )
+        train_attack_classifier("XGBoost", columns_list, x_train.head(10), y_train, x_test, y_test)
 
     with pytest.raises(AssertionError, match="Mismatch in number of test samples and labels"):
-        train_attack_classifier(
-            "XGBoost", columns_list, x_train, y_train, x_test.head(5), y_test
-        )
+        train_attack_classifier("XGBoost", columns_list, x_train, y_train, x_test.head(5), y_test)
 
     x_test_wrong_features = x_test.rename(columns={"feature_error": "another_feature"})
     with pytest.raises(AssertionError, match="Mismatch in number of features between train and test sets"):
-        train_attack_classifier(
-            "XGBoost", columns_list, x_train, y_train, x_test_wrong_features, y_test
-        )
+        train_attack_classifier("XGBoost", columns_list, x_train, y_train, x_test_wrong_features, y_test)
 
 
 @patch("midst_toolkit.attacks.ept.classification.train_mlp")
@@ -210,9 +197,7 @@ def test_train_attack_classifier_mlp(mock_train_mlp, attack_data):
     columns_list = ["error"]
     mock_train_mlp.return_value = (np.zeros(10), np.zeros(10))
 
-    results = train_attack_classifier(
-        "MLP", columns_list, x_train, y_train, x_test, y_test
-    )
+    results = train_attack_classifier("MLP", columns_list, x_train, y_train, x_test, y_test)
 
     assert "prediction_results" in results
     assert "scores" in results
@@ -220,10 +205,9 @@ def test_train_attack_classifier_mlp(mock_train_mlp, attack_data):
 
     assert mock_train_mlp.call_args[1]["eval"] is True
 
+
 def test_train_attack_classifier_unsupported(attack_data):
     # Tests that an unsupported classifier type raises an assertion error
     x_train, y_train, x_test, y_test = attack_data
     with pytest.raises(AssertionError, match="Unsupported classifier type: SVM"):
-        train_attack_classifier(
-            "SVM", ["error"], x_train, y_train, x_test, y_test
-        )
+        train_attack_classifier("SVM", ["error"], x_train, y_train, x_test, y_test)
