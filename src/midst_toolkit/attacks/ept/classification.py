@@ -1,13 +1,13 @@
 from logging import INFO
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import torch
 from catboost import CatBoostClassifier
+from sklearn.metrics import accuracy_score, auc, roc_curve
 from torch import nn, optim
 from xgboost import XGBClassifier
-from sklearn.metrics import accuracy_score, roc_curve, auc
-
 
 from midst_toolkit.common.logger import log
 
@@ -23,11 +23,11 @@ def filter_data(features_df: pd.DataFrame, columns_list: list[str]) -> np.ndarra
 
     Args:
         features_df: The pandas DataFrame to process.
-        columns_lst: A list of strings specifying the types of columns
+        columns_list: A list of strings specifying the types of columns
                     to select.
 
     Returns:
-        np.ndarray: A NumPy array containing the data from the selected columns.
+        A NumPy array containing the data from the selected columns.
     """
     suffix_mapping = {
         "actual": lambda x: not (
@@ -48,81 +48,136 @@ def filter_data(features_df: pd.DataFrame, columns_list: list[str]) -> np.ndarra
 
 
 class MLPClassifier(nn.Module):
-    """
-    Multi-Layer Perceptron (MLP) classifier.
-    """
+    def __init__(self, input_size: int = 100, hidden_size: int = 64, output_size: int = 1):
+        """
+        Creates the Multi-layer perceptron classifier. Defines a simple feedforward neural network with
+        customizable input, hidden, and output sizes.
 
-    def __init__(self, input_size=100, hidden_size=64, output_size=1):
+        Args:
+            input_size: The number of features in the input data. Defaults to 100.
+            hidden_size: The number of neurons in the hidden layer. Defaults to 64.
+            output_size: The number of output neurons, typically 1 for binary classification. Defaults to 1.
+        """
         super(MLPClassifier, self).__init__()
         self.layers = nn.Sequential(
             nn.Linear(input_size, hidden_size), nn.ReLU(), nn.Linear(hidden_size, output_size), nn.Sigmoid()
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Performs the forward pass of the MLP.
+
+        Args:
+            x: The input tensor.
+
+        Returns:
+            The output tensor after passing through the network.
+        """
         return self.layers(x)
 
 
-def train_mlp(x_train, y_train, x_test, y_test, device, eval):
+def train_mlp(
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    x_test: np.ndarray,
+    device: torch.device,
+    eval: bool,
+    epochs: int = 10,
+) -> tuple[np.ndarray | None, np.ndarray | None]:
     """
-    Train an MLP classifier and evaluate it on the test set.
+    Trains a simple MLP classifier and optionally evaluates it on a test set.
+
+    Args:
+        x_train: Training data features.
+        y_train: Training data labels.
+        x_test: Test data features.
+        device: The device to train the model on (e.g., 'cpu' or 'cuda').
+        eval: If True, evaluates the model on the test set.
+        epochs: Number of training epochs. Default is 10.
+
+    Returns:
+        A tuple containing:
+        - The predicted labels for the test set (or None if eval is False).
+        - The prediction probabilities for the test set (or None if eval is False).
     """
-    epochs = 10
     input_size = x_train.shape[1]
     model = MLPClassifier(input_size=input_size).to(device)
     criterion = nn.BCELoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-    x_train, y_train = (
+    x_train_tensor, y_train_tensor = (
         torch.tensor(x_train, dtype=torch.float32).to(device),
         torch.tensor(y_train, dtype=torch.float32).to(device),
     )
+
     if eval:
-        x_test, y_test = (
-            torch.tensor(x_test, dtype=torch.float32).to(device),
-            torch.tensor(y_test, dtype=torch.float32).to(device),
-        )
+        x_test_tensor = torch.tensor(x_test, dtype=torch.float32).to(device)
 
     # Train the model
     for _ in range(epochs):
         model.train()
         optimizer.zero_grad()
-        outputs = model(x_train).squeeze()
-        loss = criterion(outputs, y_train)
+        outputs = model(x_train_tensor).squeeze()
+        loss = criterion(outputs, y_train_tensor)
         loss.backward()
         optimizer.step()
 
     y_pred, y_proba = None, None
+
     if eval:
         model.eval()
+
         with torch.no_grad():
             # Get probabilities
-            y_proba = model(x_test).squeeze().cpu().numpy()
+            y_proba = model(x_test_tensor).squeeze().cpu().numpy()
             # Convert probabilities to binary predictions
             y_pred = (y_proba > 0.5).astype(float)
 
-    return model, y_pred, y_proba
+    return y_pred, y_proba
 
-def get_scores(y_true, y_proba, y_pred, fpr_thresholds=[0.1, 0.01, 0.001]) -> dict[str, float]: 
+
+def get_scores(
+    y_true: np.ndarray,
+    y_proba: np.ndarray,
+    y_pred: np.ndarray,
+    fpr_thresholds: list[float] | None = None,
+) -> dict[str, float]:
     """
-    Calculate evaluation scores for the classifier.
+    Calculates and returns a dictionary of evaluation scores for a binary classifier.
+
+    This function computes the accuracy, the Area Under the Receiver Operating Characteristic
+    Curve (AUC-ROC), and the True Positive Rate (TPR) at specified False Positive Rate (FPR)
+    thresholds.
+
+    Args:
+        y_true: Ground truth binary labels.
+        y_proba: Predicted probabilities for the positive class.
+        y_pred: Predicted binary labels.
+        fpr_thresholds: A list of FPR values at which to calculate the TPR.
+                        Defaults to [0.1, 0.01, 0.001].
+
+    Returns:
+        A dictionary containing the calculated scores: 'accuracy', 'AUC-ROC', and
+        'TPR at FPR {threshold}' for each specified threshold.
     """
+    if fpr_thresholds is None:
+        fpr_thresholds = [0.1, 0.01, 0.001]
+
     accuracy = accuracy_score(y_true, y_pred)
     fpr, tpr, _ = roc_curve(y_true, y_proba)
     auc_roc = auc(fpr, tpr)
 
+    scores = {"accuracy": accuracy, "AUC-ROC": auc_roc}
+
     # Compute TPR at specific FPR thresholds
-    tpr_at_fpr = {}
     for threshold in fpr_thresholds:
-        tpr_at_fpr[threshold] = max(tpr[fpr < threshold])
-    
-    scores = {
-        "accuracy": accuracy,
-        "AUC-ROC": auc_roc,
-    }
-    for threshold, tpr_value in tpr_at_fpr.items():
-        scores[f"TPR at FPR {threshold}"] = tpr_value
+        # Find the highest TPR for FPRs less than the threshold
+        valid_tpr = tpr[fpr < threshold]
+        tpr_at_fpr = valid_tpr.max() if valid_tpr.size > 0 else 0.0
+        scores[f"TPR at FPR {threshold * 100}"] = tpr_at_fpr
 
     return scores
+
 
 def train_attack_classifier(
     classifier_type: str,
@@ -131,57 +186,86 @@ def train_attack_classifier(
     y_train: pd.Series,
     x_test: pd.DataFrame,
     y_test: pd.Series,
-) -> dict[dict]:
+) -> dict[str, dict]:
     """
-    Train an attack classifier for EPT-MIA attack using specified classifier and specific selection of columns.
+    Trains a specified classifier for a membership inference attack.
+    This function takes training and testing data, selects the subset of features given in
+    the provided column list, and trains a classifier (XGBoost, CatBoost, or MLP) to
+    distinguish between member and non-member data points. It then evaluates the
+    classifier on the test set and returns the prediction results and performance scores.
+
+    Args:
+        classifier_type: The type of classifier to train.
+            Supported values are "XGBoost", "CatBoost", and "MLP".
+        columns_list: A list of column names to be used as features for training the classifier.
+        x_train: The feature data for the training set.
+        y_train: The labels for the training set (membership status).
+        x_test: The feature data for the test set.
+        y_test: The labels for the test set (membership status).
+
+    Returns:
+        A dictionary containing the results. It has two keys:
+            - "prediction_results": A dictionary with the true labels ('y_true'),
+              predicted probabilities ('y_proba'), and predicted labels ('y_pred').
+            - "scores": A dictionary of performance metrics, including accuracy,
+              AUC, and TPR at various FPR thresholds.
     """
     log(INFO, f"Training {classifier_type} classifier using features from columns: {columns_list}")
 
-    all_results = {
-        prediction_results := {},
-        scores := {}
-    }
+    all_results: dict[str, Any] = {}
 
-    x_train = filter_data(x_train, columns_list)
-    y_train = np.hstack(y_train)
+    x_train_processed = filter_data(x_train, columns_list)
+    y_train_processed = y_train.to_numpy()
 
-    x_test = filter_data(x_test, columns_list)
-    y_test = np.hstack(y_test)
+    x_test_processed = filter_data(x_test, columns_list)
+    y_test_processed = y_test.to_numpy()
 
-    assert x_train.shape[0] == y_train.shape[0], "Mismatch in number of training samples and labels"
-    assert x_test.shape[0] == y_test.shape[0], "Mismatch in number of test samples and labels"
-    assert x_train.shape[1] == x_test.shape[1], "Mismatch in number of features between train and test sets"
-    
+    assert x_train_processed.shape[0] == y_train_processed.shape[0], (
+        "Mismatch in number of training samples and labels"
+    )
+    assert x_test_processed.shape[0] == y_test_processed.shape[0], "Mismatch in number of test samples and labels"
+    assert x_train_processed.shape[1] == x_test_processed.shape[1], (
+        "Mismatch in number of features between train and test sets"
+    )
+
     assert classifier_type in ["XGBoost", "CatBoost", "MLP"], f"Unsupported classifier type: {classifier_type}"
+
+    y_pred, y_proba = None, None
 
     if classifier_type == "XGBoost":
         model = XGBClassifier()
-        model.fit(x_train, y_train)
-        y_pred = model.predict(x_test)
-        y_proba = model.predict_proba(x_test)[:, 1]
+        model.fit(x_train_processed, y_train_processed)
+        y_pred = model.predict(x_test_processed)
+        y_proba = model.predict_proba(x_test_processed)[:, 1]
+
     elif classifier_type == "CatBoost":
         model = CatBoostClassifier(verbose=0)
-        model.fit(x_train, y_train)
-        y_pred = model.predict(x_test)
-        y_proba = model.predict_proba(x_test)[:, 1]
-        import pdb; pdb.set_trace()
+        model.fit(x_train_processed, y_train_processed)
+        y_pred = model.predict(x_test_processed)
+        y_proba = model.predict_proba(x_test_processed)[:, 1]
 
     elif classifier_type == "MLP":
-        model, y_pred, y_proba = train_mlp(
-            x_train, y_train, x_test, y_test, torch.device("cuda" if torch.cuda.is_available() else "cpu"), eval=True
+        y_pred, y_proba = train_mlp(
+            x_train_processed,
+            y_train_processed,
+            x_test_processed,
+            torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+            eval=True,
         )
 
     prediction_results = {
-        "y_true": y_test,
+        "y_true": y_test_processed,
         "y_proba": y_proba,
         "y_pred": y_pred,
     }
 
+    assert y_pred is not None and y_proba is not None, (
+        "Predictions and probabilities should not be None to get scores."
+    )
 
     fpr_thresholds = [0.1, 0.01, 0.001]
 
-    all_results.prediction_results = prediction_results
-    all_results.scores = get_scores(y_test, y_proba, y_pred, fpr_thresholds)
-    
+    all_results["prediction_results"] = prediction_results
+    all_results["scores"] = get_scores(y_test_processed, y_proba, y_pred, fpr_thresholds)
 
     return all_results
