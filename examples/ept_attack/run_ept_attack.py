@@ -21,8 +21,8 @@ from examples.common.utils import iterate_model_folders
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
 from midst_toolkit.attacks.ept.classification import train_attack_classifier
 from midst_toolkit.attacks.ept.feature_extraction import extract_features
-from midst_toolkit.common.random import set_all_random_seeds
 from midst_toolkit.common.logger import log
+from midst_toolkit.common.random import set_all_random_seeds
 
 
 # Step 2 and 3: Attribute prediction model training and feature extraction
