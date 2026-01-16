@@ -21,6 +21,7 @@ from examples.common.utils import iterate_model_folders
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
 from midst_toolkit.attacks.ept.classification import train_attack_classifier
 from midst_toolkit.attacks.ept.feature_extraction import extract_features
+from midst_toolkit.common.random import set_all_random_seeds
 from midst_toolkit.common.logger import log
 
 
@@ -254,6 +255,10 @@ def main(config: DictConfig) -> None:
         config: Attack configuration as an OmegaConf DictConfig object.
     """
     log(INFO, "Running EPT-MIA Attack Example Pipeline.")
+
+    if config.random_seed is not None:
+        set_all_random_seeds(seed=config.random_seed)
+        log(INFO, f"Training phase random seed set to {config.random_seed}.")
 
     if config.attack_settings.single_table:
         log(INFO, "Data: Single-table.")
