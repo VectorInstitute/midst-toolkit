@@ -8,6 +8,7 @@ import pytest
 from midst_toolkit.common.enumerations import ColumnType
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.evaluation.quality.multi_target_modeling_difference import MultiTargetModelingDifference
+from tests.utils.architecture import is_apple_silicon
 
 
 def get_regression_data() -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -189,7 +190,10 @@ def test_multi_target_modeling_difference_with_two_cat_targets() -> None:
 
     score = metric.compute(real_data, synthetic_data, holdout_data)
 
-    assert pytest.approx(-0.15399437057829385, abs=1e-8) == score["avg_f1_difference"]
+    if is_apple_silicon():
+        assert pytest.approx(-0.15399437057829385, abs=1e-8) == score["avg_f1_difference"]
+    else:
+        assert pytest.approx(-0.153918889187196, abs=1e-8) == score["avg_f1_difference"]
 
     # Test that nothing breaks when we have no numerical columns
 

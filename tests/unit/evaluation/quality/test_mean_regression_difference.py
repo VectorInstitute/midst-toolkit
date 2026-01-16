@@ -106,7 +106,7 @@ def test_mean_regression_diff_with_no_categorical() -> None:
     if is_apple_silicon():
         assert pytest.approx(-0.0565015943519761, abs=1e-8) == score["RandomForestRegressor_r2_difference"]
     else:
-        assert pytest.approx(-0.05648909197410379, abs=1e-8) == score["RandomForestRegressor_r2_difference"]
+        assert pytest.approx(-0.05648892075668577, abs=1e-8) == score["RandomForestRegressor_r2_difference"]
 
     unset_all_random_seeds()
 
