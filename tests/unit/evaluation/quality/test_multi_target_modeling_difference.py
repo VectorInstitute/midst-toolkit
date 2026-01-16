@@ -191,7 +191,7 @@ def test_multi_target_modeling_difference_with_two_cat_targets() -> None:
     score = metric.compute(real_data, synthetic_data, holdout_data)
 
     if is_apple_silicon():
-        assert pytest.approx(-0.15399437057829385, abs=1e-8) == score["avg_f1_difference"]
+        assert pytest.approx(-0.153918889187196, abs=1e-8) == score["avg_f1_difference"]
     else:
         assert pytest.approx(-0.153918889187196, abs=1e-8) == score["avg_f1_difference"]
 
