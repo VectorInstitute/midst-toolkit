@@ -1,25 +1,26 @@
+from enum import Enum
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
 import pytest
 import torch
-from enum import Enum
 
 from midst_toolkit.attacks.ept.classification import (
+    ClassifierType,
+    ColumnType,
     MLPClassifier,
     filter_data,
     get_scores,
     train_attack_classifier,
     train_mlp,
-    ClassifierType,
-    ColumnType,
 )
 from midst_toolkit.common.variables import DEVICE
 
 
 class MockClassifierType(Enum):
     UNSUPPORTED = "Unsupported"
+
 
 @pytest.fixture
 def sample_features_df():
@@ -83,7 +84,7 @@ def sample_features_df():
 def test_filter_data(sample_features_df, column_types, expected_cols):
     """
     Test that filter_data correctly selects columns based on ColumnType suffixes.
-    
+
     Verifies that:
     - The correct columns are selected for each ColumnType
     - Multiple ColumnTypes can be filtered simultaneously
@@ -93,10 +94,10 @@ def test_filter_data(sample_features_df, column_types, expected_cols):
     """
     # Act
     result = filter_data(sample_features_df, column_types)
-    
+
     # Assert
     expected = sample_features_df[expected_cols].values if expected_cols else np.array([]).reshape(3, 0)
-    
+
     np.testing.assert_array_equal(
         result,
         expected,
@@ -110,7 +111,7 @@ def test_filter_data(sample_features_df, column_types, expected_cols):
 def test_mlp_classifier():
     """
     Test the MLPClassifier initialization and forward pass.
-    
+
     Verifies that:
     - Model layers are initialized with correct dimensions
     - Forward pass produces correct output shape
@@ -134,7 +135,7 @@ def test_mlp_classifier():
     # Test forward pass
     input_tensor = torch.randn(batch_size, input_size)
     output = model(input_tensor)
-    
+
     # The output may be squeezed, so check for either (batch_size,) or (batch_size, output_size)
     assert output.shape in [(batch_size,), (batch_size, output_size)], (
         f"Output shape {output.shape} should be either ({batch_size},) or ({batch_size}, {output_size})"
@@ -142,6 +143,7 @@ def test_mlp_classifier():
     assert torch.all(output >= 0) and torch.all(output <= 1), (
         "Output values should be in range [0, 1] due to sigmoid activation"
     )
+
 
 @patch("midst_toolkit.attacks.ept.classification.MLPClassifier")
 def test_train_mlp(mock_mlp_class):
@@ -169,7 +171,7 @@ def test_train_mlp(mock_mlp_class):
     assert y_proba.shape == (3,)
 
     np.testing.assert_array_equal(y_pred, np.array([1, 0, 1]))
-    
+
     mock_model.side_effect = [train_output_tensor]
 
     # No eval
@@ -266,7 +268,6 @@ def test_train_attack_classifier_mlp(mock_train_mlp, attack_data):
     assert "prediction_results" in results
     assert "scores" in results
     mock_train_mlp.assert_called_once()
-   
 
 
 def test_train_attack_classifier_unsupported(attack_data):

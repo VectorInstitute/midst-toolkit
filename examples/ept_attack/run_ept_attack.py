@@ -111,7 +111,7 @@ def _summarize_and_save_training_results(
     Args:
         summary_results: A dictionary containing the summary results.
         output_summary_path: The path where the summary CSV will be saved.
-        summary_file_name: The name of the summary CSV file.    
+        summary_file_name: The name of the summary CSV file.
 
     Returns:
         A pandas DataFrame containing the summarized results.
@@ -257,7 +257,9 @@ def run_attack_classifier_training(config: DictConfig) -> None:
                         for score_name, score_value in results["scores"].items():
                             f.write(f"{score_name}: {score_value}\n")
 
-    summary_df = _summarize_and_save_training_results(summary_results, output_summary_path, "attack_classifier_summary.csv")
+    summary_df = _summarize_and_save_training_results(
+        summary_results, output_summary_path, "attack_classifier_summary.csv"
+    )
 
     summary_df.sort_values(by=["final_tpr_fpr_10"], ascending=False, inplace=True)
     best_result = summary_df.head(1)
