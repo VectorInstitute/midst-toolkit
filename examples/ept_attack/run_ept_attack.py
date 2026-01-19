@@ -8,18 +8,18 @@ https://github.com/eyalgerman/MIA-EPT.
 
 import itertools
 import json
+from collections import defaultdict
 from datetime import datetime
 from logging import INFO
 from pathlib import Path
-from typing import Any
 
 import hydra
 import pandas as pd
 from omegaconf import DictConfig
 
-from examples.common.utils import iterate_model_folders
+from examples.common.utils import directory_checks, iterate_model_folders
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
-from midst_toolkit.attacks.ept.classification import train_attack_classifier
+from midst_toolkit.attacks.ept.classification import ClassifierType, train_attack_classifier
 from midst_toolkit.attacks.ept.feature_extraction import extract_features
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
@@ -53,8 +53,7 @@ def run_attribute_prediction(config: DictConfig) -> None:
     }
 
     # Assert that the input data path exists and is not empty
-    assert input_data_path.exists() and input_data_path.is_dir(), f"Input data directory not found: {input_data_path}"
-    assert any(input_data_path.iterdir()), f"Input data directory is empty: {input_data_path}"
+    directory_checks(input_data_path)
 
     # Iterating over directories specific to the shadow models folder structure in the competition
     for model_name, model_data_path, model_folder, mode in iterate_model_folders(
@@ -103,11 +102,47 @@ def run_attribute_prediction(config: DictConfig) -> None:
         save_dataframe(df=df_extracted_features, file_path=final_output_dir, file_name=file_name)
 
 
+def _summarize_and_save_training_results(
+    summary_results: dict, output_summary_path: Path, summary_file_name: str
+) -> pd.DataFrame:
+    """
+    Processes summary results, saves them to a CSV, and returns the summary DataFrame.
+
+    Args:
+        summary_results: A dictionary containing the summary results.
+        output_summary_path: The path where the summary CSV will be saved.
+        summary_file_name: The name of the summary CSV file.    
+
+    Returns:
+        A pandas DataFrame containing the summarized results.
+    """
+    processed_results = []
+    for (classifier, columns_lst), model_scores in summary_results.items():
+        row: dict[str, str | float] = {"classifier": classifier, "column_types": columns_lst}
+        for diffusion_model_name, scores in model_scores:
+            for score_name, score_value in scores.items():
+                col_name = (
+                    score_name.lower().replace(" ", "_").replace("-", "_").replace("_at_", "_").replace(".0", "")
+                )
+                row[f"{diffusion_model_name}_{col_name}"] = score_value
+        processed_results.append(row)
+
+    summary_df = pd.DataFrame(processed_results)
+    tpr_10_cols = [col for col in summary_df.columns if col.endswith("_tpr_fpr_10")]
+    if tpr_10_cols:
+        summary_df["final_tpr_fpr_10"] = summary_df[tpr_10_cols].max(axis=1)
+
+    summary_df.to_csv(output_summary_path / summary_file_name, index=False)
+    log(INFO, f"Saved attack classifier summary to {output_summary_path / summary_file_name}")
+    return summary_df
+
+
 # Step 4: Attack classifier training
 def run_attack_classifier_training(config: DictConfig) -> None:
     """
-    Trains multiple attack classifiers to distinguish between training and synthetic data,
-    and selects the best performing configuration based on evaluation metrics.
+    Trains multiple attack classifiers to distinguish between training and
+    non-training data, and selects the best performing configuration based
+    on evaluation metrics.
 
     This function orchestrates the training of various attack classifiers (XGBoost,
     CatBoost, MLP) to perform a membership inference attack. It iterates through
@@ -142,17 +177,26 @@ def run_attack_classifier_training(config: DictConfig) -> None:
     features_data_path = Path(config.data_paths.attribute_features_path)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    summary_results: list[dict[str, Any]] = []
+
+    # An example of summary_results structure:
+    # {
+    #   ('XGBoost', 'actual error'): [
+    #       ('tabddpm', {'AUC': 0.85, 'TPR at FPR=10%': 0.75, ...}),
+    #       ('tabsyn', {'AUC': 0.80, 'TPR at FPR=10%': 0.70, ...}),
+    #   ],
+    #   ('CatBoost', 'accuracy prediction'): [
+    #       ('tabddpm', {'AUC': 0.82, 'TPR at FPR=10%': 0.72, ...}),
+    #       ('tabsyn', {'AUC': 0.78, 'TPR at FPR=10%    ': 0.68, ...}),
+    #   ],
+    #   ...
+    # }
+
+    summary_results: dict[tuple[str, str], list[tuple[str, dict[str, float]]]] = defaultdict(list)
 
     for diffusion_model_name in diffusion_models:
         train_features_path = features_data_path / f"{diffusion_model_name}_black_box" / "train"
 
-        assert train_features_path.exists() and train_features_path.is_dir(), (
-            f"Directory not found: {train_features_path}. Make sure to run feature extraction first."
-        )
-        assert any(train_features_path.iterdir()), (
-            f"Directory is empty: {train_features_path}. Make sure to run feature extraction first."
-        )
+        directory_checks(train_features_path, "Make sure to run feature extraction first.")
 
         sorted_feature_files = sorted(train_features_path.glob("*.csv"))
 
@@ -174,41 +218,27 @@ def run_attack_classifier_training(config: DictConfig) -> None:
         output_summary_path = Path(config.classifier_settings.results_output_path) / data_format / f"{timestamp}_train"
         output_summary_path.mkdir(parents=True, exist_ok=True)
 
-        for classifier in classifier_types:  # XGBoost, CatBoost, MLP
+        for classifier in classifier_types:
             for r in range(1, len(column_types) + 1):
-                for selected_columns_tuple in itertools.combinations(column_types, r):
-                    # Find if a result for this combination already exists
-                    columns_str = " ".join(sorted(selected_columns_tuple))
-                    row = next(
-                        (
-                            item
-                            for item in summary_results
-                            if item["classifier"] == classifier and item["columns_lst"] == columns_str
-                        ),
-                        None,
-                    )
+                for selected_column_types_tuple in itertools.combinations(column_types, r):
+                    columns_str = " ".join(sorted(selected_column_types_tuple))
+                    result_key = (classifier, columns_str)
 
-                    if not row:
-                        row = {"classifier": classifier, "columns_lst": columns_str}
-                        summary_results.append(row)
+                    classifier_type = ClassifierType(classifier)
 
                     results = train_attack_classifier(
-                        classifier_type=classifier,
-                        columns_list=list(selected_columns_tuple),
+                        classifier_type=classifier_type,
+                        column_types=list(selected_column_types_tuple),
                         x_train=df_train_features,
                         y_train=train_labels,
                         x_test=df_test_features,
                         y_test=test_labels,
                     )
 
-                    # Update row with scores for the current diffusion model
-                    for score_name, score_value in results["scores"].items():
-                        # Sanitize score_name for column header
-                        col_name = score_name.lower().replace(" ", "_").replace("-", "_")
-                        col_name = col_name.replace("_at_", "_").replace(".0", "")
-                        row[f"{diffusion_model_name}_{col_name}"] = score_value
+                    # Store raw scores for the current diffusion model
+                    summary_results[result_key].append((diffusion_model_name, results["scores"]))
 
-                    training_directory_name = f"{classifier}_" + "_".join(selected_columns_tuple)
+                    training_directory_name = f"{classifier}_{'_'.join(selected_column_types_tuple)}"
                     training_output_path = output_summary_path / training_directory_name
                     training_output_path.mkdir(parents=True, exist_ok=True)
 
@@ -227,20 +257,12 @@ def run_attack_classifier_training(config: DictConfig) -> None:
                         for score_name, score_value in results["scores"].items():
                             f.write(f"{score_name}: {score_value}\n")
 
-    summary_file_name = "attack_classifier_summary.csv"
-    summary_df = pd.DataFrame(summary_results)
-
-    # Add final_tpr_fpr_10 column which is the max TPR at FPR=10% across diffusion models
-    tpr_10_cols = [col for col in summary_df.columns if col.endswith("_tpr_fpr_10")]
-    if tpr_10_cols:
-        summary_df["final_tpr_fpr_10"] = summary_df[tpr_10_cols].max(axis=1)
-
-    summary_df.to_csv(output_summary_path / summary_file_name, index=False)
-
-    log(INFO, f"Saved attack classifier summary to {output_summary_path / summary_file_name}")
+    summary_df = _summarize_and_save_training_results(summary_results, output_summary_path, "attack_classifier_summary.csv")
 
     summary_df.sort_values(by=["final_tpr_fpr_10"], ascending=False, inplace=True)
     best_result = summary_df.head(1)
+    log(INFO, f"Best performing attack configuration:\n{best_result}")
+
     log(INFO, f"Best performing attack configuration:\n{best_result}")
 
 

@@ -12,6 +12,7 @@ from midst_toolkit.attacks.ept.classification import (
     train_attack_classifier,
     train_mlp,
 )
+from midst_toolkit.common.variables import DEVICE
 
 
 @pytest.fixture
@@ -94,10 +95,9 @@ def test_train_mlp(mock_mlp_class):
     x_train = np.random.rand(10, 5)
     y_train = np.random.randint(0, 2, 10)
     x_test = np.random.rand(3, 5)
-    device = torch.device("cpu")
 
     # Test with eval=True
-    y_pred, y_proba = train_mlp(x_train, y_train, x_test, device, eval=True, epochs=1)
+    y_pred, y_proba = train_mlp(x_train, y_train, x_test, DEVICE, epochs=1)
     assert y_pred is not None
     assert y_proba is not None
     assert y_pred.shape == (3,)
@@ -110,7 +110,7 @@ def test_train_mlp(mock_mlp_class):
     ]
 
     # Test with eval=False
-    y_pred_no_eval, y_proba_no_eval = train_mlp(x_train, y_train, x_test, device, eval=False, epochs=1)
+    y_pred_no_eval, y_proba_no_eval = train_mlp(x_train, y_train, x_test=None, device=DEVICE, epochs=1)
     assert y_pred_no_eval is None
     assert y_proba_no_eval is None
 

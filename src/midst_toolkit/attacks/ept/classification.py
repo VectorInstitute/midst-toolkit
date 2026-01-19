@@ -1,3 +1,4 @@
+from enum import Enum
 from logging import INFO
 from typing import Any
 
@@ -10,9 +11,48 @@ from torch import nn, optim
 from xgboost import XGBClassifier
 
 from midst_toolkit.common.logger import log
+from midst_toolkit.common.variables import DEVICE
 
 
-def filter_data(features_df: pd.DataFrame, columns_list: list[str]) -> np.ndarray:
+class ClassifierType(Enum):
+    XGBOOST = "XGBoost"
+    CATBOOST = "CatBoost"
+    MLP = "MLP"
+
+
+class ColumnType(Enum):
+    ACTUAL = "actual"
+    ERROR = "error"
+    ERROR_RATIO = "error_ratio"
+    ACCURACY = "accuracy"
+    PREDICTION = "prediction"
+
+
+def should_keep_column(column_name: str, column_types: list[ColumnType]) -> bool:
+    """
+    Determines if a column should be kept based on its suffix.
+
+    Args:
+        column_name: The name of the column.
+        column_types: A list of `ColumnType` enums to check for.
+
+    Returns:
+        True if the column should be kept, False otherwise.
+    """
+    non_actual_suffixes = [s.value for s in ColumnType if s != ColumnType.ACTUAL]
+    non_actual_suffixes_in_list = [s.value for s in column_types if s != ColumnType.ACTUAL]
+
+    if column_name.endswith(tuple(non_actual_suffixes_in_list)):
+        return True
+
+    # 'actual' means we keep columns that don't have any of the other suffixes.
+    if ColumnType.ACTUAL in column_types:
+        return not column_name.endswith(tuple(non_actual_suffixes))
+
+    return False
+
+
+def filter_data(features_df: pd.DataFrame, column_types: list[str]) -> np.ndarray:
     """
     Filters columns from a single DataFrame based on specified suffixes.
 
@@ -23,26 +63,18 @@ def filter_data(features_df: pd.DataFrame, columns_list: list[str]) -> np.ndarra
 
     Args:
         features_df: The pandas DataFrame to process.
-        columns_list: A list of strings specifying the types of columns
-                    to select.
+        column_types: A list of strings specifying the types of columns
+            to select. (actual, error, error_ratio, accuracy, prediction)
 
     Returns:
         A NumPy array containing the data from the selected columns.
     """
-    suffix_mapping = {
-        "actual": lambda x: not (
-            x.endswith("error") or x.endswith("error_ratio") or x.endswith("accuracy") or x.endswith("prediction")
-        ),
-        "error": lambda x: x.endswith("error"),
-        "error_ratio": lambda x: x.endswith("error_ratio"),
-        "accuracy": lambda x: x.endswith("accuracy"),
-        "prediction": lambda x: x.endswith("prediction"),
-    }
+    try:
+        column_enums = [ColumnType(c) for c in column_types]
+    except ValueError as e:
+        raise ValueError(f"Invalid column type in `columns_list`. {e}") from e
 
-    # Filter columns for each type in args.columns_lst
-    selected_columns = [
-        col for col_type in columns_list for col in features_df.columns if suffix_mapping[col_type](col)
-    ]
+    selected_columns = [column for column in features_df.columns if should_keep_column(column, column_enums)]
 
     return features_df[selected_columns].values
 
@@ -58,7 +90,7 @@ class MLPClassifier(nn.Module):
             hidden_size: The number of neurons in the hidden layer. Defaults to 64.
             output_size: The number of output neurons, typically 1 for binary classification. Defaults to 1.
         """
-        super(MLPClassifier, self).__init__()
+        super().__init__()
         self.layers = nn.Sequential(
             nn.Linear(input_size, hidden_size), nn.ReLU(), nn.Linear(hidden_size, output_size), nn.Sigmoid()
         )
@@ -73,15 +105,14 @@ class MLPClassifier(nn.Module):
         Returns:
             The output tensor after passing through the network.
         """
-        return self.layers(x)
+        return self.layers(x).squeeze(dim=-1)
 
 
 def train_mlp(
     x_train: np.ndarray,
     y_train: np.ndarray,
-    x_test: np.ndarray,
-    device: torch.device,
-    eval: bool,
+    x_test: np.ndarray | None = None,
+    device: torch.device = DEVICE,
     epochs: int = 10,
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     """
@@ -110,26 +141,22 @@ def train_mlp(
         torch.tensor(y_train, dtype=torch.float32).to(device),
     )
 
-    if eval:
-        x_test_tensor = torch.tensor(x_test, dtype=torch.float32).to(device)
-
     # Train the model
     for _ in range(epochs):
         model.train()
         optimizer.zero_grad()
-        outputs = model(x_train_tensor).squeeze()
+        outputs = model(x_train_tensor)
         loss = criterion(outputs, y_train_tensor)
         loss.backward()
         optimizer.step()
 
     y_pred, y_proba = None, None
 
-    if eval:
-        model.eval()
-
+    if x_test is not None:
+        x_test_tensor = torch.tensor(x_test, dtype=torch.float32).to(device)
         with torch.no_grad():
             # Get probabilities
-            y_proba = model(x_test_tensor).squeeze().cpu().numpy()
+            y_proba = model(x_test_tensor).cpu().numpy()
             # Convert probabilities to binary predictions
             y_pred = (y_proba > 0.5).astype(float)
 
@@ -180,8 +207,8 @@ def get_scores(
 
 
 def train_attack_classifier(
-    classifier_type: str,
-    columns_list: list[str],
+    classifier_type: ClassifierType,
+    column_types: list[str],
     x_train: pd.DataFrame,
     y_train: pd.Series,
     x_test: pd.DataFrame,
@@ -197,7 +224,8 @@ def train_attack_classifier(
     Args:
         classifier_type: The type of classifier to train.
             Supported values are "XGBoost", "CatBoost", and "MLP".
-        columns_list: A list of column names to be used as features for training the classifier.
+        column_types: A list of column type (actual, error, error_ratio, accuracy, prediction)
+            to be used as features for training the classifier.
         x_train: The feature data for the training set.
         y_train: The labels for the training set (membership status).
         x_test: The feature data for the test set.
@@ -210,14 +238,14 @@ def train_attack_classifier(
             - "scores": A dictionary of performance metrics, including accuracy,
               AUC, and TPR at various FPR thresholds.
     """
-    log(INFO, f"Training {classifier_type} classifier using features from columns: {columns_list}")
+    log(INFO, f"Training {classifier_type.value} classifier using features from column types: {column_types}")
 
     all_results: dict[str, Any] = {}
 
-    x_train_processed = filter_data(x_train, columns_list)
+    x_train_processed = filter_data(x_train, column_types)
     y_train_processed = y_train.to_numpy()
 
-    x_test_processed = filter_data(x_test, columns_list)
+    x_test_processed = filter_data(x_test, column_types)
     y_test_processed = y_test.to_numpy()
 
     assert x_train_processed.shape[0] == y_train_processed.shape[0], (
@@ -228,40 +256,32 @@ def train_attack_classifier(
         "Mismatch in number of features between train and test sets"
     )
 
-    assert classifier_type in ["XGBoost", "CatBoost", "MLP"], f"Unsupported classifier type: {classifier_type}"
-
     y_pred, y_proba = None, None
 
-    if classifier_type == "XGBoost":
+    if classifier_type == ClassifierType.XGBOOST:
         model = XGBClassifier()
         model.fit(x_train_processed, y_train_processed)
         y_pred = model.predict(x_test_processed)
         y_proba = model.predict_proba(x_test_processed)[:, 1]
 
-    elif classifier_type == "CatBoost":
+    elif classifier_type == ClassifierType.CATBOOST:
         model = CatBoostClassifier(verbose=0)
         model.fit(x_train_processed, y_train_processed)
         y_pred = model.predict(x_test_processed)
         y_proba = model.predict_proba(x_test_processed)[:, 1]
 
-    elif classifier_type == "MLP":
-        y_pred, y_proba = train_mlp(
-            x_train_processed,
-            y_train_processed,
-            x_test_processed,
-            torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-            eval=True,
-        )
+    elif classifier_type == ClassifierType.MLP:
+        y_pred, y_proba = train_mlp(x_train_processed, y_train_processed, x_test_processed, DEVICE)
+
+    assert y_pred is not None and y_proba is not None, (
+        "Predictions and probabilities should not be None to get scores."
+    )
 
     prediction_results = {
         "y_true": y_test_processed,
         "y_proba": y_proba,
         "y_pred": y_pred,
     }
-
-    assert y_pred is not None and y_proba is not None, (
-        "Predictions and probabilities should not be None to get scores."
-    )
 
     fpr_thresholds = [0.1, 0.01, 0.001]
 

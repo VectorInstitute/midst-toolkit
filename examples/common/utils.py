@@ -29,3 +29,20 @@ def iterate_model_folders(
             model_folders = [entry for entry in current_path.iterdir() if entry.is_dir()]
             for model_folder_path in model_folders:
                 yield model_name, model_folder_path, model_folder_path.name, mode
+
+
+def directory_checks(directory_path: Path, custom_error_message: str = "") -> None:
+    """
+    Performs checks to ensure that the feature extraction directory exists and is not empty.
+
+    Args:
+        directory_path: Path to the directory to check.
+        custom_error_message: Additional message to include in the assertion error.
+
+    Raises:
+        AssertionError: If the directory does not exist or is empty.
+    """
+    assert directory_path.exists() and directory_path.is_dir(), (
+        f"Directory not found: {directory_path}. " + custom_error_message
+    )
+    assert any(directory_path.iterdir()), f"Directory is empty: {directory_path}. " + custom_error_message
