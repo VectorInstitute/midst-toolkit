@@ -273,6 +273,9 @@ def train_attack_classifier(
     elif classifier_type == ClassifierType.MLP:
         y_pred, y_proba = train_mlp(x_train_processed, y_train_processed, x_test_processed, DEVICE)
 
+    else:
+        raise ValueError(f"Unsupported classifier type: {classifier_type}")
+
     assert y_pred is not None and y_proba is not None, (
         "Predictions and probabilities should not be None to get scores."
     )
