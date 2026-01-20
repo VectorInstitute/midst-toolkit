@@ -33,7 +33,7 @@ def iterate_model_folders(
 
 def directory_checks(directory_path: Path, custom_error_message: str = "") -> None:
     """
-    Performs checks to ensure that the feature extraction directory exists and is not empty.
+    Performs checks to ensure that the given directory exists and is not empty.
 
     Args:
         directory_path: Path to the directory to check.

@@ -153,6 +153,7 @@ def train_mlp(
     y_pred, y_proba = None, None
 
     if x_test is not None:
+        model.eval()
         x_test_tensor = torch.tensor(x_test, dtype=torch.float32).to(device)
         with torch.no_grad():
             # Get probabilities

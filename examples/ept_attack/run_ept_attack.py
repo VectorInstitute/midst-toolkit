@@ -199,15 +199,16 @@ def run_attack_classifier_training(config: DictConfig) -> None:
         directory_checks(train_features_path, "Make sure to run feature extraction first.")
 
         sorted_feature_files = sorted(train_features_path.glob("*.csv"))
+        split_index = len(sorted_feature_files) * 5 // 6
 
         # Get the first 25 feature files
-        train_feature_files = sorted_feature_files[:25]
+        train_feature_files = sorted_feature_files[:split_index]
         # Concatenate all the train feature files into a single dataframe
         df_train_features = pd.concat([pd.read_csv(f) for f in train_feature_files], ignore_index=True)
         train_labels = df_train_features["is_train"]
         df_train_features = df_train_features.drop(columns=["is_train"])
 
-        test_feature_files = sorted_feature_files[25:]
+        test_feature_files = sorted_feature_files[split_index:]
         df_test_features = pd.concat([pd.read_csv(f) for f in test_feature_files], ignore_index=True)
         test_labels = df_test_features["is_train"]
         df_test_features = df_test_features.drop(columns=["is_train"])
