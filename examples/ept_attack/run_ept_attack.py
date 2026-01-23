@@ -8,6 +8,7 @@ https://github.com/eyalgerman/MIA-EPT.
 
 import itertools
 import json
+import pickle
 from collections import defaultdict
 from datetime import datetime
 from logging import INFO
@@ -266,7 +267,37 @@ def run_attack_classifier_training(config: DictConfig) -> None:
     best_result = summary_df.head(1)
     log(INFO, f"Best performing attack configuration:\n{best_result}")
 
-    log(INFO, f"Best performing attack configuration:\n{best_result}")
+    # Train and save the best attack classifier
+    best_classifier_name = best_result["classifier"].iloc[0]
+    best_column_types_str = best_result["column_types"].iloc[0]
+    best_column_types = best_column_types_str.split(" ")
+
+    log(INFO, f"Training final attack model with classifier: {best_classifier_name} and features: {best_column_types}")
+
+    # Concatenate all features and labels for final training
+    all_feature_files = sorted(features_data_path.glob("*_black_box/train/*.csv"))
+    df_all_features = pd.concat([pd.read_csv(f) for f in all_feature_files], ignore_index=True)
+    all_labels = df_all_features["is_train"]
+    df_all_features = df_all_features.drop(columns=["is_train"])
+
+    # Train the final model
+    final_model_results = train_attack_classifier(
+        classifier_type=ClassifierType(best_classifier_name),
+        column_types=best_column_types,
+        x_train=df_all_features,
+        y_train=all_labels,
+        x_test=None,  # No test set, training on all available data
+        y_test=None,
+    )
+
+    final_model = final_model_results["trained_model"]
+
+    model_save_path = output_summary_path / "best_attack_classifier.pkl"
+
+    with open(model_save_path, "wb") as file:
+        pickle.dump(final_model, file)
+
+    log(INFO, f"Saved the best attack model to {model_save_path}")
 
 
 @hydra.main(config_path=".", config_name="config", version_base=None)
