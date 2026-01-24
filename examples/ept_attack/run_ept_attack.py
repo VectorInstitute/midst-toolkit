@@ -328,6 +328,10 @@ def run_attack_classifier_training(config: DictConfig) -> None:
         _train_and_save_best_attack_classifier(config, best_result, diffusion_model_name, model_save_path)
 
 
+def _evaluate_inference_results(predictions: pd.Series, diffusion_model_name: str) -> None:
+    pass
+
+
 def run_inference(config: DictConfig) -> None:
     """
     Runs inference using the trained attack classifier on the challenge data.
@@ -337,47 +341,50 @@ def run_inference(config: DictConfig) -> None:
     """
     log(INFO, "Running inference with the trained attack classifier.")
 
-    pass
+    data_format, diffusion_models = (
+        ("single_table", ["tabddpm", "tabsyn"])
+        if config.attack_settings.single_table
+        else ("multi_table", ["clavaddpm"])
+    )
 
+    for diffusion_model_name in diffusion_models:
+        # Load the trained attack classifier
+        model_path = (
+            Path(config.classifier_settings.results_output_path)
+            / data_format
+            / f"{diffusion_model_name}_best_attack_classifier.pkl"
+        )
 
-#     # Load the trained attack classifier
-#     data_format = "single_table" if config.attack_settings.single_table else "multi_table"
-#     model_path = Path(config.classifier_settings.results_output_path) / data_format / "best_attack_classifier.pkl"
+        with open(model_path, "rb") as file:
+            trained_model = pickle.load(file)
 
-#     with open(model_path, "rb") as file:
-#         trained_model = pickle.load(file)
+        # Load new feature data for inference
+        features_data_path = Path(config.data_paths.attribute_features_path)
+        inference_features_path = features_data_path / f"{diffusion_model_name}_black_box" / "final"
 
-#     # Load new feature data for inference
-#     features_data_path = Path(config.data_paths.attribute_features_path)
+        directory_checks(inference_features_path, "Make sure to run feature extraction on final data first.")
 
-#     for diffusion_model_name in ["tabddpm", "tabsyn"] if config.attack_settings.single_table else ["clavaddpm"]:
-#         inference_features_path = features_data_path / f"{diffusion_model_name}_black_box/final"
-#         directory_checks(inference_features_path, "Make sure to run feature extraction on final data first.")
+        challenge_feature_files = inference_features_path.glob("*.csv")
 
-#         df_inference_features = pd.concat([pd.read_csv(f) for f in sorted_feature_files], ignore_index=True)
+        df_inference_features = pd.concat([pd.read_csv(f) for f in challenge_feature_files], ignore_index=True)
 
-#         predictions = trained_model.predict(df_inference_features)
+        predictions = trained_model.predict(df_inference_features)
 
-#     inference_features_path = features_data_path / f"{data_format}_black_box/final"  # In ghalate
+        # Save inference results
+        inference_output_path = Path(config.data_paths.inference_results_path)
+        inference_output_path.mkdir(parents=True, exist_ok=True)
 
-#     directory_checks(inference_features_path, "Make sure to run feature extraction on final data first.")
+        inference_results_file_name = f"{diffusion_model_name}_attack_inference_results.csv"
 
-#     sorted_feature_files = sorted(inference_features_path.glob("*.csv"))
+        save_dataframe(
+            df=pd.DataFrame({"prediction": predictions}),
+            file_path=inference_output_path,
+            file_name=inference_results_file_name,
+        )
 
-#     # Perform inference
+        log(INFO, f"Saved inference results to {inference_output_path / inference_results_file_name}")
 
-#     # Save inference results
-#     inference_output_path = Path(config.classifier_settings.results_output_path) / data_format / "inference_results"
-#     inference_output_path.mkdir(parents=True, exist_ok=True)
-
-#     inference_results_file_name = "attack_inference_results.csv"
-#     save_dataframe(
-#         df=pd.DataFrame({"prediction": predictions}),
-#         file_path=inference_output_path,
-#         file_name=inference_results_file_name,
-#     )
-
-#     log(INFO, f"Saved inference results to {inference_output_path / inference_results_file_name}")
+        _evaluate_inference_results(predictions, diffusion_model_name)
 
 
 @hydra.main(config_path=".", config_name="config", version_base=None)

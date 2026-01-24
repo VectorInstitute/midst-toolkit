@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import torch
+from torch import nn
 
 from midst_toolkit.attacks.ept.classification import (
     ClassifierType,
@@ -13,7 +14,6 @@ from midst_toolkit.attacks.ept.classification import (
     filter_data,
     get_scores,
     train_attack_classifier,
-    train_mlp,
 )
 from midst_toolkit.common.variables import DEVICE
 
@@ -145,42 +145,6 @@ def test_mlp_classifier():
     )
 
 
-@patch("midst_toolkit.attacks.ept.classification.MLPClassifier")
-def test_train_mlp(mock_mlp_class):
-    # Tests the train_mlp function with mocked MLPClassifier.
-
-    mock_model = MagicMock()
-    mock_model.parameters.return_value = [torch.nn.Parameter(torch.randn(2, 2))]
-    mock_mlp_class.return_value.to.return_value = mock_model
-
-    train_output_tensor = torch.rand(10, 1, requires_grad=True)
-
-    eval_output_mock = MagicMock()
-    eval_output_mock.cpu.return_value.numpy.return_value = np.array([0.6, 0.4, 0.7])
-
-    x_train = np.random.rand(10, 5)
-    y_train = np.random.randint(0, 2, (10, 1))
-    x_test = np.random.rand(3, 5)
-
-    mock_model.side_effect = [train_output_tensor, eval_output_mock]
-    y_pred, y_proba = train_mlp(x_train, y_train, x_test=x_test, device=DEVICE, epochs=1)
-
-    assert y_pred is not None
-    assert y_proba is not None
-    assert y_pred.shape == (3,)
-    assert y_proba.shape == (3,)
-
-    np.testing.assert_array_equal(y_pred, np.array([1, 0, 1]))
-
-    mock_model.side_effect = [train_output_tensor]
-
-    # No eval
-    y_pred_no_eval, y_proba_no_eval = train_mlp(x_train, y_train, x_test=None, device=DEVICE, epochs=1)
-
-    assert y_pred_no_eval is None
-    assert y_proba_no_eval is None
-
-
 def test_get_scores():
     # Tests the get_scores function with known values.
     y_true = np.array([1, 0, 1, 0, 1, 0])
@@ -256,18 +220,100 @@ def test_train_attack_classifier_mismatched_data(attack_data):
         train_attack_classifier(ClassifierType.XGBOOST, column_types, x_train, y_train, x_test_wrong_features, y_test)
 
 
-@patch("midst_toolkit.attacks.ept.classification.train_mlp")
-def test_train_attack_classifier_mlp(mock_train_mlp, attack_data):
-    # Tests train_attack_classifier for the MLP model
-    x_train, y_train, x_test, y_test = attack_data
-    column_types = [ColumnType.ERROR]
-    mock_train_mlp.return_value = (np.zeros(10), np.zeros(10))
+@pytest.fixture
+def input_dim():
+    return 20
 
-    results = train_attack_classifier(ClassifierType.MLP, column_types, x_train, y_train, x_test, y_test)
 
-    assert "prediction_results" in results
-    assert "scores" in results
-    mock_train_mlp.assert_called_once()
+@pytest.fixture
+def hidden_dim():
+    return 10
+
+
+@pytest.fixture
+def sample_size():
+    return 50
+
+
+@pytest.fixture
+def model(input_dim=20, hidden_dim=10):
+    """Fixture to create a fresh model instance for each test."""
+    return MLPClassifier(input_size=input_dim, hidden_size=hidden_dim, output_size=1, epochs=5, device=DEVICE)
+
+
+@pytest.fixture
+def dummy_data(sample_size, input_dim):
+    """Fixture to create synthetic training data."""
+    # Random features
+    x = np.random.randn(sample_size, input_dim).astype(np.float32)
+    # Random binary labels (0 or 1)
+    y = np.random.randint(0, 2, size=(sample_size,)).astype(np.float32)
+    return x, y
+
+
+def test_initialization(model, input_dim, hidden_dim):
+    """Test if the model initializes with correct layer dimensions."""
+    assert isinstance(model.layers[0], nn.Linear)
+    assert model.layers[0].in_features == input_dim
+    assert model.layers[0].out_features == hidden_dim
+    assert isinstance(model.layers[2], nn.Linear)
+    assert model.layers[2].out_features == 1
+
+
+def test_fit_updates_weights(model, dummy_data):
+    """
+    Test if calling fit() actually changes the model parameters.
+    If weights don't change, training is broken.
+    """
+    x, y = dummy_data
+
+    # Save a copy of the initial weights (specifically the first layer)
+    initial_weights = model.layers[0].weight.data.clone()
+
+    model.fit(x, y)
+
+    # Check if weights have changed
+    current_weights = model.layers[0].weight.data
+    assert not torch.equal(initial_weights, current_weights), "Weights did not update after training"
+
+
+def test_predict_proba_shape_and_values(model, dummy_data):
+    """
+    Test predict_proba output shape and probability constraints.
+    Should return (n_samples, 2) and values between 0 and 1.
+    """
+    x, _ = dummy_data
+
+    # We do not need to fit to test the shape of the output
+    probas = model.predict_proba(x)
+
+    # Check Shape: (n_samples, 2)
+    assert probas.shape == (x.shape[0], 2)
+
+    # Check Values: All between 0 and 1
+    assert (probas >= 0).all() and (probas <= 1).all()
+
+    # Check Sum: Probabilities across classes should sum to 1
+    # We use np.isclose to handle floating point arithmetic
+    row_sums = np.sum(probas, axis=1)
+    assert np.allclose(row_sums, 1.0), "Probabilities do not sum to 1"
+
+
+def test_predict_output_structure(model, dummy_data):
+    """
+    Test predict output structure.
+    Should return (n_samples,) binary array.
+    """
+    x, _ = dummy_data
+
+    predictions = model.predict(x)
+
+    # Check Shape
+    assert predictions.shape == (x.shape[0],)
+
+    # Check content is binary (0.0 or 1.0)
+    unique_vals = np.unique(predictions)
+    assert np.isin(unique_vals, [0.0, 1.0]).all()
 
 
 def test_train_attack_classifier_unsupported(attack_data):
