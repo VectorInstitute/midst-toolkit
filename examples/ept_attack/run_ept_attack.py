@@ -327,11 +327,6 @@ def run_attack_classifier_training(config: DictConfig) -> None:
         model_save_path = Path(config.classifier_settings.results_output_path) / data_format
         _train_and_save_best_attack_classifier(config, best_result, diffusion_model_name, model_save_path)
 
-
-def _evaluate_inference_results(predictions: pd.Series, diffusion_model_name: str) -> None:
-    pass
-
-
 def run_inference(config: DictConfig) -> None:
     """
     Runs inference using the trained attack classifier on the challenge data.
@@ -384,7 +379,8 @@ def run_inference(config: DictConfig) -> None:
 
         log(INFO, f"Saved inference results to {inference_output_path / inference_results_file_name}")
 
-        _evaluate_inference_results(predictions, diffusion_model_name)
+        #TODO: Implement evaluation of inference results using the challenege labels
+        # _evaluate_inference_results(predictions, diffusion_model_name)
 
 
 @hydra.main(config_path=".", config_name="config", version_base=None)
