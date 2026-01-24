@@ -139,46 +139,50 @@ def _summarize_and_save_training_results(
 
 
 def _train_and_save_best_attack_classifier(
-    summary_df: pd.DataFrame, features_data_path: Path, model_save_path: Path
+    config: DictConfig, best_result: pd.DataFrame, diffusion_model_name: str, model_save_path: Path
 ) -> None:
     """
     Trains and saves the best attack classifier based on the summary DataFrame.
 
     Args:
-        summary_df: DataFrame containing the summary of hyper-parameter tuning results.
-        features_data_path: Path to the features data.
-        model_save_path: Path where the best model will be saved.
+        config: Configuration object set in config.yaml.
+        best_result: DataFrame containing the best attack configuration (classifier and column types).
+        diffusion_model_name: Name of the diffusion model  (e.g., 'tabddpm', 'tabsyn', 'clavaddpm').
+        model_save_path: Path where the trained model will be saved.
     """
-    summary_df.sort_values(by=["final_tpr_fpr_10"], ascending=False, inplace=True)
-    best_result = summary_df.head(1)
-    log(INFO, f"Best performing attack configuration:\n{best_result}")
-
     # Train and save the best attack classifier
     best_classifier_name = best_result["classifier"].iloc[0]
     best_column_types_str = best_result["column_types"].iloc[0]
     best_column_types = best_column_types_str.split(" ")
 
-    log(INFO, f"Training final attack model with classifier: {best_classifier_name} and features: {best_column_types}")
+    log(
+        INFO,
+        f"Training final attack model for {diffusion_model_name} with classifier: {best_classifier_name} and features: {best_column_types}",
+    )
 
-    # Concatenate all features and labels for final training
-    all_feature_files = sorted(features_data_path.glob("*_black_box/train/*.csv"))
-    df_all_features = pd.concat([pd.read_csv(f) for f in all_feature_files], ignore_index=True)
-    all_labels = df_all_features["is_train"]
-    df_all_features = df_all_features.drop(columns=["is_train"])
+    train_features_data_path = (
+        Path(config.data_paths.attribute_features_path) / f"{diffusion_model_name}_black_box" / "train"
+    )
+
+    # Concatenate all train features and labels for final training
+    train_feature_files = train_features_data_path.glob("*.csv")
+    df_train_features = pd.concat([pd.read_csv(f) for f in train_feature_files], ignore_index=True)
+    train_labels = df_train_features["is_train"]
+    df_train_features = df_train_features.drop(columns=["is_train"])
 
     # Train the final model
     final_model_results = train_attack_classifier(
         classifier_type=ClassifierType(best_classifier_name),
         column_types=best_column_types,
-        x_train=df_all_features,
-        y_train=all_labels,
+        x_train=df_train_features,
+        y_train=train_labels,
         x_test=None,  # No test set, training on all available data
         y_test=None,
     )
 
     final_model = final_model_results["trained_model"]
 
-    model_save_path = Path(model_save_path) / "best_attack_classifier.pkl"
+    model_save_path = Path(model_save_path) / f"{diffusion_model_name}_best_attack_classifier.pkl"
 
     with open(model_save_path, "wb") as file:
         pickle.dump(final_model, file)
@@ -315,8 +319,65 @@ def run_attack_classifier_training(config: DictConfig) -> None:
         summary_results, output_summary_path, "attack_classifier_summary.csv"
     )
 
-    model_save_path = Path(config.classifier_settings.results_output_path) / data_format
-    _train_and_save_best_attack_classifier(summary_df, features_data_path, model_save_path)
+    summary_df.sort_values(by=["final_tpr_fpr_10"], ascending=False, inplace=True)
+    best_result = summary_df.head(1)
+    log(INFO, f"Best performing attack configuration:\n{best_result}")
+
+    for diffusion_model_name in diffusion_models:
+        model_save_path = Path(config.classifier_settings.results_output_path) / data_format
+        _train_and_save_best_attack_classifier(config, best_result, diffusion_model_name, model_save_path)
+
+
+def run_inference(config: DictConfig) -> None:
+    """
+    Runs inference using the trained attack classifier on the challenge data.
+
+    Args:
+        config: Configuration object set in config.yaml.
+    """
+    log(INFO, "Running inference with the trained attack classifier.")
+
+    pass
+
+
+#     # Load the trained attack classifier
+#     data_format = "single_table" if config.attack_settings.single_table else "multi_table"
+#     model_path = Path(config.classifier_settings.results_output_path) / data_format / "best_attack_classifier.pkl"
+
+#     with open(model_path, "rb") as file:
+#         trained_model = pickle.load(file)
+
+#     # Load new feature data for inference
+#     features_data_path = Path(config.data_paths.attribute_features_path)
+
+#     for diffusion_model_name in ["tabddpm", "tabsyn"] if config.attack_settings.single_table else ["clavaddpm"]:
+#         inference_features_path = features_data_path / f"{diffusion_model_name}_black_box/final"
+#         directory_checks(inference_features_path, "Make sure to run feature extraction on final data first.")
+
+#         df_inference_features = pd.concat([pd.read_csv(f) for f in sorted_feature_files], ignore_index=True)
+
+#         predictions = trained_model.predict(df_inference_features)
+
+#     inference_features_path = features_data_path / f"{data_format}_black_box/final"  # In ghalate
+
+#     directory_checks(inference_features_path, "Make sure to run feature extraction on final data first.")
+
+#     sorted_feature_files = sorted(inference_features_path.glob("*.csv"))
+
+#     # Perform inference
+
+#     # Save inference results
+#     inference_output_path = Path(config.classifier_settings.results_output_path) / data_format / "inference_results"
+#     inference_output_path.mkdir(parents=True, exist_ok=True)
+
+#     inference_results_file_name = "attack_inference_results.csv"
+#     save_dataframe(
+#         df=pd.DataFrame({"prediction": predictions}),
+#         file_path=inference_output_path,
+#         file_name=inference_results_file_name,
+#     )
+
+#     log(INFO, f"Saved inference results to {inference_output_path / inference_results_file_name}")
 
 
 @hydra.main(config_path=".", config_name="config", version_base=None)
@@ -347,6 +408,9 @@ def main(config: DictConfig) -> None:
 
     if config.pipeline.run_attack_classifier_training:
         run_attack_classifier_training(config)
+
+    if config.pipeline.run_inference:
+        run_inference(config)
 
 
 if __name__ == "__main__":
