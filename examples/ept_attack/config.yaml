@@ -15,14 +15,14 @@ pipeline:
   run_data_processing: false # Whether to run data processing
   run_shadow_model_training: false # Whether to run shadow model training
   run_feature_extraction: false # Whether to run attribute prediction model training
-  run_attack_classifier_training: false # Whether to run attack classifier training
+  run_attack_classifier_training: true # Whether to run attack classifier training
   run_inference: true # Whether to run inference on the target model
 
 classifier_settings:
   results_output_path: ${data_paths.output_data_path}/evaluation_ML
 
 attack_settings:
-  single_table: true # Whether the data is single-table
+  single_table: false # Whether the data is single-table
 
 # General settings
 random_seed: 42

@@ -236,7 +236,7 @@ def sample_size():
 
 
 @pytest.fixture
-def model(input_dim=20, hidden_dim=10):
+def model(input_dim, hidden_dim):
     """Fixture to create a fresh model instance for each test."""
     return MLPClassifier(input_size=input_dim, hidden_size=hidden_dim, output_size=1, epochs=5, device=DEVICE)
 
