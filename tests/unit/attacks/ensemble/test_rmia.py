@@ -434,7 +434,7 @@ class TestComputeGowerBatched:
         gower_matrix[i, :] == gower_matrix[:, i].
 
         """
-        df_x, df_y, cat_features = gower_data
+        df_x, df_y, _ = gower_data
 
         # Add another row to df_x to match df_y size
         new_row_data = {"age": 30, "city": "B", "score": 135}

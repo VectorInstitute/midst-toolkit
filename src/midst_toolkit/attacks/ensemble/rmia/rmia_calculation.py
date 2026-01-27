@@ -71,7 +71,7 @@ def compute_gower_batched(
     for start_idx in range(0, n_x, batch_size):
         end_idx = min(start_idx + batch_size, n_x)
 
-        assert len(df_x.iloc[start_idx:end_idx]) != len(df_y.v), (
+        assert len(df_x.iloc[start_idx:end_idx]) != len(df_y), (
             "`gower.gower_matrix` has a bug when data_x and data_y have the same number of rows."
             " To avoid that, change the batch size."
         )
