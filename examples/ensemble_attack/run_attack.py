@@ -3,13 +3,14 @@ This file is an uncompleted example script for running the Ensemble Attack on MI
 provided resources and data.
 """
 
-import importlib
 from logging import INFO
 from pathlib import Path
 
 import hydra
 from omegaconf import DictConfig
 
+import examples.ensemble_attack.run_metaclassifier_training as meta_pipeline
+import examples.ensemble_attack.run_shadow_model_training as shadow_pipeline
 from examples.ensemble_attack.real_data_collection import collect_population_data_ensemble
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
@@ -75,11 +76,7 @@ def main(config: DictConfig) -> None:
     if config.pipeline.run_data_processing:
         run_data_processing(config)
 
-    # Note: Importing the following two modules causes a segmentation fault error if imported together in this file.
-    # A quick solution is to load modules dynamically if any of the pipelines is called.
-    # TODO: Investigate the source of error.
     if config.pipeline.run_shadow_model_training:
-        shadow_pipeline = importlib.import_module("examples.ensemble_attack.run_shadow_model_training")
         df_master_challenge_train = load_dataframe(
             Path(config.data_paths.processed_attack_data_path),
             "master_challenge_train.csv",
@@ -100,7 +97,6 @@ def main(config: DictConfig) -> None:
             "The target_data_path must be provided for metaclassifier training."
         )
 
-        meta_pipeline = importlib.import_module("examples.ensemble_attack.run_metaclassifier_training")
         meta_pipeline.run_metaclassifier_training(config, shadow_data_paths, target_model_synthetic_path)
 
 

@@ -20,7 +20,7 @@ from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
 
 
-class RMIATrainingDataChoice(Enum):
+class RmiaTrainingDataChoice(Enum):
     ONLY_CHALLENGE = "only_challenge"
     ONLY_TRAIN = "only_train"
     COMBINED = "combined"
@@ -104,6 +104,7 @@ def run_rmia_shadow_training(config: DictConfig, df_challenge: pd.DataFrame) -> 
 
     assert len(shadow_model_paths) == 3, "For testing, meta classifier needs the path to three sets of shadow models."
 
+    # Initialize an empty list to store the data and results of shadow models after loading.
     shadow_data_collection = []
     for model_path in shadow_model_paths:
         assert model_path.exists(), (
@@ -206,7 +207,7 @@ def collect_challenge_and_train_data(
 
 
 def select_challenge_data_for_training(
-    attack_rmia_shadow_training_data_choice: RMIATrainingDataChoice,
+    attack_rmia_shadow_training_data_choice: RmiaTrainingDataChoice,
     df_challenge_experiment: pd.DataFrame,
     df_master_train: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -233,14 +234,14 @@ def select_challenge_data_for_training(
     Returns:
         Selected challenge data.
     """
-    if attack_rmia_shadow_training_data_choice == RMIATrainingDataChoice.COMBINED:
+    if attack_rmia_shadow_training_data_choice == RmiaTrainingDataChoice.COMBINED:
         # Run RMIA shadow model training on experiments challenge points + master challenge train data
         df_challenge = pd.concat([df_challenge_experiment, df_master_train]).drop_duplicates()
         log(INFO, f"Combined challenge data length for RMIA shadow training: {len(df_challenge)}.")
-    elif attack_rmia_shadow_training_data_choice == RMIATrainingDataChoice.ONLY_CHALLENGE:
+    elif attack_rmia_shadow_training_data_choice == RmiaTrainingDataChoice.ONLY_CHALLENGE:
         df_challenge = df_challenge_experiment
         log(INFO, "Using only challenge data points for RMIA shadow training.")
-    elif attack_rmia_shadow_training_data_choice == RMIATrainingDataChoice.ONLY_TRAIN:
+    elif attack_rmia_shadow_training_data_choice == RmiaTrainingDataChoice.ONLY_TRAIN:
         df_challenge = df_master_train
         log(INFO, "Using only master challenge train data points for RMIA shadow training.")
     else:
@@ -269,7 +270,7 @@ def train_rmia_shadows_for_test_phase(config: DictConfig) -> list[dict[str, list
         targets_data_path=Path(config.data_paths.midst_data_path),
     )
     # Load the challenge dataframe for training RMIA shadow models.
-    rmia_training_choice = RMIATrainingDataChoice(config.target_model.attack_rmia_shadow_training_data_choice)
+    rmia_training_choice = RmiaTrainingDataChoice(config.target_model.attack_rmia_shadow_training_data_choice)
     df_challenge = select_challenge_data_for_training(rmia_training_choice, df_challenge_experiment, df_master_train)
     return run_rmia_shadow_training(config, df_challenge=df_challenge)
 

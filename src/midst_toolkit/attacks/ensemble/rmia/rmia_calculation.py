@@ -185,8 +185,7 @@ def get_rmia_gower(
 
     categorical_features = [column in categorical_column_names for column in df_input.columns]
 
-    # Defined the type as sequence to address mypy error.
-    numerical_columns: Sequence[str] = [col for col in df_input.columns if col not in categorical_column_names]
+    numerical_columns = [col for col in df_input.columns if col not in categorical_column_names]
 
     df_input[numerical_columns] = df_input[numerical_columns].astype(dtype)
 
