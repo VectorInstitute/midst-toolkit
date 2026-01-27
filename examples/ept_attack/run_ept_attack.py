@@ -319,7 +319,13 @@ def run_attack_classifier_training(config: DictConfig) -> None:
         summary_results, output_summary_path, "attack_classifier_summary.csv"
     )
 
-    summary_df.sort_values(by=["final_tpr_fpr_10"], ascending=False, inplace=True)
+    if data_format == "single_table":
+        # For single-table data, focus on tabddpm results
+        summary_df.sort_values(by=["tabddpm_tpr_fpr_10"], ascending=False, inplace=True)
+    else:
+        # For multi-table data, get the clavaddpm results
+        summary_df.sort_values(by=["clavaddpm_tpr_fpr_10"], ascending=False, inplace=True)
+
     best_result = summary_df.head(1)
     log(INFO, f"Best performing attack configuration:\n{best_result}")
 
