@@ -20,6 +20,7 @@ target_model: # This is only used for testing the attack on a real target model.
   target_shadow_models_output_path: ${base_experiment_dir}/test_all_targets # Sub-directory to store test shadows and results
   attack_probabilities_result_path: ${target_model.target_shadow_models_output_path}/test_probabilities/attack_model_${target_model.target_model_id}_proba
   attack_rmia_shadow_training_data_choice: "combined" # Options: "combined", "only_challenge", "only_train". This determines which data to use for training RMIA attack model in testing phase.
+  # See select_challenge_data_for_training()'s docstring for more details.
 
 
 # Data paths
@@ -47,7 +48,9 @@ data_processing_config:
         ]
   population_splits: ["train"]  # Data splits to be collected for population data
   challenge_splits: ["train" , "test"]  # Data splits to be collected for challenge points
-  original_population_data_path: /projects/midst-experiments/ensemble_attack/competition/population_data/ #Attack's collected population for DOMIAS
+  original_population_data_path: /projects/midst-experiments/ensemble_attack/competition/population_data/ # This is where the original attack's population data (800k) will be read from, mainly to be used by DOMIAS
+  # You can download this data from https://github.com/CRCHUM-CITADEL/ensemble-mia/blob/main/input/population/population_all_with_challenge.csv
+
   # The column name in the data to be used for stratified splitting.
   column_to_stratify: "trans_type"  # Attention: This value is not documented in the original codebase.
   folder_ranges: # Specify folder ranges for any of the mentioned splits.

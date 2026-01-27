@@ -25,7 +25,9 @@ def run_data_processing(config: DictConfig) -> None:
         config: Configuration object set in config.yaml.
     """
     # Load original repo's population to be concatenated to the experiment's population data.
-    # This is done to align the experiments with the original attack code because
+    # Original population refers to the population data collected by the attacker team, and can
+    # be downloaded from: https://github.com/CRCHUM-CITADEL/ensemble-mia/blob/main/input/population/population_all_with_challenge.csv
+    # This concatenation is done to align the experiments with the original attack code because
     # this attack needs a large population dataset, and only using the experiment's collected population
     # is not enough.
     original_population_data = load_dataframe(
@@ -38,7 +40,7 @@ def run_data_processing(config: DictConfig) -> None:
         midst_data_input_dir=Path(config.data_paths.midst_data_path),
         data_processing_config=config.data_processing_config,
         save_dir=Path(config.data_paths.population_path),
-        original_repo_population=original_population_data,
+        base_population=original_population_data,
         population_splits=config.data_processing_config.population_splits,
         challenge_splits=config.data_processing_config.challenge_splits,
     )

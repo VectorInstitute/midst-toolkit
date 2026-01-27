@@ -1,5 +1,6 @@
 from typing import Any
 
+import gower
 import numpy as np
 import numpy.testing as npt
 import pandas as pd
@@ -9,6 +10,7 @@ import pytest
 from midst_toolkit.attacks.ensemble.rmia.rmia_calculation import (
     Key,
     calculate_rmia_signals,
+    compute_gower_batched,
     conditional_average,
     get_rmia_gower,
 )
@@ -160,10 +162,10 @@ class TestGetRmiaGower:
         )
 
         assert len(results) == 2
-        npt.assert_array_equal(results[0], np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]], dtype=np.float32))
+        npt.assert_array_equal(results[0], np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]]))
         npt.assert_array_equal(
             results[1],
-            np.array([[0.7, 0.8, 0.9], [0.1, 0.2, 0.3], [0.4, 0.5, 0.6]], dtype=np.float32),
+            np.array([[0.7, 0.8, 0.9], [0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]),
         )
 
         assert mock_gower_matrix.call_count == 2
@@ -344,3 +346,119 @@ class TestCalculateRmiaSignals:
         assert result_df[f"rmia_k_{k}"].isna().all()
         assert result_df["rmia_out_k_1"].isna().all()
         assert result_df[f"rmia_out_k_{k}"].isna().all()
+
+
+class TestComputeGowerBatched:
+    @pytest.fixture
+    def gower_data(self):
+        """
+        Creates the input dataframes and categorical feature list required to test
+        the batch computation of gower distance.
+
+        Returns:
+            A tuple containing:
+            - df_x: DataFrame for which distances are computed in batches.
+            - df_y: DataFrame against which distances are computed.
+            - cat_features: List indicating which columns are categorical.
+        """
+        # We need to make sure all the max and min values of numeric columns as well as
+        # all categories in categorical columns are represented in each batch. Therefore,
+        # all these values should exist in the `df_y`` dataframe since it exists in all batches.
+        df_x = pd.DataFrame(
+            {
+                "age": [28, 32, 38, 42],
+                "city": ["A", "B", "A", "A"],
+                "score": [110, 160, 130, 190],
+            }
+        )
+        df_y = pd.DataFrame(
+            {
+                "age": [25, 30, 35, 50, 45],
+                "city": ["A", "B", "A", "B", "B"],
+                "score": [100, 150, 120, 200, 180],
+            }
+        )
+
+        cat_features = [False, True, False]
+        return df_x, df_y, cat_features
+
+    def test_compute_gower_batched_logic(self, gower_data, mocker):
+        """Tests that batched computation gives the same result as a single batch."""
+        df_x, df_y, cat_features = gower_data
+
+        mock_gower_matrix = mocker.patch(
+            "midst_toolkit.attacks.ensemble.rmia.rmia_calculation.gower.gower_matrix",
+            wraps=gower.gower_matrix,
+        )
+
+        expected_result = gower.gower_matrix(data_x=df_x, data_y=df_y, cat_features=cat_features)
+
+        batch_size = 2
+        batched_result = compute_gower_batched(df_x, df_y, cat_features, batch_size)
+
+        # Compare the batched result to the expected result
+        npt.assert_allclose(batched_result, expected_result.astype(np.float32), atol=1e-6)
+
+        # Check that gower.gower_matrix was called multiple times (in batches)
+        assert mock_gower_matrix.call_count == np.ceil(len(df_x) / batch_size) + 1
+
+        # Now try another batch size
+        batch_size = 3
+        batched_result = compute_gower_batched(df_x, df_y, cat_features, batch_size)
+        npt.assert_allclose(batched_result, expected_result.astype(np.float32), atol=1e-6)
+
+        # Try batch size of 1
+        batch_size = 1
+        batched_result = compute_gower_batched(df_x, df_y, cat_features, batch_size)
+        npt.assert_allclose(batched_result, expected_result.astype(np.float32), atol=1e-6)
+
+    def test_compute_gower_batched_single_batch(self, gower_data):
+        """Tests that the function works correctly when batch_size >= number of rows."""
+        df_x, df_y, cat_features = gower_data
+
+        expected_result = gower.gower_matrix(data_x=df_x, data_y=df_y, cat_features=cat_features)
+
+        # Use a batch size larger than the dataframe
+        batched_result = compute_gower_batched(df_x, df_y, cat_features, batch_size=15)
+
+        npt.assert_allclose(batched_result, expected_result.astype(np.float32), atol=1e-6)
+
+    def test_gower_equal_y_and_x_data_sizes(self, gower_data):
+        """
+        Tests that the gower implementation DOES NOT work when df_x and df_y have the same number of rows.
+
+        Explanation: the `gower.gower_matrix` implementation treats dataframes with the same number of rows
+        as if they were the same dataset and therefore computes the distance of a dataset to itself,
+        which is not what we want.
+        As a result, `gower.gower_matrix` assumes that for each row i in `df_x`,
+        gower_matrix[i, :] == gower_matrix[:, i].
+
+        """
+        df_x, df_y, cat_features = gower_data
+
+        # Add another row to df_x to match df_y size
+        new_row_data = {"age": 30, "city": "B", "score": 135}
+        df_x.loc[len(df_x)] = new_row_data
+
+        # Now let's see if the distance between categorical columns makes sense.
+        non_batched_cat_result = gower.gower_matrix(data_x=df_x[["city"]], data_y=df_y[["city"]], cat_features=[True])
+        batched_cat_result = compute_gower_batched(
+            df_x=df_x[["city"]],
+            df_y=df_y[["city"]],
+            cat_features=[True],
+            batch_size=2,
+        )
+        expected_manual = np.array(
+            [
+                [0, 1, 0, 1, 1],
+                [1, 0, 1, 0, 0],
+                [0, 1, 0, 1, 1],
+                [0, 1, 0, 1, 1],
+                [1, 0, 1, 0, 0],
+            ],
+            dtype=np.float32,
+        )
+        # Batched value makes sense because x_n_rows != y_n_rows
+        npt.assert_allclose(batched_cat_result, expected_manual.astype(np.float32), atol=1e-6)
+        # The non-batched value is incorrect due to a bug in the original code when len(df_x) == len(df_y).
+        assert not np.allclose(non_batched_cat_result, expected_manual.astype(np.float32), atol=1e-6)

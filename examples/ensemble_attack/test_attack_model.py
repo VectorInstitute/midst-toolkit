@@ -2,6 +2,7 @@
 
 import json
 import pickle
+from enum import Enum
 from logging import INFO
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,12 @@ from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassi
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
+
+
+class RMIATrainingDataChoice(Enum):
+    ONLY_CHALLENGE = "only_challenge"
+    ONLY_TRAIN = "only_train"
+    COMBINED = "combined"
 
 
 def save_results(
@@ -49,16 +56,16 @@ def extract_and_drop_id_column(
     data_types_file_path: Path,
 ) -> tuple[pd.DataFrame, pd.Series]:
     """
-    Extracts IDs from the data frame and drops the ID column. ID column is identified based on
+    Extracts IDs from the dataframe and drops the ID column. ID column is identified based on
     the data types JSON file with "id_column_name" key.
 
     Args:
-        data_frame: Input data frame.
+        data_frame: Input dataframe.
         data_types_file_path: Path to the data types JSON file.
 
     Returns:
         A tuple containing:
-            - The modified data frame with ID columns dropped.
+            - The modified dataframe with ID columns dropped.
             - A Series containing the extracted data of ID columns.
     """
     # Extract ID column from the dataframe
@@ -116,6 +123,7 @@ def load_trained_rmia_shadows_for_test_phase(
     """
     Loads previously trained RMIA shadow models for the testing phase. Makes sure
     all shadow models exist before loading. Otherwise, returns an empty list and False.
+    If False is returned, all shadow models need to be trained for the testing phase.
 
     Args:
         shadow_data_paths: List of paths to the saved shadow model data.
@@ -127,25 +135,37 @@ def load_trained_rmia_shadows_for_test_phase(
             - A boolean indicating whether all shadow models were successfully loaded.
     """
     shadow_data_collection = []
-    models_exists = True
+    # models_exists is a list indicating the existence of each RMIA shadow model
+    models_exists = []
     for model_path in shadow_data_paths:
         if model_path.exists():
             with open(model_path, "rb") as f:
                 shadow_data_and_result = pickle.load(f)
                 shadow_data_collection.append(shadow_data_and_result)
             log(INFO, f"Loaded existing shadow model at {model_path}.")
+            models_exists.append(True)
         else:
-            models_exists = False
-            shadow_data_collection = []
-            break
-    return shadow_data_collection, models_exists
+            models_exists.append(False)
+            log(INFO, f"No shadow model found at {model_path}. Need to train RMIA shadow models for testing phase.")
+    if not all(models_exists):
+        # If even one of the models does not exist, return empty collection and False to indicate training is needed.
+        shadow_data_collection = []
+    return shadow_data_collection, all(models_exists)
 
 
 def collect_challenge_and_train_data(
     data_processing_config: DictConfig, processed_attack_data_path: Path, targets_data_path: Path
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Collect challenge experiment data and master train data.
+    Collect experiment's challenge dataset (``df_challenge_experiment``) and master train data (``df_master_train``).
+    Experiment's challenge data refers to the collection of all the challenge points of all the target models that
+    we want to attack in this experiment.
+    Master train data refers to the dataset that was used to train the mesataclassifier.
+
+    To collect experiment's challenge data, the ``collect_midst_data`` function is called. This function
+    reads all the challenge dataset under each target model's folder.
+    Refer to `real_data_collection.collect_midst_data` for more information.
+
 
     Args:
         data_processing_config: Configuration object for data processing.
@@ -161,7 +181,9 @@ def collect_challenge_and_train_data(
     df_challenge_experiment = collect_midst_data(
         midst_data_input_dir=targets_data_path,
         attack_types=challenge_attack_types,
-        data_splits=["test"],  # For ensemble experiments, change to ``test`` for 10k, and change to ``final`` for 20k
+        split_folders=[
+            "test"
+        ],  # For ensemble experiments, change to ``test`` for 10k, and change to ``final`` for 20k
         dataset="challenge",
         data_processing_config=data_processing_config,
     )
@@ -184,7 +206,9 @@ def collect_challenge_and_train_data(
 
 
 def select_challenge_data_for_training(
-    attack_rmia_shadow_training_data_choice: str, df_challenge_experiment: pd.DataFrame, df_master_train: pd.DataFrame
+    attack_rmia_shadow_training_data_choice: RMIATrainingDataChoice,
+    df_challenge_experiment: pd.DataFrame,
+    df_master_train: pd.DataFrame,
 ) -> pd.DataFrame:
     """
     Select the appropriate challenge data based on config choice.
@@ -193,12 +217,12 @@ def select_challenge_data_for_training(
         attack_rmia_shadow_training_data_choice: Strategy for creating challenge train data for RMIA shadow training.
             It can be one of the following:
             - "only_challenge": Use only challenge experiment data (``df_challenge_experiment``).
-            - "only_train": Use only master train data (``df_master_train``). Note that this option contracts
+            - "only_train": Use only master train data (``df_master_train``). Note that this option contradicts
                 with the original design and purpose of training RMIA shadow models on the challenge points as
                 RMIA signals (IN train signals) for challenge points could only be computed if
                 shadow models are trained on these points.
             - "combined": Combine both challenge experiment data and master train data. This can
-                potentially be advantages based on the experiments as RMIA shadows are trained on
+                potentially be advantageous based on the experiments as RMIA shadows are trained on
                 more data points.
         df_challenge_experiment: Challenge points in this experiment.
         df_master_train: Master train data used to train the meta classifier.
@@ -209,14 +233,14 @@ def select_challenge_data_for_training(
     Returns:
         Selected challenge data.
     """
-    if attack_rmia_shadow_training_data_choice == "combined":
+    if attack_rmia_shadow_training_data_choice == RMIATrainingDataChoice.COMBINED:
         # Run RMIA shadow model training on experiments challenge points + master challenge train data
         df_challenge = pd.concat([df_challenge_experiment, df_master_train]).drop_duplicates()
         log(INFO, f"Combined challenge data length for RMIA shadow training: {len(df_challenge)}.")
-    elif attack_rmia_shadow_training_data_choice == "only_challenge":
+    elif attack_rmia_shadow_training_data_choice == RMIATrainingDataChoice.ONLY_CHALLENGE:
         df_challenge = df_challenge_experiment
         log(INFO, "Using only challenge data points for RMIA shadow training.")
-    elif attack_rmia_shadow_training_data_choice == "only_train":
+    elif attack_rmia_shadow_training_data_choice == RMIATrainingDataChoice.ONLY_TRAIN:
         df_challenge = df_master_train
         log(INFO, "Using only master challenge train data points for RMIA shadow training.")
     else:
@@ -245,12 +269,13 @@ def train_rmia_shadows_for_test_phase(config: DictConfig) -> list[dict[str, list
         targets_data_path=Path(config.data_paths.midst_data_path),
     )
     # Load the challenge dataframe for training RMIA shadow models.
-    df_challenge = select_challenge_data_for_training(
-        str(config.target_model.attack_rmia_shadow_training_data_choice), df_challenge_experiment, df_master_train
-    )
+    rmia_training_choice = RMIATrainingDataChoice(config.target_model.attack_rmia_shadow_training_data_choice)
+    df_challenge = select_challenge_data_for_training(rmia_training_choice, df_challenge_experiment, df_master_train)
     return run_rmia_shadow_training(config, df_challenge=df_challenge)
 
 
+# TODO: Perform inference on all the target models sequentially in a single run instead of running this script
+# multiple times. For more information, refer to https://app.clickup.com/t/868h4xk86
 @hydra.main(config_path="configs", config_name="experiment_config", version_base=None)
 def run_metaclassifier_testing(
     config: DictConfig,
@@ -258,8 +283,8 @@ def run_metaclassifier_testing(
     """
     Function to run the attack on a single target model using a trained metaclassifier.
     Note that RMIA shadow models need to be trained for every new set of target models on
-    their collected challenge data, but once they are trained for the first target, we can reuse them
-    for the other targets in the same experiment.
+    their collected challenge data, but once they are trained on all the experiment challenge points,
+    for the first target, we can reuse them for the other targets in the same experiment.
     Unlike the training phase, in the testing phase, we don't need to train a target shadow model
     since we already have access to the synthetic data of a real target model.
     All the collected population data that is used for training, is still needed during testing to compute some
