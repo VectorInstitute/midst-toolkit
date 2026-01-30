@@ -161,10 +161,10 @@ def collect_challenge_and_train_data(
     Collect experiment's challenge dataset (``df_challenge_experiment``) and master train data (``df_master_train``).
     Experiment's challenge data refers to the collection of all the challenge points of all the target models that
     we want to attack in this experiment.
-    Master train data refers to the dataset that was used to train the mesataclassifier.
+    Master train data refers to the dataset that was used to train the metaclassifier.
 
     To collect experiment's challenge data, the ``collect_midst_data`` function is called. This function
-    reads all the challenge dataset under each target model's folder.
+    reads all the challenge datasets under each target model's folder.
     Refer to `real_data_collection.collect_midst_data` for more information.
 
 
@@ -182,9 +182,8 @@ def collect_challenge_and_train_data(
     df_challenge_experiment = collect_midst_data(
         midst_data_input_dir=targets_data_path,
         attack_types=challenge_attack_types,
-        split_folders=[
-            "test"
-        ],  # For ensemble experiments, change to ``test`` for 10k, and change to ``final`` for 20k
+        # For ensemble experiments, change to ``test`` for 10k, and change to ``final`` for 20k
+        split_folders=["test"],
         dataset="challenge",
         data_processing_config=data_processing_config,
     )
