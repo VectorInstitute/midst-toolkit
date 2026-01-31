@@ -20,7 +20,7 @@ from omegaconf import DictConfig
 
 from examples.common.utils import directory_checks, iterate_model_folders
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
-from midst_toolkit.attacks.ept.classification import ClassifierType, train_attack_classifier
+from midst_toolkit.attacks.ept.classification import ClassifierType, filter_data, train_attack_classifier
 from midst_toolkit.attacks.ept.feature_extraction import extract_features
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
@@ -145,7 +145,7 @@ def _train_and_save_best_attack_classifier(
     Trains and saves the best attack classifier based on the summary DataFrame.
 
     Args:
-        config: Configuration object set in config.yaml.
+        config: Configuration object set in config.yaml. Used to access attribute features path.
         best_result: DataFrame containing the best attack configuration (classifier and column types).
         diffusion_model_name: Name of the diffusion model  (e.g., 'tabddpm', 'tabsyn', 'clavaddpm').
         model_save_path: Path where the trained model will be saved.
@@ -184,8 +184,13 @@ def _train_and_save_best_attack_classifier(
 
     model_save_path = Path(model_save_path) / f"{diffusion_model_name}_best_attack_classifier.pkl"
 
+    final_model_metadata = {
+        "trained_model": final_model,
+        "column_types": best_column_types,
+    }
+
     with open(model_save_path, "wb") as file:
-        pickle.dump(final_model, file)
+        pickle.dump(final_model_metadata, file)
 
     log(INFO, f"Saved the best attack model to {model_save_path}")
 
@@ -340,6 +345,9 @@ def run_inference(config: DictConfig) -> None:
 
     Args:
         config: Configuration object set in config.yaml.
+
+    Throws:
+        FileNotFoundError: If the trained attack classifier model file is not found.
     """
     log(INFO, "Running inference with the trained attack classifier.")
 
@@ -357,8 +365,16 @@ def run_inference(config: DictConfig) -> None:
             / f"{diffusion_model_name}_best_attack_classifier.pkl"
         )
 
+        if not model_path.exists():
+            raise FileNotFoundError(
+                f"No trained model found at {model_path} for {diffusion_model_name}. "
+                "Please run the attack classifier training step first."
+            )
+
         with open(model_path, "rb") as file:
-            trained_model = pickle.load(file)
+            final_model_metadata = pickle.load(file)
+            trained_model = final_model_metadata["trained_model"]
+            column_types = final_model_metadata["column_types"]
 
         # Load new feature data for inference
         features_data_path = Path(config.data_paths.attribute_features_path)
@@ -369,8 +385,8 @@ def run_inference(config: DictConfig) -> None:
         challenge_feature_files = inference_features_path.glob("*.csv")
 
         df_inference_features = pd.concat([pd.read_csv(f) for f in challenge_feature_files], ignore_index=True)
-
-        predictions = trained_model.predict(df_inference_features)
+        filtered_features = filter_data(df_inference_features, column_types)
+        predictions = trained_model.predict(filtered_features)
 
         # Save inference results
         inference_output_path = Path(config.data_paths.inference_results_path)
