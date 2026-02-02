@@ -148,6 +148,7 @@ def _train_and_save_best_attack_classifier(
         config: Configuration object set in config.yaml. Used to access attribute features path.
         best_result: DataFrame containing the best attack configuration (classifier and column types).
         diffusion_model_name: Name of the diffusion model  (e.g., 'tabddpm', 'tabsyn', 'clavaddpm').
+            Used to locate the training features and labels.
         model_save_path: Path where the trained model will be saved.
     """
     # Train and save the best attack classifier
@@ -339,23 +340,46 @@ def run_attack_classifier_training(config: DictConfig) -> None:
         _train_and_save_best_attack_classifier(config, best_result, diffusion_model_name, model_save_path)
 
 
-def run_inference(config: DictConfig) -> None:
+def run_inference(config: DictConfig, diffusion_model_name_override: str | None = None) -> None:
     """
     Runs inference using the trained attack classifier on the challenge data.
 
     Args:
         config: Configuration object set in config.yaml.
+        diffusion_model_name_override: If provided and valid, runs inference
+        only for this model. If None or invalid, runs for all applicable models.
 
     Throws:
         FileNotFoundError: If the trained attack classifier model file is not found.
     """
     log(INFO, "Running inference with the trained attack classifier.")
 
-    data_format, diffusion_models = (
-        ("single_table", ["tabddpm", "tabsyn"])
-        if config.attack_settings.single_table
-        else ("multi_table", ["clavaddpm"])
-    )
+    # Determine which diffusion models to run inference on. If an override is provided
+    # and valid, use that; otherwise, use all applicable models based on the specified
+    # data format (single-table or multi-table).
+
+    is_single_table = config.attack_settings.single_table
+    valid_single_table_models = ["tabddpm", "tabsyn"]
+    valid_multi_table_models = ["clavaddpm"]
+
+    use_default_models = True
+    if diffusion_model_name_override and (
+        is_single_table
+        and diffusion_model_name_override in valid_single_table_models
+        or not is_single_table
+        and diffusion_model_name_override in valid_multi_table_models
+    ):
+        use_default_models = False
+
+    if not use_default_models and diffusion_model_name_override:
+        data_format = "single_table" if is_single_table else "multi_table"
+        diffusion_models = [diffusion_model_name_override]
+    else:
+        data_format, diffusion_models = (
+            ("single_table", valid_single_table_models)
+            if is_single_table
+            else ("multi_table", valid_multi_table_models)
+        )
 
     for diffusion_model_name in diffusion_models:
         # Load the trained attack classifier

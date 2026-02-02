@@ -262,7 +262,7 @@ def train_attack_classifier(
 
     y_pred, y_proba = None, None
 
-    model: Any
+    model: XGBClassifier | CatBoostClassifier | MLPClassifier
 
     if classifier_type == ClassifierType.XGBOOST:
         model = XGBClassifier()
