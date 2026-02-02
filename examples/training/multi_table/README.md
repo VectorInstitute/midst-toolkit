@@ -13,7 +13,7 @@ extract the files and place them in a `/data` folder in within this folder
 
 > [!NOTE]
 > If you wish to change the data folder, you can do so by editing the `base_data_dir` attribute
-> of the (`config.yaml`)[config.yaml] file.
+> of the [`config.yaml`](config.yaml) file.
 
 It will contain data for 8 tables: `account`, `card`, `client`, `disp`, `district`, `loan`, `order`,
 and `trans`. For each table there will be two files:
@@ -44,7 +44,7 @@ The result files will be saved inside a `/results` folder within this folder
 
 > [!NOTE]
 > If you wish to change the save folder, you can do so by editing the `results_dir` attribute
-> of the (`config.yaml`)[config.yaml] file.
+> of the [`config.yaml`](config.yaml) file.
 
 One of the results file is `/results/cluster_ckpt.pkl`, which will contain the results
 of the clustering step.

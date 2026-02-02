@@ -8,6 +8,7 @@ from hydra import compose, initialize
 from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
+from midst_toolkit.evaluation.privacy.mia_metrics import TprAtFpr
 
 
 MOCK_COLUMN_TYPES_CONTENT = {
@@ -321,7 +322,7 @@ class TestBlendingPlusPlus:
 
     @patch("builtins.open", new_callable=mock_open)
     @patch("midst_toolkit.attacks.ensemble.blending.BlendingPlusPlus._prepare_meta_features")
-    @patch("midst_toolkit.attacks.ensemble.blending.get_tpr_at_fpr")
+    @patch.object(TprAtFpr, "get_tpr_at_fpr")
     def test_predict_flow(
         self, mock_get_tpr, mock_prepare_features, mock_file, mock_config_with_json_path, sample_dataframes
     ):

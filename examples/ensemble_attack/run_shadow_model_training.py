@@ -2,6 +2,7 @@ import shutil
 from logging import INFO
 from pathlib import Path
 
+import pandas as pd
 from omegaconf import DictConfig
 import pandas as pd
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
@@ -79,7 +80,7 @@ def run_target_model_training(config: DictConfig) -> Path:
     return target_model_synthetic_path
 
 
-def run_shadow_model_training(config: DictConfig, df_challenge_train:pd.DataFrame) -> list[Path]:
+def run_shadow_model_training(config: DictConfig, df_challenge_train: pd.DataFrame) -> list[Path]:
     """
     Function to run the shadow model training for RMIA attack.
 
@@ -106,7 +107,6 @@ def run_shadow_model_training(config: DictConfig, df_challenge_train:pd.DataFram
         "trans_id column should be present in master train data for the shadow model pipeline."
     )
     assert "trans_id" in df_population_with_challenge.columns
-    assert "trans_id" in df_challenge_train.columns
     # ``population_data`` in ensemble attack is used for shadow pre-training, and
     # ``master_challenge_df`` is used for fine-tuning for half of the shadow models.
     # For the other half of the shadow models, only ``master_challenge_df`` is used for training.

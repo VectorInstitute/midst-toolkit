@@ -1,6 +1,6 @@
 # Ensemble example configuration
 # Base data directory (can be overridden from command line)
-base_data_dir: examples/ept_attack/data/
+base_data_dir: examples/ept_attack/data
 base_example_dir: examples/ept_attack
 
 # Data paths (relative to base_data_dir)
@@ -8,13 +8,16 @@ data_paths:
   input_data_path: ${base_data_dir}/midst_data_black_box_attacks # Read-only input data directory
   output_data_path: ${base_data_dir}/output # Directory to save processed data and results
   data_types_file_path: ${base_data_dir}/data_configs/data_types.json # Path to the JSON file defining column types
-
+  attribute_features_path: ${data_paths.output_data_path}/attribute_prediction_features # Path to save attribute prediction features
 # Pipeline control
 pipeline:
   run_data_processing: false # Whether to run data processing
   run_shadow_model_training: false # Whether to run shadow model training
-  run_feature_extraction: true # Whether to run attribute prediction model training
-  run_attack_classifier_training: false # Whether to run attack classifier training
+  run_feature_extraction: false # Whether to run attribute prediction model training
+  run_attack_classifier_training: true # Whether to run attack classifier training
+
+classifier_settings:
+  results_output_path: ${data_paths.output_data_path}/evaluation_ML
 
 attack_settings:
   single_table: true # Whether the data is single-table

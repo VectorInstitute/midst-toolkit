@@ -16,6 +16,7 @@ from midst_toolkit.attacks.ensemble.metric_utils import get_tpr_at_fpr
 from midst_toolkit.attacks.ensemble.rmia.rmia_calculation import calculate_rmia_signals
 from midst_toolkit.attacks.ensemble.xgboost_tuner import XgBoostHyperparameterTuner
 from midst_toolkit.common.logger import log
+from midst_toolkit.evaluation.privacy.mia_scoring import TprAtFpr
 
 
 class MetaClassifierType(Enum):
@@ -251,6 +252,6 @@ class BlendingPlusPlus:
         score = None
 
         if y_test is not None:
-            score = get_tpr_at_fpr(true_membership=y_test, predictions=probabilities, max_fpr=0.1)
+            score = TprAtFpr.get_tpr_at_fpr(true_membership=y_test, predictions=probabilities, max_fpr=0.1)
 
         return probabilities, score

@@ -54,7 +54,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--dataname",
-        required=True,
+        required=False,
         type=str,
         default="adult",
         help=(
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--model",
-        required=True,
+        required=False,
         type=str,
         default="model",
         help=(
