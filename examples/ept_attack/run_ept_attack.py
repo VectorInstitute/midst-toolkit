@@ -355,31 +355,20 @@ def run_inference(config: DictConfig, diffusion_model_name_override: str | None 
     log(INFO, "Running inference with the trained attack classifier.")
 
     # Determine which diffusion models to run inference on. If an override is provided
-    # and valid, use that; otherwise, use all applicable models based on the specified
-    # data format (single-table or multi-table).
+    # use that; otherwise, use all applicable models based on the specified data format
 
     is_single_table = config.attack_settings.single_table
-    valid_single_table_models = ["tabddpm", "tabsyn"]
-    valid_multi_table_models = ["clavaddpm"]
+    default_single_table_models = ["tabddpm", "tabsyn"]
+    default_multi_table_models = ["clavaddpm"]
 
-    use_default_models = True
-    if diffusion_model_name_override and (
-        is_single_table
-        and diffusion_model_name_override in valid_single_table_models
-        or not is_single_table
-        and diffusion_model_name_override in valid_multi_table_models
-    ):
-        use_default_models = False
+    data_format = "single_table" if is_single_table else "multi_table"
 
-    if not use_default_models and diffusion_model_name_override:
-        data_format = "single_table" if is_single_table else "multi_table"
+    if diffusion_model_name_override is not None:
         diffusion_models = [diffusion_model_name_override]
+    elif is_single_table:
+        diffusion_models = default_single_table_models
     else:
-        data_format, diffusion_models = (
-            ("single_table", valid_single_table_models)
-            if is_single_table
-            else ("multi_table", valid_multi_table_models)
-        )
+        diffusion_models = default_multi_table_models
 
     for diffusion_model_name in diffusion_models:
         # Load the trained attack classifier
