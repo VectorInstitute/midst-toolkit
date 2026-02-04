@@ -67,9 +67,7 @@ def extract_the_main_id_column(
         data_types_file_path: Path to the data types JSON file.
 
     Returns:
-        A tuple containing:
-            - The modified dataframe with ID columns dropped.
-            - A Series containing the extracted data of ID columns.
+        A Series containing the extracted data of the main ID column.
     """
     # Extract ID column from the dataframe
     with open(data_types_file_path, "r") as f:
