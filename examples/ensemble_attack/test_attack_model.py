@@ -18,6 +18,7 @@ from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassi
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
+from midst_toolkit.models.clavaddpm.train import get_df_without_id
 
 
 class RmiaTrainingDataChoice(Enum):
@@ -51,13 +52,15 @@ def save_results(
             f.write(f"TPR at FPR=0.1: {pred_score:.4f}\n")
 
 
-def extract_and_drop_id_column(
+def extract_the_main_id_column(
     data_frame: pd.DataFrame,
     data_types_file_path: Path,
-) -> tuple[pd.DataFrame, pd.Series]:
+) -> pd.Series:
     """
-    Extracts IDs from the dataframe and drops the ID column. ID column is identified based on
+    Extracts and returns the main IDs from the dataframe. The main ID column is identified based on
     the data types JSON file with "id_column_name" key.
+    Main IDs are not repeated in the dataset.
+    For example, in the Berka dataset, "trans_id" is the main ID column, and "account_id" is not the main ID column.
 
     Args:
         data_frame: Input dataframe.
@@ -74,14 +77,11 @@ def extract_and_drop_id_column(
 
     assert "id_column_name" in column_types, f"{data_types_file_path} must contain 'id_column_name' key."
     id_column_name = column_types["id_column_name"]
-
+    # Make sure we have one main id column
+    assert isinstance(id_column_name, str), "Only one main id column should be identified."
     assert id_column_name in data_frame.columns, f"Dataframe must have {id_column_name} column"
-    data_trans_ids = data_frame[id_column_name]
 
-    # Drop ID column from data
-    data_frame = data_frame.drop(columns=id_column_name)
-
-    return data_frame, data_trans_ids
+    return data_frame[id_column_name]
 
 
 def run_rmia_shadow_training(config: DictConfig, df_challenge: pd.DataFrame) -> list[dict[str, list[Any]]]:
@@ -183,7 +183,7 @@ def collect_challenge_and_train_data(
         midst_data_input_dir=targets_data_path,
         attack_types=challenge_attack_types,
         # For ensemble experiments, change to ``test`` for 10k, and change to ``final`` for 20k
-        split_folders=["test"],
+        split_folders=["final"],
         dataset="challenge",
         data_processing_config=data_processing_config,
     )
@@ -266,7 +266,7 @@ def train_rmia_shadows_for_test_phase(config: DictConfig) -> list[dict[str, list
     df_challenge_experiment, df_master_train = collect_challenge_and_train_data(
         config.data_processing_config,
         processed_attack_data_path=Path(config.data_paths.processed_attack_data_path),
-        targets_data_path=Path(config.data_paths.midst_data_path),
+        targets_data_path=Path(config.data_processing_config.midst_data_path),
     )
     # Load the challenge dataframe for training RMIA shadow models.
     rmia_training_choice = RmiaTrainingDataChoice(config.target_model.attack_rmia_shadow_training_data_choice)
@@ -357,8 +357,13 @@ def run_metaclassifier_testing(
     else:
         log(INFO, "All shadow models for testing phase found. Using existing RMIA shadow models...")
 
-    # Extract and drop id columns from the test data
-    test_data, test_trans_ids = extract_and_drop_id_column(test_data, Path(config.metaclassifier.data_types_file_path))
+    # Extract the main ID column's values from the test data
+    test_trans_ids = extract_the_main_id_column(
+        data_frame=test_data,
+        data_types_file_path=Path(config.metaclassifier.data_types_file_path),
+    )
+    # Drop id columns from the test data. Berka has two id columns: "trans_id" and "account_id".
+    test_data = get_df_without_id(test_data)
 
     # 4) Initialize the attacker object, and assign the loaded metaclassifier to it.
     blending_attacker = BlendingPlusPlus(
