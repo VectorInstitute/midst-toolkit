@@ -80,7 +80,14 @@ def filter_data(features_df: pd.DataFrame, column_types: list[str]) -> np.ndarra
 
 
 class MLPClassifier(nn.Module):
-    def __init__(self, input_size: int = 100, hidden_size: int = 64, output_size: int = 1):
+    def __init__(
+        self,
+        input_size: int = 100,
+        hidden_size: int = 64,
+        output_size: int = 1,
+        epochs: int = 10,
+        device: torch.device = DEVICE,
+    ):
         """
         Creates the Multi-layer perceptron classifier. Defines a simple feedforward neural network with
         customizable input, hidden, and output sizes.
@@ -89,11 +96,16 @@ class MLPClassifier(nn.Module):
             input_size: The number of features in the input data. Defaults to 100.
             hidden_size: The number of neurons in the hidden layer. Defaults to 64.
             output_size: The number of output neurons, typically 1 for binary classification. Defaults to 1.
+            epochs: Number of training epochs. Default is 10.
+            device: The device to train and evaluate the model on.
         """
         super().__init__()
         self.layers = nn.Sequential(
             nn.Linear(input_size, hidden_size), nn.ReLU(), nn.Linear(hidden_size, output_size), nn.Sigmoid()
         )
+        self.epochs = epochs
+        self.device = device
+        self.to(self.device)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -107,61 +119,58 @@ class MLPClassifier(nn.Module):
         """
         return self.layers(x).squeeze(dim=-1)
 
+    def fit(self, x_train: np.ndarray, y_train: np.ndarray) -> None:
+        """
+        Trains the MLP classifier.
 
-def train_mlp(
-    x_train: np.ndarray,
-    y_train: np.ndarray,
-    x_test: np.ndarray | None = None,
-    device: torch.device = DEVICE,
-    epochs: int = 10,
-) -> tuple[np.ndarray | None, np.ndarray | None]:
-    """
-    Trains a simple MLP classifier and optionally evaluates it on a test set.
+        Args:
+            x_train: Training data features.
+            y_train: Training data labels.
+        """
+        criterion = nn.BCELoss()
+        optimizer = optim.Adam(self.parameters(), lr=0.001)
 
-    Args:
-        x_train: Training data features.
-        y_train: Training data labels.
-        x_test: Test data features.
-        device: The device to train the model on (e.g., 'cpu' or 'cuda').
-        eval: If True, evaluates the model on the test set.
-        epochs: Number of training epochs. Default is 10.
+        x_train_tensor = torch.tensor(x_train, dtype=torch.float32).to(self.device)
+        y_train_tensor = torch.tensor(y_train, dtype=torch.float32).to(self.device)
 
-    Returns:
-        A tuple containing:
-        - The predicted labels for the test set (or None if eval is False).
-        - The prediction probabilities for the test set (or None if eval is False).
-    """
-    input_size = x_train.shape[1]
-    model = MLPClassifier(input_size=input_size).to(device)
-    criterion = nn.BCELoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+        for _ in range(self.epochs):
+            self.train()
+            optimizer.zero_grad()
+            outputs = self(x_train_tensor)
+            loss = criterion(outputs, y_train_tensor)
+            loss.backward()
+            optimizer.step()
 
-    x_train_tensor, y_train_tensor = (
-        torch.tensor(x_train, dtype=torch.float32).to(device),
-        torch.tensor(y_train, dtype=torch.float32).to(device),
-    )
+    def predict_proba(self, x_test: np.ndarray) -> np.ndarray:
+        """
+        Gets prediction probabilities for the test set.
 
-    # Train the model
-    for _ in range(epochs):
-        model.train()
-        optimizer.zero_grad()
-        outputs = model(x_train_tensor)
-        loss = criterion(outputs, y_train_tensor)
-        loss.backward()
-        optimizer.step()
+        Args:
+            x_test: Test data features.
 
-    y_pred, y_proba = None, None
-
-    if x_test is not None:
-        model.eval()
-        x_test_tensor = torch.tensor(x_test, dtype=torch.float32).to(device)
+        Returns:
+            The prediction probabilities for the test set.
+        """
+        self.eval()
+        x_test_tensor = torch.tensor(x_test, dtype=torch.float32).to(self.device)
         with torch.no_grad():
-            # Get probabilities
-            y_proba = model(x_test_tensor).cpu().numpy()
-            # Convert probabilities to binary predictions
-            y_pred = (y_proba > 0.5).astype(float)
+            y_proba = self(x_test_tensor).cpu().numpy()
 
-    return y_pred, y_proba
+        # Reshape to (n_samples, 2) for compatibility with scikit-learn's predict_proba
+        return np.vstack([1 - y_proba, y_proba]).T
+
+    def predict(self, x_test: np.ndarray) -> np.ndarray:
+        """
+        Gets predicted labels for the test set.
+
+        Args:
+            x_test: Test data features.
+
+        Returns:
+            The predicted labels for the test set.
+        """
+        y_proba = self.predict_proba(x_test)[:, 1]
+        return (y_proba > 0.5).astype(float)
 
 
 def get_scores(
@@ -212,8 +221,8 @@ def train_attack_classifier(
     column_types: list[str],
     x_train: pd.DataFrame,
     y_train: pd.Series,
-    x_test: pd.DataFrame,
-    y_test: pd.Series,
+    x_test: pd.DataFrame | None,
+    y_test: pd.Series | None,
 ) -> dict[str, dict]:
     """
     Trains a specified classifier for a membership inference attack.
@@ -233,7 +242,8 @@ def train_attack_classifier(
         y_test: The labels for the test set (membership status).
 
     Returns:
-        A dictionary containing the results. It has two keys:
+        A dictionary containing the results. It has three keys:
+            - "trained_model": The trained classifier model.
             - "prediction_results": A dictionary with the true labels ('y_true'),
               predicted probabilities ('y_proba'), and predicted labels ('y_pred').
             - "scores": A dictionary of performance metrics, including accuracy,
@@ -246,50 +256,54 @@ def train_attack_classifier(
     x_train_processed = filter_data(x_train, column_types)
     y_train_processed = y_train.to_numpy()
 
-    x_test_processed = filter_data(x_test, column_types)
-    y_test_processed = y_test.to_numpy()
-
     assert x_train_processed.shape[0] == y_train_processed.shape[0], (
         "Mismatch in number of training samples and labels"
-    )
-    assert x_test_processed.shape[0] == y_test_processed.shape[0], "Mismatch in number of test samples and labels"
-    assert x_train_processed.shape[1] == x_test_processed.shape[1], (
-        "Mismatch in number of features between train and test sets"
     )
 
     y_pred, y_proba = None, None
 
+    model: XGBClassifier | CatBoostClassifier | MLPClassifier
+
     if classifier_type == ClassifierType.XGBOOST:
         model = XGBClassifier()
-        model.fit(x_train_processed, y_train_processed)
-        y_pred = model.predict(x_test_processed)
-        y_proba = model.predict_proba(x_test_processed)[:, 1]
 
     elif classifier_type == ClassifierType.CATBOOST:
         model = CatBoostClassifier(verbose=0)
-        model.fit(x_train_processed, y_train_processed)
-        y_pred = model.predict(x_test_processed)
-        y_proba = model.predict_proba(x_test_processed)[:, 1]
 
     elif classifier_type == ClassifierType.MLP:
-        y_pred, y_proba = train_mlp(x_train_processed, y_train_processed, x_test_processed, DEVICE)
+        model = MLPClassifier(input_size=x_train_processed.shape[1], device=DEVICE)
 
     else:
         raise ValueError(f"Unsupported classifier type: {classifier_type}")
 
-    assert y_pred is not None and y_proba is not None, (
-        "Predictions and probabilities should not be None to get scores."
-    )
+    model.fit(x_train_processed, y_train_processed)
 
-    prediction_results = {
-        "y_true": y_test_processed,
-        "y_proba": y_proba,
-        "y_pred": y_pred,
-    }
+    all_results["trained_model"] = model
 
-    fpr_thresholds = [0.1, 0.01, 0.001]
+    if x_test is not None and y_test is not None:
+        x_test_processed = filter_data(x_test, column_types)
+        y_test_processed = y_test.to_numpy()
+        assert x_test_processed.shape[0] == y_test_processed.shape[0], "Mismatch in number of test samples and labels"
+        assert x_train_processed.shape[1] == x_test_processed.shape[1], (
+            "Mismatch in number of features between train and test sets"
+        )
 
-    all_results["prediction_results"] = prediction_results
-    all_results["scores"] = get_scores(y_test_processed, y_proba, y_pred, fpr_thresholds)
+        y_pred = model.predict(x_test_processed)
+        y_proba = model.predict_proba(x_test_processed)[:, 1]
+
+        assert y_pred is not None and y_proba is not None, (
+            "Predictions and probabilities should not be None to get scores."
+        )
+
+        prediction_results = {
+            "y_true": y_test_processed,
+            "y_proba": y_proba,
+            "y_pred": y_pred,
+        }
+
+        fpr_thresholds = [0.1, 0.01, 0.001]
+
+        all_results["prediction_results"] = prediction_results
+        all_results["scores"] = get_scores(y_test_processed, y_proba, y_pred, fpr_thresholds)
 
     return all_results
