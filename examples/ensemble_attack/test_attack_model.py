@@ -52,15 +52,15 @@ def save_results(
             f.write(f"TPR at FPR=0.1: {pred_score:.4f}\n")
 
 
-def extract_the_main_id_column(
+def extract_primary_id_column(
     data_frame: pd.DataFrame,
     data_types_file_path: Path,
 ) -> pd.Series:
     """
-    Extracts and returns the main IDs from the dataframe. The main ID column is identified based on
+    Extracts and returns the primary IDs from the dataframe. The primary ID column is identified based on
     the data types JSON file with "id_column_name" key.
-    Main IDs are not repeated in the dataset.
-    For example, in the Berka dataset, "trans_id" is the main ID column, and "account_id" is not the main ID column.
+    primary IDs are unique keys in the dataset.
+    For example, in the Berka dataset, "trans_id" is the primary ID column, while "account_id" is not.
 
     Args:
         data_frame: Input dataframe.
@@ -356,7 +356,7 @@ def run_metaclassifier_testing(
         log(INFO, "All shadow models for testing phase found. Using existing RMIA shadow models...")
 
     # Extract the main ID column's values from the test data
-    test_trans_ids = extract_the_main_id_column(
+    test_trans_ids = extract_primary_id_column(
         data_frame=test_data,
         data_types_file_path=Path(config.metaclassifier.data_types_file_path),
     )
