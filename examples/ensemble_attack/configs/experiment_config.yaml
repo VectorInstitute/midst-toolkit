@@ -25,7 +25,7 @@ target_model: # This is only used for testing the attack on a real target model.
 
 # Data paths
 data_paths:
-  midst_data_path: /projects/midst-experiments/all_tabddpms/ # Used to collect the data (input) as defined in data_processing_config
+
   processed_base_data_dir: ${base_experiment_dir} # To save new processed data for training, or read from previously collected and processed data (testing phase).
   population_path: ${data_paths.processed_base_data_dir}/population_data  # Path where the collected population data will be stored (output/input)
   processed_attack_data_path: ${data_paths.processed_base_data_dir}/attack_data # Path where the processed attack real train and evaluation data is stored (output/input)
@@ -38,6 +38,10 @@ model_paths:
 
 # Dataset specific information used for processing in this example
 data_processing_config:
+  midst_data_path: /projects/midst-experiments/all_tabddpms/ # Used to collect the data (input)
+  # The following directories should exist and contain `tabddpm_{i} for i in folder_ranges`:
+  # population data: midst_data_path/population_attack_data_types_to_collect/population_splits
+  # challenge data: midst_data_path/challenge_attack_data_types_to_collect/challenge_splits
   population_attack_data_types_to_collect:
         [
           "tabddpm_trained_with_10k",

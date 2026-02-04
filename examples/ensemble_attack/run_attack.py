@@ -38,7 +38,7 @@ def run_data_processing(config: DictConfig) -> None:
     log(INFO, "Running data processing pipeline...")
     # Collect the real data from the MIDST challenge resources.
     population_data = collect_population_data_ensemble(
-        midst_data_input_dir=Path(config.data_paths.midst_data_path),
+        midst_data_input_dir=Path(config.data_processing_config.midst_data_path),
         data_processing_config=config.data_processing_config,
         save_dir=Path(config.data_paths.population_path),
         base_population=original_population_data,
