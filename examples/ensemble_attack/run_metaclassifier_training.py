@@ -49,21 +49,21 @@ def run_metaclassifier_training(
 
     # Three sets of shadow models are trained separately and their paths are provided here.
 
-    assert len(shadow_data_paths) == 3, (
-        "At this point of development, the shadow_data_paths list must contain exactly three elements."
-    )
+    # assert len(shadow_data_paths) == 3, (
+    #     "At this point of development, the shadow_data_paths list must contain exactly three elements."
+    # )
 
     shadow_data_collection = []
 
-    for model_path in shadow_data_paths:
-        assert model_path.exists(), (
-            f"No file found at {model_path}. Make sure the path is correct, or run shadow model training first."
-        )
+    # for model_path in shadow_data_paths:
+    #     assert model_path.exists(), (
+    #         f"No file found at {model_path}. Make sure the path is correct, or run shadow model training first."
+    #     )
 
-        with open(model_path, "rb") as f:
-            shadow_data_and_result = pickle.load(f)
-            shadow_data_collection.append(shadow_data_and_result)
-            log(INFO, f"Shadow model data loaded from {model_path}.")
+    #     with open(model_path, "rb") as f:
+    #         shadow_data_and_result = pickle.load(f)
+    #         shadow_data_collection.append(shadow_data_and_result)
+    #         log(INFO, f"Shadow model data loaded from {model_path}.")
 
     assert Path(target_model_synthetic_path).exists(), (
         f"No file found at {target_model_synthetic_path}. "
@@ -105,7 +105,7 @@ def run_metaclassifier_training(
     # 1. Initialize the attacker
     blending_attacker = BlendingPlusPlus(
         config=config,
-        shadow_data_collection=shadow_data_collection,
+        shadow_data_collection=[],
         data_types_file_path=Path(config.metaclassifier.data_types_file_path),
         meta_classifier_type=meta_classifier_type,
         random_seed=config.random_seed,

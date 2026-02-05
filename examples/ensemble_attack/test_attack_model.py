@@ -336,24 +336,24 @@ def run_metaclassifier_testing(
         target_synthetic_data = target_synthetic_data.head(config.shadow_training.number_of_points_to_synthesize)
         log(INFO, f"Target synthetic data size adjusted to {len(target_synthetic_data)} based on the config setting.")
 
-    # 3) Shadow Model Training Step.
-    # Make sure to assign a new path for shadow models trained for target's challenge points to
-    # avoid overriding train's shadow models.
-    # TODO: Assign specific shadow collection path for test phase.
-    config.shadow_training.shadow_models_output_path = config.target_model.target_shadow_models_output_path
-    shadow_data_paths = [Path(path) for path in config.shadow_training.final_shadow_models_path]
-    assert len(shadow_data_paths) == 3, "The attack_data_paths list must contain exactly three elements."
+    # # 3) Shadow Model Training Step.
+    # # Make sure to assign a new path for shadow models trained for target's challenge points to
+    # # avoid overriding train's shadow models.
+    # # TODO: Assign specific shadow collection path for test phase.
+    # config.shadow_training.shadow_models_output_path = config.target_model.target_shadow_models_output_path
+    # shadow_data_paths = [Path(path) for path in config.shadow_training.final_shadow_models_path]
+    # assert len(shadow_data_paths) == 3, "The attack_data_paths list must contain exactly three elements."
 
-    # If shadows are already trained for test (``models_exists`` is True), don't need to train again.
-    # Load shadow training collection from previously trained shadow models.
-    shadow_data_collection, models_exists = load_trained_rmia_shadows_for_test_phase(shadow_data_paths)
+    # # If shadows are already trained for test (``models_exists`` is True), don't need to train again.
+    # # Load shadow training collection from previously trained shadow models.
+    # shadow_data_collection, models_exists = load_trained_rmia_shadows_for_test_phase(shadow_data_paths)
 
-    if not models_exists:
-        log(INFO, "Shadow models for testing phase do not exist. Training RMIA shadow models...")
-        shadow_data_collection = train_rmia_shadows_for_test_phase(config)
+    # if not models_exists:
+    #     log(INFO, "Shadow models for testing phase do not exist. Training RMIA shadow models...")
+    #     shadow_data_collection = train_rmia_shadows_for_test_phase(config)
 
-    else:
-        log(INFO, "All shadow models for testing phase found. Using existing RMIA shadow models...")
+    # else:
+    #     log(INFO, "All shadow models for testing phase found. Using existing RMIA shadow models...")
 
     # Extract the main ID column's values from the test data
     test_trans_ids = extract_primary_id_column(
@@ -366,7 +366,7 @@ def run_metaclassifier_testing(
     # 4) Initialize the attacker object, and assign the loaded metaclassifier to it.
     blending_attacker = BlendingPlusPlus(
         config=config,
-        shadow_data_collection=shadow_data_collection,
+        shadow_data_collection=[],
         data_types_file_path=Path(config.metaclassifier.data_types_file_path),
         meta_classifier_type=meta_classifier_type,
         random_seed=config.random_seed,

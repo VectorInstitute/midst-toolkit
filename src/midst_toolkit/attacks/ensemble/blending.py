@@ -97,17 +97,17 @@ class BlendingPlusPlus:
 
         # 1. Get RMIA signals
 
-        log(INFO, "Calculating RMIA signals...")
+        # log(INFO, "Calculating RMIA signals...")
 
-        rmia_signals = calculate_rmia_signals(
-            df_input=df_input,
-            shadow_data_collection=self.shadow_data_collection,
-            target_synthetic_data=df_synthetic,
-            categorical_column_names=categorical_cols,
-            id_column_name=id_column_name,
-            id_column_data=id_column_data,
-            random_seed=self.random_seed,
-        )
+        # rmia_signals = calculate_rmia_signals(
+        #     df_input=df_input,
+        #     shadow_data_collection=self.shadow_data_collection,
+        #     target_synthetic_data=df_synthetic,
+        #     categorical_column_names=categorical_cols,
+        #     id_column_name=id_column_name,
+        #     id_column_data=id_column_data,
+        #     random_seed=self.random_seed,
+        # )
 
         # 2. Get Gower distance features
 
@@ -132,7 +132,7 @@ class BlendingPlusPlus:
                 original_numerical_features,
                 gower_features,
                 domias_features,
-                rmia_signals,
+                # rmia_signals,
             ],
             axis=1,
         )
