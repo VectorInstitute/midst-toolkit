@@ -65,7 +65,7 @@ class BlendingPlusPlus:
         self.random_seed = random_seed
         self.training_config = config.metaclassifier
 
-    def _prepare_meta_features(
+    def prepare_meta_features(
         self,
         df_input: pd.DataFrame,
         df_synthetic: pd.DataFrame,
@@ -168,7 +168,7 @@ class BlendingPlusPlus:
         if epochs is None:
             epochs = self.training_config.epochs
 
-        meta_features = self._prepare_meta_features(
+        meta_features = self.prepare_meta_features(
             df_input=df_train,
             df_synthetic=df_target_synthetic,
             df_reference=df_reference,
@@ -236,7 +236,7 @@ class BlendingPlusPlus:
             "or assign the trained model to the BlengingPlusPlus object."
         )
 
-        df_test_features = self._prepare_meta_features(
+        df_test_features = self.prepare_meta_features(
             df_input=df_test,
             df_synthetic=df_original_synthetic,
             df_reference=df_reference,

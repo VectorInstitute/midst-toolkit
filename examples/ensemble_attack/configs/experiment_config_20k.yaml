@@ -1,11 +1,11 @@
 # Ensemble experiment configuration
 # This config can be used to run both the Ensemble attack training (``run_attack.py``) and testing phases (``test_attack_model.py``).
-base_experiment_dir: /projects/midst-experiments/ensemble_attack/tabddpm_20k_experiment_data/20k/ablation_no_rmia # Processed data, and experiment artifacts will be stored under this directory.
+base_experiment_dir: /projects/midst-experiments/ensemble_attack/number_of_target/ # Processed data, and experiment artifacts will be stored under this directory.
 base_data_config_dir: examples/ensemble_attack/data_configs # Training and data type configs are saved under this directory.
 
 # Training Pipeline Control
 pipeline:
-  run_data_processing: true # Set this to false if you have already saved the processed data
+  run_data_processing: false # Set this to false if you have already saved the processed data
   run_shadow_model_training: false # Set this to false if shadow models are already trained and saved
   run_metaclassifier_training: true
 
@@ -106,7 +106,7 @@ metaclassifier:
   data_types_file_path: ${base_data_config_dir}/data_types.json
   model_type: "xgb"
   # Model training parameters
-  num_optuna_trials: 100 # Original code: 100
+  num_optuna_trials: 2 # Original code: 100
   num_kfolds: 5
   use_gpu: false
   # Temporary. Might remove having an epoch parameter.
