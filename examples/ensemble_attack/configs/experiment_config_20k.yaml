@@ -106,12 +106,12 @@ metaclassifier:
   data_types_file_path: ${base_data_config_dir}/data_types.json
   model_type: "xgb"
   # Model training parameters
-  num_optuna_trials: 2 # Original code: 100
+  num_optuna_trials: 100 # Original code: 100
   num_kfolds: 5
   use_gpu: false
   # Temporary. Might remove having an epoch parameter.
   epochs: 1
-  meta_classifier_model_name: ${metaclassifier.model_type}_metaclassifier_model
+  meta_classifier_model_name: ${metaclassifier.model_type}_metaclassifier_model_42_44
 
 attack_success_computation:
   target_ids_to_test: [61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110] # List of target model IDs to compute the attack success for.

@@ -5,11 +5,11 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:a40:1
-#SBATCH --mem=210G
-#SBATCH --job-name=train_42
+#SBATCH --mem=128G
+#SBATCH --job-name=train_three_targets
 #SBATCH --output=%j_%x.out
 #SBATCH --error=%j_%x.err
-#SBATCH --time=18:00:00
+#SBATCH --time=14:00:00
 
 
 echo "Total memory allocated: $(($SLURM_MEM_PER_NODE / 1024)) GB"
