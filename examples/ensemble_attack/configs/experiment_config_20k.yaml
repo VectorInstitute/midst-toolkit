@@ -1,6 +1,6 @@
 # Ensemble experiment configuration
 # This config can be used to run both the Ensemble attack training (``run_attack.py``) and testing phases (``test_attack_model.py``).
-base_experiment_dir: /projects/midst-experiments/ensemble_attack/number_of_target/ # Processed data, and experiment artifacts will be stored under this directory.
+base_experiment_dir: /projects/midst-experiments/ensemble_attack/number_of_target/42 # Processed data, and experiment artifacts will be stored under this directory.
 base_data_config_dir: examples/ensemble_attack/data_configs # Training and data type configs are saved under this directory.
 
 # Training Pipeline Control
@@ -33,7 +33,7 @@ data_paths:
 
 
 model_paths:
-  metaclassifier_model_path: ${base_experiment_dir}/trained_models # Path where the trained metaclassifier model will be saved
+  metaclassifier_model_path: /projects/midst-experiments/ensemble_attack/number_of_target/trained_models # Path where the trained metaclassifier model will be saved
 
 
 # Dataset specific information used for processing in this example
