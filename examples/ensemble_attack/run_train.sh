@@ -4,9 +4,9 @@
 #SBATCH --ntasks=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=2
-#SBATCH --gres=gpu:a100:1
-#SBATCH --mem=210G
-#SBATCH --job-name=train_size
+#SBATCH --gres=gpu:a40:1
+#SBATCH --mem=150G
+#SBATCH --job-name=step_low
 #SBATCH --output=%j_%x.out
 #SBATCH --error=%j_%x.err
 #SBATCH --time=20:00:00
@@ -21,6 +21,6 @@ which python
 
 echo "Experiments Launched"
 
-python -m examples.ensemble_attack.run_attack  --config-name=experiment_config_20k_size.yaml
+python -m examples.ensemble_attack.run_attack  --config-name=experiment_config_20k_step.yaml
 
 echo "Experiments Completed"

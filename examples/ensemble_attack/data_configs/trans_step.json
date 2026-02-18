@@ -21,7 +21,7 @@
             512
         ],
         "dropout": 0.0,
-        "num_timesteps": 100,
+        "num_timesteps": 10,
         "model_type": "mlp",
         "iterations": 200000,
         "batch_size": 4096,

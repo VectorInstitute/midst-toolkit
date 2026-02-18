@@ -1,6 +1,6 @@
 # Ensemble experiment configuration
 # This config can be used to run both the Ensemble attack training (``run_attack.py``) and testing phases (``test_attack_model.py``).
-base_experiment_dir: /projects/midst-experiments/ensemble_attack/shadow_hyperparams/iter # Processed data, and experiment artifacts will be stored under this directory.
+base_experiment_dir: /projects/midst-experiments/ensemble_attack/shadow_hyperparams/iter_low # Processed data, and experiment artifacts will be stored under this directory.
 base_data_config_dir: examples/ensemble_attack/data_configs # Training and data type configs are saved under this directory.
 
 # Training Pipeline Control
