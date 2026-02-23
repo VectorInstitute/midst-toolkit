@@ -11,10 +11,12 @@ from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
 )
 from midst_toolkit.attacks.ensemble.shadow_model_utils import (
     ModelType,
+    TrainingResult,
     save_additional_training_config,
+    train_or_fine_tune_ctgan,
     train_tabddpm_and_synthesize,
 )
-from midst_toolkit.common.config import ClavaDDPMTrainingConfig
+from midst_toolkit.common.config import ClavaDDPMTrainingConfig, CTGANTrainingConfig
 from midst_toolkit.common.logger import log
 
 
@@ -50,6 +52,11 @@ def run_target_model_training(config: DictConfig) -> Path:
 
     target_folder = target_model_output_path / "target_model"
 
+    model_type = DEFAULT_MODEL_TYPE
+    if "model_name" in config.shadow_training:
+        model_type = ModelType(config.shadow_training.model_name)
+    log(INFO, f"Training target model with model type: {model_type.value}")
+
     target_folder.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(
         target_training_json_config_paths.table_domain_file_path,
@@ -66,13 +73,22 @@ def run_target_model_training(config: DictConfig) -> Path:
         experiment_name="trained_target_model",
     )
 
-    train_result = train_tabddpm_and_synthesize(
-        train_set=df_real_data,
-        configs=cast(ClavaDDPMTrainingConfig, configs),
-        save_dir=save_dir,
-        synthesize=True,
-        number_of_points_to_synthesize=config.shadow_training.number_of_points_to_synthesize,
-    )
+    train_result: TrainingResult
+    if model_type == ModelType.TABDDPM:
+        train_result = train_tabddpm_and_synthesize(
+            train_set=df_real_data,
+            configs=cast(ClavaDDPMTrainingConfig, configs),
+            save_dir=save_dir,
+            synthesize=True,
+            number_of_points_to_synthesize=config.shadow_training.number_of_points_to_synthesize,
+        )
+    elif model_type == ModelType.CTGAN:
+        train_result = train_or_fine_tune_ctgan(
+            dataset=df_real_data,
+            configs=cast(CTGANTrainingConfig, configs),
+            save_dir=save_dir,
+            synthesize=True,
+        )
 
     # To train the attack model (metaclassifier), we only need to save target's synthetic data,
     # and not the entire target model's training result object.
@@ -114,6 +130,7 @@ def run_shadow_model_training(config: DictConfig) -> list[Path]:
 
     table_name = config.table_name if "table_name" in config else DEFAULT_TABLE_NAME
     id_column_name = config.table_id_column_name if "table_id_column_name" in config else DEFAULT_ID_COLUMN_NAME
+
     model_type = DEFAULT_MODEL_TYPE
     if "model_name" in config.shadow_training:
         model_type = ModelType(config.shadow_training.model_name)

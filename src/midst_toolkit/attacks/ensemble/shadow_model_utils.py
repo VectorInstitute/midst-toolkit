@@ -197,7 +197,7 @@ def fine_tune_tabddpm_and_synthesize(
     fine_tuning_classifier_iterations: int = 10,
     synthesize: bool = True,
     number_of_points_to_synthesize: int = 20000,
-) -> TabDDPMTrainingResult:
+) -> TrainingResult:
     """
     Given the trained models and a new training set, fine-tune the TabDDPM models.
     If ``synthesize`` is True, synthesizes data using the fine-tuned models. Number of
@@ -281,20 +281,25 @@ def fine_tune_tabddpm_and_synthesize(
     return result
 
 
-def train_ctgan_and_synthesize(
-    train_set: pd.DataFrame,
+def train_or_fine_tune_ctgan(
+    dataset: pd.DataFrame,
     configs: CTGANTrainingConfig,
     save_dir: Path,
     synthesize: bool = True,
-) -> CTGANTrainingResult:
+    trained_model: CTGANSynthesizer | None = None,
+) -> TrainingResult:
     """
-    Train a CTGAN model on the provided training set and optionally synthesize data using the trained models.
+    Train or fine tune a CTGAN model on the provided dataset and optionally synthesize data.
+
+    If no trained model is provided, a new model will be trained. Otherwise, the
+    provided model will be fine tuned.
 
     Args:
-        train_set: The training dataset as a pandas DataFrame.
+        dataset: The dataset as a pandas DataFrame.
         configs: Configuration dictionary for CTGAN.
         save_dir: Directory path where models and results will be saved.
         synthesize: Flag indicating whether to generate synthetic data after training. Defaults to True.
+        trained_model: The trained model to fine tune. If None, a new model will be trained.
 
     Returns:
         A dataclass TrainingResult object containing:
@@ -309,18 +314,24 @@ def train_ctgan_and_synthesize(
     with open(domain_file_path, "r") as file:
         domain_dictionary = json.load(file)
 
-    metadata, train_data_without_ids = get_single_table_svd_metadata(train_set, domain_dictionary)
+    metadata, dataset_without_ids = get_single_table_svd_metadata(dataset, domain_dictionary)
 
-    log(INFO, "Fitting CTGAN...")
+    if trained_model is None:
+        log(INFO, "Training new CTGAN model...")
+        ctgan = CTGANSynthesizer(
+            metadata=metadata,
+            epochs=configs.training.epochs,
+            verbose=configs.training.verbose,
+        )
+        model_name = "trained_ctgan_model.pkl"
+    else:
+        log(INFO, "Fine tuning CTGAN model...")
+        ctgan = trained_model
+        model_name = "fine_tuned_ctgan_model.pkl"
 
-    ctgan = CTGANSynthesizer(
-        metadata=metadata,
-        epochs=configs.training.epochs,
-        verbose=configs.training.verbose,
-    )
-    ctgan.fit(train_data_without_ids)
+    ctgan.fit(dataset_without_ids)
 
-    results_file = Path(save_dir) / "trained_ctgan_model.pkl"
+    results_file = Path(save_dir) / model_name
     results_file.parent.mkdir(parents=True, exist_ok=True)
 
     ctgan.save(results_file)

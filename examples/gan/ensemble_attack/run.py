@@ -33,6 +33,7 @@ def main(config: DictConfig) -> None:
     training_config_path.unlink(missing_ok=True)
     with open(training_config_path, "w") as f:
         training_config = OmegaConf.to_container(config.ensemble_attack.shadow_training.model_config)
+        assert isinstance(training_config, dict), "Training config must be a dictionary."
         training_config["general"] = {
             "test_data_dir": config.base_data_dir,
             "sample_prefix": "ctgan",
@@ -43,24 +44,36 @@ def main(config: DictConfig) -> None:
         }
         json.dump(training_config, f)
 
+    log(INFO, "Training the shadow models...")
     shadow_data_paths = run_shadow_model_training(config.ensemble_attack)
     shadow_data_paths = [Path(path) for path in shadow_data_paths]
 
-    target_model_synthetic_path = run_target_model_training(config)
+    log(INFO, "Training the target model...")
+    target_model_synthetic_path = run_target_model_training(config.ensemble_attack)
 
     if config.pipeline.run_metaclassifier_training:
+        log(INFO, "Training the metaclassifier...")
         if not config.pipeline.run_shadow_model_training:
             # If shadow model training is skipped, we need to provide the previous shadow model and target model paths.
-            shadow_data_paths = [Path(path) for path in config.shadow_training.final_shadow_models_path]
-            target_model_synthetic_path = Path(config.shadow_training.target_synthetic_data_path)
+            shadow_data_paths = [
+                Path(path) for path in config.ensemble_attack.shadow_training.final_shadow_models_path
+            ]
+            target_model_synthetic_path = Path(config.ensemble_attack.shadow_training.target_synthetic_data_path)
 
         assert len(shadow_data_paths) == 3, "The attack_data_paths list must contain exactly three elements."
         assert target_model_synthetic_path is not None, (
             "The target_data_path must be provided for metaclassifier training."
         )
 
+        # Note: Importing the following module causes a segmentation fault error if imported at the top of this file.
+        # A quick solution is to load modules dynamically if any of the pipelines is called.
+        # TODO: Investigate the source of error.
         meta_pipeline = importlib.import_module("examples.ensemble_attack.run_metaclassifier_training")
-        meta_pipeline.run_metaclassifier_training(config, shadow_data_paths, target_model_synthetic_path)
+        meta_pipeline.run_metaclassifier_training(
+            config.ensemble_attack,
+            shadow_data_paths,
+            target_model_synthetic_path,
+        )
 
 
 if __name__ == "__main__":
