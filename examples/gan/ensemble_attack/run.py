@@ -7,6 +7,8 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training, run_target_model_training
+from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
+from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
 
@@ -26,6 +28,20 @@ def main(config: DictConfig) -> None:
     if config.ensemble_attack.random_seed is not None:
         set_all_random_seeds(seed=config.ensemble_attack.random_seed)
         log(INFO, f"Training phase random seed set to {config.ensemble_attack.random_seed}.")
+
+    # The following function saves the required dataframe splits in the specified processed_attack_data_path path.
+    population_data = load_dataframe(
+        Path(config.ensemble_attack.data_paths.population_path),
+        "population_all_with_challenge.csv",
+    )
+    process_split_data(
+        all_population_data=population_data,
+        processed_attack_data_path=Path(config.ensemble_attack.data_paths.processed_attack_data_path),
+        # TODO: column_to_stratify value is not documented in the original codebase.
+        column_to_stratify=config.ensemble_attack.data_processing_config.column_to_stratify,
+        num_total_samples=config.ensemble_attack.data_processing_config.population_sample_size,
+        random_seed=config.ensemble_attack.random_seed,
+    )
 
     # Saving the model config from the config.yaml into a json file
     # because that's what the ensemble attack code will be looking for

@@ -12,6 +12,10 @@ ensemble_attack:
       processed_attack_data_path: ${base_data_dir}/ensemble_attack
       population_path: ${base_data_dir}/ensemble_attack
 
+    data_processing_config:
+      column_to_stratify: "trans_type"  # Attention: This value is not documented in the original codebase.
+      population_sample_size: 40000 # Population size is the total data that your attack has access to.
+
     shadow_training:
       model_name: ctgan
       model_config:  # Configurations specific for the CTGAN model
