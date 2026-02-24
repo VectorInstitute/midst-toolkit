@@ -58,7 +58,7 @@ shadow_training:
   training_json_config_paths: # Config json files used for tabddpm training on the trans table
     table_domain_file_path: ${base_example_dir}/data_configs/trans_domain.json
     dataset_meta_file_path: ${base_example_dir}/data_configs/dataset_meta.json
-    tabddpm_training_config_path: ${base_example_dir}/data_configs/trans.json
+    training_config_path: ${base_example_dir}/data_configs/trans.json
   # Model training artifacts are saved under shadow_models_data_path/workspace_name/exp_name
   # Also, training configs for each shadow model are created under shadow_models_data_path.
   shadow_models_output_path: ${base_data_dir}/shadow_models_and_data

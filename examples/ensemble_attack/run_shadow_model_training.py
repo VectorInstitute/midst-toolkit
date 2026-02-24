@@ -68,9 +68,10 @@ def run_target_model_training(config: DictConfig) -> Path:
     )
     configs, save_dir = save_additional_training_config(
         data_dir=target_folder,
-        training_config_json_path=Path(target_training_json_config_paths.tabddpm_training_config_path),
+        training_config_json_path=Path(target_training_json_config_paths.training_config_path),
         final_config_json_path=target_folder / f"{table_name}.json",  # Path to the new json
         experiment_name="trained_target_model",
+        model_type=model_type,
     )
 
     train_result: TrainingResult

@@ -18,7 +18,7 @@ def cfg() -> DictConfig:
 
 def test_save_additional_tabddpm_config(cfg: DictConfig, tmp_path: Path) -> None:
     # Input path
-    tabddpm_config_path = Path(cfg.shadow_training.training_json_config_paths.tabddpm_training_config_path)
+    tabddpm_config_path = Path(cfg.shadow_training.training_json_config_paths.training_config_path)
 
     # Extract original parameters
     with open(tabddpm_config_path, "r") as file:

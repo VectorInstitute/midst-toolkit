@@ -16,6 +16,12 @@ ensemble_attack:
       column_to_stratify: "trans_type"  # Attention: This value is not documented in the original codebase.
       population_sample_size: 40000 # Population size is the total data that your attack has access to.
 
+    pipeline:
+      #  TODO: properly test these
+      run_data_processing: true # Set this to false if you have already saved the processed data
+      run_shadow_model_training: true # Set this to false if shadow models are already trained and saved
+      run_metaclassifier_training: true
+
     shadow_training:
       model_name: ctgan
       model_config:  # Configurations specific for the CTGAN model
@@ -25,6 +31,7 @@ ensemble_attack:
         synthesizing:
           sample_size: 20000
       shadow_models_output_path: ${results_dir}/ensemble_attack/shadow_models
+      target_model_output_path: ${results_dir}/shadow_target_model_and_data
       training_json_config_paths: # Config json files used for tabddpm training on the trans table
         table_domain_file_path: ${base_data_dir}/trans_domain.json
         dataset_meta_file_path: ${base_data_dir}/dataset_meta.json
@@ -41,3 +48,16 @@ ensemble_attack:
         "${ensemble_attack.shadow_training.shadow_models_output_path}/shadow_model_rmia_third_set/shadow_workspace/trained_model/rmia_shadows_third_set.pkl",
       ]
       target_synthetic_data_path: ${ensemble_attack.shadow_training.target_model_output_path}/target_synthetic_data.csv
+
+    # Metaclassifier settings
+    metaclassifier:
+      # Data types json file is used for xgboost model training.
+      data_types_file_path: ${base_data_dir}/data_types.json
+      model_type: "xgb"
+      # Model training parameters
+      num_optuna_trials: 100 # Original code: 100
+      num_kfolds: 5
+      use_gpu: false
+      # Temporary. Might remove having an epoch parameter.
+      epochs: 1
+      meta_classifier_model_name: ${ensemble_attach.metaclassifier.model_type}_metaclassifier_model

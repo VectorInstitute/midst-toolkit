@@ -7,7 +7,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training, run_target_model_training
-from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
+from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
@@ -29,19 +29,29 @@ def main(config: DictConfig) -> None:
         set_all_random_seeds(seed=config.ensemble_attack.random_seed)
         log(INFO, f"Training phase random seed set to {config.ensemble_attack.random_seed}.")
 
-    # The following function saves the required dataframe splits in the specified processed_attack_data_path path.
-    population_data = load_dataframe(
-        Path(config.ensemble_attack.data_paths.population_path),
-        "population_all_with_challenge.csv",
-    )
-    process_split_data(
-        all_population_data=population_data,
-        processed_attack_data_path=Path(config.ensemble_attack.data_paths.processed_attack_data_path),
-        # TODO: column_to_stratify value is not documented in the original codebase.
-        column_to_stratify=config.ensemble_attack.data_processing_config.column_to_stratify,
-        num_total_samples=config.ensemble_attack.data_processing_config.population_sample_size,
-        random_seed=config.ensemble_attack.random_seed,
-    )
+    if config.ensemble_attack.pipeline.run_data_processing:
+        log(INFO, "Running data processing pipeline...")
+        # The following function saves the required dataframe splits in the specified processed_attack_data_path path.
+        population_data = load_dataframe(
+            Path(config.ensemble_attack.data_paths.population_path),
+            "population_all_with_challenge.csv",
+        )
+
+        population_data_no_id = population_data.drop(columns=[config.ensemble_attack.table_id_column_name])
+        save_dataframe(
+            population_data_no_id,
+            Path(config.ensemble_attack.data_paths.population_path),
+            "population_all_with_challenge_no_id.csv",
+        )
+
+        process_split_data(
+            all_population_data=population_data,
+            processed_attack_data_path=Path(config.ensemble_attack.data_paths.processed_attack_data_path),
+            # TODO: column_to_stratify value is not documented in the original codebase.
+            column_to_stratify=config.ensemble_attack.data_processing_config.column_to_stratify,
+            num_total_samples=config.ensemble_attack.data_processing_config.population_sample_size,
+            random_seed=config.ensemble_attack.random_seed,
+        )
 
     # Saving the model config from the config.yaml into a json file
     # because that's what the ensemble attack code will be looking for
@@ -60,16 +70,17 @@ def main(config: DictConfig) -> None:
         }
         json.dump(training_config, f)
 
-    log(INFO, "Training the shadow models...")
-    shadow_data_paths = run_shadow_model_training(config.ensemble_attack)
-    shadow_data_paths = [Path(path) for path in shadow_data_paths]
+    if config.ensemble_attack.pipeline.run_shadow_model_training:
+        log(INFO, "Training the shadow models...")
+        shadow_data_paths = run_shadow_model_training(config.ensemble_attack)
+        shadow_data_paths = [Path(path) for path in shadow_data_paths]
 
-    log(INFO, "Training the target model...")
-    target_model_synthetic_path = run_target_model_training(config.ensemble_attack)
+        log(INFO, "Training the target model...")
+        target_model_synthetic_path = run_target_model_training(config.ensemble_attack)
 
-    if config.pipeline.run_metaclassifier_training:
+    if config.ensemble_attack.pipeline.run_metaclassifier_training:
         log(INFO, "Training the metaclassifier...")
-        if not config.pipeline.run_shadow_model_training:
+        if not config.ensemble_attack.pipeline.run_shadow_model_training:
             # If shadow model training is skipped, we need to provide the previous shadow model and target model paths.
             shadow_data_paths = [
                 Path(path) for path in config.ensemble_attack.shadow_training.final_shadow_models_path
