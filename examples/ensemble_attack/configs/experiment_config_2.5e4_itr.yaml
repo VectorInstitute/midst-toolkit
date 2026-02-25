@@ -115,7 +115,7 @@ metaclassifier:
   meta_classifier_model_name: ${metaclassifier.model_type}_metaclassifier_model
 
 attack_success_computation:
-  target_ids_to_test: [111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 120] # List of target model IDs to compute the attack success for.
+  target_ids_to_test: [111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130] # List of target model IDs to compute the attack success for.
 
 # General settings
 random_seed: 42 # Set to null for no seed, or an integer for a fixed seed
