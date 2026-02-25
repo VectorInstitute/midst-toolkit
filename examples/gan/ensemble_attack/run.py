@@ -37,7 +37,9 @@ def main(config: DictConfig) -> None:
             "population_all_with_challenge.csv",
         )
 
-        population_data_no_id = population_data.drop(columns=[config.ensemble_attack.table_id_column_name])
+        # Removing id columns and saving the dataset
+        id_columns = [c for c in population_data.columns if c.endswith("_id")]
+        population_data_no_id = population_data.drop(columns=id_columns)
         save_dataframe(
             population_data_no_id,
             Path(config.ensemble_attack.data_paths.population_path),

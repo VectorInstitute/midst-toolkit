@@ -197,7 +197,8 @@ def collect_population_data_ensemble(
         data_processing_config=data_processing_config,
     )
     # Drop ids.
-    df_population_no_id = df_population.drop(columns=["trans_id", "account_id"])
+    id_columns = [c for c in df_population.columns if c.endswith("_id")]
+    df_population_no_id = df_population.drop(columns=id_columns)
     # Save the population data
     save_dataframe(df_population, save_dir, "population_all.csv")
     save_dataframe(df_population_no_id, save_dir, "population_all_no_id.csv")
