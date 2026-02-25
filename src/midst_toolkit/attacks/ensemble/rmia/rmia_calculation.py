@@ -95,7 +95,7 @@ def compute_gower_for_model(
     categorical_features: list[bool],
     numerical_columns: Sequence[str],
     dtype: FloatDType,
-    batch_processing: bool = False,
+    batch_processing: bool = True,
 ) -> np.ndarray:
     """
     Computes the Gower distance matrix between df_input and a single synthetic dataframe.

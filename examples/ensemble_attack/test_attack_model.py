@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from omegaconf import DictConfig
 
-from examples.ensemble_attack.real_data_collection import AttackType, collect_midst_data
+from examples.ensemble_attack.real_data_collection import AttackType, collect_data_from_path_range
 from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
@@ -98,8 +98,9 @@ def run_rmia_shadow_training(config: DictConfig, df_challenge: pd.DataFrame) -> 
         A list containing three dictionaries, each representing a collection of shadow
             models with their training data and generated synthetic outputs.
     """
-    shadow_model_paths = run_shadow_model_training(config, df_challenge_train=df_challenge)
-
+    _ = run_shadow_model_training(config, df_challenge_train=df_challenge)
+    shadow_model_paths = [Path(path) for path in config.shadow_training.final_shadow_models_path]
+    
     assert len(shadow_model_paths) == 3, "For testing, meta classifier needs the path to three sets of shadow models."
 
     # Initialize an empty list to store the data and results of shadow models after loading.
@@ -176,15 +177,13 @@ def collect_challenge_and_train_data(
     """
     # Collect all repo's challenge points
     challenge_attack_names = data_processing_config.challenge_attack_data_types_to_collect
-    challenge_attack_types = [AttackType(attack_name) for attack_name in challenge_attack_names]
-    df_challenge_experiment = collect_midst_data(
-        midst_data_input_dir=targets_data_path,
-        attack_types=challenge_attack_types,
-        # For ensemble experiments, change to ``test`` for 10k, and change to ``final`` for 20k
-        split_folders=["final"],
-        dataset="challenge",
-        data_processing_config=data_processing_config,
-    )
+
+    df_challenge_experiment = collect_data_from_path_range(
+            data_path=targets_data_path,
+            data_range=data_processing_config.folder_ranges["final"],
+            generation_name="tabddpm",
+            file_name=data_processing_config.challenge_data_file_name,
+        )
     log(
         INFO,
         f"Collected challenge data length: {len(df_challenge_experiment)} for the testing phase's shadow training.",
@@ -264,7 +263,7 @@ def train_rmia_shadows_for_test_phase(config: DictConfig) -> list[dict[str, list
     df_challenge_experiment, df_master_train = collect_challenge_and_train_data(
         config.data_processing_config,
         processed_attack_data_path=Path(config.data_paths.processed_attack_data_path),
-        targets_data_path=Path(config.data_processing_config.midst_data_path),
+        targets_data_path=Path(config.data_processing_config.test_challenge_data_path_for_training),
     )
     # Load the challenge dataframe for training RMIA shadow models.
     rmia_training_choice = RmiaTrainingDataChoice(config.target_model.attack_rmia_shadow_training_data_choice)

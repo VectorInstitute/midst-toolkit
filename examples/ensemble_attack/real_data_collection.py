@@ -52,6 +52,17 @@ def expand_ranges(ranges: list[tuple[int, int]]) -> list[int]:
     return expanded
 
 
+def collect_data_from_path_range(data_path: Path, data_range: list[tuple[int, int]], generation_name: str, file_name: str) -> pd.DataFrame:
+    collected_data = pd.DataFrame()
+    data_id = expand_ranges(data_range)
+    for i in data_id:
+        data_path_ith = data_path / f"{generation_name}_{i}"
+        # Will raise FileNotFoundError if the file does not exist or if it is not a CSV file.
+        collected_data_ith = load_dataframe(data_path_ith, file_name)
+        collected_data = collected_data_ith if collected_data.empty else pd.concat([collected_data, collected_data_ith])
+    return collected_data.drop_duplicates()
+
+
 def collect_midst_attack_data(
     attack_type: AttackType,
     data_dir: Path,
@@ -80,7 +91,7 @@ def collect_midst_attack_data(
     }, "Only 'train' and 'challenge' collection is supported."
     # `data_id` is the folder numbering of each training or challenge dataset,
     #  and is defined with the provided config.
-    data_id = expand_ranges(data_processing_config.folder_ranges[split_folder])
+    data_range = data_processing_config.folder_ranges[split_folder]
 
     # Get file name based on the kind of dataset to be collected (i.e. train vs challenge).
     # TODO: Make the below parsing a bit more robust and less brittle
@@ -94,15 +105,8 @@ def collect_midst_attack_data(
             if generation_name == "clavaddpm"
             else data_processing_config.single_table_train_data_file_name
         )
-
-    df_real = pd.DataFrame()
-    for i in data_id:
-        data_path_ith = data_dir / attack_type.value / split_folder / f"{generation_name}_{i}"
-        # Will raise FileNotFoundError if the file does not exist or if it is not a CSV file.
-        df_real_ith = load_dataframe(data_path_ith, file_name)
-        df_real = df_real_ith if df_real.empty else pd.concat([df_real, df_real_ith])
-
-    return df_real.drop_duplicates()
+    data_path = data_dir / attack_type.value / split_folder
+    return collect_data_from_path_range(data_path, data_range, generation_name, file_name)
 
 
 # TODO: find a better name for dataset argument in the functions below.
@@ -237,6 +241,19 @@ def collect_population_data_ensemble(
         data_processing_config=data_processing_config,
     )
     log(INFO, f"Collected challenge data length: {len(df_challenge)} from splits: {challenge_splits}")
+    # In some cases, the location of target models are totally different from train models, therefore 
+    # to collect the test challenge points, we need to look into the attack folders directly.
+    # This offers flexibility to the data folder structure.
+    # This lets us load challenge points from any directory, even if it's not the same as train.
+    if "test_challenge_data_path_for_training" in data_processing_config:
+        test_challenge_data = collect_data_from_path_range(
+            data_path=Path(data_processing_config.test_challenge_data_path_for_training),
+            data_range=data_processing_config.folder_ranges["final"],
+            generation_name="tabddpm",
+            file_name=data_processing_config.challenge_data_file_name,
+        )
+        df_challenge = pd.concat([df_challenge, test_challenge_data]).drop_duplicates()
+        log(INFO, f"Added challenge data of length: {len(test_challenge_data)} from target models directory.")
     # Save the challenge points
     save_dataframe(df_challenge, save_dir, "challenge_points_all.csv")
 
