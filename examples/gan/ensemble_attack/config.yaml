@@ -11,6 +11,7 @@ ensemble_attack:
     data_paths:
       processed_attack_data_path: ${base_data_dir}/ensemble_attack
       population_path: ${base_data_dir}/ensemble_attack
+      attack_evaluation_result_path: ${results_dir}/evaluation_results # Path where the attack evaluation results will be stored
 
     data_processing_config:
       column_to_stratify: "trans_type"  # Attention: This value is not documented in the original codebase.
@@ -60,4 +61,7 @@ ensemble_attack:
       use_gpu: false
       # Temporary. Might remove having an epoch parameter.
       epochs: 1
-      meta_classifier_model_name: ${ensemble_attach.metaclassifier.model_type}_metaclassifier_model
+      meta_classifier_model_name: ${ensemble_attack.metaclassifier.model_type}_metaclassifier_model
+
+    model_paths:
+      metaclassifier_model_path: ${results_dir}/trained_models # Path where the trained metaclassifier model will be saved
