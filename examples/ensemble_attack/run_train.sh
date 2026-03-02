@@ -3,13 +3,13 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=2
-#SBATCH --gres=gpu:a40:1
+#SBATCH --cpus-per-task=4
+#SBATCH --gres=gpu:a100:1
 #SBATCH --mem=150G
-#SBATCH --job-name=step_low
+#SBATCH --job-name=size_lower_train
 #SBATCH --output=%j_%x.out
 #SBATCH --error=%j_%x.err
-#SBATCH --time=20:00:00
+#SBATCH --time=30:00:00
 
 
 echo "Total memory allocated: $(($SLURM_MEM_PER_NODE / 1024)) GB"
@@ -21,6 +21,6 @@ which python
 
 echo "Experiments Launched"
 
-python -m examples.ensemble_attack.run_attack  --config-name=experiment_config_20k_step.yaml
+python -m examples.ensemble_attack.run_attack  --config-name=experiment_config_20k_size_small.yaml
 
 echo "Experiments Completed"

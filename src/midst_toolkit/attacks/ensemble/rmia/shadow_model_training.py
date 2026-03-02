@@ -271,6 +271,7 @@ def train_shadow_on_half_challenge_data(
     }
 
     for model_id, ref_list in enumerate(selected_id_lists):
+
         log(INFO, f"Reference model number: {model_id}")
 
         selected_challenges = master_challenge_data[master_challenge_data[id_column_name].isin(ref_list)]
@@ -422,7 +423,8 @@ def train_three_sets_of_shadow_models(
         f"Second set of shadow model training completed and saved at {second_set_result_path}.",
     )
     # Original codebase comment: "The following eight models are trained from scratch on the challenge points,
-    # still in the hopes of increased performance (again the gain was minimal).""
+    # still in the hopes of increased performance (again the gain was minimal)."
+
     third_set_result_path = train_shadow_on_half_challenge_data(
         n_models=n_models_per_set * 2,
         n_reps=n_reps,
@@ -438,5 +440,9 @@ def train_three_sets_of_shadow_models(
         INFO,
         f"Third set of shadow model training completed and saved at: {third_set_result_path}",
     )
+
+    first_set_result_path = "/projects/midst-experiments/ensemble_attack/shadow_hyperparams/size/shadow_models_and_data/initial_model_rmia_1/shadow_workspace/pre_trained_model/rmia_shadows.pkl"
+    second_set_result_path = "/projects/midst-experiments/ensemble_attack/shadow_hyperparams/size/shadow_models_and_data/initial_model_rmia_2/shadow_workspace/pre_trained_model/rmia_shadows.pkl"
+
 
     return first_set_result_path, second_set_result_path, third_set_result_path

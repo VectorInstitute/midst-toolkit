@@ -3,13 +3,13 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:a40:1
-#SBATCH --mem=16G
-#SBATCH --job-name=test_iter
+#SBATCH --mem=64G
+#SBATCH --job-name=test_lower_size
 #SBATCH --output=%j_%x_%a.out
 #SBATCH --error=%j_%x_%a.err
-#SBATCH --time=20:00:00
+#SBATCH --time=2:00:00
 #SBATCH --array=0-19  # For 3 target_model_ids (adjust range as needed)
 
 # This script sets up the environment and runs the ensemble attack test script.
@@ -27,6 +27,6 @@ echo "Running test for target_model_id: $TARGET_ID"
 
 echo "Experiments Launched"
 
-python -m examples.ensemble_attack.test_attack_model target_model.target_model_id=$TARGET_ID --config-name=experiment_config_20k_iter.yaml # Overrides the target_model_id in config.
+python -m examples.ensemble_attack.test_attack_model target_model.target_model_id=$TARGET_ID --config-name=experiment_config_20k_size_small.yaml # Overrides the target_model_id in config.
 
 echo "Experiments Completed"
