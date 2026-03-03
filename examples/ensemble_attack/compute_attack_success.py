@@ -70,6 +70,7 @@ def compute_attack_success_for_given_targets(
     """
     predictions = []
     targets = []
+    individual_results = []
     for target_id in target_ids:
         # Override target model id in config as ``attack_probabilities_result_path`` and
         # ``challenge_label_path`` are dependent on it and change in runtime.
@@ -83,7 +84,12 @@ def compute_attack_success_for_given_targets(
         )
         predictions.append(test_prediction_probabilities)
         targets.append(test_target)
+        # Also print the TPR@FPR=0.1 for each target model separately for reference.
+        target_tpr_at_fpr = TprAtFpr.get_tpr_at_fpr(test_target, test_prediction_probabilities, fpr_threshold=0.1)
+        log(INFO, f"Target model ID {target_id} has TPR of {target_tpr_at_fpr:.4f} at FPR={0.1}")
+        individual_results.append(target_tpr_at_fpr)
 
+    log(INFO, f"Individual TPR@FPR=0.1 results for each target model: {individual_results}")
     # Flatten arrays
     predictions = np.concatenate(predictions)
     targets = np.concatenate(targets)
@@ -101,7 +107,7 @@ def compute_attack_success_for_given_targets(
         f.write(f"Final TPR at FPR=0.1: {tpr_at_fpr:.4f}\n")
 
 
-@hydra.main(config_path="configs", config_name="experiment_config_5e4_itr", version_base=None)
+@hydra.main(config_path="configs", config_name="experiment_config_20k", version_base=None)
 def main(
     config: DictConfig,
 ) -> None:
