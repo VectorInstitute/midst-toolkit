@@ -220,7 +220,7 @@ def train_fine_tuned_shadow_models(
             INFO,
             f"Fine-tuned model {model_id} generated {len(train_result.synthetic_data)} synthetic samples.",
         )
-        attack_data["fine_tuned_results"].append(train_result)
+        attack_data["fine_tuned_results"].append(train_result.synthetic_data)
 
     # Pickle dump the results
     result_path = Path(save_dir / "rmia_shadows.pkl")
@@ -347,7 +347,7 @@ def train_shadow_on_half_challenge_data(
             f"Trained shadow model {model_id} generated {len(train_result.synthetic_data)} synthetic samples.",
         )
 
-        attack_data["trained_results"].append(train_result)
+        attack_data["trained_results"].append(train_result.synthetic_data)
 
     # Pickle dump the results
     result_path = Path(save_dir, "rmia_shadows_third_set.pkl")
@@ -494,4 +494,5 @@ def train_three_sets_of_shadow_models(
         INFO,
         f"Third set of shadow model training completed and saved at: {third_set_result_path}",
     )
+
     return first_set_result_path, second_set_result_path, third_set_result_path

@@ -74,7 +74,11 @@ def main(config: DictConfig) -> None:
 
     if config.ensemble_attack.pipeline.run_shadow_model_training:
         log(INFO, "Training the shadow models...")
-        shadow_data_paths = run_shadow_model_training(config.ensemble_attack)
+        master_challenge_train = load_dataframe(
+            Path(config.ensemble_attack.data_paths.population_path),
+            "master_challenge_train.csv",
+        )
+        shadow_data_paths = run_shadow_model_training(config.ensemble_attack, master_challenge_train)
         shadow_data_paths = [Path(path) for path in shadow_data_paths]
 
         log(INFO, "Training the target model...")
