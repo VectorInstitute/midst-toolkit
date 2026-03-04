@@ -22,14 +22,25 @@ def main(config: DictConfig) -> None:
     Args:
         config: Configuration as an OmegaConf DictConfig object.
     """
-    log(INFO, "Loading data...")
-
     table_name = get_table_name(config.base_data_dir)
+
+    if config.training.data_path is None:
+        log(INFO, "Loading data with table name...")
+        dataset_name = table_name
+        real_data = pd.read_csv(Path(config.base_data_dir) / f"{table_name}.csv")
+
+    else:
+        log(INFO, f"Loading data from {config.training.data_path}...")
+        dataset_name = Path(config.training.data_path).stem
+        real_data = pd.read_csv(config.training.data_path)
+
+    if config.training.sample_size is not None:
+        log(INFO, f"Sampling {config.training.sample_size} rows from data...")
+        real_data = real_data.sample(n=config.training.sample_size)
+        real_data.to_csv(Path(config.results_dir) / f"{dataset_name}_sampled.csv", index=False)
 
     with open(Path(config.base_data_dir) / f"{table_name}_domain.json", "r") as f:
         domain_info = json.load(f)
-
-    real_data = pd.read_csv(Path(config.base_data_dir) / f"{table_name}.csv")
 
     metadata, real_data_without_ids = get_single_table_svd_metadata(real_data, domain_info)
 

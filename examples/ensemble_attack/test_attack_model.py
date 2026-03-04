@@ -261,11 +261,29 @@ def train_rmia_shadows_for_test_phase(config: DictConfig) -> list[dict[str, list
         A list containing three dictionaries, each representing a collection of shadow
             models with their training data IDs and generated synthetic outputs.
     """
-    df_challenge_experiment, df_master_train = collect_challenge_and_train_data(
-        config.data_processing_config,
-        processed_attack_data_path=Path(config.data_paths.processed_attack_data_path),
-        targets_data_path=Path(config.data_processing_config.midst_data_path),
+    # Checking if challenge data exists
+    challenge_data_path = (
+        Path(config.data_paths.processed_attack_data_path) / "population_all_with_challenge_challenge.csv"
     )
+
+    if challenge_data_path.exists():
+        log(INFO, "Skipping data collection for testing phase.")
+        df_challenge_experiment = load_dataframe(
+            Path(config.data_paths.processed_attack_data_path),
+            "population_all_with_challenge_challenge.csv",
+        )
+        df_master_train = load_dataframe(
+            Path(config.data_paths.processed_attack_data_path),
+            "master_challenge_train.csv",
+        )
+    else:
+        # If challenge data does not exist, collect it from the cluster
+        df_challenge_experiment, df_master_train = collect_challenge_and_train_data(
+            config.data_processing_config,
+            processed_attack_data_path=Path(config.data_paths.processed_attack_data_path),
+            targets_data_path=Path(config.data_processing_config.midst_data_path),
+        )
+
     # Load the challenge dataframe for training RMIA shadow models.
     rmia_training_choice = RmiaTrainingDataChoice(config.target_model.attack_rmia_shadow_training_data_choice)
     df_challenge = select_challenge_data_for_training(rmia_training_choice, df_challenge_experiment, df_master_train)
@@ -321,7 +339,13 @@ def run_metaclassifier_testing(
     test_data = pd.read_csv(challenge_data_path)
     log(INFO, f"Challenge data loaded from {challenge_data_path} with a size of {len(test_data)}.")
 
-    test_target = pd.read_csv(challenge_label_path).to_numpy().squeeze()
+    if challenge_label_path.suffix == ".npy":
+        test_target = np.load(challenge_label_path).squeeze()
+    elif challenge_label_path.suffix == ".csv":
+        test_target = pd.read_csv(challenge_label_path).to_numpy().squeeze()
+    else:
+        raise ValueError(f"Unsupported challenge label file type: {challenge_label_path}. Must be .npy or .csv.")
+
     assert len(test_data) == len(test_target), "Number of challenge labels must match number of challenge data points."
 
     target_synthetic_path = Path(config.target_model.target_synthetic_data_path)

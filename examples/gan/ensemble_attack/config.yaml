@@ -3,6 +3,15 @@
 base_data_dir: examples/gan/data
 results_dir: examples/gan/results
 
+training:
+    epochs: 300
+    verbose: True
+    data_path: ${base_data_dir}/ensemble_attack/population_all_with_challenge.csv
+    sample_size: 100000
+
+synthesizing:
+    sample_size: 20000
+
 ensemble_attack:
   random_seed: null  # Set this to a value if you want to set a random seed for reproducibility
   table_name: "trans"
@@ -65,3 +74,16 @@ ensemble_attack:
 
   model_paths:
     metaclassifier_model_path: ${results_dir}/trained_models # Path where the trained metaclassifier model will be saved
+
+  target_model: # This is only used for testing the attack on a real target model.
+    target_model_directory: ${ensemble_attack.shadow_training.target_model_output_path}/target_model/shadow_workspace
+    target_model_id: None
+    target_model_name: trained_target_model
+    target_synthetic_data_path: ${ensemble_attack.shadow_training.target_model_output_path}/target_synthetic_data.csv
+    challenge_data_path: ${ensemble_attack.data_paths.processed_attack_data_path}/master_challenge_test.csv
+    challenge_label_path: ${ensemble_attack.data_paths.processed_attack_data_path}/master_challenge_test_labels.npy
+
+    target_shadow_models_output_path: ${results_dir}/test_all_targets # Sub-directory to store test shadows and results
+    attack_probabilities_result_path: ${results_dir}/test_probabilities
+    attack_rmia_shadow_training_data_choice: "combined" # Options: "combined", "only_challenge", "only_train". This determines which data to use for training RMIA attack model in testing phase.
+    # See select_challenge_data_for_training()'s docstring for more details.

@@ -15,8 +15,7 @@ extract the files and place them in a `/data/ensemble_attack` folder in within t
 > of the [`config.yaml`](config.yaml) file.
 
 Here is a description of the files that have been extracted:
-- `master_challenge_train.csv`:
-- `population_all_with_challenge.csv`:
+- `population_all_with_challenge.csv`: The full set of training data
 - `dataset_meta.json`: Metadata about the relationship between the tables in the dataset. Since this is a
 single table dataset, it will only contain information about the transaction (`trans`) table.
 - `trans_domain.json`: Metadata about the columns of the transaction table, such as their size
@@ -29,16 +28,37 @@ and type (`continuous` or `discrete`).
 
 With the data present in the correct folder, we can proceed with running the attack.
 
-## Running the attack
+## Training the real model
+
+To train the real model and synthetic data that will be the target of the attack, run:
+
+```bash
+python -m examples.gan.synthesize --config-path=./ensemble_attack
+```
+
+## Producing the challenge points dataset
+
+The challenge points dataset is composed of real data points where half of them
+were used in training the real model and half weren't. It is the dataset we are going
+to use to evaluate how good the attack model is in differentiating between
+the points used in training and the ones not used in trainig.
+
+To produce such dataset, run the following script:
+
+```bash
+python -m examples.gan.ensemble_attack.make_challenge_dataset
+```
+
+## Training the attack model
 
 > [!NOTE]
 > In the [`config.yaml`](config.yaml) file, the attribute `ensemble_attack.shadow_trainig.model_name`
 > is what determines this attack will be run with the CTGAN model.
 
-To run the attack, execute the following command from the project's root folder:
+To train the attack models, execute the following command:
 
 ```bash
-python -m examples.gan.ensemble_attack.run
+python -m examples.gan.ensemble_attack.train_attack_model
 ```
 
 This will take a long time to run, so it might be a good idea to execute it as a
@@ -46,4 +66,8 @@ background process. If you want to have a quick test run before kicking off the
 full process, you can change the number of iterations, epochs, population and
 sample sizes to smaller numbers.
 
-## Results
+## Testing the attack model
+
+```bash
+python -m examples.gan.ensemble_attack.test_attack_model
+```
