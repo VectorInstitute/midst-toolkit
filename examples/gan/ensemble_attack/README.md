@@ -28,9 +28,13 @@ and type (`continuous` or `discrete`).
 
 With the data present in the correct folder, we can proceed with running the attack.
 
-## 2. Training the real model
+## 2. Training the target model
 
-To train the real model and produce the synthetic data that will be the target of the
+The target model is the model being attacked. If you already have a target model and
+a set of synthetic data produced by it, you can add its path to the `ensemble_attack.target_model`
+variables.
+
+If you wish to train one and produce the synthetic data that will be the target of the
 attack, you can run:
 
 ```bash
@@ -40,9 +44,9 @@ python -m examples.gan.synthesize --config-path=./ensemble_attack
 ## 3. Producing the challenge points dataset
 
 The challenge points dataset is composed of real data points where half of them
-were used in training the real model and half weren't. It is the dataset we are going
+were used in training the target model and half weren't. It is the dataset we are going
 to use to evaluate how good the attack model is in differentiating between
-the points used in training and the ones not used in trainig.
+the points used in training and the ones not used in training.
 
 To produce such dataset, run the following script:
 
@@ -69,8 +73,8 @@ sample sizes to smaller numbers.
 
 ## 5. Testing the attack model
 
-To test the attack model against the model and synthetic data produced on
-[step 2](#2-training-the-real-model), please run:
+To test the attack model against the target model and synthetic data produced on
+[step 2](#2-training-the-target-model), please run:
 
 ```bash
 python -m examples.gan.ensemble_attack.test_attack_model
