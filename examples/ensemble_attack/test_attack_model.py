@@ -263,14 +263,14 @@ def train_rmia_shadows_for_test_phase(config: DictConfig) -> list[dict[str, list
     """
     # Checking if challenge data exists
     challenge_data_path = (
-        Path(config.data_paths.processed_attack_data_path) / "population_all_with_challenge_challenge.csv"
+        Path(config.data_paths.processed_attack_data_path) / "population_all_with_challenge_challenge_data.csv"
     )
 
     if challenge_data_path.exists():
         log(INFO, "Skipping data collection for testing phase.")
         df_challenge_experiment = load_dataframe(
             Path(config.data_paths.processed_attack_data_path),
-            "population_all_with_challenge_challenge.csv",
+            "population_all_with_challenge_challenge_data.csv",
         )
         df_master_train = load_dataframe(
             Path(config.data_paths.processed_attack_data_path),

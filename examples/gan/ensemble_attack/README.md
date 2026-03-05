@@ -3,7 +3,7 @@
 On this example, we demonstrate how to run the [Ensemble Attack](examples/ensemble_attack)
 using the [CTGAN](https://arxiv.org/pdf/1907.00503) model.
 
-## Downloading data
+## 1. Downloading data
 
 First, we need the data. Download it from this
 [Google Drive link](https://drive.google.com/file/d/1B9z4vh51mH6ZMj5E0pJitqR8lid3EJKM/view?usp=drive_link),
@@ -28,15 +28,16 @@ and type (`continuous` or `discrete`).
 
 With the data present in the correct folder, we can proceed with running the attack.
 
-## Training the real model
+## 2. Training the real model
 
-To train the real model and synthetic data that will be the target of the attack, run:
+To train the real model and produce the synthetic data that will be the target of the
+attack, you can run:
 
 ```bash
 python -m examples.gan.synthesize --config-path=./ensemble_attack
 ```
 
-## Producing the challenge points dataset
+## 3. Producing the challenge points dataset
 
 The challenge points dataset is composed of real data points where half of them
 were used in training the real model and half weren't. It is the dataset we are going
@@ -49,7 +50,7 @@ To produce such dataset, run the following script:
 python -m examples.gan.ensemble_attack.make_challenge_dataset
 ```
 
-## Training the attack model
+## 4. Training the attack model
 
 > [!NOTE]
 > In the [`config.yaml`](config.yaml) file, the attribute `ensemble_attack.shadow_trainig.model_name`
@@ -66,7 +67,10 @@ background process. If you want to have a quick test run before kicking off the
 full process, you can change the number of iterations, epochs, population and
 sample sizes to smaller numbers.
 
-## Testing the attack model
+## 5. Testing the attack model
+
+To test the attack model against the model and synthetic data produced on
+[step 2](#2-training-the-real-model), please run:
 
 ```bash
 python -m examples.gan.ensemble_attack.test_attack_model
