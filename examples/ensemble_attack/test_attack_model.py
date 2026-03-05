@@ -309,7 +309,10 @@ def run_metaclassifier_testing(
     Args:
         config: Configuration object set in ``experiments_config.yaml``.
     """
-    log(INFO, f"Running metaclassifier testing on target model {config.target_model.target_model_id}...")
+    log(
+        INFO,
+        f"Running metaclassifier testing on target synthetic data at {config.target_model.target_synthetic_data_path}...",
+    )
 
     if config.random_seed is not None:
         set_all_random_seeds(seed=config.random_seed)
