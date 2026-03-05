@@ -29,12 +29,11 @@ def make_challenge_dataset(config: DictConfig) -> None:
     challenge_data = pd.concat([training_data, untrained_data])
     challenge_data_labels = np.concatenate([np.ones(len(training_data)), np.zeros(len(untrained_data))])
 
-    challenge_data_path = (
-        Path(config.ensemble_attack.data_paths.processed_attack_data_path) / f"{dataset_name}_challenge_data.csv"
-    )
-    challenge_label_path = (
-        Path(config.ensemble_attack.data_paths.processed_attack_data_path) / f"{dataset_name}_challenge_labels.npy"
-    )
+    processed_attack_data_path = Path(config.ensemble_attack.data_paths.processed_attack_data_path)
+    processed_attack_data_path.mkdir(parents=True, exist_ok=True)
+
+    challenge_data_path = processed_attack_data_path / f"{dataset_name}_challenge_data.csv"
+    challenge_label_path = processed_attack_data_path / f"{dataset_name}_challenge_labels.npy"
     log(INFO, f"Saving challenge data to {challenge_data_path}")
     challenge_data.to_csv(challenge_data_path, index=False)
     log(INFO, f"Saving challenge labels to {challenge_label_path}")

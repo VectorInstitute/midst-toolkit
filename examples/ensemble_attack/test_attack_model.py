@@ -262,18 +262,17 @@ def train_rmia_shadows_for_test_phase(config: DictConfig) -> list[dict[str, list
             models with their training data IDs and generated synthetic outputs.
     """
     # Checking if challenge data exists
-    challenge_data_path = (
-        Path(config.data_paths.processed_attack_data_path) / "population_all_with_challenge_challenge_data.csv"
-    )
+    processed_attack_data_path = Path(config.data_paths.processed_attack_data_path)
+    challenge_data_file_name = "population_all_with_challenge_challenge_data.csv"
 
-    if challenge_data_path.exists():
+    if (processed_attack_data_path / challenge_data_file_name).exists():
         log(INFO, "Skipping data collection for testing phase.")
         df_challenge_experiment = load_dataframe(
-            Path(config.data_paths.processed_attack_data_path),
-            "population_all_with_challenge_challenge_data.csv",
+            processed_attack_data_path,
+            challenge_data_file_name,
         )
         df_master_train = load_dataframe(
-            Path(config.data_paths.processed_attack_data_path),
+            processed_attack_data_path,
             "master_challenge_train.csv",
         )
     else:

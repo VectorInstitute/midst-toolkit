@@ -37,6 +37,7 @@ def main(config: DictConfig) -> None:
     if config.training.sample_size is not None:
         log(INFO, f"Sampling {config.training.sample_size} rows from data...")
         real_data = real_data.sample(n=config.training.sample_size)
+        Path(config.results_dir).mkdir(parents=True, exist_ok=True)
         real_data.to_csv(Path(config.results_dir) / f"{dataset_name}_sampled.csv", index=False)
 
     with open(Path(config.base_data_dir) / f"{table_name}_domain.json", "r") as f:
