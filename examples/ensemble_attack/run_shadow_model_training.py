@@ -14,7 +14,7 @@ from midst_toolkit.attacks.ensemble.shadow_model_utils import (
     ModelType,
     TrainingResult,
     save_additional_training_config,
-    train_or_fine_tune_ctgan,
+    train_or_fine_tune_and_synthesize_with_ctgan,
     train_tabddpm_and_synthesize,
 )
 from midst_toolkit.common.config import ClavaDDPMTrainingConfig, CTGANTrainingConfig
@@ -85,7 +85,7 @@ def run_target_model_training(config: DictConfig) -> Path:
             number_of_points_to_synthesize=config.shadow_training.number_of_points_to_synthesize,
         )
     elif model_type == ModelType.CTGAN:
-        train_result = train_or_fine_tune_ctgan(
+        train_result = train_or_fine_tune_and_synthesize_with_ctgan(
             dataset=df_real_data,
             configs=cast(CTGANTrainingConfig, configs),
             save_dir=save_dir,

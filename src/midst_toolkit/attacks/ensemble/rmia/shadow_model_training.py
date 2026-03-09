@@ -13,7 +13,7 @@ from midst_toolkit.attacks.ensemble.shadow_model_utils import (
     TrainingResult,
     fine_tune_tabddpm_and_synthesize,
     save_additional_training_config,
-    train_or_fine_tune_ctgan,
+    train_or_fine_tune_and_synthesize_with_ctgan,
     train_tabddpm_and_synthesize,
 )
 from midst_toolkit.common.config import ClavaDDPMTrainingConfig, CTGANTrainingConfig
@@ -143,7 +143,7 @@ def train_fine_tuned_shadow_models(
                 synthesize=False,
             )
         elif model_type == ModelType.CTGAN:
-            initial_model_training_results = train_or_fine_tune_ctgan(
+            initial_model_training_results = train_or_fine_tune_and_synthesize_with_ctgan(
                 train,
                 cast(CTGANTrainingConfig, configs),
                 save_dir,
@@ -205,7 +205,7 @@ def train_fine_tuned_shadow_models(
                 number_of_points_to_synthesize=number_of_points_to_synthesize,
             )
         elif model_type == ModelType.CTGAN:
-            train_result = train_or_fine_tune_ctgan(
+            train_result = train_or_fine_tune_and_synthesize_with_ctgan(
                 dataset=selected_challenges,
                 configs=cast(CTGANTrainingConfig, configs),
                 save_dir=save_dir,
@@ -332,7 +332,7 @@ def train_shadow_on_half_challenge_data(
                 number_of_points_to_synthesize=number_of_points_to_synthesize,
             )
         elif model_type == ModelType.CTGAN:
-            train_result = train_or_fine_tune_ctgan(
+            train_result = train_or_fine_tune_and_synthesize_with_ctgan(
                 dataset=selected_challenges,
                 configs=cast(CTGANTrainingConfig, configs),
                 save_dir=save_dir,

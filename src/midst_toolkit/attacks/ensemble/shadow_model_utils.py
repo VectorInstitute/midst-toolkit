@@ -281,7 +281,7 @@ def fine_tune_tabddpm_and_synthesize(
     return result
 
 
-def train_or_fine_tune_ctgan(
+def train_or_fine_tune_and_synthesize_with_ctgan(
     dataset: pd.DataFrame,
     configs: CTGANTrainingConfig,
     save_dir: Path,

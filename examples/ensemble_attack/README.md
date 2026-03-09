@@ -5,7 +5,7 @@ As the first step of the attack, we need to collect and split the data. The inpu
 
 Make sure directories and JSON files specified in `data_paths` and  `data_processing_config` configurations in `examples/ensemble_attack/configs/experiment_config.yaml` exist.
 
-To run the whole data processing pipeline, run `run_attack.py` and set `pipeline.run_data_processing` to `true` in [`configs/experiment_config.yaml`](configs/experiment_config.yaml). It reads data from `data_paths.midst_data_path` specified in config, and populates `data_paths.population_data` and `data_paths.processed_attack_data_path` directories.
+To run the whole data processing pipeline, run `run_attack.py` and set `pipeline.run_data_processing` to `true` in [`configs/experiment_config.yaml`](configs/experiment_config.yaml). It reads data from `data_paths.midst_data_path` specified in config, and populates `data_paths.population_path` and `data_paths.processed_attack_data_path` directories.
 
 Data processing steps for the MIDST challenge provided resources according to Ensemble attack are as follows:
 

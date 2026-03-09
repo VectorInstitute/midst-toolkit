@@ -1,13 +1,13 @@
 # CTGAN Ensemble Attack Example
 
-On this example, we demonstrate how to run the [Ensemble Attack](examples/ensemble_attack)
+On this example, we demonstrate how to run the [Ensemble Attack](../../ensemble_attack/README.md)
 using the [CTGAN](https://arxiv.org/pdf/1907.00503) model.
 
 ## 1. Downloading data
 
 First, we need the data. Download it from this
 [Google Drive link](https://drive.google.com/file/d/1B9z4vh51mH6ZMj5E0pJitqR8lid3EJKM/view?usp=drive_link),
-extract the files and place them in a `/data/ensemble_attack` folder in within this folder
+extract the files and place them in a `/data/ensemble_attack` folder within this folder
 (`examples/gan`).
 
 > [!NOTE]
@@ -61,7 +61,7 @@ python -m examples.gan.ensemble_attack.make_challenge_dataset
 ## 4. Training the attack model
 
 > [!NOTE]
-> In the [`config.yaml`](config.yaml) file, the attribute `ensemble_attack.shadow_trainig.model_name`
+> In the [`config.yaml`](config.yaml) file, the attribute `ensemble_attack.shadow_training.model_name`
 > is what determines this attack will be run with the CTGAN model.
 
 To train the attack models, execute the following command:
@@ -78,7 +78,7 @@ sample sizes to smaller numbers.
 ## 5. Testing the attack model
 
 To test the attack model against the target model and synthetic data produced on
-[step 2](#2-training-the-target-model), please run:
+[step 2](#2-generating-target-synthetic-data-to-be-tested), please run:
 
 ```bash
 python -m examples.gan.ensemble_attack.test_attack_model
