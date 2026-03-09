@@ -8,7 +8,7 @@ from midst_toolkit.common.logger import log
 
 
 @hydra.main(config_path="./", config_name="config", version_base=None)
-def test_attack_model(config: DictConfig) -> None:
+def attack_model_test(config: DictConfig) -> None:
     """Main function to test the attack model."""
     log(
         INFO,
@@ -18,4 +18,4 @@ def test_attack_model(config: DictConfig) -> None:
 
 
 if __name__ == "__main__":
-    test_attack_model()
+    attack_model_test()
