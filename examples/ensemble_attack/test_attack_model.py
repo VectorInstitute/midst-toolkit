@@ -12,7 +12,12 @@ import numpy as np
 import pandas as pd
 from omegaconf import DictConfig
 
-from examples.ensemble_attack.real_data_collection import AttackDataset, AttackType, collect_midst_data
+from examples.ensemble_attack.real_data_collection import (
+    COLLECTED_DATA_FILE_NAME,
+    AttackDataset,
+    AttackType,
+    collect_midst_data,
+)
 from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
@@ -263,7 +268,8 @@ def train_rmia_shadows_for_test_phase(config: DictConfig) -> list[dict[str, list
     """
     # Checking if challenge data exists
     processed_attack_data_path = Path(config.data_paths.processed_attack_data_path)
-    challenge_data_file_name = "population_all_with_challenge_challenge_data.csv"
+    data_file_name = config.data_file_name if "data_file_name" in config else COLLECTED_DATA_FILE_NAME
+    challenge_data_file_name = f"{Path(data_file_name).stem}_challenge_data.csv"
 
     if (processed_attack_data_path / challenge_data_file_name).exists():
         log(INFO, "Skipping data collection for testing phase.")
@@ -404,10 +410,8 @@ def run_metaclassifier_testing(
     # 5) Get predictions on the challenge data (test set).
 
     # Load the reference population data for DOMIAS signals.
-    df_reference = load_dataframe(
-        Path(config.data_paths.population_path),
-        "population_all_with_challenge_no_id.csv",
-    )
+    data_file_name = config.data_file_name if "data_file_name" in config else COLLECTED_DATA_FILE_NAME
+    df_reference = load_dataframe(Path(config.data_paths.population_path), f"{Path(data_file_name).stem}_no_id.csv")
 
     probabilities, pred_score = blending_attacker.predict(
         df_test=test_data,

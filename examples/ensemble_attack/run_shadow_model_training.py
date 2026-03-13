@@ -6,6 +6,7 @@ from typing import cast
 import pandas as pd
 from omegaconf import DictConfig
 
+from examples.ensemble_attack.real_data_collection import COLLECTED_DATA_FILE_NAME
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
     train_three_sets_of_shadow_models,
@@ -118,17 +119,16 @@ def run_shadow_model_training(config: DictConfig, df_challenge_train: pd.DataFra
         at src/midst_toolkit/attacks/ensemble/rmia/shadow_model_training.py.
     """
     log(INFO, "Running shadow model training...")
+
+    table_name = config.table_name if "table_name" in config else DEFAULT_TABLE_NAME
+    id_column_name = config.table_id_column_name if "table_id_column_name" in config else DEFAULT_ID_COLUMN_NAME
+    data_file_name = config.data_file_name if "data_file_name" in config else COLLECTED_DATA_FILE_NAME
+
     # Load the required dataframes for shadow model training.
     # For shadow model training we need master_challenge_train and population data.
     # Master challenge is the main training (or fine-tuning) data for the shadow models.
     # Population data is used to pre-train some of the shadow models.
-    df_population_with_challenge = load_dataframe(
-        Path(config.data_paths.population_path),
-        "population_all_with_challenge.csv",
-    )
-
-    table_name = config.table_name if "table_name" in config else DEFAULT_TABLE_NAME
-    id_column_name = config.table_id_column_name if "table_id_column_name" in config else DEFAULT_ID_COLUMN_NAME
+    df_population_with_challenge = load_dataframe(Path(config.data_paths.population_path), data_file_name)
 
     model_type = DEFAULT_MODEL_TYPE
     if "model_name" in config.shadow_training:

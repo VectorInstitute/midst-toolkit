@@ -2,6 +2,8 @@
 # Base data directory (can be overridden from command line)
 base_data_dir: examples/gan/data/ensemble_attack
 results_dir: examples/gan/results
+data_name: trans
+data_file_name: ${data_name}.csv
 
 training:
     epochs: 300

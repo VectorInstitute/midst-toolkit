@@ -1,4 +1,3 @@
-import importlib
 import json
 from logging import INFO
 from pathlib import Path
@@ -6,6 +5,7 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
+from examples.ensemble_attack.run_metaclassifier_training import run_metaclassifier_training
 from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training, run_target_model_training
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
@@ -34,7 +34,7 @@ def train_attack_model(config: DictConfig) -> None:
         # The following function saves the required dataframe splits in the specified processed_attack_data_path path.
         population_data = load_dataframe(
             Path(config.ensemble_attack.data_paths.population_path),
-            "population_all_with_challenge.csv",
+            config.data_file_name,
         )
 
         # Removing id columns and saving the dataset
@@ -43,7 +43,7 @@ def train_attack_model(config: DictConfig) -> None:
         save_dataframe(
             population_data_no_id,
             Path(config.ensemble_attack.data_paths.population_path),
-            "population_all_with_challenge_no_id.csv",
+            f"{Path(config.data_file_name).stem}_no_id.csv",
         )
 
         process_split_data(
@@ -98,15 +98,7 @@ def train_attack_model(config: DictConfig) -> None:
             "The target_data_path must be provided for metaclassifier training."
         )
 
-        # Note: Importing the following module causes a segmentation fault error if imported at the top of this file.
-        # A quick solution is to load modules dynamically if any of the pipelines is called.
-        # TODO: Investigate the source of error.
-        meta_pipeline = importlib.import_module("examples.ensemble_attack.run_metaclassifier_training")
-        meta_pipeline.run_metaclassifier_training(
-            config.ensemble_attack,
-            shadow_data_paths,
-            target_model_synthetic_path,
-        )
+        run_metaclassifier_training(config.ensemble_attack, shadow_data_paths, target_model_synthetic_path)
 
 
 if __name__ == "__main__":

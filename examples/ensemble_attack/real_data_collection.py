@@ -14,6 +14,10 @@ from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataf
 from midst_toolkit.common.logger import log
 
 
+COLLECTED_DATA_FILE_NAME = "population_all_with_challenge.csv"
+COLLECTED_DATA_NO_CHALLENGE_FILE_NAME = "population_all_no_challenge.csv"
+
+
 class AttackType(Enum):
     """Enum for the different attack types."""
 
@@ -244,23 +248,23 @@ def collect_population_data_ensemble(
 
     # Population data without the challenge points
     df_population_no_challenge = df_population[~df_population["trans_id"].isin(df_challenge["trans_id"])]
-    save_dataframe(df_population_no_challenge, save_dir, "population_all_no_challenge.csv")
+    save_dataframe(df_population_no_challenge, save_dir, COLLECTED_DATA_NO_CHALLENGE_FILE_NAME)
     # Remove ids
     df_population_no_challenge_no_id = df_population_no_challenge.drop(columns=["trans_id", "account_id"])
     save_dataframe(
         df_population_no_challenge_no_id,
         save_dir,
-        "population_all_no_challenge_no_id.csv",
+        f"{Path(COLLECTED_DATA_NO_CHALLENGE_FILE_NAME).stem}_no_id.csv",
     )
 
     # Population data with all the challenge points
     df_population_with_challenge = pd.concat([df_population_no_challenge, df_challenge])
-    save_dataframe(df_population_with_challenge, save_dir, "population_all_with_challenge.csv")
+    save_dataframe(df_population_with_challenge, save_dir, COLLECTED_DATA_FILE_NAME)
     # Remove ids
     df_population_with_challenge_no_id = df_population_with_challenge.drop(columns=["trans_id", "account_id"])
     save_dataframe(
         df_population_with_challenge_no_id,
         save_dir,
-        "population_all_with_challenge_no_id.csv",
+        f"{Path(COLLECTED_DATA_FILE_NAME).stem}_no_id.csv",
     )
     return df_population_with_challenge

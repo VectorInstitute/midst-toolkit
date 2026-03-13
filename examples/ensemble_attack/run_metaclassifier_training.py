@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from omegaconf import DictConfig
 
+from examples.ensemble_attack.real_data_collection import COLLECTED_DATA_FILE_NAME
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.common.logger import log
@@ -80,9 +81,10 @@ def run_metaclassifier_training(
     assert target_synthetic_data is not None, "Target model's synthetic data is missing."
     target_synthetic_data = target_synthetic_data.copy()
 
+    data_file_name = config.data_file_name if "data_file_name" in config else COLLECTED_DATA_FILE_NAME
     df_reference = load_dataframe(
         Path(config.data_paths.population_path),
-        "population_all_with_challenge_no_id.csv",
+        f"{Path(data_file_name).stem}_no_id.csv",
     )
     log(
         INFO,

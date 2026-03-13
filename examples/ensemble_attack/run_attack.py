@@ -11,7 +11,7 @@ from omegaconf import DictConfig
 
 import examples.ensemble_attack.run_metaclassifier_training as meta_pipeline
 import examples.ensemble_attack.run_shadow_model_training as shadow_pipeline
-from examples.ensemble_attack.real_data_collection import collect_population_data_ensemble
+from examples.ensemble_attack.real_data_collection import COLLECTED_DATA_FILE_NAME, collect_population_data_ensemble
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.common.logger import log
@@ -33,7 +33,7 @@ def run_data_processing(config: DictConfig) -> None:
     # is not enough.
     original_population_data = load_dataframe(
         Path(config.data_processing_config.original_population_data_path),
-        "population_all_with_challenge.csv",
+        COLLECTED_DATA_FILE_NAME,
     )
     log(INFO, "Running data processing pipeline...")
     # Collect the real data from the MIDST challenge resources.

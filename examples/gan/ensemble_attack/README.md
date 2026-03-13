@@ -15,7 +15,7 @@ extract the files and place them in a `/data/ensemble_attack` folder within this
 > of the [`config.yaml`](config.yaml) file.
 
 Here is a description of the files that have been extracted:
-- `population_all_with_challenge.csv`: The full set of training data
+- `trans.csv`: The full set of training data.
 - `dataset_meta.json`: Metadata about the relationship between the tables in the dataset. Since this is a
 single table dataset, it will only contain information about the transaction (`trans`) table.
 - `trans_domain.json`: Metadata about the columns of the transaction table, such as their size
