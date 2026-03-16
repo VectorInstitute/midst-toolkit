@@ -32,10 +32,6 @@ data_paths:
   attack_evaluation_result_path: ${base_experiment_dir}/evaluation_results # Path where the attack (train phase) evaluation results will be stored (output)
 
 
-model_paths:
-  metaclassifier_model_path: ${base_experiment_dir}/trained_models # Path where the trained metaclassifier model will be saved
-
-
 # Dataset specific information used for processing in this example
 data_processing_config:
   midst_data_path: /projects/midst-experiments/all_tabddpms/ # Used to collect the data (input)
@@ -112,6 +108,7 @@ metaclassifier:
   # Temporary. Might remove having an epoch parameter.
   epochs: 1
   meta_classifier_model_name: ${metaclassifier.model_type}_metaclassifier_model
+  metaclassifier_model_path: ${base_experiment_dir}/trained_models # Path where the trained metaclassifier model will be saved
 
 attack_success_computation:
   target_ids_to_test: [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40] # List of target model IDs to compute the attack success for.

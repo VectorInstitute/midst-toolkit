@@ -10,9 +10,6 @@ data_paths:
   processed_attack_data_path: ${base_data_dir}/attack_data # Path where the processed attack real train and evaluation data is stored
   attack_evaluation_result_path: ${base_example_dir}/attack_results # Path where the attack evaluation results will be stored
 
-model_paths:
-  metaclassifier_model_path: ${base_example_dir}/trained_models # Path where the trained metaclassifier model will be saved
-
 # Pipeline control
 pipeline:
   run_data_processing: true # Set this to false if you have already saved the processed data
@@ -93,6 +90,7 @@ metaclassifier:
   # Temporary. Might remove having an epoch parameter.
   epochs: 1
   meta_classifier_model_name: ${metaclassifier.model_type}_metaclassifier_model
+  metaclassifier_model_path: ${base_example_dir}/trained_models # Path where the trained metaclassifier model will be saved
 
 
 # General settings

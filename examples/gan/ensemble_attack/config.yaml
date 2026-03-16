@@ -18,10 +18,11 @@ ensemble_attack:
   random_seed: null  # Set this to a value if you want to set a random seed for reproducibility
   table_name: "trans"
   table_id_column_name: "trans_id"
+  data_file_name: ${data_file_name}
 
   data_paths:
     processed_attack_data_path: ${base_data_dir}
-    population_path: ${base_data_dir}
+    population_path: ${base_data_dir}  # This is the population data that the attacker has collected or has access to.
     attack_evaluation_result_path: ${results_dir}/evaluation_results # Path where the attack evaluation results will be stored
 
   data_processing_config:
@@ -73,14 +74,12 @@ ensemble_attack:
     # Temporary. Might remove having an epoch parameter.
     epochs: 1
     meta_classifier_model_name: ${ensemble_attack.metaclassifier.model_type}_metaclassifier_model
-
-  model_paths:
     metaclassifier_model_path: ${results_dir}/trained_models # Path where the trained metaclassifier model will be saved
 
   target_model: # This is only used for testing the attack on a real target model.
-    target_synthetic_data_path: ${results_dir}/population_all_with_challenge_synthetic.csv
-    challenge_data_path: ${ensemble_attack.data_paths.processed_attack_data_path}/population_all_with_challenge_challenge_data.csv
-    challenge_label_path: ${ensemble_attack.data_paths.processed_attack_data_path}/population_all_with_challenge_challenge_labels.npy
+    target_synthetic_data_path: ${results_dir}/${data_name}_synthetic.csv
+    challenge_data_path: ${ensemble_attack.data_paths.processed_attack_data_path}/${data_name}_challenge_data.csv
+    challenge_label_path: ${ensemble_attack.data_paths.processed_attack_data_path}/${data_name}_challenge_labels.npy
 
     target_shadow_models_output_path: ${results_dir}/test_all_targets # Sub-directory to store test shadows and results
     attack_probabilities_result_path: ${results_dir}/test_probabilities
