@@ -81,6 +81,11 @@ def main(config: DictConfig) -> None:
             Path(config.data_paths.processed_attack_data_path),
             "master_challenge_train.csv",
         )
+
+        # TODO: add these to the config
+        # configs.fine_tuning_diffusion_iterations = fine_tuning_config.fine_tune_diffusion_iterations
+        # configs.fine_tuning_classifier_iterations = fine_tuning_config.fine_tune_classifier_iterations
+
         shadow_data_paths = shadow_pipeline.run_shadow_model_training(config, df_master_challenge_train)
         shadow_data_paths = [Path(path) for path in shadow_data_paths]
 

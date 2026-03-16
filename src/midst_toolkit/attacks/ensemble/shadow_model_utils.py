@@ -1,82 +1,42 @@
-import copy
 import json
 import os
 from dataclasses import dataclass
-from enum import Enum
 from logging import INFO
 from pathlib import Path
-from typing import Any
+from typing import Type
 
-import pandas as pd
-from sdv.single_table import CTGANSynthesizer  # type: ignore[import-untyped]
-
-from examples.gan.utils import get_single_table_svd_metadata, get_table_name
-from midst_toolkit.attacks.ensemble.clavaddpm_fine_tuning import clava_fine_tuning
-from midst_toolkit.common.config import ClavaDDPMTrainingConfig, CTGANTrainingConfig, TrainingConfig
+from midst_toolkit.attacks.ensemble.model import EnsembleAttackTrainingResult
+from midst_toolkit.common.config import CTGANTrainingConfig, TrainingConfig
 from midst_toolkit.common.logger import log
-from midst_toolkit.common.variables import DEVICE
-from midst_toolkit.models.clavaddpm.clustering import clava_clustering
-from midst_toolkit.models.clavaddpm.data_loaders import Tables, load_tables
-from midst_toolkit.models.clavaddpm.enumerations import (
-    GroupLengthsProbDicts,
-    Relation,
-    RelationOrder,
-)
-from midst_toolkit.models.clavaddpm.synthesizer import clava_synthesizing
-from midst_toolkit.models.clavaddpm.train import (
-    ClavaDDPMModelArtifacts,
-    CTGANModelArtifacts,
-    clava_training,
-)
-
-
-class ModelType(Enum):
-    TABDDPM = "tabddpm"
-    CTGAN = "ctgan"
-
-
-@dataclass(kw_only=True)  # Setting kw_only=True avoids and error with default values and inheritance
-class TrainingResult:
-    save_dir: Path
-    configs: TrainingConfig
-    models: Any
-    synthetic_data: pd.DataFrame | None = None
+from midst_toolkit.models.clavaddpm.enumerations import Relation
+from midst_toolkit.models.clavaddpm.train import CTGANModelArtifacts
 
 
 @dataclass
-class CTGANTrainingResult(TrainingResult):
+class CTGANTrainingResult(EnsembleAttackTrainingResult):
     configs: CTGANTrainingConfig
     models: dict[Relation, CTGANModelArtifacts]
 
 
-@dataclass
-class TabDDPMTrainingResult(TrainingResult):
-    configs: ClavaDDPMTrainingConfig
-    models: dict[Relation, ClavaDDPMModelArtifacts]
-    tables: Tables
-    relation_order: RelationOrder
-    all_group_lengths_probabilities: GroupLengthsProbDicts
-
-
 def save_additional_training_config(
+    training_config_type: Type[TrainingConfig],
     data_dir: Path,
     training_config_json_path: Path,
     final_config_json_path: Path,
     experiment_name: str = "attack_experiment",
     workspace_name: str = "shadow_workspace",
-    model_type: ModelType = ModelType.TABDDPM,
 ) -> tuple[TrainingConfig, Path]:
     """
     Modifies a TabDDPM configuration JSON file with the specified data directory, experiment name and workspace name,
     and loads the resulting configuration.
 
     Args:
-            data_dir: Directory containing dataset_meta.json, trans_domain.json, and trans.json files.
-            training_config_json_path: Path to the original TabDDPM training configuration JSON file.
-            final_config_json_path: Path where the modified configuration JSON file will be saved.
-            experiment_name: Name of the experiment, used to create a unique save directory.
-            workspace_name: Name of the workspace, used to create a unique save directory.
-            model_type: Type of model to be used for training the shadow models. Defaults to ModelType.TABDDPM.
+        training_config_type: The type of the training config to be used for training the shadow models.
+        data_dir: Directory containing dataset_meta.json, trans_domain.json, and trans.json files.
+        training_config_json_path: Path to the original TabDDPM training configuration JSON file.
+        final_config_json_path: Path where the modified configuration JSON file will be saved.
+        experiment_name: Name of the experiment, used to create a unique save directory.
+        workspace_name: Name of the workspace, used to create a unique save directory.
 
     Returns:
             configs: Loaded configuration dictionary for the model type.
@@ -84,13 +44,7 @@ def save_additional_training_config(
     """
     # Modify the config file to give the correct training data and saving directory
     with open(training_config_json_path, "r") as file:
-        configs: TrainingConfig
-        if model_type == ModelType.TABDDPM:
-            configs = ClavaDDPMTrainingConfig(**json.load(file))
-        elif model_type == ModelType.CTGAN:
-            configs = CTGANTrainingConfig(**json.load(file))
-        else:
-            raise ValueError(f"Invalid model type: {model_type}")
+        configs = training_config_type(**json.load(file))
 
     configs.general.data_dir = data_dir
     # Save dir is set by joining the workspace_dir and exp_name
@@ -107,246 +61,6 @@ def save_additional_training_config(
     save_dir = setup_save_dir(configs)
 
     return configs, save_dir
-
-
-# TODO: This and the next function should be unified later.
-def train_tabddpm_and_synthesize(
-    train_set: pd.DataFrame,
-    configs: ClavaDDPMTrainingConfig,
-    save_dir: Path,
-    synthesize: bool = True,
-    number_of_points_to_synthesize: int = 20000,
-) -> TabDDPMTrainingResult:
-    """
-    Train a TabDDPM model on the provided training set and optionally synthesize data using the trained models.
-
-    Args:
-        train_set: The training dataset as a pandas DataFrame.
-        configs: Configuration dictionary for TabDDPM.
-        save_dir: Directory path where models and results will be saved.
-        synthesize: Flag indicating whether to generate synthetic data after training. Defaults to True.
-        number_of_points_to_synthesize: Number of synthetic data samples to be generated. Defaults to 20000.
-
-    Returns:
-        A dataclass TrainingResult object containing:
-            - save_dir: Directory where results are saved.
-            - configs: Configuration dictionary used for training.
-            - tables: Loaded tables after clustering.
-            - relation_order: Relation order of the tables.
-            - all_group_lengths_probabilities: Group lengths probability dictionaries.
-            - models: The trained models.
-            - synthetic_data: The synthesized data as a pandas DataFrame, if synthesis was performed,
-              otherwise, None.
-    """
-    # Load tables
-    tables, relation_order, _ = load_tables(configs.general.data_dir, train_data={"trans": train_set})
-
-    # Clustering on the multi-table dataset
-    tables, all_group_lengths_prob_dicts = clava_clustering(tables, relation_order, save_dir, configs.clustering)
-
-    # Train models
-    tables, models = clava_training(
-        tables,
-        relation_order,
-        save_dir,
-        diffusion_config=configs.diffusion,
-        classifier_config=configs.classifier,
-        device=DEVICE,
-    )
-    result = TabDDPMTrainingResult(
-        save_dir=save_dir,
-        configs=configs,
-        tables=tables,
-        relation_order=relation_order,
-        all_group_lengths_probabilities=all_group_lengths_prob_dicts,
-        models=models,
-    )
-
-    if synthesize:
-        # By default, Ensemble attack generates a synthetic data of length ``20,000``.
-        # Attack's default sample_scale is set to ``20000 / len(tables["trans"]["df"])`` to
-        # generate 20,000 samples regardless of the training data size. But we control the
-        # synthetic data size directly here with ``number_of_points_to_synthesize``.
-        # ``sample_scale`` is later multiplied by the size of training data (no id) to determine
-        # the size of synthetic data.
-        assert len(tables["trans"].data) > 0, "Cannot synthesize: training data is empty"
-        sample_scale = number_of_points_to_synthesize / len(tables["trans"].data)
-        cleaned_tables, _, _ = clava_synthesizing(
-            tables,
-            relation_order,
-            save_dir,
-            models,
-            configs.general,
-            configs.sampling,
-            configs.matching,
-            all_group_lengths_prob_dicts,
-            sample_scale=sample_scale,
-        )
-
-        result.synthetic_data = cleaned_tables["trans"]
-
-    return result
-
-
-def fine_tune_tabddpm_and_synthesize(
-    trained_models: dict[Relation, ClavaDDPMModelArtifacts],
-    fine_tune_set: pd.DataFrame,
-    configs: ClavaDDPMTrainingConfig,
-    save_dir: Path,
-    fine_tuning_diffusion_iterations: int = 100,
-    fine_tuning_classifier_iterations: int = 10,
-    synthesize: bool = True,
-    number_of_points_to_synthesize: int = 20000,
-) -> TrainingResult:
-    """
-    Given the trained models and a new training set, fine-tune the TabDDPM models.
-    If ``synthesize`` is True, synthesizes data using the fine-tuned models. Number of
-    synthesized data points is determined by the ``classifier_scale`` parameter in training ``configs``.
-
-    Args:
-        trained_models: The previously trained model material.
-        fine_tune_set: The new training dataset for fine-tuning.
-        configs: Configuration dictionary for TabDDPM.
-        save_dir:  Directory path where models and results will be saved.
-        fine_tuning_diffusion_iterations: Diffusion iterations for fine tuning. Defaults to 100.
-        fine_tuning_classifier_iterations: Number of training iterations for the new classifier model.
-            Defaults to 10.
-        synthesize: Flag indicating whether to generate synthetic data after training. Defaults to True.
-        number_of_points_to_synthesize: Number of synthetic data samples to be generated. Defaults to 20000.
-
-
-    Returns:
-        A dataclass TrainingResult object containing:
-            - save_dir: Directory where results are saved.
-            - configs: Configuration dictionary used for training.
-            - tables: Loaded tables after clustering.
-            - relation_order: Relation order of the tables.
-            - all_group_lengths_probabilities: Group lengths probability dictionaries.
-            - models: The trained models.
-            - synthetic_data: The synthesized data as a pandas DataFrame, if synthesis was performed,
-              otherwise, None.
-    """
-    # Load tables
-    new_tables, relation_order, _ = load_tables(configs.general.data_dir, train_data={"trans": fine_tune_set})
-
-    # Clustering on the multi-table dataset
-    # Original submission uses 'force_tables=True' to run the clustering even if checkpoint is found.
-    new_tables, all_group_lengths_prob_dicts = clava_clustering(
-        new_tables, relation_order, save_dir, configs.clustering
-    )
-
-    # Train models
-    copied_models = copy.deepcopy(trained_models)
-    new_models = clava_fine_tuning(
-        copied_models,
-        new_tables,
-        relation_order,
-        diffusion_config=configs.diffusion,
-        classifier_config=configs.classifier,
-        fine_tuning_diffusion_iterations=fine_tuning_diffusion_iterations,
-        fine_tuning_classifier_iterations=fine_tuning_classifier_iterations,
-    )
-    result = TabDDPMTrainingResult(
-        save_dir=save_dir,
-        configs=configs,
-        tables=new_tables,
-        relation_order=relation_order,
-        all_group_lengths_probabilities=all_group_lengths_prob_dicts,
-        models=new_models,
-    )
-
-    if synthesize:
-        # By default, Ensemble attack generates a synthetic data of length ``20,000``.
-        # Attack's default sample_scale is set to ``20000 / len(tables["trans"]["df"])`` to
-        # generate 20,000 samples regardless of the training data size. But we control the
-        # synthetic data size directly here with ``number_of_points_to_synthesize``.
-        # ``sample_scale`` is later multiplied by the size of training data (no id) to determine
-        # the size of synthetic data.
-        assert len(new_tables["trans"].data) > 0, "Cannot synthesize: training data is empty"
-        sample_scale = number_of_points_to_synthesize / len(new_tables["trans"].data)
-        cleaned_tables, _, _ = clava_synthesizing(
-            new_tables,
-            relation_order,
-            save_dir,
-            new_models,
-            configs.general,
-            configs.sampling,
-            configs.matching,
-            all_group_lengths_prob_dicts,
-            sample_scale=sample_scale,
-        )
-
-        result.synthetic_data = cleaned_tables["trans"]
-
-    return result
-
-
-def train_or_fine_tune_and_synthesize_with_ctgan(
-    dataset: pd.DataFrame,
-    configs: CTGANTrainingConfig,
-    save_dir: Path,
-    synthesize: bool = True,
-    trained_model: CTGANSynthesizer | None = None,
-) -> TrainingResult:
-    """
-    Train or fine tune a CTGAN model on the provided dataset and optionally synthesize data.
-
-    If no trained model is provided, a new model will be trained. Otherwise, the
-    provided model will be fine tuned.
-
-    Args:
-        dataset: The dataset as a pandas DataFrame.
-        configs: Configuration dictionary for CTGAN.
-        save_dir: Directory path where models and results will be saved.
-        synthesize: Flag indicating whether to generate synthetic data after training. Defaults to True.
-        trained_model: The trained model to fine tune. If None, a new model will be trained.
-
-    Returns:
-        A dataclass TrainingResult object containing:
-            - save_dir: Directory where results are saved.
-            - configs: Configuration dictionary used for training.
-            - models: The trained models.
-            - synthetic_data: The synthesized data as a pandas DataFrame, if synthesis was performed,
-              otherwise, None.
-    """
-    table_name = get_table_name(configs.general.data_dir)
-    domain_file_path = configs.general.data_dir / f"{table_name}_domain.json"
-    with open(domain_file_path, "r") as file:
-        domain_dictionary = json.load(file)
-
-    metadata, dataset_without_ids = get_single_table_svd_metadata(dataset, domain_dictionary)
-
-    if trained_model is None:
-        log(INFO, "Training new CTGAN model...")
-        ctgan = CTGANSynthesizer(
-            metadata=metadata,
-            epochs=configs.training.epochs,
-            verbose=configs.training.verbose,
-        )
-        model_name = "trained_ctgan_model.pkl"
-    else:
-        log(INFO, "Fine tuning CTGAN model...")
-        ctgan = trained_model
-        model_name = "fine_tuned_ctgan_model.pkl"
-
-    ctgan.fit(dataset_without_ids)
-
-    results_file = Path(save_dir) / model_name
-    results_file.parent.mkdir(parents=True, exist_ok=True)
-
-    ctgan.save(results_file)
-
-    result = CTGANTrainingResult(
-        save_dir=save_dir,
-        configs=configs,
-        models={(None, table_name): CTGANModelArtifacts(model=ctgan, model_file_path=results_file)},
-    )
-
-    if synthesize:
-        synthetic_data = ctgan.sample(num_rows=configs.synthesizing.sample_size)
-        result.synthetic_data = synthetic_data
-
-    return result
 
 
 # TODO: The following function is directly copied from the midst reference code since
