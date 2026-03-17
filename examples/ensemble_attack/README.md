@@ -1,11 +1,11 @@
 # Ensemble Attack
 
 ## Data Processing
-As the first step of the attack, we need to collect and split the data. The input data collected from all the attacks provided by the MIDST Challenge should be stored in `data_paths.data_paths` as defined by `config.yaml`. You can download and unzip the resources from [this Google Drive link](https://drive.google.com/drive/folders/1rmJ_E6IzG25eCL3foYAb2jVmAstXktJ1?usp=drive_link). Note that you can safely remove the provided shadow models with the competition resources since they are not used in this attack.
+As the first step of the attack, we need to collect and split the data. The input data collected from all the attacks provided by the MIDST Challenge should be stored in `data_paths.midst_data_path` as defined by [`configs/experiment_config.yaml`](configs/experiment_config.yaml). You can download and unzip the resources from [this Google Drive link](https://drive.google.com/drive/folders/1rmJ_E6IzG25eCL3foYAb2jVmAstXktJ1?usp=drive_link). Note that you can safely remove the provided shadow models with the competition resources since they are not used in this attack.
 
-Make sure directories and JSON files specified in `data_paths` and  `data_processing_config` configurations in `examples/ensemble_attack/config.yaml` exist.
+Make sure directories and JSON files specified in `data_paths` and  `data_processing_config` configurations in `examples/ensemble_attack/configs/experiment_config.yaml` exist.
 
-To run the whole data processing pipeline, run `run_attack.py` and set `pipeline.run_data_processing` to `true` in `config.yaml`. It reads data from `data_paths.midst_data_path` specified in config, and populates `data_paths.population_data` and `data_paths.processed_attack_data_path` directories.
+To run the whole data processing pipeline, run `run_attack.py` and set `pipeline.run_data_processing` to `true` in [`configs/experiment_config.yaml`](configs/experiment_config.yaml). It reads data from `data_paths.midst_data_path` specified in config, and populates `data_paths.population_path` and `data_paths.processed_attack_data_path` directories.
 
 Data processing steps for the MIDST challenge provided resources according to Ensemble attack are as follows:
 

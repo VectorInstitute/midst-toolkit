@@ -252,7 +252,9 @@ class BlendingPlusPlus:
 
         if y_test is not None:
             score = TprAtFpr.get_tpr_at_fpr(
-                true_membership=y_test, predicted_membership=probabilities, fpr_threshold=0.1
+                true_membership=y_test,
+                predicted_membership=probabilities,
+                fpr_threshold=0.1,
             )
 
         return probabilities, score

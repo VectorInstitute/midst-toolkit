@@ -2,6 +2,7 @@ import copy
 import pickle
 import shutil
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 import pytest
@@ -15,9 +16,10 @@ from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
 )
 from midst_toolkit.attacks.ensemble.shadow_model_utils import (
     fine_tune_tabddpm_and_synthesize,
-    save_additional_tabddpm_config,
+    save_additional_training_config,
     train_tabddpm_and_synthesize,
 )
+from midst_toolkit.common.config import ClavaDDPMTrainingConfig
 
 
 POPULATION_DATA = load_dataframe(
@@ -122,7 +124,7 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
         "tests/unit/attacks/ensemble/assets/population_data/all_population.csv"
     )  # For testing purposes only.
     fine_tuning_set = copy.deepcopy(train_set)
-    tabddpm_config_path = Path(cfg.shadow_training.training_json_config_paths.tabddpm_training_config_path)
+    training_config_path = Path(cfg.shadow_training.training_json_config_paths.training_config_path)
     tmp_training_dir = tmp_path
     # We should move ``dataset_meta.json`` and ``trans_domain.json`` files to the ``tmp_training_dir``
     assert Path(cfg.shadow_training.training_json_config_paths.table_domain_file_path).exists()
@@ -135,16 +137,20 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
         cfg.shadow_training.training_json_config_paths.dataset_meta_file_path,
         tmp_training_dir / "dataset_meta.json",
     )
-    configs, save_dir = save_additional_tabddpm_config(
+    configs, save_dir = save_additional_training_config(
         data_dir=tmp_training_dir,
-        training_config_json_path=tabddpm_config_path,
+        training_config_json_path=training_config_path,
         final_config_json_path=tmp_training_dir / "trans.json",
         experiment_name="test_experiment",
         workspace_name="test_workspace",
     )
 
     train_result = train_tabddpm_and_synthesize(
-        train_set, configs, save_dir, synthesize=True, number_of_points_to_synthesize=99
+        train_set,
+        cast(ClavaDDPMTrainingConfig, configs),
+        save_dir,
+        synthesize=True,
+        number_of_points_to_synthesize=99,
     )
     assert train_result.synthetic_data is not None
     assert type(train_result.synthetic_data) is pd.DataFrame
@@ -158,7 +164,7 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
     fine_tuned_results = fine_tune_tabddpm_and_synthesize(
         trained_models=train_result.models,
         fine_tune_set=fine_tuning_set,  # fine-tuning on the same data for testing purposes
-        configs=configs,
+        configs=cast(ClavaDDPMTrainingConfig, configs),
         save_dir=save_dir,
         fine_tuning_diffusion_iterations=cfg.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations,
         fine_tuning_classifier_iterations=cfg.shadow_training.fine_tuning_config.fine_tune_classifier_iterations,

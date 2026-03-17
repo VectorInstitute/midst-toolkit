@@ -8,7 +8,7 @@ some data afterwards.
 ## Downloading data
 
 First, we need the data. Download it from this
-[Google Drive link](https://drive.google.com/file/d/1J5qDuMHHg4dm9c3ISmb41tcTHSu1SVUC/view?usp=drive_link),
+[Google Drive link](https://drive.google.com/file/d/1YbDRVn-fwfdcPnHj5eMhCa6A-YPiGnKr/view?usp=sharing),
 extract the files and place them in a `/data` folder in within this folder
 (`examples/gan`).
 

@@ -18,7 +18,7 @@ class GeneralConfig(BaseModel):
     sample_prefix: str
 
 
-class ClusteringConfig(BaseModel):
+class ClavaDDPMClusteringConfig(BaseModel):
     """Configuration for the trainer's clustering model."""
 
     num_clusters: int | dict[str, int]
@@ -26,7 +26,7 @@ class ClusteringConfig(BaseModel):
     parent_scale: float
 
 
-class DiffusionConfig(BaseModel):
+class ClavaDDPMDiffusionConfig(BaseModel):
     """Configuration for the trainer's diffusion model."""
 
     d_layers: list[int]
@@ -49,7 +49,7 @@ class DiffusionConfig(BaseModel):
         return self
 
 
-class ClassifierConfig(BaseModel):
+class ClavaDDPMClassifierConfig(BaseModel):
     """Configuration for the trainer's classifier model."""
 
     d_layers: list[int]
@@ -67,14 +67,14 @@ class ClassifierConfig(BaseModel):
         return self
 
 
-class SamplingConfig(BaseModel):
+class ClavaDDPMSamplingConfig(BaseModel):
     """Configuration for the synthesizer's sampling process."""
 
     batch_size: int
     classifier_scale: float
 
 
-class MatchingConfig(BaseModel):
+class ClavaDDPMMatchingConfig(BaseModel):
     """Configuration for the synthesizer's matching process."""
 
     num_matching_clusters: int
@@ -83,14 +83,39 @@ class MatchingConfig(BaseModel):
     no_matching: bool
 
 
+class CTGANModelConfig(BaseModel):
+    """Configuration for the CTGAN model."""
+
+    epochs: int
+    verbose: bool
+
+
+class CTGANSynthesizingConfig(BaseModel):
+    """Configuration for the CTGAN model."""
+
+    sample_size: int
+
+
 class TrainingConfig(BaseModel):
-    """All configuration settings for training, synthesizing, and fine tuning."""
+    """Base configuration settings for training models."""
 
     model_config = ConfigDict(extra="forbid")  # disallow extra fields from config files
 
     general: GeneralConfig
-    clustering: ClusteringConfig
-    diffusion: DiffusionConfig
-    classifier: ClassifierConfig
-    sampling: SamplingConfig
-    matching: MatchingConfig
+
+
+class ClavaDDPMTrainingConfig(TrainingConfig):
+    """All configuration settings for training, synthesizing, and fine tuning TabDDPM models."""
+
+    clustering: ClavaDDPMClusteringConfig
+    diffusion: ClavaDDPMDiffusionConfig
+    classifier: ClavaDDPMClassifierConfig
+    sampling: ClavaDDPMSamplingConfig
+    matching: ClavaDDPMMatchingConfig
+
+
+class CTGANTrainingConfig(TrainingConfig):
+    """All configuration settings for training, synthesizing, and fine tuning CTGAN models."""
+
+    training: CTGANModelConfig
+    synthesizing: CTGANSynthesizingConfig

@@ -5,12 +5,12 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig
 
-from midst_toolkit.common.config import ClassifierConfig, ClusteringConfig, DiffusionConfig
+from midst_toolkit.common.config import ClavaDDPMClassifierConfig, ClavaDDPMClusteringConfig, ClavaDDPMDiffusionConfig
 from midst_toolkit.common.logger import TOOLKIT_LOGGER, log
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 from midst_toolkit.models.clavaddpm.data_loaders import Table, load_tables
-from midst_toolkit.models.clavaddpm.train import ModelArtifacts, clava_training
+from midst_toolkit.models.clavaddpm.train import ClavaDDPMModelArtifacts, clava_training
 
 
 # Preventing some excessive logging
@@ -32,12 +32,12 @@ def main(config: DictConfig) -> None:
     tables, relation_order, _ = load_tables(Path(config.base_data_dir))
 
     log(INFO, "Clustering data...")
-    clustering_config = ClusteringConfig(**config.clustering_config)
+    clustering_config = ClavaDDPMClusteringConfig(**config.clustering_config)
     tables, _ = clava_clustering(tables, relation_order, Path(config.results_dir), clustering_config)
 
     log(INFO, "Training model...")
-    diffusion_config = DiffusionConfig(**config.diffusion_config)
-    classifier_config = ClassifierConfig(**config.classifier_config)
+    diffusion_config = ClavaDDPMDiffusionConfig(**config.diffusion_config)
+    classifier_config = ClavaDDPMClassifierConfig(**config.classifier_config)
 
     tables, _ = clava_training(
         tables,
@@ -65,7 +65,7 @@ def main(config: DictConfig) -> None:
             result = pickle.load(f)
 
         # Asserting the results are the correct type
-        assert isinstance(result, ModelArtifacts)
+        assert isinstance(result, ClavaDDPMModelArtifacts)
 
         log(INFO, f"Result size (in bytes): {results_file.stat().st_size}")
 

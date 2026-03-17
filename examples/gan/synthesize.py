@@ -34,8 +34,12 @@ def main(config: DictConfig) -> None:
     log(INFO, f"Synthesizing data of size {config.synthesizing.sample_size}...")
     synthetic_data = ctgan.sample(num_rows=config.synthesizing.sample_size)
 
-    table_name = get_table_name(config.base_data_dir)
-    synthetic_data_file = Path(config.results_dir) / f"{table_name}_synthetic.csv"
+    if config.training.data_path is not None:
+        dataset_name = Path(config.training.data_path).stem
+    else:
+        dataset_name = get_table_name(config.base_data_dir)
+
+    synthetic_data_file = Path(config.results_dir) / f"{dataset_name}_synthetic.csv"
 
     log(INFO, f"Saving synthetic data to {synthetic_data_file}...")
     synthetic_data.to_csv(synthetic_data_file, index=False)

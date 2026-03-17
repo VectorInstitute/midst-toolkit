@@ -1,19 +1,30 @@
 import shutil
 from logging import INFO
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 from omegaconf import DictConfig
 
+from examples.ensemble_attack.real_data_collection import COLLECTED_DATA_FILE_NAME
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
     train_three_sets_of_shadow_models,
 )
 from midst_toolkit.attacks.ensemble.shadow_model_utils import (
-    save_additional_tabddpm_config,
+    ModelType,
+    TrainingResult,
+    save_additional_training_config,
+    train_or_fine_tune_and_synthesize_with_ctgan,
     train_tabddpm_and_synthesize,
 )
+from midst_toolkit.common.config import ClavaDDPMTrainingConfig, CTGANTrainingConfig
 from midst_toolkit.common.logger import log
+
+
+DEFAULT_TABLE_NAME = "trans"
+DEFAULT_ID_COLUMN_NAME = "trans_id"
+DEFAULT_MODEL_TYPE = ModelType.TABDDPM
 
 
 def run_target_model_training(config: DictConfig) -> Path:
@@ -39,10 +50,14 @@ def run_target_model_training(config: DictConfig) -> Path:
     target_model_output_path = Path(config.shadow_training.target_model_output_path)
     target_training_json_config_paths = config.shadow_training.training_json_config_paths
 
-    # TODO: Add this to config or .json files
-    table_name = "trans"
+    table_name = config.table_name if "table_name" in config else DEFAULT_TABLE_NAME
 
     target_folder = target_model_output_path / "target_model"
+
+    model_type = DEFAULT_MODEL_TYPE
+    if "model_name" in config.shadow_training:
+        model_type = ModelType(config.shadow_training.model_name)
+    log(INFO, f"Training target model with model type: {model_type.value}")
 
     target_folder.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(
@@ -53,20 +68,30 @@ def run_target_model_training(config: DictConfig) -> Path:
         target_training_json_config_paths.dataset_meta_file_path,
         target_folder / "dataset_meta.json",
     )
-    configs, save_dir = save_additional_tabddpm_config(
+    configs, save_dir = save_additional_training_config(
         data_dir=target_folder,
-        training_config_json_path=Path(target_training_json_config_paths.tabddpm_training_config_path),
+        training_config_json_path=Path(target_training_json_config_paths.training_config_path),
         final_config_json_path=target_folder / f"{table_name}.json",  # Path to the new json
         experiment_name="trained_target_model",
+        model_type=model_type,
     )
 
-    train_result = train_tabddpm_and_synthesize(
-        train_set=df_real_data,
-        configs=configs,
-        save_dir=save_dir,
-        synthesize=True,
-        number_of_points_to_synthesize=config.shadow_training.number_of_points_to_synthesize,
-    )
+    train_result: TrainingResult
+    if model_type == ModelType.TABDDPM:
+        train_result = train_tabddpm_and_synthesize(
+            train_set=df_real_data,
+            configs=cast(ClavaDDPMTrainingConfig, configs),
+            save_dir=save_dir,
+            synthesize=True,
+            number_of_points_to_synthesize=config.shadow_training.number_of_points_to_synthesize,
+        )
+    elif model_type == ModelType.CTGAN:
+        train_result = train_or_fine_tune_and_synthesize_with_ctgan(
+            dataset=df_real_data,
+            configs=cast(CTGANTrainingConfig, configs),
+            save_dir=save_dir,
+            synthesize=True,
+        )
 
     # To train the attack model (metaclassifier), we only need to save target's synthetic data,
     # and not the entire target model's training result object.
@@ -94,19 +119,29 @@ def run_shadow_model_training(config: DictConfig, df_challenge_train: pd.DataFra
         at src/midst_toolkit/attacks/ensemble/rmia/shadow_model_training.py.
     """
     log(INFO, "Running shadow model training...")
+
+    table_name = config.table_name if "table_name" in config else DEFAULT_TABLE_NAME
+    id_column_name = config.table_id_column_name if "table_id_column_name" in config else DEFAULT_ID_COLUMN_NAME
+    data_file_name = config.data_file_name if "data_file_name" in config else COLLECTED_DATA_FILE_NAME
+
     # Load the required dataframes for shadow model training.
     # For shadow model training we need master_challenge_train and population data.
     # Master challenge is the main training (or fine-tuning) data for the shadow models.
     # Population data is used to pre-train some of the shadow models.
-    df_population_with_challenge = load_dataframe(
-        Path(config.data_paths.population_path),
-        "population_all_with_challenge.csv",
+    df_population_with_challenge = load_dataframe(Path(config.data_paths.population_path), data_file_name)
+
+    model_type = DEFAULT_MODEL_TYPE
+    if "model_name" in config.shadow_training:
+        model_type = ModelType(config.shadow_training.model_name)
+    log(INFO, f"Training shadow models with model type: {model_type.value}")
+
+    # Make sure master challenge train and population data have the id column.
+    assert id_column_name in df_challenge_train.columns, (
+        f"{id_column_name} column should be present in master train data for the shadow model pipeline."
     )
-    # Make sure master challenge train and population data have the "trans_id" column.
-    assert "trans_id" in df_challenge_train.columns, (
-        "trans_id column should be present in master train data for the shadow model pipeline."
+    assert id_column_name in df_population_with_challenge.columns, (
+        f"{id_column_name} column should be present in population data for the shadow model pipeline."
     )
-    assert "trans_id" in df_population_with_challenge.columns
     # ``population_data`` in ensemble attack is used for shadow pre-training, and
     # ``master_challenge_df`` is used for fine-tuning for half of the shadow models.
     # For the other half of the shadow models, only ``master_challenge_df`` is used for training.
@@ -116,14 +151,15 @@ def run_shadow_model_training(config: DictConfig, df_challenge_train: pd.DataFra
         shadow_models_output_path=Path(config.shadow_training.shadow_models_output_path),
         training_json_config_paths=config.shadow_training.training_json_config_paths,
         fine_tuning_config=config.shadow_training.fine_tuning_config,
-        table_name="trans",
-        id_column_name="trans_id",
+        table_name=table_name,
+        id_column_name=id_column_name,
         # Number of shadow models to train in each set of shadow training (3 sets total) results in
         # ``4 * n_models_per_set`` total shadow models.
         n_models_per_set=4,  # 4 based on the original code, must be even
         n_reps=12,  # Number of repetitions of challenge points in each shadow model training set. `12` based on the original code
         number_of_points_to_synthesize=config.shadow_training.number_of_points_to_synthesize,
         random_seed=config.random_seed,
+        model_type=model_type,
     )
     log(
         INFO,

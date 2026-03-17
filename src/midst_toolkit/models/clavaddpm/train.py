@@ -10,10 +10,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import torch
+from sdv.single_table import CTGANSynthesizer  # type: ignore[import-untyped]
 from sklearn.preprocessing import LabelEncoder
 from torch import Tensor, optim
 
-from midst_toolkit.common.config import ClassifierConfig, DiffusionConfig
+from midst_toolkit.common.config import ClavaDDPMClassifierConfig, ClavaDDPMDiffusionConfig
 from midst_toolkit.common.enumerations import DataSplit, DomainDataType, TaskType
 from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.common.variables import DEVICE
@@ -39,6 +40,17 @@ from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 
 @dataclass
 class ModelArtifacts:
+    pass
+
+
+@dataclass
+class CTGANModelArtifacts(ModelArtifacts):
+    model: CTGANSynthesizer
+    model_file_path: Path
+
+
+@dataclass
+class ClavaDDPMModelArtifacts(ModelArtifacts):
     diffusion: GaussianMultinomialDiffusion
     label_encoders: dict[int, LabelEncoder]
     dataset: Dataset
@@ -58,10 +70,10 @@ def clava_training(
     tables: Tables,
     relation_order: RelationOrder,
     save_dir: Path,
-    diffusion_config: DiffusionConfig,
-    classifier_config: ClassifierConfig | None = None,
+    diffusion_config: ClavaDDPMDiffusionConfig,
+    classifier_config: ClavaDDPMClassifierConfig | None = None,
     device: torch.device = DEVICE,
-) -> tuple[Tables, dict[Relation, ModelArtifacts]]:
+) -> tuple[Tables, dict[Relation, ClavaDDPMModelArtifacts]]:
     """
     Training function for the ClavaDDPM model.
 
@@ -123,10 +135,10 @@ def child_training(
     child_domain: dict[str, Any],
     parent_name: str | None,
     child_name: str,
-    diffusion_config: DiffusionConfig,
-    classifier_config: ClassifierConfig | None = None,
+    diffusion_config: ClavaDDPMDiffusionConfig,
+    classifier_config: ClavaDDPMClassifierConfig | None = None,
     device: torch.device = DEVICE,
-) -> ModelArtifacts:
+) -> ClavaDDPMModelArtifacts:
     """
     Training function for a single child table.
 
@@ -205,9 +217,9 @@ def train_model(
     table_metadata: TableMetadata,
     model_params: ModelParameters,
     transformations: Transformations,
-    diffusion_config: DiffusionConfig,
+    diffusion_config: ClavaDDPMDiffusionConfig,
     device: torch.device = DEVICE,
-) -> ModelArtifacts:
+) -> ClavaDDPMModelArtifacts:
     """
     Training function for the diffusion model.
 
@@ -281,7 +293,7 @@ def train_model(
     if dataset.numerical_transform is not None:
         inverse_transform_function = dataset.numerical_transform.inverse_transform
 
-    return ModelArtifacts(
+    return ClavaDDPMModelArtifacts(
         diffusion=diffusion,
         label_encoders=label_encoders,
         dataset=dataset,
@@ -299,8 +311,8 @@ def train_classifier(
     table_metadata: TableMetadata,
     model_params: ModelParameters,
     transformations: Transformations,
-    diffusion_config: DiffusionConfig,
-    classifier_config: ClassifierConfig,
+    diffusion_config: ClavaDDPMDiffusionConfig,
+    classifier_config: ClavaDDPMClassifierConfig,
     device: torch.device = DEVICE,
     cluster_col: str = "cluster",
     classifier_evaluation_interval: int = 5,
@@ -486,7 +498,7 @@ def get_table_metadata(df: pd.DataFrame, table_domain: dict[str, Any], target_co
 def save_table_info(
     tables: Tables,
     relation_order: RelationOrder,
-    models: dict[Relation, ModelArtifacts],
+    models: dict[Relation, ClavaDDPMModelArtifacts],
     save_dir: Path,
 ) -> None:
     """
