@@ -32,10 +32,6 @@ data_paths:
   attack_evaluation_result_path: ${base_experiment_dir}/evaluation_results # Path where the attack (train phase) evaluation results will be stored (output)
 
 
-model_paths:
-  metaclassifier_model_path: ${base_experiment_dir}/trained_models # Path where the trained metaclassifier model will be saved
-
-
 # Dataset specific information used for processing in this example
 data_processing_config:
   midst_data_path: /projects/midst-experiments/all_tabddpms/ # Used to collect the data (input)
@@ -76,7 +72,7 @@ shadow_training:
   training_json_config_paths: # Config json files used for tabddpm training on the trans table
     table_domain_file_path: ${base_data_config_dir}/trans_domain.json
     dataset_meta_file_path: ${base_data_config_dir}/dataset_meta.json
-    tabddpm_training_config_path: ${base_data_config_dir}/trans.json
+    training_config_path: ${base_data_config_dir}/trans.json
   # Model training artifacts are saved under shadow_models_data_path/workspace_name/exp_name
   # Also, training configs for each shadow model are created under shadow_models_data_path.
   shadow_models_output_path: ${base_experiment_dir}/shadow_models_and_data
@@ -112,6 +108,7 @@ metaclassifier:
   # Temporary. Might remove having an epoch parameter.
   epochs: 1
   meta_classifier_model_name: ${metaclassifier.model_type}_metaclassifier_model
+  metaclassifier_model_path: ${base_experiment_dir}/trained_models # Path where the trained metaclassifier model will be saved
 
 attack_success_computation:
   target_ids_to_test: [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40] # List of target model IDs to compute the attack success for.

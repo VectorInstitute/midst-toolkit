@@ -6,13 +6,16 @@ MIDST competition.
 from enum import Enum
 from logging import INFO
 from pathlib import Path
-from typing import Literal
 
 import pandas as pd
 from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
 from midst_toolkit.common.logger import log
+
+
+COLLECTED_DATA_FILE_NAME = "population_all_with_challenge.csv"
+COLLECTED_DATA_NO_CHALLENGE_FILE_NAME = "population_all_no_challenge.csv"
 
 
 class AttackType(Enum):
@@ -32,7 +35,11 @@ class AttackType(Enum):
     TABDDPM_100K = "tabddpm_trained_with_100k"
 
 
-DatasetType = Literal["train", "challenge"]
+class AttackDataset(Enum):
+    """Enum for the different attack datasets."""
+
+    TRAIN = "train"
+    CHALLENGE = "challenge"
 
 
 def expand_ranges(ranges: list[tuple[int, int]]) -> list[int]:
@@ -56,7 +63,7 @@ def collect_midst_attack_data(
     attack_type: AttackType,
     data_dir: Path,
     split_folder: str,
-    dataset: DatasetType,
+    dataset: AttackDataset,
     data_processing_config: DictConfig,
 ) -> pd.DataFrame:
     """
@@ -74,10 +81,9 @@ def collect_midst_attack_data(
     Returns:
         pd.DataFrame: The specified dataset in this setting.
     """
-    assert dataset in {
-        "train",
-        "challenge",
-    }, "Only 'train' and 'challenge' collection is supported."
+    assert dataset in {AttackDataset.TRAIN, AttackDataset.CHALLENGE}, (
+        "Only 'train' and 'challenge' collections are supported."
+    )
     # `data_id` is the folder numbering of each training or challenge dataset,
     #  and is defined with the provided config.
     data_id = expand_ranges(data_processing_config.folder_ranges[split_folder])
@@ -85,9 +91,9 @@ def collect_midst_attack_data(
     # Get file name based on the kind of dataset to be collected (i.e. train vs challenge).
     # TODO: Make the below parsing a bit more robust and less brittle
     generation_name = attack_type.value.split("_")[0]
-    if dataset == "challenge":
+    if dataset == AttackDataset.CHALLENGE:
         file_name = data_processing_config.challenge_data_file_name
-    else:
+    else:  # dataset == AttackDataset.TRAIN
         # Multi-table attacks have different file names.
         file_name = (
             data_processing_config.multi_table_train_data_file_name
@@ -110,7 +116,7 @@ def collect_midst_data(
     midst_data_input_dir: Path,
     attack_types: list[AttackType],
     split_folders: list[str],
-    dataset: DatasetType,
+    dataset: AttackDataset,
     data_processing_config: DictConfig,
 ) -> pd.DataFrame:
     """
@@ -133,7 +139,6 @@ def collect_midst_data(
     Returns:
         Collected train or challenge data as a dataframe.
     """
-    assert dataset in {"train", "challenge"}, "Only 'train' and 'challenge' collection is supported."
     population = []
     for attack_type in attack_types:
         for split_folder in split_folders:
@@ -204,7 +209,7 @@ def collect_population_data_ensemble(
         midst_data_input_dir,
         population_attack_types,
         split_folders=population_splits,
-        dataset="train",
+        dataset=AttackDataset.TRAIN,
         data_processing_config=data_processing_config,
     )
 
@@ -221,7 +226,8 @@ def collect_population_data_ensemble(
         )
 
     # Drop ids.
-    df_population_no_id = df_population.drop(columns=["trans_id", "account_id"])
+    id_columns = [c for c in df_population.columns if c.endswith("_id")]
+    df_population_no_id = df_population.drop(columns=id_columns)
     # Save the population data
     save_dataframe(df_population, save_dir, "population_all.csv")
     save_dataframe(df_population_no_id, save_dir, "population_all_no_id.csv")
@@ -233,7 +239,7 @@ def collect_population_data_ensemble(
         midst_data_input_dir,
         attack_types=challenge_attack_types,
         split_folders=challenge_splits,
-        dataset="challenge",
+        dataset=AttackDataset.CHALLENGE,
         data_processing_config=data_processing_config,
     )
     log(INFO, f"Collected challenge data length: {len(df_challenge)} from splits: {challenge_splits}")
@@ -242,23 +248,23 @@ def collect_population_data_ensemble(
 
     # Population data without the challenge points
     df_population_no_challenge = df_population[~df_population["trans_id"].isin(df_challenge["trans_id"])]
-    save_dataframe(df_population_no_challenge, save_dir, "population_all_no_challenge.csv")
+    save_dataframe(df_population_no_challenge, save_dir, COLLECTED_DATA_NO_CHALLENGE_FILE_NAME)
     # Remove ids
     df_population_no_challenge_no_id = df_population_no_challenge.drop(columns=["trans_id", "account_id"])
     save_dataframe(
         df_population_no_challenge_no_id,
         save_dir,
-        "population_all_no_challenge_no_id.csv",
+        f"{Path(COLLECTED_DATA_NO_CHALLENGE_FILE_NAME).stem}_no_id.csv",
     )
 
     # Population data with all the challenge points
     df_population_with_challenge = pd.concat([df_population_no_challenge, df_challenge])
-    save_dataframe(df_population_with_challenge, save_dir, "population_all_with_challenge.csv")
+    save_dataframe(df_population_with_challenge, save_dir, COLLECTED_DATA_FILE_NAME)
     # Remove ids
     df_population_with_challenge_no_id = df_population_with_challenge.drop(columns=["trans_id", "account_id"])
     save_dataframe(
         df_population_with_challenge_no_id,
         save_dir,
-        "population_all_with_challenge_no_id.csv",
+        f"{Path(COLLECTED_DATA_FILE_NAME).stem}_no_id.csv",
     )
     return df_population_with_challenge

@@ -12,7 +12,12 @@ import numpy as np
 import pandas as pd
 from omegaconf import DictConfig
 
-from examples.ensemble_attack.real_data_collection import AttackType, collect_midst_data
+from examples.ensemble_attack.real_data_collection import (
+    COLLECTED_DATA_FILE_NAME,
+    AttackDataset,
+    AttackType,
+    collect_midst_data,
+)
 from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
@@ -182,7 +187,7 @@ def collect_challenge_and_train_data(
         attack_types=challenge_attack_types,
         # For ensemble experiments, change to ``test`` for 10k, and change to ``final`` for 20k
         split_folders=["final"],
-        dataset="challenge",
+        dataset=AttackDataset.CHALLENGE,
         data_processing_config=data_processing_config,
     )
     log(
@@ -261,11 +266,29 @@ def train_rmia_shadows_for_test_phase(config: DictConfig) -> list[dict[str, list
         A list containing three dictionaries, each representing a collection of shadow
             models with their training data IDs and generated synthetic outputs.
     """
-    df_challenge_experiment, df_master_train = collect_challenge_and_train_data(
-        config.data_processing_config,
-        processed_attack_data_path=Path(config.data_paths.processed_attack_data_path),
-        targets_data_path=Path(config.data_processing_config.midst_data_path),
-    )
+    # Checking if challenge data exists
+    processed_attack_data_path = Path(config.data_paths.processed_attack_data_path)
+    data_file_name = config.data_file_name if "data_file_name" in config else COLLECTED_DATA_FILE_NAME
+    challenge_data_file_name = f"{Path(data_file_name).stem}_challenge_data.csv"
+
+    if (processed_attack_data_path / challenge_data_file_name).exists():
+        log(INFO, "Skipping data collection for testing phase.")
+        df_challenge_experiment = load_dataframe(
+            processed_attack_data_path,
+            challenge_data_file_name,
+        )
+        df_master_train = load_dataframe(
+            processed_attack_data_path,
+            "master_challenge_train.csv",
+        )
+    else:
+        # If challenge data does not exist, collect it from the cluster
+        df_challenge_experiment, df_master_train = collect_challenge_and_train_data(
+            config.data_processing_config,
+            processed_attack_data_path=Path(config.data_paths.processed_attack_data_path),
+            targets_data_path=Path(config.data_processing_config.midst_data_path),
+        )
+
     # Load the challenge dataframe for training RMIA shadow models.
     rmia_training_choice = RmiaTrainingDataChoice(config.target_model.attack_rmia_shadow_training_data_choice)
     df_challenge = select_challenge_data_for_training(rmia_training_choice, df_challenge_experiment, df_master_train)
@@ -292,7 +315,10 @@ def run_metaclassifier_testing(
     Args:
         config: Configuration object set in ``experiments_config.yaml``.
     """
-    log(INFO, f"Running metaclassifier testing on target model {config.target_model.target_model_id}...")
+    log(
+        INFO,
+        f"Running metaclassifier testing on target synthetic data at {config.target_model.target_synthetic_data_path}...",
+    )
 
     if config.random_seed is not None:
         set_all_random_seeds(seed=config.random_seed)
@@ -302,7 +328,7 @@ def run_metaclassifier_testing(
     meta_classifier_type = MetaClassifierType(config.metaclassifier.model_type)
 
     metaclassifier_model_name = config.metaclassifier.meta_classifier_model_name
-    mataclassifier_path = Path(config.model_paths.metaclassifier_model_path) / f"{metaclassifier_model_name}.pkl"
+    mataclassifier_path = Path(config.metaclassifier.metaclassifier_model_path) / f"{metaclassifier_model_name}.pkl"
     assert mataclassifier_path.exists(), (
         f"No metaclassifier model found at {mataclassifier_path}. Make sure to run the training script first."
     )
@@ -321,7 +347,13 @@ def run_metaclassifier_testing(
     test_data = pd.read_csv(challenge_data_path)
     log(INFO, f"Challenge data loaded from {challenge_data_path} with a size of {len(test_data)}.")
 
-    test_target = pd.read_csv(challenge_label_path).to_numpy().squeeze()
+    if challenge_label_path.suffix == ".npy":
+        test_target = np.load(challenge_label_path).squeeze()
+    elif challenge_label_path.suffix == ".csv":
+        test_target = pd.read_csv(challenge_label_path).to_numpy().squeeze()
+    else:
+        raise ValueError(f"Unsupported challenge label file type: {challenge_label_path}. Must be .npy or .csv.")
+
     assert len(test_data) == len(test_target), "Number of challenge labels must match number of challenge data points."
 
     target_synthetic_path = Path(config.target_model.target_synthetic_data_path)
@@ -378,10 +410,8 @@ def run_metaclassifier_testing(
     # 5) Get predictions on the challenge data (test set).
 
     # Load the reference population data for DOMIAS signals.
-    df_reference = load_dataframe(
-        Path(config.data_paths.population_path),
-        "population_all_with_challenge_no_id.csv",
-    )
+    data_file_name = config.data_file_name if "data_file_name" in config else COLLECTED_DATA_FILE_NAME
+    df_reference = load_dataframe(Path(config.data_paths.population_path), f"{Path(data_file_name).stem}_no_id.csv")
 
     probabilities, pred_score = blending_attacker.predict(
         df_test=test_data,

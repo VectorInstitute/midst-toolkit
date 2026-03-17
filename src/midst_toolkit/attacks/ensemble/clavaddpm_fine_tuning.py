@@ -12,7 +12,7 @@ import pandas as pd
 import torch
 from torch import optim
 
-from midst_toolkit.common.config import ClassifierConfig, DiffusionConfig
+from midst_toolkit.common.config import ClavaDDPMClassifierConfig, ClavaDDPMDiffusionConfig
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.common.variables import DEVICE
@@ -37,7 +37,7 @@ from midst_toolkit.models.clavaddpm.model import (
 )
 from midst_toolkit.models.clavaddpm.sampler import ScheduleSamplerType
 from midst_toolkit.models.clavaddpm.train import (
-    ModelArtifacts,
+    ClavaDDPMModelArtifacts,
     _numerical_forward_backward_log,
     get_table_metadata,
 )
@@ -56,7 +56,7 @@ def fine_tune_model(
     weight_decay: float,
     data_split_ratios: list[float],
     device: torch.device = DEVICE,
-) -> ModelArtifacts:
+) -> ClavaDDPMModelArtifacts:
     """
     Fine-tune a trained diffusion model on a new dataset.
 
@@ -124,7 +124,7 @@ def fine_tune_model(
     if dataset.numerical_transform is not None:
         inverse_transform_function = dataset.numerical_transform.inverse_transform
 
-    return ModelArtifacts(
+    return ClavaDDPMModelArtifacts(
         diffusion=diffusion,
         label_encoders=label_encoders,
         dataset=dataset,
@@ -241,17 +241,17 @@ def fine_tune_classifier(
 
 
 def child_fine_tuning(
-    pre_trained_model: ModelArtifacts,
+    pre_trained_model: ClavaDDPMModelArtifacts,
     child_df_with_cluster: pd.DataFrame,
     child_domain_dict: dict[str, Any],
     parent_name: str | None,
     child_name: str,
-    diffusion_config: DiffusionConfig,
-    classifier_config: ClassifierConfig | None,
+    diffusion_config: ClavaDDPMDiffusionConfig,
+    classifier_config: ClavaDDPMClassifierConfig | None,
     fine_tuning_diffusion_iterations: int,
     fine_tuning_classifier_iterations: int,
     device: torch.device = DEVICE,
-) -> ModelArtifacts:
+) -> ClavaDDPMModelArtifacts:
     """
     Fine-tune a child model based on the parent model.
 
@@ -340,14 +340,14 @@ def child_fine_tuning(
 
 
 def clava_fine_tuning(
-    trained_models: dict[Relation, ModelArtifacts],
+    trained_models: dict[Relation, ClavaDDPMModelArtifacts],
     new_tables: Tables,
     relation_order: RelationOrder,
-    diffusion_config: DiffusionConfig,
-    classifier_config: ClassifierConfig,
+    diffusion_config: ClavaDDPMDiffusionConfig,
+    classifier_config: ClavaDDPMClassifierConfig,
     fine_tuning_diffusion_iterations: int,
     fine_tuning_classifier_iterations: int,
-) -> dict[Relation, ModelArtifacts]:
+) -> dict[Relation, ClavaDDPMModelArtifacts]:
     """
     Fine-tune the trained models on new tables data.
 

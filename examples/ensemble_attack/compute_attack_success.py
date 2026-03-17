@@ -41,7 +41,12 @@ def load_target_challenge_labels_and_probabilities(
     test_prediction_probabilities = np.load(attack_result_file_path)
 
     # Challenge labels are the true membership labels for the challenge points.
-    test_target = pd.read_csv(challenge_label_path).to_numpy().squeeze()
+    if challenge_label_path.suffix == ".npy":
+        test_target = np.load(challenge_label_path).squeeze()
+    elif challenge_label_path.suffix == ".csv":
+        test_target = pd.read_csv(challenge_label_path).to_numpy().squeeze()
+    else:
+        raise ValueError(f"Unsupported challenge label file type: {challenge_label_path}. Must be .npy or .csv.")
 
     assert len(test_prediction_probabilities) == len(test_target), (
         "Number of challenge labels must match number of prediction probabilities."
@@ -71,9 +76,12 @@ def compute_attack_success_for_given_targets(
     predictions = []
     targets = []
     for target_id in target_ids:
-        # Override target model id in config as ``attack_probabilities_result_path`` and
-        # ``challenge_label_path`` are dependent on it and change in runtime.
-        target_model_config.target_model_id = target_id
+        # If there is a target model id in the config, override it with the current target id
+        if "target_model_id" in target_model_config:
+            # Override target model id in config as ``attack_probabilities_result_path`` and
+            # ``challenge_label_path`` are dependent on it and change in runtime.
+            target_model_config.target_model_id = target_id
+
         # Load challenge labels and prediction probabilities
         log(INFO, f"Loading challenge labels and prediction probabilities for target model ID {target_id}...")
         test_target, test_prediction_probabilities = load_target_challenge_labels_and_probabilities(

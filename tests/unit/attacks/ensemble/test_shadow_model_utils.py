@@ -6,7 +6,7 @@ from hydra import compose, initialize
 from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.shadow_model_utils import (
-    save_additional_tabddpm_config,
+    save_additional_training_config,
 )
 
 
@@ -18,7 +18,7 @@ def cfg() -> DictConfig:
 
 def test_save_additional_tabddpm_config(cfg: DictConfig, tmp_path: Path) -> None:
     # Input path
-    tabddpm_config_path = Path(cfg.shadow_training.training_json_config_paths.tabddpm_training_config_path)
+    tabddpm_config_path = Path(cfg.shadow_training.training_json_config_paths.training_config_path)
 
     # Extract original parameters
     with open(tabddpm_config_path, "r") as file:
@@ -33,7 +33,7 @@ def test_save_additional_tabddpm_config(cfg: DictConfig, tmp_path: Path) -> None
     new_experiment_name = "test_experiment"
     final_json_path = tmp_path / "modified_config.json"
 
-    configs, save_dir = save_additional_tabddpm_config(
+    configs, save_dir = save_additional_training_config(
         data_dir=new_data_dir,
         training_config_json_path=tabddpm_config_path,
         final_config_json_path=final_json_path,

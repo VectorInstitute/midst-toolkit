@@ -7,7 +7,7 @@ code in this toolkit.
 ## Downloading data
 
 First, we need the data. Download it from this
-[Google Drive link](https://drive.google.com/file/d/1Ao222l4AJjG54-HDEGCWkIfzRbl9_IKa/view?usp=drive_link),
+[Google Drive link](https://drive.google.com/file/d/1x2yXw824sMUJb9WKUoTkcyfPfx3zS7We/view?usp=sharing),
 extract the files and place them in a `/data` folder in within this folder
 (`examples/training/multi_table`).
 

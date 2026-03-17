@@ -10,7 +10,7 @@ import pytest
 import torch
 from torch.nn import functional
 
-from midst_toolkit.common.config import ClassifierConfig, ClusteringConfig, DiffusionConfig
+from midst_toolkit.common.config import ClavaDDPMClassifierConfig, ClavaDDPMClusteringConfig, ClavaDDPMDiffusionConfig
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.common.variables import DEVICE
@@ -33,13 +33,13 @@ from midst_toolkit.models.clavaddpm.train import clava_training
 from tests.integration.utils import is_running_on_ci_environment
 
 
-CLUSTERING_CONFIG = ClusteringConfig(
+CLUSTERING_CONFIG = ClavaDDPMClusteringConfig(
     parent_scale=1.0,
     num_clusters=3,
     clustering_method=ClusteringMethod.KMEANS_AND_GMM,
 )
 
-DIFFUSION_CONFIG = DiffusionConfig(
+DIFFUSION_CONFIG = ClavaDDPMDiffusionConfig(
     d_layers=[512, 1024, 1024, 1024, 1024, 512],
     dropout=0.0,
     num_timesteps=100,
@@ -53,7 +53,7 @@ DIFFUSION_CONFIG = DiffusionConfig(
     data_split_ratios=[0.99, 0.005, 0.005],
 )
 
-CLASSIFIER_CONFIG = ClassifierConfig(
+CLASSIFIER_CONFIG = ClavaDDPMClassifierConfig(
     d_layers=[128, 256, 512, 1024, 512, 256, 128],
     lr=0.0001,
     dim_t=128,
