@@ -1,6 +1,5 @@
 import json
 import os
-from dataclasses import dataclass
 from logging import INFO
 from pathlib import Path
 from typing import Type

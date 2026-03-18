@@ -7,13 +7,15 @@ from logging import INFO
 from pathlib import Path
 
 import hydra
+import json
 from omegaconf import DictConfig
 
 import examples.ensemble_attack.run_metaclassifier_training as meta_pipeline
 import examples.ensemble_attack.run_shadow_model_training as shadow_pipeline
 from examples.ensemble_attack.real_data_collection import COLLECTED_DATA_FILE_NAME, collect_population_data_ensemble
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
-from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
+from midst_toolkit.attacks.ensemble.model import EnsembleAttackTabDDPMModelRunner, EnsembleAttackTabDDPMTrainingConfig
+from midst_toolkit.attacks.ensemble.process_split_data import process_split_data, PROCESSED_TRAIN_DATA_FILE_NAME
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
 
@@ -79,17 +81,20 @@ def main(config: DictConfig) -> None:
     if config.pipeline.run_shadow_model_training:
         df_master_challenge_train = load_dataframe(
             Path(config.data_paths.processed_attack_data_path),
-            "master_challenge_train.csv",
+            PROCESSED_TRAIN_DATA_FILE_NAME,
         )
 
-        # TODO: add these to the config
-        # configs.fine_tuning_diffusion_iterations = fine_tuning_config.fine_tune_diffusion_iterations
-        # configs.fine_tuning_classifier_iterations = fine_tuning_config.fine_tune_classifier_iterations
+        with open(config.shadow_training.training_json_config_paths.training_config_path, "r") as file:
+            training_config = EnsembleAttackTabDDPMTrainingConfig(**json.load(file))
+        training_config.fine_tuning_diffusion_iterations = config.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations
+        training_config.fine_tuning_classifier_iterations = config.shadow_training.fine_tuning_config.fine_tune_classifier_iterations
 
-        shadow_data_paths = shadow_pipeline.run_shadow_model_training(config, df_master_challenge_train)
+        model_runner = EnsembleAttackTabDDPMModelRunner(training_config=training_config)
+
+        shadow_data_paths = shadow_pipeline.run_shadow_model_training(model_runner, config, df_master_challenge_train)
         shadow_data_paths = [Path(path) for path in shadow_data_paths]
 
-        target_model_synthetic_path = shadow_pipeline.run_target_model_training(config)
+        target_model_synthetic_path = shadow_pipeline.run_target_model_training(model_runner, config)
 
     if config.pipeline.run_metaclassifier_training:
         if not config.pipeline.run_shadow_model_training:

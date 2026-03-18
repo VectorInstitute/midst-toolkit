@@ -127,7 +127,7 @@ class EnsembleAttackTabDDPMModelRunner(EnsembleAttackModelRunner):
 
         if trained_model is None:
             # Train models
-            models = clava_training(
+            tables, models = clava_training(
                 tables,
                 relation_order,
                 save_dir,
@@ -193,7 +193,6 @@ class EnsembleAttackCTGANTrainingConfig(CTGANTrainingConfig, EnsembleAttackTrain
 
 
 class CTGANTrainingResult(EnsembleAttackTrainingResult):
-    save_dir: Path
     configs: EnsembleAttackCTGANTrainingConfig
     models: dict[Relation, CTGANModelArtifacts]
 

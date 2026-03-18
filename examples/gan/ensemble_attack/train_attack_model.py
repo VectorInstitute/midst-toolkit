@@ -3,15 +3,15 @@ from logging import INFO
 from pathlib import Path
 
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from examples.ensemble_attack.run_metaclassifier_training import run_metaclassifier_training
 from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training, run_target_model_training
 from examples.gan.utils import get_single_table_svd_metadata, get_table_name
+from examples.gan.ensemble_attack.utils import make_training_config
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
-from midst_toolkit.attacks.ensemble.model import EnsembleAttackCTGANModelRunner, EnsembleAttackCTGANTrainingConfig
-from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
-from midst_toolkit.attacks.ensemble.shadow_model_utils import save_additional_training_config
+from midst_toolkit.attacks.ensemble.model import EnsembleAttackCTGANModelRunner
+from midst_toolkit.attacks.ensemble.process_split_data import process_split_data, PROCESSED_TRAIN_DATA_FILE_NAME
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
 
@@ -58,28 +58,11 @@ def train_attack_model(config: DictConfig) -> None:
             random_seed=config.ensemble_attack.random_seed,
         )
 
-    # Saving the model config from the config.yaml into a json file
-    # because that's what the ensemble attack code will be looking for
-    training_config_path = Path(config.ensemble_attack.shadow_training.training_json_config_paths.training_config_path)
-    training_config_path.unlink(missing_ok=True)
-    with open(training_config_path, "w") as f:
-        training_config = OmegaConf.to_container(config.ensemble_attack.shadow_training.model_config)
-        assert isinstance(training_config, dict), "Training config must be a dictionary."
-        training_config["general"] = {
-            "test_data_dir": config.base_data_dir,
-            "sample_prefix": "ctgan",
-            # The values below will be overriden
-            "exp_name": "",
-            "data_dir": "",
-            "workspace_dir": "",
-        }
-        json.dump(training_config, f)
-
     if config.ensemble_attack.pipeline.run_shadow_model_training:
         log(INFO, "Training the shadow models...")
         master_challenge_train = load_dataframe(
             Path(config.ensemble_attack.data_paths.population_path),
-            "master_challenge_train.csv",
+            PROCESSED_TRAIN_DATA_FILE_NAME,
         )
 
         table_name = get_table_name(config.base_data_dir)
@@ -87,15 +70,9 @@ def train_attack_model(config: DictConfig) -> None:
         with open(domain_file_path, "r") as file:
             domain_dictionary = json.load(file)
 
-        training_config, _ = save_additional_training_config(
-            training_config_type=EnsembleAttackCTGANTrainingConfig,
-            data_dir=Path(config.base_data_dir),
-            training_config_json_path=training_config_path,
-            final_config_json_path=Path(config.base_data_dir) / f"{table_name}.json",  # Path to the new json
-            experiment_name="pre_trained_model",
-        )
-
         metadata, _ = get_single_table_svd_metadata(master_challenge_train, domain_dictionary)
+
+        training_config = make_training_config(config)
         training_config.metadata = metadata
         training_config.table_name = table_name
 

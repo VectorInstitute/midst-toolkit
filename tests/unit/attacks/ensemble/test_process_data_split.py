@@ -5,7 +5,13 @@ from hydra import compose, initialize
 from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
-from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
+from midst_toolkit.attacks.ensemble.process_split_data import (
+    process_split_data,
+    PROCESSED_TRAIN_DATA_FILE_NAME,
+    PROCESSED_TEST_DATA_FILE_NAME,
+    PROCESSED_TRAIN_LABELS_FILE_NAME,
+    PROCESSED_TEST_LABELS_FILE_NAME,
+)
 
 
 @pytest.fixture(scope="module")
@@ -38,10 +44,10 @@ def test_process_split_data(cfg: DictConfig, tmp_path: Path) -> None:
     assert (output_dir / "real_test.csv").exists()
 
     # Assert that the master challenge data files are saved in the provided path
-    assert (output_dir / "master_challenge_train.csv").exists()
-    assert (output_dir / "master_challenge_train_labels.npy").exists()
-    assert (output_dir / "master_challenge_test.csv").exists()
-    assert (output_dir / "master_challenge_test_labels.npy").exists()
+    assert (output_dir / PROCESSED_TRAIN_DATA_FILE_NAME).exists()
+    assert (output_dir / PROCESSED_TRAIN_LABELS_FILE_NAME).exists()
+    assert (output_dir / PROCESSED_TEST_DATA_FILE_NAME).exists()
+    assert (output_dir / PROCESSED_TEST_LABELS_FILE_NAME).exists()
 
     # Assert that the collected data has the expected number of rows and columns
     real_train = load_dataframe(output_dir, "real_train.csv")
@@ -57,11 +63,11 @@ def test_process_split_data(cfg: DictConfig, tmp_path: Path) -> None:
     # Recall that `master_challenge_train`` consists of two halves: one half (20 samples) from `real_val`` data
     # with their "is_train" column set to 0, and the other half (20 samples) from the real train data (`real_train``)
     # with their "is_train" column set to 1. Note that ["is_train"] column is dropped in the final dataframes.
-    master_challenge_train = load_dataframe(output_dir, "master_challenge_train.csv")
+    master_challenge_train = load_dataframe(output_dir, PROCESSED_TRAIN_DATA_FILE_NAME)
     assert master_challenge_train.shape == (40, 10), f" Shape is {master_challenge_train.shape}"
 
     # Recall that `master_challenge_test`` consists of two halves: one half (20 samples) from `real_test`` data
     # with their "is_train" column set to 0, and the other half (20 samples) from the real train data (`real_train``)
     # with their "is_train" column set to 1. Note that ["is_train"] column is dropped in the final dataframes.
-    master_challenge_test = load_dataframe(output_dir, "master_challenge_test.csv")
+    master_challenge_test = load_dataframe(output_dir, PROCESSED_TEST_DATA_FILE_NAME)
     assert master_challenge_test.shape == (40, 10), f" Shape is {master_challenge_test.shape}"

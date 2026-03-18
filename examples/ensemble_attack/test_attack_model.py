@@ -24,6 +24,7 @@ from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
 from midst_toolkit.models.clavaddpm.train import get_df_without_id
+from midst_toolkit.attacks.ensemble.process_split_data import PROCESSED_TRAIN_DATA_FILE_NAME
 
 
 class RmiaTrainingDataChoice(Enum):
@@ -198,7 +199,7 @@ def collect_challenge_and_train_data(
     # Load master challenge train data
     df_master_train = load_dataframe(
         processed_attack_data_path,
-        "master_challenge_train.csv",
+        PROCESSED_TRAIN_DATA_FILE_NAME,
     )
     log(
         INFO,
@@ -279,7 +280,7 @@ def train_rmia_shadows_for_test_phase(config: DictConfig) -> list[dict[str, list
         )
         df_master_train = load_dataframe(
             processed_attack_data_path,
-            "master_challenge_train.csv",
+            PROCESSED_TRAIN_DATA_FILE_NAME,
         )
     else:
         # If challenge data does not exist, collect it from the cluster
