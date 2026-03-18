@@ -3,12 +3,10 @@ Module containing the base classes and implementations for the Ensemble Attack m
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from logging import INFO
 import copy
-import json
 
 import pandas as pd
 from pydantic import BaseModel, ConfigDict
@@ -25,8 +23,6 @@ from midst_toolkit.models.clavaddpm.synthesizer import clava_synthesizing
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.common.logger import log
 from midst_toolkit.attacks.ensemble.clavaddpm_fine_tuning import clava_fine_tuning
-
-
 
 
 # Base Classes
@@ -195,12 +191,11 @@ class EnsembleAttackCTGANTrainingConfig(CTGANTrainingConfig, EnsembleAttackTrain
     metadata: SingleTableMetadata = None
     table_name: str = None
 
+
 class CTGANTrainingResult(EnsembleAttackTrainingResult):
+    save_dir: Path
     configs: EnsembleAttackCTGANTrainingConfig
     models: dict[Relation, CTGANModelArtifacts]
-    tables: Tables
-    relation_order: RelationOrder
-    all_group_lengths_probabilities: GroupLengthsProbDicts
 
 
 class EnsembleAttackCTGANModelRunner(EnsembleAttackModelRunner):

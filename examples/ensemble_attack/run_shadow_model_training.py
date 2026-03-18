@@ -1,15 +1,14 @@
 import shutil
 from logging import INFO
 from pathlib import Path
-from typing import cast
 
 import pandas as pd
 from omegaconf import DictConfig
 
 from examples.ensemble_attack.real_data_collection import COLLECTED_DATA_FILE_NAME
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
-from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import train_three_sets_of_shadow_models
 from midst_toolkit.attacks.ensemble.model import EnsembleAttackModelRunner
+from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import train_three_sets_of_shadow_models
 from midst_toolkit.common.logger import log
 
 
@@ -70,7 +69,9 @@ def run_target_model_training(model_runner: EnsembleAttackModelRunner, config: D
     return target_model_synthetic_path
 
 
-def run_shadow_model_training(model_runner: EnsembleAttackModelRunner, config: DictConfig, df_challenge_train: pd.DataFrame) -> list[Path]:
+def run_shadow_model_training(
+    model_runner: EnsembleAttackModelRunner, config: DictConfig, df_challenge_train: pd.DataFrame
+) -> list[Path]:
     """
     Function to run the shadow model training for RMIA attack.
 

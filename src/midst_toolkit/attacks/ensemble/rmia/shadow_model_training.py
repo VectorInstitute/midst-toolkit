@@ -114,7 +114,9 @@ def train_fine_tuned_shadow_models(
     if not initial_model_path.exists():
         log(INFO, f"Training initial model with runner {model_runner}. Model ID {init_model_id}...")
 
-        initial_model_training_results = model_runner.train_or_fine_tune_and_synthesize(dataset=train, synthesize=False)
+        initial_model_training_results = model_runner.train_or_fine_tune_and_synthesize(
+            dataset=train, synthesize=False
+        )
 
         # Save the initial model
         # Pickle dump the results
@@ -159,7 +161,6 @@ def train_fine_tuned_shadow_models(
 
         train_result = model_runner.train_or_fine_tune_and_synthesize(
             dataset=selected_challenges,
-            save_dir=save_dir,
             synthesize=True,
             trained_model=initial_model_training_results,
         )

@@ -5,17 +5,8 @@ from logging import INFO
 from pathlib import Path
 from typing import Type
 
-from midst_toolkit.attacks.ensemble.model import EnsembleAttackTrainingResult
-from midst_toolkit.common.config import CTGANTrainingConfig, TrainingConfig
+from midst_toolkit.common.config import TrainingConfig
 from midst_toolkit.common.logger import log
-from midst_toolkit.models.clavaddpm.enumerations import Relation
-from midst_toolkit.models.clavaddpm.train import CTGANModelArtifacts
-
-
-@dataclass
-class CTGANTrainingResult(EnsembleAttackTrainingResult):
-    configs: CTGANTrainingConfig
-    models: dict[Relation, CTGANModelArtifacts]
 
 
 def save_additional_training_config(

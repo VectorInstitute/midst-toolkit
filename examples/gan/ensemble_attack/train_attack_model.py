@@ -105,7 +105,7 @@ def train_attack_model(config: DictConfig) -> None:
         shadow_data_paths = [Path(path) for path in shadow_data_paths]
 
         log(INFO, "Training the target model...")
-        target_model_synthetic_path = run_target_model_training(config.ensemble_attack)
+        target_model_synthetic_path = run_target_model_training(model_runner, config.ensemble_attack)
 
     if config.ensemble_attack.pipeline.run_metaclassifier_training:
         log(INFO, "Training the metaclassifier...")
