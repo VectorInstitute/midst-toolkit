@@ -9,7 +9,7 @@ import pandas as pd
 from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.models import EnsembleAttackModelRunner
-from midst_toolkit.attacks.ensemble.shadow_model_utils import save_additional_training_config
+from midst_toolkit.attacks.ensemble.shadow_model_utils import update_and_save_training_config
 from midst_toolkit.common.logger import log
 
 
@@ -110,22 +110,20 @@ def train_fine_tuned_shadow_models(
     )
 
     # Train initial model with 60K data without any challenge points
-    # ``save_additional_training_config`` makes a personalized copy of the training config for each
+    # ``update_and_save_training_config`` makes a personalized copy of the training config for each
     # training model (here the base model).
     # All the shadow models will be saved under the base model data directory.
-    configs, save_dir = save_additional_training_config(
-        config_type=model_runner.training_config.__class__,
+    configs = update_and_save_training_config(
+        config=model_runner.training_config,
         data_dir=shadow_model_data_folder,
-        training_config_json_path=Path(training_json_config_paths.training_config_path),
         final_config_json_path=shadow_model_data_folder / f"{table_name}.json",  # Path to the new json
         experiment_name="pre_trained_model",
     )
-    model_runner.training_config.general.data_dir = configs.general.data_dir
-    model_runner.training_config.general.workspace_dir = configs.general.workspace_dir
-    model_runner.training_config.general.exp_name = configs.general.exp_name
+    model_runner.training_config = configs
 
     # Train the initial model if it is not already trained and saved.
-    initial_model_path = save_dir / f"initial_model_rmia_{init_model_id}.pkl"
+    assert model_runner.training_config.save_dir is not None, "Save dir is not set"
+    initial_model_path = model_runner.training_config.save_dir / f"initial_model_rmia_{init_model_id}.pkl"
     if not initial_model_path.exists():
         log(INFO, f"Training initial model with runner {model_runner}. Model ID {init_model_id}...")
 
@@ -189,7 +187,7 @@ def train_fine_tuned_shadow_models(
         attack_data["fine_tuned_results"].append(train_result.synthetic_data)
 
     # Pickle dump the results
-    result_path = Path(save_dir / "rmia_shadows.pkl")
+    result_path = model_runner.training_config.save_dir / "rmia_shadows.pkl"
     with open(result_path, "wb") as file:
         pickle.dump(attack_data, file)
 
@@ -262,16 +260,13 @@ def train_shadow_on_half_challenge_data(
         shadow_folder / "dataset_meta.json",
     )
 
-    configs, save_dir = save_additional_training_config(
-        config_type=model_runner.training_config.__class__,
+    configs = update_and_save_training_config(
+        config=model_runner.training_config,
         data_dir=shadow_folder,
-        training_config_json_path=Path(training_json_config_paths.training_config_path),
         final_config_json_path=shadow_folder / f"{table_name}.json",  # Path to the new json
         experiment_name="trained_model",
     )
-    model_runner.training_config.general.data_dir = configs.general.data_dir
-    model_runner.training_config.general.workspace_dir = configs.general.workspace_dir
-    model_runner.training_config.general.exp_name = configs.general.exp_name
+    model_runner.training_config = configs
 
     attack_data: dict[str, Any] = {
         "selected_sets": selected_id_lists,
@@ -302,7 +297,8 @@ def train_shadow_on_half_challenge_data(
         attack_data["trained_results"].append(train_result.synthetic_data)
 
     # Pickle dump the results
-    result_path = Path(save_dir, "rmia_shadows_third_set.pkl")
+    assert model_runner.training_config.save_dir is not None, "Save dir is not set"
+    result_path = model_runner.training_config.save_dir / "rmia_shadows_third_set.pkl"
     with open(result_path, "wb") as file:
         pickle.dump(attack_data, file)
 

@@ -11,7 +11,7 @@ from examples.ensemble_attack.real_data_collection import (
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.models import EnsembleAttackModelRunner
 from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import train_three_sets_of_shadow_models
-from midst_toolkit.attacks.ensemble.shadow_model_utils import save_additional_training_config
+from midst_toolkit.attacks.ensemble.shadow_model_utils import update_and_save_training_config
 from midst_toolkit.common.logger import log
 
 
@@ -58,16 +58,13 @@ def run_target_model_training(model_runner: EnsembleAttackModelRunner, config: D
         target_folder / "dataset_meta.json",
     )
 
-    configs, _ = save_additional_training_config(
-        config_type=model_runner.training_config.__class__,
+    configs = update_and_save_training_config(
+        config=model_runner.training_config,
         data_dir=target_folder,
-        training_config_json_path=Path(target_training_json_config_paths.training_config_path),
         final_config_json_path=target_folder / f"{table_name}.json",  # Path to the new json
         experiment_name="trained_target_model",
     )
-    model_runner.training_config.general.data_dir = configs.general.data_dir
-    model_runner.training_config.general.workspace_dir = configs.general.workspace_dir
-    model_runner.training_config.general.exp_name = configs.general.exp_name
+    model_runner.training_config = configs
 
     train_result = model_runner.train_or_fine_tune_and_synthesize(dataset=df_real_data, synthesize=True)
 

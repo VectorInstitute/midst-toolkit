@@ -15,7 +15,7 @@ from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
     train_fine_tuned_shadow_models,
     train_shadow_on_half_challenge_data,
 )
-from midst_toolkit.attacks.ensemble.shadow_model_utils import save_additional_training_config
+from midst_toolkit.attacks.ensemble.shadow_model_utils import update_and_save_training_config
 
 
 POPULATION_DATA = load_dataframe(
@@ -153,10 +153,12 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
         cfg.shadow_training.training_json_config_paths.dataset_meta_file_path,
         tmp_training_dir / "dataset_meta.json",
     )
-    configs, _ = save_additional_training_config(
-        config_type=EnsembleAttackTabDDPMTrainingConfig,
+    with open(training_config_path, "r") as file:
+        configs = EnsembleAttackTabDDPMTrainingConfig(**json.load(file))
+
+    configs = update_and_save_training_config(
+        config=configs,
         data_dir=tmp_training_dir,
-        training_config_json_path=training_config_path,
         final_config_json_path=tmp_training_dir / "trans.json",
         experiment_name="test_experiment",
         workspace_name="test_workspace",

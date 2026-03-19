@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sdv.metadata import SingleTableMetadata  # type: ignore[import-untyped]
 from sdv.single_table import CTGANSynthesizer  # type: ignore[import-untyped]
 
@@ -24,6 +24,7 @@ from midst_toolkit.models.clavaddpm.train import ClavaDDPMModelArtifacts, CTGANM
 
 # Base Classes
 class EnsembleAttackTrainingConfig(TrainingConfig):
+    save_dir: Path | None = None
     number_of_points_to_synthesize: int = 20000
 
 
@@ -112,16 +113,16 @@ class EnsembleAttackTabDDPMModelRunner(EnsembleAttackModelRunner):
                 - synthetic_data: The synthesized data as a pandas DataFrame, if synthesis was performed,
                 otherwise, None.
         """
+        assert self.training_config.save_dir is not None, "Save dir is not set"
+
         # Load tables
         tables, relation_order, _ = load_tables(self.training_config.general.data_dir, train_data={"trans": dataset})
-
-        save_dir = self.training_config.general.workspace_dir / self.training_config.general.exp_name
 
         # Clustering on the multi-table dataset
         tables, all_group_lengths_prob_dicts = clava_clustering(
             tables,
             relation_order,
-            save_dir,
+            self.training_config.save_dir,
             self.training_config.clustering,
         )
 
@@ -130,7 +131,7 @@ class EnsembleAttackTabDDPMModelRunner(EnsembleAttackModelRunner):
             tables, models = clava_training(
                 tables,
                 relation_order,
-                save_dir,
+                self.training_config.save_dir,
                 diffusion_config=self.training_config.diffusion,
                 classifier_config=self.training_config.classifier,
                 device=DEVICE,
@@ -150,7 +151,7 @@ class EnsembleAttackTabDDPMModelRunner(EnsembleAttackModelRunner):
             )
 
         result = TabDDPMTrainingResult(
-            save_dir=save_dir,
+            save_dir=self.training_config.save_dir,
             configs=self.training_config,
             tables=tables,
             relation_order=relation_order,
@@ -170,7 +171,7 @@ class EnsembleAttackTabDDPMModelRunner(EnsembleAttackModelRunner):
             cleaned_tables, _, _ = clava_synthesizing(
                 tables,
                 relation_order,
-                save_dir,
+                self.training_config.save_dir,
                 models,
                 self.training_config.general,
                 self.training_config.sampling,
@@ -188,7 +189,7 @@ class EnsembleAttackTabDDPMModelRunner(EnsembleAttackModelRunner):
 class EnsembleAttackCTGANTrainingConfig(CTGANTrainingConfig, EnsembleAttackTrainingConfig):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    metadata: SingleTableMetadata | None = None
+    metadata: SingleTableMetadata | None = Field(default=None, exclude=True)
     table_name: str | None = None
 
 
@@ -226,6 +227,7 @@ class EnsembleAttackCTGANModelRunner(EnsembleAttackModelRunner):
                 - synthetic_data: The synthesized data as a pandas DataFrame, if synthesis was performed,
                 otherwise, None.
         """
+        assert self.training_config.save_dir is not None, "Save dir is not set"
         assert self.training_config.metadata is not None, "Metadata is not set"
         assert self.training_config.table_name is not None, "Table name is not set"
 
@@ -248,14 +250,13 @@ class EnsembleAttackCTGANModelRunner(EnsembleAttackModelRunner):
 
         ctgan.fit(dataset_without_ids)
 
-        save_dir = self.training_config.general.workspace_dir / self.training_config.general.exp_name
-        results_file = Path(save_dir) / model_name
+        results_file = self.training_config.save_dir / model_name
         results_file.parent.mkdir(parents=True, exist_ok=True)
 
         ctgan.save(results_file)
 
         result = CTGANTrainingResult(
-            save_dir=save_dir,
+            save_dir=self.training_config.save_dir,
             configs=self.training_config,
             models={
                 (None, self.training_config.table_name): CTGANModelArtifacts(model=ctgan, model_file_path=results_file)

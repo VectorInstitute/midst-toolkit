@@ -8,49 +8,43 @@ from midst_toolkit.common.config import TrainingConfig
 from midst_toolkit.common.logger import log
 
 
-def save_additional_training_config(
-    config_type: type[EnsembleAttackTrainingConfig],
+def update_and_save_training_config(
+    config: EnsembleAttackTrainingConfig,
     data_dir: Path,
-    training_config_json_path: Path,
     final_config_json_path: Path,
     experiment_name: str = "attack_experiment",
     workspace_name: str = "shadow_workspace",
-) -> tuple[EnsembleAttackTrainingConfig, Path]:
+) -> EnsembleAttackTrainingConfig:
     """
-    Modifies a TabDDPM configuration JSON file with the specified data directory, experiment name and workspace name,
-    and loads the resulting configuration.
+    Modifies a model configuration with the specified data directory, experiment name and workspace name,
+    and saves it to a JSON file.
 
     Args:
-        config_type: Type of the training configuration to load.
+        config: The training configuration to update.
         data_dir: Directory containing dataset_meta.json, trans_domain.json, and trans.json files.
-        training_config_json_path: Path to the original TabDDPM training configuration JSON file.
         final_config_json_path: Path where the modified configuration JSON file will be saved.
         experiment_name: Name of the experiment, used to create a unique save directory.
         workspace_name: Name of the workspace, used to create a unique save directory.
 
     Returns:
-            configs: Loaded configuration dictionary for the given config type.
-            save_dir: Directory path where results will be saved.
+        EnsembleAttackTrainingConfig: The updated training configuration.
     """
-    # Modify the config file to give the correct training data and saving directory
-    with open(training_config_json_path, "r") as file:
-        configs = config_type(**json.load(file))
-
-    configs.general.data_dir = data_dir
+    # Modify the config to have the correct training data and saving directory
+    config.general.data_dir = data_dir
     # Save dir is set by joining the workspace_dir and exp_name
-    configs.general.workspace_dir = data_dir / workspace_name
-    configs.general.exp_name = experiment_name
+    config.general.workspace_dir = data_dir / workspace_name
+    config.general.exp_name = experiment_name
 
     # save the changed to the new json file
     with open(final_config_json_path, "w") as file:
-        json.dump(configs.model_dump(mode="json"), file, indent=4)
+        json.dump(config.model_dump(mode="json"), file, indent=4)
 
     log(INFO, f"Config saved to {final_config_json_path}")
 
     # Set up the config
-    save_dir = setup_save_dir(configs)
+    config.save_dir = setup_save_dir(config)
 
-    return configs, save_dir
+    return config
 
 
 # TODO: The following function is directly copied from the midst reference code since
