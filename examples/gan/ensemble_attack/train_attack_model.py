@@ -7,11 +7,11 @@ from omegaconf import DictConfig
 
 from examples.ensemble_attack.run_metaclassifier_training import run_metaclassifier_training
 from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training, run_target_model_training
-from examples.gan.utils import get_single_table_svd_metadata, get_table_name
+from examples.gan.ensemble_attack.utils import get_master_challenge_train_data
 from examples.gan.ensemble_attack.utils import make_training_config
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
 from midst_toolkit.attacks.ensemble.model import EnsembleAttackCTGANModelRunner
-from midst_toolkit.attacks.ensemble.process_split_data import process_split_data, PROCESSED_TRAIN_DATA_FILE_NAME
+from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
 
@@ -60,24 +60,11 @@ def train_attack_model(config: DictConfig) -> None:
 
     if config.ensemble_attack.pipeline.run_shadow_model_training:
         log(INFO, "Training the shadow models...")
-        master_challenge_train = load_dataframe(
-            Path(config.ensemble_attack.data_paths.population_path),
-            PROCESSED_TRAIN_DATA_FILE_NAME,
-        )
-
-        table_name = get_table_name(config.base_data_dir)
-        domain_file_path = Path(config.base_data_dir) / f"{table_name}_domain.json"
-        with open(domain_file_path, "r") as file:
-            domain_dictionary = json.load(file)
-
-        metadata, _ = get_single_table_svd_metadata(master_challenge_train, domain_dictionary)
-
+        
         training_config = make_training_config(config)
-        training_config.metadata = metadata
-        training_config.table_name = table_name
-
         model_runner = EnsembleAttackCTGANModelRunner(training_config=training_config)
 
+        master_challenge_train = get_master_challenge_train_data(config)
         shadow_data_paths = run_shadow_model_training(model_runner, config.ensemble_attack, master_challenge_train)
         shadow_data_paths = [Path(path) for path in shadow_data_paths]
 

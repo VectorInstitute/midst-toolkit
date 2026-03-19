@@ -21,6 +21,11 @@ from examples.ensemble_attack.real_data_collection import (
 from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
+from midst_toolkit.attacks.ensemble.model import (
+    EnsembleAttackModelRunner,
+    EnsembleAttackTabDDPMModelRunner,
+    EnsembleAttackTabDDPMTrainingConfig,
+)
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
 from midst_toolkit.models.clavaddpm.train import get_df_without_id
@@ -88,7 +93,11 @@ def extract_primary_id_column(
     return data_frame[id_column_name]
 
 
-def run_rmia_shadow_training(config: DictConfig, df_challenge: pd.DataFrame) -> list[dict[str, list[Any]]]:
+def run_rmia_shadow_training(
+    model_runner: EnsembleAttackModelRunner,
+    config: DictConfig,
+    df_challenge: pd.DataFrame,
+) -> list[dict[str, list[Any]]]:
     """
     Three sets of shadow models will be trained as a part of this attack.
     Note that shadow models need to be trained on the collection of challenge points once and used
@@ -97,14 +106,16 @@ def run_rmia_shadow_training(config: DictConfig, df_challenge: pd.DataFrame) -> 
     of the shadow models, and these shadow models are used to attack all target models.
 
     Args:
-        config: Configuration object set in ``experiments_config.yaml``.
+        model_runner: The model runner to be used for training the shadow models.
+            Should be an instance of `EnsembleAttackModelRunner`.
+        config: Configuration object set in config.yaml.
         df_challenge: DataFrame containing the challenge data points for shadow model training.
 
     Return:
         A list containing three dictionaries, each representing a collection of shadow
             models with their training data and generated synthetic outputs.
     """
-    shadow_model_paths = run_shadow_model_training(config, df_challenge_train=df_challenge)
+    shadow_model_paths = run_shadow_model_training(model_runner, config, df_challenge_train=df_challenge)
 
     assert len(shadow_model_paths) == 3, "For testing, meta classifier needs the path to three sets of shadow models."
 
@@ -255,7 +266,10 @@ def select_challenge_data_for_training(
     return df_challenge
 
 
-def train_rmia_shadows_for_test_phase(config: DictConfig) -> list[dict[str, list[Any]]]:
+def train_rmia_shadows_for_test_phase(
+    model_runner: EnsembleAttackModelRunner,
+    config: DictConfig,
+) -> list[dict[str, list[Any]]]:
     """
     Function to train RMIA shadow models for the testing phase using the dataset containing
     challenge data points.
@@ -293,15 +307,10 @@ def train_rmia_shadows_for_test_phase(config: DictConfig) -> list[dict[str, list
     # Load the challenge dataframe for training RMIA shadow models.
     rmia_training_choice = RmiaTrainingDataChoice(config.target_model.attack_rmia_shadow_training_data_choice)
     df_challenge = select_challenge_data_for_training(rmia_training_choice, df_challenge_experiment, df_master_train)
-    return run_rmia_shadow_training(config, df_challenge=df_challenge)
+    return run_rmia_shadow_training(model_runner, config, df_challenge=df_challenge)
 
 
-# TODO: Perform inference on all the target models sequentially in a single run instead of running this script
-# multiple times. For more information, refer to https://app.clickup.com/t/868h4xk86
-@hydra.main(config_path="configs", config_name="experiment_config", version_base=None)
-def run_metaclassifier_testing(
-    config: DictConfig,
-) -> None:
+def run_metaclassifier_testing(model_runner: EnsembleAttackModelRunner, config: DictConfig) -> None:
     """
     Function to run the attack on a single target model using a trained metaclassifier.
     Note that RMIA shadow models need to be trained for every new set of target models on
@@ -314,6 +323,8 @@ def run_metaclassifier_testing(
     Test prediction probabilities are saved to the specified attack result path in the config.
 
     Args:
+        model_runner: The model runner to be used for testing the metaclassifier.
+            Should be an instance of `EnsembleAttackModelRunner`.
         config: Configuration object set in ``experiments_config.yaml``.
     """
     log(
@@ -383,7 +394,7 @@ def run_metaclassifier_testing(
 
     if not models_exists:
         log(INFO, "Shadow models for testing phase do not exist. Training RMIA shadow models...")
-        shadow_data_collection = train_rmia_shadows_for_test_phase(config)
+        shadow_data_collection = train_rmia_shadows_for_test_phase(model_runner, config)
 
     else:
         log(INFO, "All shadow models for testing phase found. Using existing RMIA shadow models...")
@@ -428,5 +439,28 @@ def run_metaclassifier_testing(
     save_results(attack_results_path, metaclassifier_model_name, probabilities, pred_score)
 
 
+# TODO: Perform inference on all the target models sequentially in a single run instead of running this script
+# multiple times. For more information, refer to https://app.clickup.com/t/868h4xk86
+@hydra.main(config_path="configs", config_name="experiment_config", version_base=None)
+def run_metaclassifier_testing_with_tabddpm(config: DictConfig) -> None:
+    """
+    Run the attack on a single target model using a trained metaclassifier.
+    RMIA shadow models will be trained using the TabDDPM model.
+
+    Args:
+        config: Configuration object set in config.yaml.
+    """
+    log(INFO, "Running metaclassifier testing with TabDDPM...")
+
+    with open(config.shadow_training.training_json_config_paths.training_config_path, "r") as file:
+        training_config = EnsembleAttackTabDDPMTrainingConfig(**json.load(file))
+    training_config.fine_tuning_diffusion_iterations = config.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations
+    training_config.fine_tuning_classifier_iterations = config.shadow_training.fine_tuning_config.fine_tune_classifier_iterations
+
+    model_runner = EnsembleAttackTabDDPMModelRunner(training_config=training_config)
+
+    run_metaclassifier_testing(model_runner, config)
+
+
 if __name__ == "__main__":
-    run_metaclassifier_testing()
+    run_metaclassifier_testing_with_tabddpm()

@@ -200,8 +200,8 @@ def train_shadow_on_half_challenge_data(
     3. A synthetic dataset of 20K observations is generated for each model.
 
     Args:
-        model_runner: The model runner to be used for training the shadow models. Should be an instance of
-            a subclass of `EnsembleAttackModelRunner`.
+        model_runner: The model runner to be used for training the shadow models.
+            Should be an instance of `EnsembleAttackModelRunner`.
         n_models: number of shadow models to train, must be even.
         n_reps: number of repetitions for each challenge point in the fine-tuning set.
         master_challenge_data: The master challenge training dataset.
@@ -321,8 +321,8 @@ def train_three_sets_of_shadow_models(
 
 
     Args:
-        model_runner: The model runner to be used for training the shadow models. Should be an instance of
-            a subclass of `EnsembleAttackModelRunner`.
+        model_runner: The model runner to be used for training the shadow models.
+            Should be an instance of `EnsembleAttackModelRunner`.
         population_data: The total population data used for pre-training some of the shadow models.
         master_challenge_data: The master challenge training dataset.
         shadow_models_output_path: Path where the all datasets and information (configs) necessary to

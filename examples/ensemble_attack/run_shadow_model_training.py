@@ -70,14 +70,16 @@ def run_target_model_training(model_runner: EnsembleAttackModelRunner, config: D
 
 
 def run_shadow_model_training(
-    model_runner: EnsembleAttackModelRunner, config: DictConfig, df_challenge_train: pd.DataFrame
+    model_runner: EnsembleAttackModelRunner,
+    config: DictConfig,
+    df_challenge_train: pd.DataFrame,
 ) -> list[Path]:
     """
     Function to run the shadow model training for RMIA attack.
 
     Args:
-        model_runner: The model runner to be used for training the shadow models. Should be an instance of
-            a subclass of `EnsembleAttackModelRunner`.
+        model_runner: The model runner to be used for training the shadow models.
+            Should be an instance of `EnsembleAttackModelRunner`.
         config: Configuration object set in config.yaml.
         df_challenge_train: DataFrame containing the data that is used to train RMIA shadow models.
 
