@@ -10,7 +10,7 @@ from hydra import compose, initialize
 from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
-from midst_toolkit.attacks.ensemble.model import EnsembleAttackTabDDPMModelRunner, EnsembleAttackTabDDPMTrainingConfig
+from midst_toolkit.attacks.ensemble.models import EnsembleAttackTabDDPMModelRunner, EnsembleAttackTabDDPMTrainingConfig
 from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
     train_fine_tuned_shadow_models,
     train_shadow_on_half_challenge_data,

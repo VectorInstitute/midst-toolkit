@@ -6,7 +6,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from examples.gan.utils import get_single_table_svd_metadata, get_table_name
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
-from midst_toolkit.attacks.ensemble.model import EnsembleAttackCTGANTrainingConfig
+from midst_toolkit.attacks.ensemble.models import EnsembleAttackCTGANTrainingConfig
 from midst_toolkit.attacks.ensemble.process_split_data import PROCESSED_TRAIN_DATA_FILE_NAME
 from midst_toolkit.attacks.ensemble.shadow_model_utils import setup_save_dir
 

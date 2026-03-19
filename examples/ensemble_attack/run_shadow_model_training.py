@@ -5,9 +5,11 @@ from pathlib import Path
 import pandas as pd
 from omegaconf import DictConfig
 
-from examples.ensemble_attack.real_data_collection import COLLECTED_DATA_FILE_NAME
+from examples.ensemble_attack.real_data_collection import (
+    COLLECTED_DATA_FILE_NAME,
+)
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
-from midst_toolkit.attacks.ensemble.model import EnsembleAttackModelRunner
+from midst_toolkit.attacks.ensemble.models import EnsembleAttackModelRunner
 from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import train_three_sets_of_shadow_models
 from midst_toolkit.common.logger import log
 

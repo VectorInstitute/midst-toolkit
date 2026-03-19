@@ -8,7 +8,7 @@ from typing import Any
 import pandas as pd
 from omegaconf import DictConfig
 
-from midst_toolkit.attacks.ensemble.model import EnsembleAttackModelRunner
+from midst_toolkit.attacks.ensemble.models import EnsembleAttackModelRunner
 from midst_toolkit.common.logger import log
 
 

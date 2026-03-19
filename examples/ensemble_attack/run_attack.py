@@ -14,7 +14,7 @@ import examples.ensemble_attack.run_metaclassifier_training as meta_pipeline
 import examples.ensemble_attack.run_shadow_model_training as shadow_pipeline
 from examples.ensemble_attack.real_data_collection import COLLECTED_DATA_FILE_NAME, collect_population_data_ensemble
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
-from midst_toolkit.attacks.ensemble.model import EnsembleAttackTabDDPMModelRunner, EnsembleAttackTabDDPMTrainingConfig
+from midst_toolkit.attacks.ensemble.models import EnsembleAttackTabDDPMModelRunner, EnsembleAttackTabDDPMTrainingConfig
 from midst_toolkit.attacks.ensemble.process_split_data import PROCESSED_TRAIN_DATA_FILE_NAME, process_split_data
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds

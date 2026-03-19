@@ -21,7 +21,7 @@ from examples.ensemble_attack.real_data_collection import (
 from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
-from midst_toolkit.attacks.ensemble.model import (
+from midst_toolkit.attacks.ensemble.models import (
     EnsembleAttackModelRunner,
     EnsembleAttackTabDDPMModelRunner,
     EnsembleAttackTabDDPMTrainingConfig,

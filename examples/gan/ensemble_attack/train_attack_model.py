@@ -8,7 +8,7 @@ from examples.ensemble_attack.run_metaclassifier_training import run_metaclassif
 from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training, run_target_model_training
 from examples.gan.ensemble_attack.utils import get_master_challenge_train_data, make_training_config
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
-from midst_toolkit.attacks.ensemble.model import EnsembleAttackCTGANModelRunner
+from midst_toolkit.attacks.ensemble.models import EnsembleAttackCTGANModelRunner
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds

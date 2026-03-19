@@ -5,7 +5,7 @@ from omegaconf import DictConfig
 
 from examples.ensemble_attack.test_attack_model import run_metaclassifier_testing
 from examples.gan.ensemble_attack.utils import make_training_config
-from midst_toolkit.attacks.ensemble.model import EnsembleAttackCTGANModelRunner
+from midst_toolkit.attacks.ensemble.models import EnsembleAttackCTGANModelRunner
 from midst_toolkit.common.logger import log
 
 
