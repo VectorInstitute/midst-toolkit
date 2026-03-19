@@ -31,7 +31,7 @@ def get_master_challenge_train_data(config: DictConfig) -> pd.DataFrame:
 
 def make_training_config(config: DictConfig) -> EnsembleAttackCTGANTrainingConfig:
     """
-    Make the ensemble attacktraining config for the CTGAN model from the config.yaml file.
+    Make the ensemble attack training config for the CTGAN model from the config.yaml file.
 
     Saves the training config json file to the shadow training json config paths location.
 
