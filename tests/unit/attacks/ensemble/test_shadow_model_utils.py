@@ -5,9 +5,8 @@ import pytest
 from hydra import compose, initialize
 from omegaconf import DictConfig
 
-from midst_toolkit.attacks.ensemble.shadow_model_utils import (
-    save_additional_training_config,
-)
+from midst_toolkit.attacks.ensemble.models import EnsembleAttackTabDDPMTrainingConfig
+from midst_toolkit.attacks.ensemble.shadow_model_utils import save_additional_training_config
 
 
 @pytest.fixture(scope="module")
@@ -34,6 +33,7 @@ def test_save_additional_tabddpm_config(cfg: DictConfig, tmp_path: Path) -> None
     final_json_path = tmp_path / "modified_config.json"
 
     configs, save_dir = save_additional_training_config(
+        config_type=EnsembleAttackTabDDPMTrainingConfig,
         data_dir=new_data_dir,
         training_config_json_path=tabddpm_config_path,
         final_config_json_path=final_json_path,
