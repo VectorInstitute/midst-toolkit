@@ -1,14 +1,14 @@
-from pathlib import Path
 import json
+from pathlib import Path
 
 import pandas as pd
 from omegaconf import DictConfig, OmegaConf
 
-from midst_toolkit.attacks.ensemble.shadow_model_utils import setup_save_dir
-from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
-from midst_toolkit.attacks.ensemble.process_split_data import PROCESSED_TRAIN_DATA_FILE_NAME
-from midst_toolkit.attacks.ensemble.model import EnsembleAttackCTGANTrainingConfig
 from examples.gan.utils import get_single_table_svd_metadata, get_table_name
+from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
+from midst_toolkit.attacks.ensemble.model import EnsembleAttackCTGANTrainingConfig
+from midst_toolkit.attacks.ensemble.process_split_data import PROCESSED_TRAIN_DATA_FILE_NAME
+from midst_toolkit.attacks.ensemble.shadow_model_utils import setup_save_dir
 
 
 def get_master_challenge_train_data(config: DictConfig) -> pd.DataFrame:
@@ -22,7 +22,9 @@ def get_master_challenge_train_data(config: DictConfig) -> pd.DataFrame:
         The dataframe containing the master challenge train data.
     """
     population_path = Path(config.ensemble_attack.data_paths.population_path)
-    assert population_path.exists(), f"Population path {population_path} does not exist. Please run the data processing pipeline first."
+    assert population_path.exists(), (
+        f"Population path {population_path} does not exist. Please run the data processing pipeline first."
+    )
 
     master_challenge_train = load_dataframe(population_path, PROCESSED_TRAIN_DATA_FILE_NAME)
     return master_challenge_train

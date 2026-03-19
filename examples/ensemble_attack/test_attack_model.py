@@ -26,10 +26,10 @@ from midst_toolkit.attacks.ensemble.model import (
     EnsembleAttackTabDDPMModelRunner,
     EnsembleAttackTabDDPMTrainingConfig,
 )
+from midst_toolkit.attacks.ensemble.process_split_data import PROCESSED_TRAIN_DATA_FILE_NAME
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
 from midst_toolkit.models.clavaddpm.train import get_df_without_id
-from midst_toolkit.attacks.ensemble.process_split_data import PROCESSED_TRAIN_DATA_FILE_NAME
 
 
 class RmiaTrainingDataChoice(Enum):
@@ -454,8 +454,12 @@ def run_metaclassifier_testing_with_tabddpm(config: DictConfig) -> None:
 
     with open(config.shadow_training.training_json_config_paths.training_config_path, "r") as file:
         training_config = EnsembleAttackTabDDPMTrainingConfig(**json.load(file))
-    training_config.fine_tuning_diffusion_iterations = config.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations
-    training_config.fine_tuning_classifier_iterations = config.shadow_training.fine_tuning_config.fine_tune_classifier_iterations
+    training_config.fine_tuning_diffusion_iterations = (
+        config.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations
+    )
+    training_config.fine_tuning_classifier_iterations = (
+        config.shadow_training.fine_tuning_config.fine_tune_classifier_iterations
+    )
 
     model_runner = EnsembleAttackTabDDPMModelRunner(training_config=training_config)
 

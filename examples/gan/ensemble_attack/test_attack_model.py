@@ -13,7 +13,7 @@ from midst_toolkit.common.logger import log
 def attack_model_test(config: DictConfig) -> None:
     """
     Main function to test the attack model.
-    
+
     Args:
         config: The configuration object from the config.yaml file.
     """
