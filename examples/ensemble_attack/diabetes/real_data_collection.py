@@ -107,7 +107,7 @@ def collect_midst_attack_data(
 
 # TODO: find a better name for dataset argument in the functions below.
 def collect_midst_data(
-    midst_data_input_dir: Path,
+    dataset_input_dir: Path,
     attack_types: list[AttackType],
     split_folders: list[str],
     dataset: DatasetType,
@@ -139,8 +139,8 @@ def collect_midst_data(
         for split_folder in split_folders:
             df_real = collect_midst_attack_data(
                 attack_type=attack_type,
-                data_dir=midst_data_input_dir,
-                split_folder=split_folder,
+                data_dir=dataset_input_dir,
+                split_folder=split_folder, #train, dev final
                 dataset=dataset,
                 data_processing_config=data_processing_config,
             )
@@ -151,7 +151,7 @@ def collect_midst_data(
 
 
 def collect_population_data_ensemble(
-    midst_data_input_dir: Path,
+    dataset_input_dir: Path,
     data_processing_config: DictConfig,
     save_dir: Path,
     base_population: pd.DataFrame | None = None,
@@ -201,7 +201,7 @@ def collect_population_data_ensemble(
     population_attack_types = [AttackType(attack_name) for attack_name in population_attack_names]
 
     df_population_experiment = collect_midst_data(
-        midst_data_input_dir,
+        dataset_input_dir,
         population_attack_types,
         split_folders=population_splits,
         dataset="train",
@@ -221,7 +221,7 @@ def collect_population_data_ensemble(
         )
 
     # Drop ids.
-    df_population_no_id = df_population.drop(columns=["trans_id", "account_id"])
+    df_population_no_id = df_population.drop(columns=["encounter_id", "patient_id"])
     # Save the population data
     save_dataframe(df_population, save_dir, "population_all.csv")
     save_dataframe(df_population_no_id, save_dir, "population_all_no_id.csv")
@@ -230,7 +230,7 @@ def collect_population_data_ensemble(
     challenge_attack_types = [AttackType(attack_name) for attack_name in challenge_attack_names]
 
     df_challenge = collect_midst_data(
-        midst_data_input_dir,
+        dataset_input_dir,
         attack_types=challenge_attack_types,
         split_folders=challenge_splits,
         dataset="challenge",
@@ -241,10 +241,10 @@ def collect_population_data_ensemble(
     save_dataframe(df_challenge, save_dir, "challenge_points_all.csv")
 
     # Population data without the challenge points
-    df_population_no_challenge = df_population[~df_population["trans_id"].isin(df_challenge["trans_id"])]
+    df_population_no_challenge = df_population[~df_population["encounter_id"].isin(df_challenge["encounter_id"])]
     save_dataframe(df_population_no_challenge, save_dir, "population_all_no_challenge.csv")
     # Remove ids
-    df_population_no_challenge_no_id = df_population_no_challenge.drop(columns=["trans_id", "account_id"])
+    df_population_no_challenge_no_id = df_population_no_challenge.drop(columns=["encounter_id", "patient_id"])
     save_dataframe(
         df_population_no_challenge_no_id,
         save_dir,
@@ -255,7 +255,7 @@ def collect_population_data_ensemble(
     df_population_with_challenge = pd.concat([df_population_no_challenge, df_challenge])
     save_dataframe(df_population_with_challenge, save_dir, "population_all_with_challenge.csv")
     # Remove ids
-    df_population_with_challenge_no_id = df_population_with_challenge.drop(columns=["trans_id", "account_id"])
+    df_population_with_challenge_no_id = df_population_with_challenge.drop(columns=["encounter_id", "patient_id"])
     save_dataframe(
         df_population_with_challenge_no_id,
         save_dir,
