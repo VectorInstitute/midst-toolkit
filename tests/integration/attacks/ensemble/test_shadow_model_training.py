@@ -1,8 +1,8 @@
 import copy
+import json
 import pickle
 import shutil
 from pathlib import Path
-from typing import cast
 
 import pandas as pd
 import pytest
@@ -10,16 +10,12 @@ from hydra import compose, initialize
 from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
+from midst_toolkit.attacks.ensemble.model import EnsembleAttackTabDDPMModelRunner, EnsembleAttackTabDDPMTrainingConfig
 from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
     train_fine_tuned_shadow_models,
     train_shadow_on_half_challenge_data,
 )
-from midst_toolkit.attacks.ensemble.shadow_model_utils import (
-    fine_tune_tabddpm_and_synthesize,
-    save_additional_training_config,
-    train_tabddpm_and_synthesize,
-)
-from midst_toolkit.common.config import ClavaDDPMTrainingConfig
+from midst_toolkit.attacks.ensemble.shadow_model_utils import save_additional_training_config
 
 
 POPULATION_DATA = load_dataframe(
@@ -42,21 +38,30 @@ def test_train_fine_tuned_shadow_models(cfg: DictConfig, tmp_path: Path) -> None
     shadow_models_output_path = tmp_path
     # Input
     # Population data is used to pre-train some of the shadow models.
+    with open(cfg.shadow_training.training_json_config_paths.training_config_path, "r") as file:
+        training_config = EnsembleAttackTabDDPMTrainingConfig(**json.load(file))
+    training_config.fine_tuning_diffusion_iterations = (
+        cfg.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations
+    )
+    training_config.fine_tuning_classifier_iterations = (
+        cfg.shadow_training.fine_tuning_config.fine_tune_classifier_iterations
+    )
+    training_config.number_of_points_to_synthesize = 5
 
+    model_runner = EnsembleAttackTabDDPMModelRunner(training_config)
     result_path = train_fine_tuned_shadow_models(
+        model_runner=model_runner,
         n_models=2,
         n_reps=1,
         population_data=POPULATION_DATA,
         master_challenge_data=POPULATION_DATA[0:20],  # Limiting the data to 20 samples for faster test execution
         shadow_models_output_path=shadow_models_output_path,
         training_json_config_paths=cfg.shadow_training.training_json_config_paths,
-        fine_tuning_config=cfg.shadow_training.fine_tuning_config,
         init_model_id=1,
         init_data_seed=cfg.random_seed,
         table_name="trans",
         id_column_name="trans_id",
         pre_training_data_size=cfg.shadow_training.fine_tuning_config.pre_train_data_size,
-        number_of_points_to_synthesize=5,
         random_seed=cfg.random_seed,
     )
     # Expected saved models and synthesized data:
@@ -87,7 +92,19 @@ def test_train_shadow_on_half_challenge_data(cfg: DictConfig, tmp_path: Path) ->
     shadow_models_output_path = tmp_path
     # Input
     # Population data is loaded and used as challenge data for testing purposes.
+    with open(cfg.shadow_training.training_json_config_paths.training_config_path, "r") as file:
+        training_config = EnsembleAttackTabDDPMTrainingConfig(**json.load(file))
+    training_config.fine_tuning_diffusion_iterations = (
+        cfg.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations
+    )
+    training_config.fine_tuning_classifier_iterations = (
+        cfg.shadow_training.fine_tuning_config.fine_tune_classifier_iterations
+    )
+    training_config.number_of_points_to_synthesize = 5
+
+    model_runner = EnsembleAttackTabDDPMModelRunner(training_config)
     result_path = train_shadow_on_half_challenge_data(
+        model_runner=model_runner,
         n_models=2,
         n_reps=1,
         master_challenge_data=POPULATION_DATA[0:40],  # Limiting the data to 40 samples for faster test execution
@@ -95,7 +112,6 @@ def test_train_shadow_on_half_challenge_data(cfg: DictConfig, tmp_path: Path) ->
         training_json_config_paths=cfg.shadow_training.training_json_config_paths,
         table_name="trans",
         id_column_name="trans_id",
-        number_of_points_to_synthesize=5,
         random_seed=cfg.random_seed,
     )
     # Expected saved models and synthesized data:
@@ -137,7 +153,8 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
         cfg.shadow_training.training_json_config_paths.dataset_meta_file_path,
         tmp_training_dir / "dataset_meta.json",
     )
-    configs, save_dir = save_additional_training_config(
+    configs, _ = save_additional_training_config(
+        config_type=EnsembleAttackTabDDPMTrainingConfig,
         data_dir=tmp_training_dir,
         training_config_json_path=training_config_path,
         final_config_json_path=tmp_training_dir / "trans.json",
@@ -145,13 +162,14 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
         workspace_name="test_workspace",
     )
 
-    train_result = train_tabddpm_and_synthesize(
+    configs.number_of_points_to_synthesize = 99
+    model_runner = EnsembleAttackTabDDPMModelRunner(configs)
+
+    train_result = model_runner.train_or_fine_tune_and_synthesize(
         train_set,
-        cast(ClavaDDPMTrainingConfig, configs),
-        save_dir,
         synthesize=True,
-        number_of_points_to_synthesize=99,
     )
+
     assert train_result.synthetic_data is not None
     assert type(train_result.synthetic_data) is pd.DataFrame
     assert len(train_result.synthetic_data) == 99
@@ -161,16 +179,16 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
     assert len(train_result.models) == 1  # Only one model (TabDDPM) is trained.
 
     # Now fine-tune the trained TabDDPM model on a small set of data
-    fine_tuned_results = fine_tune_tabddpm_and_synthesize(
-        trained_models=train_result.models,
-        fine_tune_set=fine_tuning_set,  # fine-tuning on the same data for testing purposes
-        configs=cast(ClavaDDPMTrainingConfig, configs),
-        save_dir=save_dir,
-        fine_tuning_diffusion_iterations=cfg.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations,
-        fine_tuning_classifier_iterations=cfg.shadow_training.fine_tuning_config.fine_tune_classifier_iterations,
-        # Number of synthetic samples is defined according to tabddpm_training_config's classifier_scale value.
+    configs.fine_tuning_diffusion_iterations = cfg.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations
+    configs.fine_tuning_classifier_iterations = cfg.shadow_training.fine_tuning_config.fine_tune_classifier_iterations
+    model_runner = EnsembleAttackTabDDPMModelRunner(configs)
+
+    fine_tuned_results = model_runner.train_or_fine_tune_and_synthesize(
+        dataset=fine_tuning_set,
         synthesize=False,
+        trained_model=train_result,
     )
+
     assert fine_tuned_results.synthetic_data is None
     assert fine_tuned_results.models is not None
     assert type(fine_tuned_results.models) is dict

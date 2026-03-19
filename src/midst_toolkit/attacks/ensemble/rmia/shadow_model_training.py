@@ -115,7 +115,8 @@ def train_fine_tuned_shadow_models(
         log(INFO, f"Training initial model with runner {model_runner}. Model ID {init_model_id}...")
 
         initial_model_training_results = model_runner.train_or_fine_tune_and_synthesize(
-            dataset=train, synthesize=False
+            dataset=train,
+            synthesize=False,
         )
 
         # Save the initial model

@@ -8,6 +8,7 @@ from midst_toolkit.common.logger import log
 
 
 def save_additional_training_config(
+    config_type: type[TrainingConfig],
     data_dir: Path,
     training_config_json_path: Path,
     final_config_json_path: Path,
@@ -19,6 +20,7 @@ def save_additional_training_config(
     and loads the resulting configuration.
 
     Args:
+        config_type: Type of the training configuration to load.
         data_dir: Directory containing dataset_meta.json, trans_domain.json, and trans.json files.
         training_config_json_path: Path to the original TabDDPM training configuration JSON file.
         final_config_json_path: Path where the modified configuration JSON file will be saved.
@@ -26,21 +28,21 @@ def save_additional_training_config(
         workspace_name: Name of the workspace, used to create a unique save directory.
 
     Returns:
-            configs: Loaded configuration dictionary for the model type.
+            configs: Loaded configuration dictionary for the given config type.
             save_dir: Directory path where results will be saved.
     """
     # Modify the config file to give the correct training data and saving directory
     with open(training_config_json_path, "r") as file:
-        configs = json.load(file)
+        configs = config_type(**json.load(file))
 
-    configs["general"]["data_dir"] = data_dir
+    configs.general.data_dir = data_dir
     # Save dir is set by joining the workspace_dir and exp_name
-    configs["general"]["workspace_dir"] = data_dir / workspace_name
-    configs["general"]["exp_name"] = experiment_name
+    configs.general.workspace_dir = data_dir / workspace_name
+    configs.general.exp_name = experiment_name
 
     # save the changed to the new json file
     with open(final_config_json_path, "w") as file:
-        json.dump(configs, file, indent=4)
+        json.dump(configs.model_dump(mode="json"), file, indent=4)
 
     log(INFO, f"Config saved to {final_config_json_path}")
 
