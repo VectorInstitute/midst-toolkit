@@ -275,6 +275,8 @@ def train_rmia_shadows_for_test_phase(
     challenge data points.
 
     Args:
+        model_runner: The model runner to be used for training the shadow models.
+            Should be an instance of `EnsembleAttackModelRunner`.
         config: Configuration object set in ``experiments_config.yaml``.
 
     Returns:

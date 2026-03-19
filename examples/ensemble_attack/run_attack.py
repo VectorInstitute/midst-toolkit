@@ -3,11 +3,11 @@ This file is an uncompleted example script for running the Ensemble Attack on MI
 provided resources and data.
 """
 
+import json
 from logging import INFO
 from pathlib import Path
 
 import hydra
-import json
 from omegaconf import DictConfig
 
 import examples.ensemble_attack.run_metaclassifier_training as meta_pipeline
@@ -15,7 +15,7 @@ import examples.ensemble_attack.run_shadow_model_training as shadow_pipeline
 from examples.ensemble_attack.real_data_collection import COLLECTED_DATA_FILE_NAME, collect_population_data_ensemble
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.model import EnsembleAttackTabDDPMModelRunner, EnsembleAttackTabDDPMTrainingConfig
-from midst_toolkit.attacks.ensemble.process_split_data import process_split_data, PROCESSED_TRAIN_DATA_FILE_NAME
+from midst_toolkit.attacks.ensemble.process_split_data import PROCESSED_TRAIN_DATA_FILE_NAME, process_split_data
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
 
@@ -86,8 +86,12 @@ def main(config: DictConfig) -> None:
 
         with open(config.shadow_training.training_json_config_paths.training_config_path, "r") as file:
             training_config = EnsembleAttackTabDDPMTrainingConfig(**json.load(file))
-        training_config.fine_tuning_diffusion_iterations = config.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations
-        training_config.fine_tuning_classifier_iterations = config.shadow_training.fine_tuning_config.fine_tune_classifier_iterations
+        training_config.fine_tuning_diffusion_iterations = (
+            config.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations
+        )
+        training_config.fine_tuning_classifier_iterations = (
+            config.shadow_training.fine_tuning_config.fine_tune_classifier_iterations
+        )
 
         model_runner = EnsembleAttackTabDDPMModelRunner(training_config=training_config)
 

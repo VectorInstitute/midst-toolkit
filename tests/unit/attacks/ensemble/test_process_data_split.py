@@ -6,11 +6,11 @@ from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.process_split_data import (
-    process_split_data,
-    PROCESSED_TRAIN_DATA_FILE_NAME,
     PROCESSED_TEST_DATA_FILE_NAME,
-    PROCESSED_TRAIN_LABELS_FILE_NAME,
     PROCESSED_TEST_LABELS_FILE_NAME,
+    PROCESSED_TRAIN_DATA_FILE_NAME,
+    PROCESSED_TRAIN_LABELS_FILE_NAME,
+    process_split_data,
 )
 
 

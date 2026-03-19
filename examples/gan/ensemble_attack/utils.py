@@ -26,8 +26,7 @@ def get_master_challenge_train_data(config: DictConfig) -> pd.DataFrame:
         f"Population path {population_path} does not exist. Please run the data processing pipeline first."
     )
 
-    master_challenge_train = load_dataframe(population_path, PROCESSED_TRAIN_DATA_FILE_NAME)
-    return master_challenge_train
+    return load_dataframe(population_path, PROCESSED_TRAIN_DATA_FILE_NAME)
 
 
 def make_training_config(config: DictConfig) -> EnsembleAttackCTGANTrainingConfig:
@@ -58,7 +57,7 @@ def make_training_config(config: DictConfig) -> EnsembleAttackCTGANTrainingConfi
         }
         json.dump(training_config, f)
 
-    ctgan_training_config = EnsembleAttackCTGANTrainingConfig(**training_config)
+    ctgan_training_config = EnsembleAttackCTGANTrainingConfig(**training_config)  # type: ignore[arg-type]
 
     setup_save_dir(ctgan_training_config)
 

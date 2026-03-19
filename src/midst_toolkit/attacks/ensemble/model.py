@@ -1,33 +1,31 @@
-"""
-Module containing the base classes and implementations for the Ensemble Attack model runner and training result.
-"""
+"""Module containing the base classes and implementations for the Ensemble Attack model runner and training result."""
 
+import copy
 from abc import ABC, abstractmethod
+from logging import INFO
 from pathlib import Path
 from typing import Any
-from logging import INFO
-import copy
 
 import pandas as pd
 from pydantic import BaseModel, ConfigDict
-from sdv.single_table import CTGANSynthesizer  # type: ignore[import-untyped]
 from sdv.metadata import SingleTableMetadata  # type: ignore[import-untyped]
+from sdv.single_table import CTGANSynthesizer  # type: ignore[import-untyped]
 
+from midst_toolkit.attacks.ensemble.clavaddpm_fine_tuning import clava_fine_tuning
 from midst_toolkit.common.config import ClavaDDPMTrainingConfig, CTGANTrainingConfig, TrainingConfig
+from midst_toolkit.common.logger import log
+from midst_toolkit.common.variables import DEVICE
+from midst_toolkit.models.clavaddpm.clustering import clava_clustering
 from midst_toolkit.models.clavaddpm.data_loaders import Tables, load_tables
 from midst_toolkit.models.clavaddpm.enumerations import GroupLengthsProbDicts, Relation, RelationOrder
-from midst_toolkit.models.clavaddpm.train import ClavaDDPMModelArtifacts, CTGANModelArtifacts
-from midst_toolkit.models.clavaddpm.clustering import clava_clustering
-from midst_toolkit.models.clavaddpm.train import clava_training
 from midst_toolkit.models.clavaddpm.synthesizer import clava_synthesizing
-from midst_toolkit.common.variables import DEVICE
-from midst_toolkit.common.logger import log
-from midst_toolkit.attacks.ensemble.clavaddpm_fine_tuning import clava_fine_tuning
+from midst_toolkit.models.clavaddpm.train import ClavaDDPMModelArtifacts, CTGANModelArtifacts, clava_training
 
 
 # Base Classes
 class EnsembleAttackTrainingConfig(TrainingConfig):
     number_of_points_to_synthesize: int = 20000
+
 
 class EnsembleAttackTrainingResult(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -85,6 +83,8 @@ class TabDDPMTrainingResult(EnsembleAttackTrainingResult):
 
 
 class EnsembleAttackTabDDPMModelRunner(EnsembleAttackModelRunner):
+    training_config: EnsembleAttackTabDDPMTrainingConfig
+
     def train_or_fine_tune_and_synthesize(
         self,
         dataset: pd.DataFrame,
@@ -188,8 +188,8 @@ class EnsembleAttackTabDDPMModelRunner(EnsembleAttackModelRunner):
 class EnsembleAttackCTGANTrainingConfig(CTGANTrainingConfig, EnsembleAttackTrainingConfig):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    metadata: SingleTableMetadata = None
-    table_name: str = None
+    metadata: SingleTableMetadata | None = None
+    table_name: str | None = None
 
 
 class CTGANTrainingResult(EnsembleAttackTrainingResult):
@@ -198,6 +198,8 @@ class CTGANTrainingResult(EnsembleAttackTrainingResult):
 
 
 class EnsembleAttackCTGANModelRunner(EnsembleAttackModelRunner):
+    training_config: EnsembleAttackCTGANTrainingConfig
+
     def train_or_fine_tune_and_synthesize(
         self,
         dataset: pd.DataFrame,
@@ -227,7 +229,9 @@ class EnsembleAttackCTGANModelRunner(EnsembleAttackModelRunner):
         assert self.training_config.metadata is not None, "Metadata is not set"
         assert self.training_config.table_name is not None, "Table name is not set"
 
-        dataset_without_ids = dataset.drop(columns=[column_name for column_name in dataset.columns if "_id" in column_name])
+        dataset_without_ids = dataset.drop(
+            columns=[column_name for column_name in dataset.columns if "_id" in column_name]
+        )
 
         if trained_model is None:
             log(INFO, "Training new CTGAN model...")
@@ -253,7 +257,9 @@ class EnsembleAttackCTGANModelRunner(EnsembleAttackModelRunner):
         result = CTGANTrainingResult(
             save_dir=save_dir,
             configs=self.training_config,
-            models={(None, self.training_config.table_name): CTGANModelArtifacts(model=ctgan, model_file_path=results_file)},
+            models={
+                (None, self.training_config.table_name): CTGANModelArtifacts(model=ctgan, model_file_path=results_file)
+            },
         )
 
         if synthesize:
