@@ -57,6 +57,10 @@ def run_target_model_training(model_runner: EnsembleAttackModelRunner, config: D
         target_folder / "dataset_meta.json",
     )
 
+    model_runner.training_config.general.data_dir = target_folder
+    model_runner.training_config.general.exp_name = "trained_target_model"
+    model_runner.training_config.general.workspace_dir = target_folder / "shadow_workspace"
+
     train_result = model_runner.train_or_fine_tune_and_synthesize(dataset=df_real_data, synthesize=True)
 
     # To train the attack model (metaclassifier), we only need to save target's synthetic data,
