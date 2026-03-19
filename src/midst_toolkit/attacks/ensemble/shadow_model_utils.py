@@ -3,18 +3,19 @@ import os
 from logging import INFO
 from pathlib import Path
 
+from midst_toolkit.attacks.ensemble.models import EnsembleAttackTrainingConfig
 from midst_toolkit.common.config import TrainingConfig
 from midst_toolkit.common.logger import log
 
 
 def save_additional_training_config(
-    config_type: type[TrainingConfig],
+    config_type: type[EnsembleAttackTrainingConfig],
     data_dir: Path,
     training_config_json_path: Path,
     final_config_json_path: Path,
     experiment_name: str = "attack_experiment",
     workspace_name: str = "shadow_workspace",
-) -> tuple[TrainingConfig, Path]:
+) -> tuple[EnsembleAttackTrainingConfig, Path]:
     """
     Modifies a TabDDPM configuration JSON file with the specified data directory, experiment name and workspace name,
     and loads the resulting configuration.
