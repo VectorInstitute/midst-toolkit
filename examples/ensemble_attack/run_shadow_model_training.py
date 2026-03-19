@@ -65,7 +65,9 @@ def run_target_model_training(model_runner: EnsembleAttackModelRunner, config: D
         final_config_json_path=target_folder / f"{table_name}.json",  # Path to the new json
         experiment_name="trained_target_model",
     )
-    model_runner.training_config = configs
+    model_runner.training_config.general.data_dir = configs.general.data_dir
+    model_runner.training_config.general.workspace_dir = configs.general.workspace_dir
+    model_runner.training_config.general.exp_name = configs.general.exp_name
 
     train_result = model_runner.train_or_fine_tune_and_synthesize(dataset=df_real_data, synthesize=True)
 

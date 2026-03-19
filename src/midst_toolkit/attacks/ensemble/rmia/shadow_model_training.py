@@ -120,7 +120,9 @@ def train_fine_tuned_shadow_models(
         final_config_json_path=shadow_model_data_folder / f"{table_name}.json",  # Path to the new json
         experiment_name="pre_trained_model",
     )
-    model_runner.training_config = configs
+    model_runner.training_config.general.data_dir = configs.general.data_dir
+    model_runner.training_config.general.workspace_dir = configs.general.workspace_dir
+    model_runner.training_config.general.exp_name = configs.general.exp_name
 
     # Train the initial model if it is not already trained and saved.
     initial_model_path = save_dir / f"initial_model_rmia_{init_model_id}.pkl"
@@ -267,7 +269,9 @@ def train_shadow_on_half_challenge_data(
         final_config_json_path=shadow_folder / f"{table_name}.json",  # Path to the new json
         experiment_name="trained_model",
     )
-    model_runner.training_config = configs
+    model_runner.training_config.general.data_dir = configs.general.data_dir
+    model_runner.training_config.general.workspace_dir = configs.general.workspace_dir
+    model_runner.training_config.general.exp_name = configs.general.exp_name
 
     attack_data: dict[str, Any] = {
         "selected_sets": selected_id_lists,
