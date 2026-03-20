@@ -23,6 +23,8 @@ def attack_model_test(config: DictConfig) -> None:
     )
 
     training_config = make_training_config(config)
+    number_of_points_to_synthesize = config.ensemble_attack.shadow_training.number_of_points_to_synthesize
+    training_config.number_of_points_to_synthesize = number_of_points_to_synthesize
     model_runner = EnsembleAttackCTGANModelRunner(training_config=training_config)
 
     run_metaclassifier_testing(model_runner, config.ensemble_attack)

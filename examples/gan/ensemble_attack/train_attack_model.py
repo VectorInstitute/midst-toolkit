@@ -60,6 +60,8 @@ def train_attack_model(config: DictConfig) -> None:
         log(INFO, "Training the shadow models...")
 
         training_config = make_training_config(config)
+        number_of_points_to_synthesize = config.ensemble_attack.shadow_training.number_of_points_to_synthesize
+        training_config.number_of_points_to_synthesize = number_of_points_to_synthesize
         model_runner = EnsembleAttackCTGANModelRunner(training_config=training_config)
 
         master_challenge_train = get_master_challenge_train_data(config)

@@ -86,12 +86,11 @@ def main(config: DictConfig) -> None:
 
         with open(config.shadow_training.training_json_config_paths.training_config_path, "r") as file:
             training_config = EnsembleAttackTabDDPMTrainingConfig(**json.load(file))
-        training_config.fine_tuning_diffusion_iterations = (
-            config.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations
-        )
-        training_config.fine_tuning_classifier_iterations = (
-            config.shadow_training.fine_tuning_config.fine_tune_classifier_iterations
-        )
+        fine_tune_diffusion_iterations = config.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations
+        training_config.fine_tuning_diffusion_iterations = fine_tune_diffusion_iterations
+        fine_tune_classifier_iterations = config.shadow_training.fine_tuning_config.fine_tune_classifier_iterations
+        training_config.fine_tuning_classifier_iterations = fine_tune_classifier_iterations
+        training_config.number_of_points_to_synthesize = config.shadow_training.number_of_points_to_synthesize
 
         model_runner = EnsembleAttackTabDDPMModelRunner(training_config=training_config)
 

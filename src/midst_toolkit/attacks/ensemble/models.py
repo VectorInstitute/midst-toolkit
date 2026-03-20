@@ -264,7 +264,7 @@ class EnsembleAttackCTGANModelRunner(EnsembleAttackModelRunner):
         )
 
         if synthesize:
-            synthetic_data = ctgan.sample(num_rows=self.training_config.synthesizing.sample_size)
+            synthetic_data = ctgan.sample(num_rows=self.training_config.number_of_points_to_synthesize)
             result.synthetic_data = synthetic_data
 
         return result
