@@ -312,6 +312,7 @@ def train_rmia_shadows_for_test_phase(
     return run_rmia_shadow_training(model_runner, config, df_challenge=df_challenge)
 
 
+# TODO: consider moving this and potentially the other functions above to the main library.
 def run_metaclassifier_testing(model_runner: EnsembleAttackModelRunner, config: DictConfig) -> None:
     """
     Function to run the attack on a single target model using a trained metaclassifier.

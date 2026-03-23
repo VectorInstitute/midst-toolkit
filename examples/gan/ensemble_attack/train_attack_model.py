@@ -66,7 +66,6 @@ def train_attack_model(config: DictConfig) -> None:
 
         master_challenge_train = get_master_challenge_train_data(config)
         shadow_data_paths = run_shadow_model_training(model_runner, config.ensemble_attack, master_challenge_train)
-        shadow_data_paths = [Path(path) for path in shadow_data_paths]
 
         log(INFO, "Training the target model...")
         target_model_synthetic_path = run_target_model_training(model_runner, config.ensemble_attack)

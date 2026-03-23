@@ -59,7 +59,9 @@ class EnsembleAttackModelRunner(ABC):
 
         Args:
             dataset: The dataset to train or fine tune the model on.
-            synthesize: Whether to synthesize data after training.
+            synthesize: Whether to synthesize data after training. The number of points to synthesize
+                and the save directory is controlled by the `number_of_points_to_synthesize` and `save_dir`
+                attributes of the training config. Optional, default is True.
             trained_model: The model to fine tune. If None, a new model should be trained.
                 Optional, default is None.
 
@@ -98,7 +100,10 @@ class EnsembleAttackTabDDPMModelRunner(EnsembleAttackModelRunner):
 
         Args:
             dataset: The training dataset as a pandas DataFrame.
-            synthesize: Flag indicating whether to generate synthetic data after training. Defaults to True.
+            synthesize: Flag indicating whether to generate synthetic data after training.
+                The number of points to synthesize and the save directory is controlled by
+                the `number_of_points_to_synthesize` and `save_dir` attributes of the
+                training config. Optional, default is True.
             trained_model: The model to fine tune. If None, a new model should be trained.
                 Optional, default is None.
 
@@ -216,7 +221,10 @@ class EnsembleAttackCTGANModelRunner(EnsembleAttackModelRunner):
         Args:
             dataset: The dataset as a pandas DataFrame.
             configs: Configuration dictionary for CTGAN.
-            synthesize: Flag indicating whether to generate synthetic data after training. Defaults to True.
+            synthesize: Flag indicating whether to generate synthetic data after training.
+                The number of points to synthesize and the save directory is controlled by
+                the `number_of_points_to_synthesize` and `save_dir` attributes of the training
+                config. Optional, default is True.
             trained_model: The trained model to fine tune. If None, a new model will be trained.
 
         Returns:
