@@ -5,7 +5,7 @@ from scipy.special import expit, softmax
 from sklearn.metrics import classification_report, r2_score, roc_auc_score, root_mean_squared_error
 
 from midst_toolkit.common.enumerations import PredictionType, TaskType
-from midst_toolkit.models.clavaddpm.dataset_transformations import TargetInfo
+from midst_toolkit.common.dataset import TargetInfo
 
 
 def calculate_rmse(true_target: np.ndarray, predicted_target: np.ndarray, standard_deviation: float | None) -> float:

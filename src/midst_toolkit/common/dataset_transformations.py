@@ -1,6 +1,7 @@
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from logging import INFO
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -16,8 +17,16 @@ from sklearn.preprocessing import (
 )
 
 from midst_toolkit.common.enumerations import DataSplit, TaskType
+from midst_toolkit.common.dataset import (
+    Dataset,
+    Transformations,
+    setup_cache_path,
+    get_cached_dataset,
+    process_nans_in_numerical_features,
+)
+from midst_toolkit.common.dataset_utils import dump_pickle
 from midst_toolkit.common.logger import log
-from midst_toolkit.models.clavaddpm.enumerations import (
+from midst_toolkit.common.enumerations import (
     ArrayDict,
     CategoricalEncoding,
     CategoricalNaNPolicy,
@@ -304,3 +313,88 @@ def transform_targets(
         raise ValueError(f"Unsupported policy: {policy.value}")
 
     return target_datasets, target_info
+
+
+def transform_dataset(
+    dataset: Dataset,
+    transformations: Transformations,
+    cache_dir: Path | None,
+) -> Dataset:
+    """
+    Fits and applies the given set of transformations to the contents of the provided dataset and returns the
+    transformed dataset. If an appropriate cache is specified and exists, this function simply loads an already
+    transformed dataset from the cache. If a cache does not exist, this function will cache the dataset and
+    transformations there in addition to returning the transformed dataset.
+
+    Args:
+        dataset: The dataset to transform.
+        transformations: The transformations to apply to the dataset.
+        cache_dir: The directory to cache the transformed dataset. Optional, default is None. If not None, will check
+            if the transformations and dataset exist in the cache directory. If they do, will return the cached
+            transformed dataset. If not, will transform the dataset and cache it.
+
+    Returns:
+        The transformed dataset.
+    """
+    cache_path = setup_cache_path(transformations, cache_dir)
+    if cache_path is not None and cache_path.exists():
+        return get_cached_dataset(cache_path, transformations)
+
+    if dataset.numerical_features is not None:
+        dataset = process_nans_in_numerical_features(dataset, transformations.numerical_nan_policy)
+
+    numerical_transform = None
+    categorical_transform = None
+    numerical_features = dataset.numerical_features
+    categorical_features = dataset.categorical_features
+
+    if numerical_features is not None and transformations.normalization is not None:
+        numerical_features, numerical_transform = normalize(
+            numerical_features,
+            transformations.normalization,
+            transformations.seed,
+        )
+
+    if categorical_features is not None:
+        categorical_features = process_nans_in_categorical_features(
+            categorical_features,
+            transformations.categorical_nan_policy,
+        )
+        if transformations.category_minimum_frequency is not None:
+            categorical_features = collapse_rare_categories(
+                categorical_features,
+                transformations.category_minimum_frequency,
+            )
+
+        categorical_features, is_numerical, categorical_transform = encode_categorical_features(
+            categorical_features,
+            transformations.categorical_encoding,
+            dataset.target[DataSplit.TRAIN.value],
+            transformations.seed,
+            return_encoder=True,
+        )
+        if is_numerical:
+            if numerical_features is None:
+                numerical_features = categorical_features
+            else:
+                numerical_features = {
+                    x: np.hstack([numerical_features[x], categorical_features[x]]) for x in numerical_features
+                }
+            categorical_features = None
+
+    target, target_info = transform_targets(dataset.target, transformations.target_policy, dataset.task_type)
+
+    dataset = replace(
+        dataset,
+        numerical_features=numerical_features,
+        categorical_features=categorical_features,
+        target=target,
+        target_info=target_info,
+    )
+    dataset.numerical_transform = numerical_transform
+    dataset.categorical_transform = categorical_transform
+
+    if cache_path is not None:
+        dump_pickle((transformations, dataset), cache_path)
+
+    return dataset
