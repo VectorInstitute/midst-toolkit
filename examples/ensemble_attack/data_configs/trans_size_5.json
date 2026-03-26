@@ -13,17 +13,19 @@
     },
     "diffusion": {
         "d_layers": [
-            512,
             1024,
-            1024,
-            1024,
-            1024,
-            512
+            2048,
+            2048,
+            2048,
+            2048,
+            2048,
+            2048,
+            1024
         ],
         "dropout": 0.0,
         "num_timesteps": 2000,
         "model_type": "mlp",
-        "iterations": 25000,
+        "iterations": 200000,
         "batch_size": 4096,
         "lr": 0.0006,
         "gaussian_loss_type": "mse",

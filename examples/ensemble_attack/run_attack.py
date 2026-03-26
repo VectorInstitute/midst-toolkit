@@ -87,6 +87,7 @@ def main(config: DictConfig) -> None:
         target_model_synthetic_path = shadow_pipeline.run_target_model_training(config)
 
     if config.pipeline.run_metaclassifier_training:
+
         # if not config.pipeline.run_shadow_model_training:
             # If shadow model training is skipped, we need to provide the previous shadow model and target model paths.
         shadow_data_paths = [Path(path) for path in config.shadow_training.final_shadow_models_path]

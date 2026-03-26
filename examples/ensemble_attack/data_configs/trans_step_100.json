@@ -21,9 +21,9 @@
             512
         ],
         "dropout": 0.0,
-        "num_timesteps": 2000,
+        "num_timesteps": 100,
         "model_type": "mlp",
-        "iterations": 100000,
+        "iterations": 200000,
         "batch_size": 4096,
         "lr": 0.0006,
         "gaussian_loss_type": "mse",
