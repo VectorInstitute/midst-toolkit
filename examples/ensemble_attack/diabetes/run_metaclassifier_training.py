@@ -90,14 +90,14 @@ def run_metaclassifier_training(
     )
 
     # Extract trans_id from both train and test dataframes
-    assert "trans_id" in df_meta_train.columns, "Meta train data must have trans_id column"
-    train_trans_ids = df_meta_train["trans_id"]
+    assert "encounter_id" in df_meta_train.columns, "Meta train data must have encounter_id column"
+    train_trans_ids = df_meta_train["encounter_id"]
 
-    assert "trans_id" in df_meta_test.columns, "Meta test data must have trans_id column"
-    test_trans_ids = df_meta_test["trans_id"]
+    assert "encounter_id" in df_meta_test.columns, "Meta test data must have encounter_id column"
+    test_trans_ids = df_meta_test["encounter_id"]
 
-    df_meta_train = df_meta_train.drop(columns=["trans_id", "account_id"])
-    df_meta_test = df_meta_test.drop(columns=["trans_id", "account_id"])
+    df_meta_train = df_meta_train.drop(columns=["encounter_id", "patient_id"])
+    df_meta_test = df_meta_test.drop(columns=["encounter_id", "patient_id"])
 
     # Fit the metaclassifier.
     meta_classifier_type = MetaClassifierType(config.metaclassifier.model_type)

@@ -5,6 +5,10 @@ import numpy as np
 import pandas as pd
 from scipy.stats import gaussian_kde
 from sklearn.preprocessing import MinMaxScaler
+from midst_toolkit.common.logger import log
+from logging import INFO
+
+
 
 
 def calculate_gower_features(
@@ -60,7 +64,7 @@ def calculate_gower_features(
 
 
 def calculate_domias_score(
-    df_input: pd.DataFrame, df_synthetic: pd.DataFrame, df_reference: pd.DataFrame
+    df_input: pd.DataFrame, df_synthetic: pd.DataFrame, df_reference: pd.DataFrame, numeric_column_names: list[str]
 ) -> pd.DataFrame:
     """
     Computes the DOMIAS (Density-ratio-based Out-of-distribution Model-Inconsistency Assessment Score).
@@ -97,10 +101,35 @@ def calculate_domias_score(
     Returns:
         Normalized DOMIAS scores for each input sample, indexed like df_input.
     """
+
+    try:
+        # Identify zero-variance numeric columns by name on the synthetic dataframe
+        syn_numeric = df_synthetic[numeric_column_names].astype(float)
+        variances_cols = syn_numeric.var(axis=0).to_numpy()
+        zero_var_idx = np.where(np.isclose(variances_cols, 0))[0].tolist()
+        zero_var_cols = [numeric_column_names[i] for i in zero_var_idx]
+
+        if zero_var_cols:
+            for col in zero_var_cols:
+                log(INFO, f"DOMIAS: column '{col}' has zero variance and will be ignored for KDE (causes singular covariance).")
+
+    except Exception as _inner_e:
+        # Failures here shouldn't stop DOMIAS. Still attempt numeric diagnostics below.
+        log(INFO, f"DOMIAS: failed to inspect zero-variance columns: {_inner_e}")
+
+    # Build list of numeric columns to use for KDE (drop zero-variance ones)
+    valid_numeric_cols = [c for c in numeric_column_names if c not in (zero_var_cols if 'zero_var_cols' in locals() else [])]
+
+    # If no valid numeric columns remain, return zeros to avoid KDE errors
+    if not valid_numeric_cols:
+        log("DOMIAS: no valid numeric features remain after dropping zero-variance columns; returning zeros for DOMIAS scores.")
+        pred_proba_domias = np.zeros(df_input.shape[0])
+        return pd.DataFrame(pred_proba_domias, columns=["domias"], index=df_input.index)
+
     # Transpose dataframes (.T) to the required (n_features, n_samples) format for scipy's gaussian_kde.
     reference_data_transposed, synthetic_data_transposed, input_data_transposed = (
-        df.astype(float).values.T for df in (df_reference, df_synthetic, df_input)
-    )
+        df[valid_numeric_cols].astype(float).values.T for df in (df_reference, df_synthetic, df_input)
+    )   
 
     # Estimate densities
     reference_data_density = gaussian_kde(reference_data_transposed)

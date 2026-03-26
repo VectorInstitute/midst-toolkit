@@ -95,6 +95,12 @@ class BlendingPlusPlus:
         """
         df_synthetic = df_synthetic.reset_index(drop=True)[df_input.columns]
 
+        common_numeric = [
+        c
+        for c in numerical_cols
+        if c in df_reference.columns and c in df_synthetic.columns and c in df_input.columns
+        ]
+
         # 1. Get RMIA signals
 
         log(INFO, "Calculating RMIA signals...")
@@ -117,15 +123,16 @@ class BlendingPlusPlus:
             df_input=df_input, df_synthetic=df_synthetic, categorical_column_names=categorical_cols
         )
 
-        # 3. Get DOMIAS predictions
-
+            
+        # 3. Get DOMIAS scores
+       
         log(INFO, "Calculating DOMIAS scores...")
 
         domias_features = calculate_domias_score(
-            df_input=df_input, df_synthetic=df_synthetic, df_reference=df_reference
+            df_input=df_input, df_synthetic=df_synthetic, df_reference=df_reference, numeric_column_names=common_numeric
         )
 
-        original_numerical_features = df_input[numerical_cols]  # Numerical features from original data
+        original_numerical_features = df_input[common_numeric]  # Numerical features from original data
 
         return pd.concat(
             [

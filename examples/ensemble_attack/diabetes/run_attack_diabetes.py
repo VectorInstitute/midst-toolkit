@@ -25,7 +25,14 @@ def run_data_processing(config: DictConfig) -> None:
     Args:
         config: Configuration object set in config.yaml.
     """
-
+    
+    if config.data_processing_config.original_population_data_path is not None:
+        original_population_data = load_dataframe(
+            Path(config.data_processing_config.original_population_data_path),
+            "population_all_with_challenge.csv",
+        )
+    else:
+        original_population_data = None
 
     log(INFO, "Running data processing pipeline...")
     # Collect the real data from the MIDST challenge resources.
@@ -33,7 +40,7 @@ def run_data_processing(config: DictConfig) -> None:
         dataset_input_dir=Path(config.data_processing_config.dataset_path),
         data_processing_config=config.data_processing_config,
         save_dir=Path(config.data_paths.population_path),
-        base_population=None,  # We are not providing a base population dataframe, but it can be provided if needed.
+        base_population=original_population_data,
         population_splits=config.data_processing_config.population_splits,
         challenge_splits=config.data_processing_config.challenge_splits,
     )

@@ -1,7 +1,7 @@
 {
     "general": {
         "data_dir": "examples/ensemble_attack/diabetes/data/shadow_models_data",
-        "exp_name": "ensemble_attack",
+        "exp_name": "ensemble_attack_diabetes",
         "workspace_dir": "examples/ensemble_attack/diabetes/data/shadow_models_data/workspace",
         "sample_prefix": "",
         "test_data_dir": "examples/ensemble_attack/diabetes/data/shadow_models_data/test"
@@ -21,9 +21,9 @@
             512
         ],
         "dropout": 0.0,
-        "num_timesteps": 20,
+        "num_timesteps": 2000,
         "model_type": "mlp",
-        "iterations": 20,
+        "iterations": 200000,
         "batch_size": 4096,
         "lr": 0.0006,
         "gaussian_loss_type": "mse",
@@ -43,7 +43,7 @@
         "lr": 0.0001,
         "dim_t": 128,
         "batch_size": 4096,
-        "iterations": 20
+        "iterations": 20000
     },
     "sampling": {
         "batch_size": 20000,

@@ -51,6 +51,17 @@ def expand_ranges(ranges: list[tuple[int, int]]) -> list[int]:
         expanded.extend(range(start, end))
     return expanded
 
+def collect_data_from_path_range(data_path: Path, data_range: list[tuple[int, int]], generation_name: str, file_name: str) -> pd.DataFrame:
+    collected_data = pd.DataFrame()
+    data_id = expand_ranges(data_range)
+    for i in data_id:
+        data_path_ith = data_path / f"{generation_name}_{i}"
+        # Will raise FileNotFoundError if the file does not exist or if it is not a CSV file.
+        collected_data_ith = load_dataframe(data_path_ith, file_name)
+        collected_data = collected_data_ith if collected_data.empty else pd.concat([collected_data, collected_data_ith])
+    return collected_data.drop_duplicates()
+
+
 
 def collect_midst_attack_data(
     attack_type: AttackType,
