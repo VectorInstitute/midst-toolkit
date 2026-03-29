@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:a100:1
 #SBATCH --mem=128G
-#SBATCH --job-name=diabetes_test 
+#SBATCH --job-name=diabetes_v2_test 
 #SBATCH --output=%j_%x_%a.out
 #SBATCH --error=%j_%x_%a.err
 #SBATCH --time=24:00:00
@@ -34,7 +34,7 @@ echo "Running test for target_model_id: $TARGET_ID using all target models' chal
 echo "Experiments Launched"
 
 # run with the explicit venv python to avoid any PATH/module interference
-PYTHONPATH=./src /h/skodeiri/second/midst-toolkit/.venv/bin/python -m examples.ensemble_attack.diabetes.test_attack_model --config-name=diabetes_experiment_config target_model.target_model_id=$TARGET_ID
+PYTHONPATH=./src /h/skodeiri/second/midst-toolkit/.venv/bin/python -m examples.ensemble_attack.diabetes.test_attack_model --config-name=diabetes_v2_experiment_config target_model.target_model_id=$TARGET_ID
 
 
 echo "Experiments Completed"
