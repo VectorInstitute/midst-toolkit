@@ -56,5 +56,7 @@ jobs:
         with:
           virtual-environment: .venv/
           # GHSA-4xh5-x5gv-qwph: This is a vulnerability in pip 25.2 that has no fix version yet
+          # CVE-2026-4539: This is a vulnerability in pygments that has no fix version yet
           ignore-vulns: |
             GHSA-4xh5-x5gv-qwph
+            CVE-2026-4539
