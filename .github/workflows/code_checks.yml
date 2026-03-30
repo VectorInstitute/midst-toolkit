@@ -55,3 +55,6 @@ jobs:
         uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
         with:
           virtual-environment: .venv/
+          # CVE-2026-4539: This is a vulnerability in pygments that can't be upgraded
+          ignore-vulns: |
+            CVE-2026-4539
