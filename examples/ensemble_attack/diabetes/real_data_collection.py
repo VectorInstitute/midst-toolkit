@@ -232,7 +232,9 @@ def collect_population_data_ensemble(
         )
 
     # Drop ids.
-    df_population_no_id = df_population.drop(columns=["encounter_id", "patient_id"])
+    id_cols = ["encounter_id", "patient_id", "patient_nbr_id"]
+    df_population_no_id = df_population.drop(columns=id_cols, errors="ignore")
+    # df_population_no_id = df_population.drop(columns=["encounter_id", "patient_id"])
     # Save the population data
     save_dataframe(df_population, save_dir, "population_all.csv")
     save_dataframe(df_population_no_id, save_dir, "population_all_no_id.csv")
@@ -255,7 +257,7 @@ def collect_population_data_ensemble(
     df_population_no_challenge = df_population[~df_population["encounter_id"].isin(df_challenge["encounter_id"])]
     save_dataframe(df_population_no_challenge, save_dir, "population_all_no_challenge.csv")
     # Remove ids
-    df_population_no_challenge_no_id = df_population_no_challenge.drop(columns=["encounter_id", "patient_id"])
+    df_population_no_challenge_no_id = df_population_no_challenge.drop(columns=id_cols, errors="ignore")
     save_dataframe(
         df_population_no_challenge_no_id,
         save_dir,
@@ -266,7 +268,7 @@ def collect_population_data_ensemble(
     df_population_with_challenge = pd.concat([df_population_no_challenge, df_challenge])
     save_dataframe(df_population_with_challenge, save_dir, "population_all_with_challenge.csv")
     # Remove ids
-    df_population_with_challenge_no_id = df_population_with_challenge.drop(columns=["encounter_id", "patient_id"])
+    df_population_with_challenge_no_id = df_population_with_challenge.drop(columns=id_cols, errors="ignore")
     save_dataframe(
         df_population_with_challenge_no_id,
         save_dir,

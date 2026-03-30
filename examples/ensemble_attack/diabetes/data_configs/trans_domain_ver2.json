@@ -1,0 +1,194 @@
+{
+  "race_categorical": {
+      "size": 6,
+      "type": "discrete"
+  },
+  "gender_categorical": {
+      "size": 3,
+      "type": "discrete"
+  },
+  "age_categorical": {
+      "size": 10,
+      "type": "discrete"
+  },
+  "weight_categorical": {
+      "size": 10,
+      "type": "discrete"
+  },
+  "admission_type_categorical": {
+      "size": 8,
+      "type": "discrete"
+  },
+  "discharge_disposition_categorical": {
+      "size": 26,
+      "type": "discrete"
+  },
+  "admission_source_categorical": {
+      "size": 17,
+      "type": "discrete"
+  },
+  "time_in_hospital_integer": {
+      "size": 14,
+      "type": "continuous"
+  },
+  "payer_code_categorical": {
+      "size": 18,
+      "type": "discrete"
+  },
+  "medical_specialty_categorical": {
+      "size": 73,
+      "type": "discrete"
+  },
+  "num_lab_procedures_integer": {
+      "size": 118,
+      "type": "continuous"
+  },
+  "num_procedures_integer": {
+      "size": 7,
+      "type": "continuous"
+  },
+  "num_medications_integer": {
+      "size": 75,
+      "type": "continuous"
+  },
+  "number_outpatient_integer": {
+      "size": 39,
+      "type": "continuous"
+  },
+  "number_emergency_integer": {
+      "size": 33,
+      "type": "continuous"
+  },
+  "number_inpatient_integer": {
+      "size": 21,
+      "type": "continuous"
+  },
+  "diag_1_categorical": {
+      "size": 717,
+      "type": "discrete"
+  },
+  "diag_2_categorical": {
+      "size": 749,
+      "type": "discrete"
+  },
+  "diag_3_categorical": {
+      "size": 790,
+      "type": "discrete"
+  },
+  "number_diagnoses_integer": {
+      "size": 16,
+      "type": "continuous"
+  },
+  "max_glu_serum_categorical": {
+      "size": 4,
+      "type": "discrete"
+  },
+  "A1Cresult_categorical": {
+      "size": 4,
+      "type": "discrete"
+  },
+  "metformin_categorical": {
+      "size": 4,
+      "type": "discrete"
+  },
+  "repaglinide_categorical": {
+      "size": 4,
+      "type": "discrete"
+  },
+  "nateglinide_categorical": {
+      "size": 4,
+      "type": "discrete"
+  },
+  "chlorpropamide_categorical": {
+      "size": 4,
+      "type": "discrete"
+  },
+  "glimepiride_categorical": {
+      "size": 4,
+      "type": "discrete"
+  },
+  "acetohexamide_categorical": {
+      "size": 2,
+      "type": "discrete"
+  },
+  "glipizide_categorical": {
+      "size": 4,
+      "type": "discrete"
+  },
+  "glyburide_categorical": {
+      "size": 4,
+      "type": "discrete"
+  },
+  "tolbutamide_categorical": {
+      "size": 2,
+      "type": "discrete"
+  },
+  "pioglitazone_categorical": {
+      "size": 4,
+      "type": "discrete"
+  },
+  "rosiglitazone_categorical": {
+      "size": 4,
+      "type": "discrete"
+  },
+  "acarbose_categorical": {
+      "size": 4,
+      "type": "discrete"
+  },
+  "miglitol_categorical": {
+      "size": 4,
+      "type": "discrete"
+  },
+  "troglitazone_categorical": {
+      "size": 2,
+      "type": "discrete"
+  },
+  "tolazamide_categorical": {
+      "size": 3,
+      "type": "discrete"
+  },
+  "examide_categorical": {
+      "size": 1,
+      "type": "discrete"
+  },
+  "citoglipton_categorical": {
+      "size": 1,
+      "type": "discrete"
+  },
+  "insulin_categorical": {
+      "size": 4,
+      "type": "discrete"
+  },
+  "glyburide-metformin_categorical": {
+      "size": 4,
+      "type": "discrete"
+  },
+  "glipizide-metformin_categorical": {
+      "size": 2,
+      "type": "discrete"
+  },
+  "glimepiride-pioglitazone_categorical": {
+      "size": 2,
+      "type": "discrete"
+  },
+  "metformin-rosiglitazone_categorical": {
+      "size": 2,
+      "type": "discrete"
+  },
+  "metformin-pioglitazone_categorical": {
+      "size": 2,
+      "type": "discrete"
+  },
+  "change_categorical": {
+      "size": 2,
+      "type": "discrete"
+  },
+  "diabetesMed_categorical": {
+      "size": 2,
+      "type": "discrete"
+  },
+  "readmitted_categorical": {
+      "size": 3,
+      "type": "discrete"
+  }
+}

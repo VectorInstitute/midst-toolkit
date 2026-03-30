@@ -5,7 +5,7 @@ base_data_config_dir: examples/ensemble_attack/diabetes/data_configs # Training 
 
 # Training Pipeline Control
 pipeline:
-  run_data_processing: true # Set this to false if you have already saved the processed data
+  run_data_processing: false # Set this to false if you have already saved the processed data
   run_shadow_model_training: true # Set this to false if shadow models are already trained and saved
   run_metaclassifier_training: true
 
@@ -56,7 +56,7 @@ data_processing_config:
   original_population_data_path: null
 
   # The column name in the data to be used for stratified splitting.
-  column_to_stratify: "gender"  # Attention: This value is not documented in the original codebase.
+  column_to_stratify: "race_categorical"  # Attention: This value is not documented in the original codebase.
   folder_ranges: # Specify folder ranges for any of the mentioned splits.
     train: [[1, 8]] # Folders to be used for train data collection in the experiments
     final: [[8, 10]]
@@ -74,7 +74,7 @@ data_processing_config:
 shadow_training:
   # Data Config files path used for training a TabDDPM model
   training_json_config_paths: # Config json files used for tabddpm training on the trans table
-    table_domain_file_path: ${base_data_config_dir}/trans_domain.json
+    table_domain_file_path: ${base_data_config_dir}/trans_domain_ver2.json
     dataset_meta_file_path: ${base_data_config_dir}/dataset_meta.json
     tabddpm_training_config_path: ${base_data_config_dir}/trans.json
   # Model training artifacts are saved under shadow_models_data_path/workspace_name/exp_name
@@ -103,7 +103,7 @@ shadow_training:
 # Metaclassifier settings
 metaclassifier:
   # Data types json file is used for xgboost model training.
-  data_types_file_path: ${base_data_config_dir}/data_types.json
+  data_types_file_path: ${base_data_config_dir}/data_types_ver2.json
   model_type: "xgb"
   # Model training parameters
   num_optuna_trials: 100 # Original code: 100

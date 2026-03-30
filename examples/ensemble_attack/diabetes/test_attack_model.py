@@ -273,7 +273,7 @@ def train_rmia_shadows_for_test_phase(config: DictConfig) -> list[dict[str, list
 
 # TODO: Perform inference on all the target models sequentially in a single run instead of running this script
 # multiple times. For more information, refer to https://app.clickup.com/t/868h4xk86
-@hydra.main(config_path="configs", config_name="experiment_config", version_base=None)
+@hydra.main(config_path="configs", config_name="diabetes_experiment_config", version_base=None)
 def run_metaclassifier_testing(
     config: DictConfig,
 ) -> None:
