@@ -1,5 +1,4 @@
 import copy
-import json
 import pickle
 import shutil
 from pathlib import Path
@@ -16,7 +15,6 @@ from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
     train_shadow_on_half_challenge_data,
 )
 from midst_toolkit.attacks.ensemble.shadow_model_utils import update_and_save_training_config
-from midst_toolkit.common.config import ClavaDDPMTrainingConfig
 
 
 POPULATION_DATA = load_dataframe(
@@ -121,7 +119,6 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
         "tests/unit/attacks/ensemble/assets/population_data/all_population.csv"
     )  # For testing purposes only.
     fine_tuning_set = copy.deepcopy(train_set)
-    training_config_path = Path(cfg.shadow_training.training_json_config_paths.training_config_path)
     tmp_training_dir = tmp_path
     # We should move ``dataset_meta.json`` and ``trans_domain.json`` files to the ``tmp_training_dir``
     assert Path(cfg.shadow_training.training_json_config_paths.table_domain_file_path).exists()
@@ -134,18 +131,17 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
         cfg.shadow_training.training_json_config_paths.dataset_meta_file_path,
         tmp_training_dir / "dataset_meta.json",
     )
-    with open(training_config_path, "r") as file:
-        configs = ClavaDDPMTrainingConfig(**json.load(file))
+    model_runner = EnsembleAttackClavaDDPMModelRunner(cfg)
 
-    update_and_save_training_config(
-        config=configs,
+    training_config = update_and_save_training_config(
+        config=model_runner.training_config,
         data_dir=tmp_training_dir,
         final_config_json_path=tmp_training_dir / "trans.json",
         experiment_name="test_experiment",
         workspace_name="test_workspace",
     )
+    model_runner.training_config = training_config
 
-    model_runner = EnsembleAttackClavaDDPMModelRunner(cfg)
     model_runner.number_of_points_to_synthesize = 99
     model_runner.training_config.save_dir = tmp_training_dir
 
