@@ -6,7 +6,10 @@ from omegaconf import DictConfig
 
 from examples.ensemble_attack.run_metaclassifier_training import run_metaclassifier_training
 from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training, run_target_model_training
-from examples.gan.ensemble_attack.utils import get_master_challenge_train_data, make_training_config
+from examples.gan.ensemble_attack.utils import (
+    get_master_challenge_train_data,
+    make_training_config,
+)
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
 from midst_toolkit.attacks.ensemble.models import EnsembleAttackCTGANModelRunner
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
@@ -59,10 +62,8 @@ def train_attack_model(config: DictConfig) -> None:
     if config.ensemble_attack.pipeline.run_shadow_model_training:
         log(INFO, "Training the shadow models...")
 
-        training_config = make_training_config(config)
-        number_of_points_to_synthesize = config.ensemble_attack.shadow_training.number_of_points_to_synthesize
-        training_config.number_of_points_to_synthesize = number_of_points_to_synthesize
-        model_runner = EnsembleAttackCTGANModelRunner(training_config=training_config)
+        make_training_config(config)
+        model_runner = EnsembleAttackCTGANModelRunner(config)
 
         master_challenge_train = get_master_challenge_train_data(config)
         shadow_data_paths = run_shadow_model_training(model_runner, config.ensemble_attack, master_challenge_train)

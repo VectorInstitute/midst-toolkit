@@ -22,10 +22,8 @@ def attack_model_test(config: DictConfig) -> None:
         f"Testing attack model against synthetic data at {config.ensemble_attack.target_model.target_synthetic_data_path}...",
     )
 
-    training_config = make_training_config(config)
-    number_of_points_to_synthesize = config.ensemble_attack.shadow_training.number_of_points_to_synthesize
-    training_config.number_of_points_to_synthesize = number_of_points_to_synthesize
-    model_runner = EnsembleAttackCTGANModelRunner(training_config=training_config)
+    make_training_config(config)
+    model_runner = EnsembleAttackCTGANModelRunner(config)
 
     run_metaclassifier_testing(model_runner, config.ensemble_attack)
 

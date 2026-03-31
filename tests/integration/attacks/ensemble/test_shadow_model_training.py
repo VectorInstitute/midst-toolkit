@@ -10,12 +10,13 @@ from hydra import compose, initialize
 from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
-from midst_toolkit.attacks.ensemble.models import EnsembleAttackTabDDPMModelRunner, EnsembleAttackTabDDPMTrainingConfig
+from midst_toolkit.attacks.ensemble.models import EnsembleAttackClavaDDPMModelRunner
 from midst_toolkit.attacks.ensemble.rmia.shadow_model_training import (
     train_fine_tuned_shadow_models,
     train_shadow_on_half_challenge_data,
 )
 from midst_toolkit.attacks.ensemble.shadow_model_utils import update_and_save_training_config
+from midst_toolkit.common.config import ClavaDDPMTrainingConfig
 
 
 POPULATION_DATA = load_dataframe(
@@ -38,17 +39,7 @@ def test_train_fine_tuned_shadow_models(cfg: DictConfig, tmp_path: Path) -> None
     shadow_models_output_path = tmp_path
     # Input
     # Population data is used to pre-train some of the shadow models.
-    with open(cfg.shadow_training.training_json_config_paths.training_config_path, "r") as file:
-        training_config = EnsembleAttackTabDDPMTrainingConfig(**json.load(file))
-    training_config.fine_tuning_diffusion_iterations = (
-        cfg.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations
-    )
-    training_config.fine_tuning_classifier_iterations = (
-        cfg.shadow_training.fine_tuning_config.fine_tune_classifier_iterations
-    )
-    training_config.number_of_points_to_synthesize = 5
-
-    model_runner = EnsembleAttackTabDDPMModelRunner(training_config)
+    model_runner = EnsembleAttackClavaDDPMModelRunner(cfg)
     result_path = train_fine_tuned_shadow_models(
         model_runner=model_runner,
         n_models=2,
@@ -92,17 +83,7 @@ def test_train_shadow_on_half_challenge_data(cfg: DictConfig, tmp_path: Path) ->
     shadow_models_output_path = tmp_path
     # Input
     # Population data is loaded and used as challenge data for testing purposes.
-    with open(cfg.shadow_training.training_json_config_paths.training_config_path, "r") as file:
-        training_config = EnsembleAttackTabDDPMTrainingConfig(**json.load(file))
-    training_config.fine_tuning_diffusion_iterations = (
-        cfg.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations
-    )
-    training_config.fine_tuning_classifier_iterations = (
-        cfg.shadow_training.fine_tuning_config.fine_tune_classifier_iterations
-    )
-    training_config.number_of_points_to_synthesize = 5
-
-    model_runner = EnsembleAttackTabDDPMModelRunner(training_config)
+    model_runner = EnsembleAttackClavaDDPMModelRunner(cfg)
     result_path = train_shadow_on_half_challenge_data(
         model_runner=model_runner,
         n_models=2,
@@ -154,9 +135,9 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
         tmp_training_dir / "dataset_meta.json",
     )
     with open(training_config_path, "r") as file:
-        configs = EnsembleAttackTabDDPMTrainingConfig(**json.load(file))
+        configs = ClavaDDPMTrainingConfig(**json.load(file))
 
-    configs = update_and_save_training_config(
+    update_and_save_training_config(
         config=configs,
         data_dir=tmp_training_dir,
         final_config_json_path=tmp_training_dir / "trans.json",
@@ -164,13 +145,11 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
         workspace_name="test_workspace",
     )
 
-    configs.number_of_points_to_synthesize = 99
-    model_runner = EnsembleAttackTabDDPMModelRunner(configs)
+    model_runner = EnsembleAttackClavaDDPMModelRunner(cfg)
+    model_runner.number_of_points_to_synthesize = 99
+    model_runner.training_config.save_dir = tmp_training_dir
 
-    train_result = model_runner.train_or_fine_tune_and_synthesize(
-        train_set,
-        synthesize=True,
-    )
+    train_result = model_runner.train_or_fine_tune_and_synthesize(train_set, synthesize=True)
 
     assert train_result.synthetic_data is not None
     assert type(train_result.synthetic_data) is pd.DataFrame
@@ -181,10 +160,6 @@ def test_train_and_fine_tune_tabddpm(cfg: DictConfig, tmp_path: Path) -> None:
     assert len(train_result.models) == 1  # Only one model (TabDDPM) is trained.
 
     # Now fine-tune the trained TabDDPM model on a small set of data
-    configs.fine_tuning_diffusion_iterations = cfg.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations
-    configs.fine_tuning_classifier_iterations = cfg.shadow_training.fine_tuning_config.fine_tune_classifier_iterations
-    model_runner = EnsembleAttackTabDDPMModelRunner(configs)
-
     fine_tuned_results = model_runner.train_or_fine_tune_and_synthesize(
         dataset=fine_tuning_set,
         synthesize=False,

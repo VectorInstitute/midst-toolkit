@@ -1,12 +1,11 @@
 import json
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 from omegaconf import DictConfig, OmegaConf
 
-from examples.gan.utils import get_single_table_svd_metadata, get_table_name
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
-from midst_toolkit.attacks.ensemble.models import EnsembleAttackCTGANTrainingConfig
 from midst_toolkit.attacks.ensemble.process_split_data import PROCESSED_TRAIN_DATA_FILE_NAME
 from midst_toolkit.attacks.ensemble.shadow_model_utils import setup_save_dir
 
@@ -29,7 +28,7 @@ def get_master_challenge_train_data(config: DictConfig) -> pd.DataFrame:
     return load_dataframe(population_path, PROCESSED_TRAIN_DATA_FILE_NAME)
 
 
-def make_training_config(config: DictConfig) -> EnsembleAttackCTGANTrainingConfig:
+def make_training_config(config: DictConfig) -> dict[Any, Any]:
     """
     Make the ensemble attack training config for the CTGAN model from the config.yaml file.
 
@@ -57,20 +56,6 @@ def make_training_config(config: DictConfig) -> EnsembleAttackCTGANTrainingConfi
         }
         json.dump(training_config, f)
 
-    ctgan_training_config = EnsembleAttackCTGANTrainingConfig(**training_config)  # type: ignore[arg-type]
+    setup_save_dir(training_config)
 
-    setup_save_dir(ctgan_training_config)
-
-    master_challenge_train = get_master_challenge_train_data(config)
-
-    table_name = get_table_name(config.base_data_dir)
-    domain_file_path = Path(config.base_data_dir) / f"{table_name}_domain.json"
-    with open(domain_file_path, "r") as file:
-        domain_dictionary = json.load(file)
-
-    metadata, _ = get_single_table_svd_metadata(master_challenge_train, domain_dictionary)
-
-    ctgan_training_config.metadata = metadata
-    ctgan_training_config.table_name = table_name
-
-    return ctgan_training_config
+    return training_config

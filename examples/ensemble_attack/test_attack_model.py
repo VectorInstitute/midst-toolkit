@@ -21,11 +21,7 @@ from examples.ensemble_attack.real_data_collection import (
 from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
-from midst_toolkit.attacks.ensemble.models import (
-    EnsembleAttackModelRunner,
-    EnsembleAttackTabDDPMModelRunner,
-    EnsembleAttackTabDDPMTrainingConfig,
-)
+from midst_toolkit.attacks.ensemble.models import EnsembleAttackClavaDDPMModelRunner, EnsembleAttackModelRunner
 from midst_toolkit.attacks.ensemble.process_split_data import PROCESSED_TRAIN_DATA_FILE_NAME
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
@@ -445,28 +441,22 @@ def run_metaclassifier_testing(model_runner: EnsembleAttackModelRunner, config: 
 # TODO: Perform inference on all the target models sequentially in a single run instead of running this script
 # multiple times. For more information, refer to https://app.clickup.com/t/868h4xk86
 @hydra.main(config_path="configs", config_name="experiment_config", version_base=None)
-def run_metaclassifier_testing_with_tabddpm(config: DictConfig) -> None:
+def run_metaclassifier_testing_with_clavaddpm(config: DictConfig) -> None:
     """
     Run the attack on a single target model using a trained metaclassifier.
-    RMIA shadow models will be trained using the TabDDPM model.
+    RMIA shadow models will be trained using the ClavaDDPM model.
+
+    This only supports single-table models.
 
     Args:
         config: Configuration object set in config.yaml.
     """
-    log(INFO, "Running metaclassifier testing with TabDDPM...")
+    log(INFO, "Running metaclassifier testing with ClavaDDPM (single-table)...")
 
-    with open(config.shadow_training.training_json_config_paths.training_config_path, "r") as file:
-        training_config = EnsembleAttackTabDDPMTrainingConfig(**json.load(file))
-    fine_tune_diffusion_iterations = config.shadow_training.fine_tuning_config.fine_tune_diffusion_iterations
-    training_config.fine_tuning_diffusion_iterations = fine_tune_diffusion_iterations
-    fine_tune_classifier_iterations = config.shadow_training.fine_tuning_config.fine_tune_classifier_iterations
-    training_config.fine_tuning_classifier_iterations = fine_tune_classifier_iterations
-    training_config.number_of_points_to_synthesize = config.shadow_training.number_of_points_to_synthesize
-
-    model_runner = EnsembleAttackTabDDPMModelRunner(training_config=training_config)
+    model_runner = EnsembleAttackClavaDDPMModelRunner(config=config)
 
     run_metaclassifier_testing(model_runner, config)
 
 
 if __name__ == "__main__":
-    run_metaclassifier_testing_with_tabddpm()
+    run_metaclassifier_testing_with_clavaddpm()

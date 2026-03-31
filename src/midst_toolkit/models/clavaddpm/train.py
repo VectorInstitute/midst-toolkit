@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import torch
-from sdv.single_table import CTGANSynthesizer  # type: ignore[import-untyped]
+from sdv.single_table import CTGANSynthesizer
 from sklearn.preprocessing import LabelEncoder
 from torch import Tensor, optim
 
