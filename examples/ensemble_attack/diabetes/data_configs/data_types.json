@@ -1,9 +1,8 @@
 
 {
-    "numerical": ["encounter_id", "patient_id", "num_lab_procedures", "num_medications", "number_outpatient", "number_emergency", "number_inpatient", "age", "time_in_hospital","num_procedures","number_diagnoses"],
-    "categorical": ["race"  , "gender", "admission_type", "discharge_disposition", "admission_source", "diag_1", "diag_2", "diag_3", "max_glu_serum", "A1Cresult", "metformin", "repaglinide", "nateglinide", "chlorpropamide", "glimepiride", "glipizide", "glyburide", "tolbutamide", "pioglitazone", "rosiglitazone", "acarbose", "miglitol", "tolazamide", "insulin","glyburide-metformin","change","diabetesMed", "readmitted"],
-    "variable_to_predict": "gender",
+    "numerical": ["encounter_id", "patient_nbr_id", "num_lab_procedures_integer", "num_procedures_integer", "num_medications_integer", "number_outpatient_integer", "number_emergency_integer", "number_inpatient_integer", "time_in_hospital_integer","number_diagnoses_integer"],
+    "categorical": ["race_categorical", "gender_categorical", "age_categorical", "weight_categorical", "admission_type_categorical", "discharge_disposition_categorical", "admission_source_categorical", "diag_1_categorical","payer_code_categorical","diag_2_categorical","medical_specialty_categorical", "diag_3_categorical", "max_glu_serum_categorical", "A1Cresult_categorical", "metformin_categorical", "repaglinide_categorical", "nateglinide_categorical", "chlorpropamide_categorical", "glimepiride_categorical", "acetohexamide_categorical", "glipizide_categorical", "glyburide_categorical", "tolbutamide_categorical", "pioglitazone_categorical", "rosiglitazone_categorical", "acarbose_categorical", "troglitazone_categorical", "examide_categorical", "miglitol_categorical", "citoglipton_categorical", "tolazamide_categorical", "insulin_categorical","glyburide-metformin_categorical","glipizide-metformin_categorical","glimepiride-pioglitazone_categorical", "metformin-pioglitazone_categorical", "change_categorical","metformin-rosiglitazone_categorical","diabetesMed_categorical", "readmitted_categorical"],
+    "variable_to_predict": "race_categorical",
     "id_column_name": "encounter_id"
 }
-
 

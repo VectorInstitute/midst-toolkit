@@ -96,8 +96,10 @@ def run_metaclassifier_training(
     assert "encounter_id" in df_meta_test.columns, "Meta test data must have encounter_id column"
     test_trans_ids = df_meta_test["encounter_id"]
 
-    df_meta_train = df_meta_train.drop(columns=["encounter_id", "patient_id"])
-    df_meta_test = df_meta_test.drop(columns=["encounter_id", "patient_id"])
+    id_cols = ["encounter_id", "patient_id", "patient_nbr_id"]
+
+    df_meta_train = df_meta_train.drop(columns=id_cols, errors="ignore")
+    df_meta_test = df_meta_test.drop(columns=id_cols, errors="ignore")
 
     # Fit the metaclassifier.
     meta_classifier_type = MetaClassifierType(config.metaclassifier.model_type)

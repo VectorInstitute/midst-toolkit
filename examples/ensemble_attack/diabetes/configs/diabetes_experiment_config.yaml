@@ -1,6 +1,6 @@
 # Ensemble experiment configuration for diabetes dataset, 20k
 # This config can be used to run both the Ensemble attack training (``run_attack.py``) and testing phases (``test_attack_model.py``).
-base_experiment_dir: /projects/midst-experiments/ensemble_attack/diabetes/first_run_20k # Processed data, and experiment artifacts will be stored under this directory.
+base_experiment_dir: /projects/midst-experiments/ensemble_attack/diabetes/ver2_20k # Processed data, and experiment artifacts will be stored under this directory.
 base_data_config_dir: examples/ensemble_attack/diabetes/data_configs # Training and data type configs are saved under this directory.
 
 # Training Pipeline Control
@@ -10,7 +10,7 @@ pipeline:
   run_metaclassifier_training: true
 
 target_model: # This is only used for testing the attack on a real target model.
-  target_model_directory: /projects/midst-experiments/ensemble_attack/diabetes_ver1/diabetes_data/tabddpm_black_box/final
+  target_model_directory: /projects/midst-experiments/ensemble_attack/diabetes_ver2/diabetes_data/tabddpm_black_box/final
   target_model_id: 8  # Will be overridden per SLURM array task
   target_model_name: tabddpm_${target_model.target_model_id}
   # target_synthetic_data_path: /projects/midst-experiments/ensemble_attack/tabddpm_20k_experiment_data/20k/shadow_target_model_and_data/target_synthetic_data.csv
@@ -26,7 +26,6 @@ target_model: # This is only used for testing the attack on a real target model.
 
 # Data paths
 data_paths:
-
   processed_base_data_dir: ${base_experiment_dir} # To save new processed data for training, or read from previously collected and processed data (testing phase).
   population_path: ${data_paths.processed_base_data_dir}/population_data  # Path where the collected population data will be stored (output/input)
   processed_attack_data_path: ${data_paths.processed_base_data_dir}/attack_data # Path where the processed attack real train and evaluation data is stored (output/input)
@@ -39,7 +38,7 @@ model_paths:
 
 # Dataset specific information used for processing in this example
 data_processing_config:
-  dataset_path: /projects/midst-experiments/ensemble_attack/diabetes_ver1/diabetes_data # Used to collect the data (input)
+  dataset_path: /projects/midst-experiments/ensemble_attack/diabetes_ver2/diabetes_data # Used to collect the data (input)
   # The following directories should exist and contain `tabddpm_{i} for i in folder_ranges`:
   # population data: midst_data_path/population_attack_data_types_to_collect/population_splits
   # challenge data: midst_data_path/challenge_attack_data_types_to_collect/challenge_splits
@@ -57,7 +56,7 @@ data_processing_config:
   original_population_data_path: null
 
   # The column name in the data to be used for stratified splitting.
-  column_to_stratify: "gender"  # Attention: This value is not documented in the original codebase.
+  column_to_stratify: "race_categorical"  # Attention: This value is not documented in the original codebase.
   folder_ranges: # Specify folder ranges for any of the mentioned splits.
     train: [[1, 8]] # Folders to be used for train data collection in the experiments
     final: [[8, 10]]
@@ -75,7 +74,7 @@ data_processing_config:
 shadow_training:
   # Data Config files path used for training a TabDDPM model
   training_json_config_paths: # Config json files used for tabddpm training on the trans table
-    table_domain_file_path: ${base_data_config_dir}/trans_domain.json
+    table_domain_file_path: ${base_data_config_dir}/trans_domain_ver2.json
     dataset_meta_file_path: ${base_data_config_dir}/dataset_meta.json
     tabddpm_training_config_path: ${base_data_config_dir}/trans.json
   # Model training artifacts are saved under shadow_models_data_path/workspace_name/exp_name
@@ -117,7 +116,6 @@ metaclassifier:
 attack_success_computation:
   # target_ids_to_test: [61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110] # List of target model IDs to compute the attack success for.
   target_ids_to_test: [8, 9, 10]
-
 
 # General settings
 random_seed: 42 # Set to null for no seed, or an integer for a fixed seed

@@ -57,7 +57,7 @@ def run_data_processing(config: DictConfig) -> None:
     log(INFO, "Data processing pipeline finished.")
 
 
-@hydra.main(config_path="configs", config_name="diabetes_experiment_config", version_base=None)
+@hydra.main(config_path="configs", config_name="diabetes_experiment_config_10k", version_base=None)
 def main(config: DictConfig) -> None:
     """
     Run the Ensemble Attack example pipeline.
