@@ -5,12 +5,12 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:a40:1
-#SBATCH --mem=50G
-#SBATCH --job-name=test_2e5_itr_def
+#SBATCH --mem=40G
+#SBATCH --job-name=test_same_marginal_iid
 #SBATCH --output=%j_%x_%a.out
 #SBATCH --error=%j_%x_%a.err
 #SBATCH --time=1:00:00
-#SBATCH --array=0-18
+#SBATCH --array=0-8
 
 # This script sets up the environment and runs the ensemble attack test script.
 source .venv/bin/activate
@@ -20,11 +20,8 @@ which python
 
 # Map SLURM_ARRAY_TASK_ID to target_model_id.
 
-# TARGET_IDS=(112)
-TARGET_IDS=( 111 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130)  # List of target IDs
-
-# TARGET_IDS=(61)
-# TARGET_IDS=( 62 63 64 65 66 67 68 69 70 101 102 103 104 105 106 107 108 109 110)  # List of target IDs
+# TARGET_IDS=(21)
+TARGET_IDS=( 22 23 24 25 26 27 28 29 30 )  # List of target IDs
 
 
 TARGET_ID=${TARGET_IDS[$SLURM_ARRAY_TASK_ID]}
@@ -33,6 +30,6 @@ echo "Running test for target_model_id: $TARGET_ID using all target models' chal
 
 echo "Experiments Launched"
 
-python -m examples.ensemble_attack.test_attack_model --config-name=experiment_config_2e5_itr_def target_model.target_model_id=$TARGET_ID
+python -m examples.ensemble_attack.test_attack_model --config-name=experiment_config_same_marginal_iid target_model.target_model_id=$TARGET_ID
 
 echo "Experiments Completed"

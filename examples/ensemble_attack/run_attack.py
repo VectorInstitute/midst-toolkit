@@ -35,6 +35,7 @@ def run_data_processing(config: DictConfig) -> None:
         Path(config.data_processing_config.original_population_data_path),
         "population_all_with_challenge.csv",
     )
+    log(INFO, f"Base population data of size {len(original_population_data)} loaded from {config.data_processing_config.original_population_data_path}.")
     log(INFO, "Running data processing pipeline...")
     # Collect the real data from the MIDST challenge resources.
     population_data = collect_population_data_ensemble(

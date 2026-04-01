@@ -14,7 +14,7 @@ from omegaconf import DictConfig
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
 from midst_toolkit.common.logger import log
 
-
+# TODO:Remove attack type, it is just a folder name, but be careful that attack name is extracted from it.
 class AttackType(Enum):
     """Enum for the different attack types."""
 
@@ -30,6 +30,8 @@ class AttackType(Enum):
     TABDDPM_20K = "tabddpm_trained_with_20k"
     TABDDPM_50K = "tabddpm_trained_with_50k"
     TABDDPM_100K = "tabddpm_trained_with_100k"
+    NON_IID = "non_iid_distribution"
+    IID = "iid_distribution"
 
 
 DatasetType = Literal["train", "challenge"]
@@ -62,13 +64,14 @@ def collect_data_from_path_range(data_path: Path, data_range: list[tuple[int, in
         collected_data = collected_data_ith if collected_data.empty else pd.concat([collected_data, collected_data_ith])
     return collected_data.drop_duplicates()
 
-
+# TODO: This function can be completely replaced by the previous one.
 def collect_midst_attack_data(
     attack_type: AttackType,
     data_dir: Path,
     split_folder: str,
     dataset: DatasetType,
     data_processing_config: DictConfig,
+    generation_name: str = "tabddpm",
 ) -> pd.DataFrame:
     """
     Collect the real data in a specific setting of the provided MIDST challenge resources.
@@ -95,7 +98,6 @@ def collect_midst_attack_data(
 
     # Get file name based on the kind of dataset to be collected (i.e. train vs challenge).
     # TODO: Make the below parsing a bit more robust and less brittle
-    generation_name = attack_type.value.split("_")[0]
     if dataset == "challenge":
         file_name = data_processing_config.challenge_data_file_name
     else:
@@ -116,6 +118,7 @@ def collect_midst_data(
     split_folders: list[str],
     dataset: DatasetType,
     data_processing_config: DictConfig,
+    generation_name: str = "tabddpm",
 ) -> pd.DataFrame:
     """
     Collect train or challenge data of the specified attack type from the provided data folders
@@ -147,6 +150,7 @@ def collect_midst_data(
                 split_folder=split_folder,
                 dataset=dataset,
                 data_processing_config=data_processing_config,
+                generation_name = generation_name
             )
 
             population.append(df_real)

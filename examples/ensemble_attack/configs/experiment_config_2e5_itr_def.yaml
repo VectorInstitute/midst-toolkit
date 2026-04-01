@@ -1,6 +1,6 @@
 # Ensemble experiment configuration
 # This config can be used to run both the Ensemble attack training (``run_attack.py``) and testing phases (``test_attack_model.py``).
-base_experiment_dir: /projects/midst-experiments/ensemble_attack/data_distribution_knowledge/disjoint_accounts/non_iid # Processed data, and experiment artifacts will be stored under this directory.
+base_experiment_dir: /projects/midst-experiments/ensemble_attack/target_variations/training_iterations/200000iterations # Processed data, and experiment artifacts will be stored under this directory.
 base_data_config_dir: examples/ensemble_attack/data_configs # Training and data type configs are saved under this directory.
 
 # Training Pipeline Control
@@ -50,7 +50,7 @@ data_processing_config:
           "tabddpm_black_box",
         ]
   population_splits: ["train"]  # Data splits to be collected for population data
-  challenge_splits: ["train" , "final"]  # Data splits to be collected for challenge points
+  challenge_splits: ["train"] # Data splits to be collected for challenge points
   test_challenge_data_path_for_training: ${target_model.target_model_directory} # We should also provide challenge points (test data points) during training of RMIA shadow models. 
   original_population_data_path: /projects/midst-experiments/ensemble_attack/competition/population_data/ # This is where the original attack's population data (800k) will be read from, mainly to be used by DOMIAS
   # You can download this data from https://github.com/CRCHUM-CITADEL/ensemble-mia/blob/main/input/population/population_all_with_challenge.csv
@@ -59,7 +59,7 @@ data_processing_config:
   column_to_stratify: "trans_type"  # Attention: This value is not documented in the original codebase.
   folder_ranges: # Specify folder ranges for any of the mentioned splits.
     train: [[1, 21]] # Folders to be used for train data collection in the experiments
-    final: [[61, 71], [101, 111]]
+    final: [[61, 71], [101, 111]] # These folders should exists under `test_challenge_data_path_for_training`
   # File names in MIDST data directories.
   single_table_train_data_file_name: "train_with_id.csv"
   multi_table_train_data_file_name: "trans.csv"
