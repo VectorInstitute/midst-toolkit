@@ -1,13 +1,17 @@
-import json
 from logging import INFO
 from pathlib import Path
 
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from examples.ensemble_attack.run_metaclassifier_training import run_metaclassifier_training
 from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training, run_target_model_training
+from examples.gan.ensemble_attack.utils import (
+    get_master_challenge_train_data,
+    make_training_config,
+)
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe, save_dataframe
+from midst_toolkit.attacks.ensemble.models import EnsembleAttackCTGANModelRunner
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
@@ -55,34 +59,17 @@ def train_attack_model(config: DictConfig) -> None:
             random_seed=config.ensemble_attack.random_seed,
         )
 
-    # Saving the model config from the config.yaml into a json file
-    # because that's what the ensemble attack code will be looking for
-    training_config_path = Path(config.ensemble_attack.shadow_training.training_json_config_paths.training_config_path)
-    training_config_path.unlink(missing_ok=True)
-    with open(training_config_path, "w") as f:
-        training_config = OmegaConf.to_container(config.ensemble_attack.shadow_training.model_config)
-        assert isinstance(training_config, dict), "Training config must be a dictionary."
-        training_config["general"] = {
-            "test_data_dir": config.base_data_dir,
-            "sample_prefix": "ctgan",
-            # The values below will be overriden
-            "exp_name": "",
-            "data_dir": "",
-            "workspace_dir": "",
-        }
-        json.dump(training_config, f)
-
     if config.ensemble_attack.pipeline.run_shadow_model_training:
         log(INFO, "Training the shadow models...")
-        master_challenge_train = load_dataframe(
-            Path(config.ensemble_attack.data_paths.population_path),
-            "master_challenge_train.csv",
-        )
-        shadow_data_paths = run_shadow_model_training(config.ensemble_attack, master_challenge_train)
-        shadow_data_paths = [Path(path) for path in shadow_data_paths]
+
+        make_training_config(config)
+        model_runner = EnsembleAttackCTGANModelRunner(config)
+
+        master_challenge_train = get_master_challenge_train_data(config)
+        shadow_data_paths = run_shadow_model_training(model_runner, config.ensemble_attack, master_challenge_train)
 
         log(INFO, "Training the target model...")
-        target_model_synthetic_path = run_target_model_training(config.ensemble_attack)
+        target_model_synthetic_path = run_target_model_training(model_runner, config.ensemble_attack)
 
     if config.ensemble_attack.pipeline.run_metaclassifier_training:
         log(INFO, "Training the metaclassifier...")

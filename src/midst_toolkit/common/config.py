@@ -102,6 +102,7 @@ class TrainingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")  # disallow extra fields from config files
 
     general: GeneralConfig
+    save_dir: Path | None = None
 
 
 class ClavaDDPMTrainingConfig(TrainingConfig):

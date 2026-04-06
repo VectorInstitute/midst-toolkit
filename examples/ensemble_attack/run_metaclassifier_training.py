@@ -9,6 +9,12 @@ from omegaconf import DictConfig
 from examples.ensemble_attack.real_data_collection import COLLECTED_DATA_FILE_NAME
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
+from midst_toolkit.attacks.ensemble.process_split_data import (
+    PROCESSED_TEST_DATA_FILE_NAME,
+    PROCESSED_TEST_LABELS_FILE_NAME,
+    PROCESSED_TRAIN_DATA_FILE_NAME,
+    PROCESSED_TRAIN_LABELS_FILE_NAME,
+)
 from midst_toolkit.common.logger import log
 
 
@@ -32,20 +38,20 @@ def run_metaclassifier_training(
     # Load the processed data splits.
     df_meta_train = load_dataframe(
         Path(config.data_paths.processed_attack_data_path),
-        "master_challenge_train.csv",
+        PROCESSED_TRAIN_DATA_FILE_NAME,
     )
 
     # y_meta_train consists of binary labels (0s and 1s) indicating whether each row in df_meta_train
     # belongs to the target model's training set.
     y_meta_train = np.load(
-        Path(config.data_paths.processed_attack_data_path) / "master_challenge_train_labels.npy",
+        Path(config.data_paths.processed_attack_data_path) / PROCESSED_TRAIN_LABELS_FILE_NAME,
     )
     df_meta_test = load_dataframe(
         Path(config.data_paths.processed_attack_data_path),
-        "master_challenge_test.csv",
+        PROCESSED_TEST_DATA_FILE_NAME,
     )
     y_meta_test = np.load(
-        Path(config.data_paths.processed_attack_data_path) / "master_challenge_test_labels.npy",
+        Path(config.data_paths.processed_attack_data_path) / PROCESSED_TEST_LABELS_FILE_NAME,
     )
 
     # Three sets of shadow models are trained separately and their paths are provided here.
