@@ -5,9 +5,10 @@ from pathlib import Path
 import hydra
 import pandas as pd
 from omegaconf import DictConfig
-from sdv.single_table import CTGANSynthesizer  # type: ignore[import-untyped]
+from sdv.single_table import CTGANSynthesizer
 
-from examples.gan.utils import get_single_table_svd_metadata, get_table_name
+from examples.gan.utils import get_table_name
+from midst_toolkit.attacks.ensemble.models import get_single_table_svd_metadata
 from midst_toolkit.common.logger import log
 
 

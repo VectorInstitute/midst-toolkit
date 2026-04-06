@@ -5,9 +5,8 @@ import pytest
 from hydra import compose, initialize
 from omegaconf import DictConfig
 
-from midst_toolkit.attacks.ensemble.shadow_model_utils import (
-    save_additional_training_config,
-)
+from midst_toolkit.attacks.ensemble.shadow_model_utils import update_and_save_training_config
+from midst_toolkit.common.config import ClavaDDPMTrainingConfig
 
 
 @pytest.fixture(scope="module")
@@ -33,15 +32,18 @@ def test_save_additional_tabddpm_config(cfg: DictConfig, tmp_path: Path) -> None
     new_experiment_name = "test_experiment"
     final_json_path = tmp_path / "modified_config.json"
 
-    configs, save_dir = save_additional_training_config(
+    with open(tabddpm_config_path, "r") as file:
+        configs = ClavaDDPMTrainingConfig(**json.load(file))
+
+    configs = update_and_save_training_config(
+        config=configs,
         data_dir=new_data_dir,
-        training_config_json_path=tabddpm_config_path,
         final_config_json_path=final_json_path,
         experiment_name=new_experiment_name,
         workspace_name=new_workspace_name,
     )
 
-    assert save_dir == new_data_dir / new_workspace_name / new_experiment_name
+    assert configs.save_dir == new_data_dir / new_workspace_name / new_experiment_name
     assert configs.general.data_dir == new_data_dir
     assert configs.general.workspace_dir == new_data_dir / new_workspace_name
     assert configs.general.exp_name == new_experiment_name
@@ -50,5 +52,5 @@ def test_save_additional_tabddpm_config(cfg: DictConfig, tmp_path: Path) -> None
     assert old_workspace_dir != configs.general.workspace_dir
     assert old_exp_name != configs.general.exp_name
     # Ensure required directories are created
-    assert (save_dir / "models").exists()
-    assert (save_dir / "before_matching").exists()
+    assert (configs.save_dir / "models").exists()
+    assert (configs.save_dir / "before_matching").exists()

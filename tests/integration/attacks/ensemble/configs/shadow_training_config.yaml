@@ -15,6 +15,7 @@ shadow_training:
     fine_tune_diffusion_iterations: 2
     fine_tune_classifier_iterations: 2
     pre_train_data_size: 50 # We want to only use 50 samples for pre-training.
+  number_of_points_to_synthesize: 5
 
 
 # General settings

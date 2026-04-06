@@ -3,40 +3,31 @@ import random
 import shutil
 from logging import INFO
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pandas as pd
 from omegaconf import DictConfig
 
-from midst_toolkit.attacks.ensemble.shadow_model_utils import (
-    ModelType,
-    TrainingResult,
-    fine_tune_tabddpm_and_synthesize,
-    save_additional_training_config,
-    train_or_fine_tune_and_synthesize_with_ctgan,
-    train_tabddpm_and_synthesize,
-)
-from midst_toolkit.common.config import ClavaDDPMTrainingConfig, CTGANTrainingConfig
+from midst_toolkit.attacks.ensemble.models import EnsembleAttackModelRunner
+from midst_toolkit.attacks.ensemble.shadow_model_utils import update_and_save_training_config
 from midst_toolkit.common.logger import log
 
 
 # TODO: This function and the next one can be unified later.
 def train_fine_tuned_shadow_models(
+    model_runner: EnsembleAttackModelRunner,
     n_models: int,
     n_reps: int,
     population_data: pd.DataFrame,
     master_challenge_data: pd.DataFrame,
     shadow_models_output_path: Path,
     training_json_config_paths: DictConfig,
-    fine_tuning_config: DictConfig,
     init_model_id: int,
     table_name: str,
     id_column_name: str,
     pre_training_data_size: int = 60000,
-    number_of_points_to_synthesize: int = 20000,
     init_data_seed: int | None = None,
     random_seed: int | None = None,
-    model_type: ModelType = ModelType.TABDDPM,
 ) -> Path:
     """
     Train ``n_models`` shadow models that start from a pre-trained TabDDPM model and are fine-tuned on
@@ -60,6 +51,8 @@ def train_fine_tuned_shadow_models(
     size of fine-tuning set.
 
     Args:
+            model_runner: The model runner to be used for training the shadow models. Should be an instance of
+                a subclass of `EnsembleAttackModelRunner`.
             n_models: Number of shadow models to train, must be even.
             n_reps: Number of repetitions for each challenge point in the fine-tuning set.
             population_data: The total population data that the attacker has access to.
@@ -81,7 +74,6 @@ def train_fine_tuned_shadow_models(
                 defaults to 20,000.
             init_data_seed: Random seed for the initial training set.
             random_seed: Random seed used for reproducibility, defaults to None.
-            model_type: Type of model to be used for training the shadow models. Defaults to ModelType.TABDDPM.
 
     Returns:
             The path where the shadow models and their artifacts are saved.
@@ -118,39 +110,27 @@ def train_fine_tuned_shadow_models(
     )
 
     # Train initial model with 60K data without any challenge points
-    # ``save_additional_training_config`` makes a personalized copy of the training config for each
+    # ``update_and_save_training_config`` makes a personalized copy of the training config for each
     # training model (here the base model).
     # All the shadow models will be saved under the base model data directory.
-    configs, save_dir = save_additional_training_config(
+    configs = update_and_save_training_config(
+        config=model_runner.training_config,
         data_dir=shadow_model_data_folder,
-        training_config_json_path=Path(training_json_config_paths.training_config_path),
         final_config_json_path=shadow_model_data_folder / f"{table_name}.json",  # Path to the new json
         experiment_name="pre_trained_model",
-        model_type=model_type,
     )
+    model_runner.training_config = configs
 
     # Train the initial model if it is not already trained and saved.
-    initial_model_path = save_dir / f"initial_model_rmia_{init_model_id}.pkl"
+    assert model_runner.training_config.save_dir is not None, "Save dir is not set"
+    initial_model_path = model_runner.training_config.save_dir / f"initial_model_rmia_{init_model_id}.pkl"
     if not initial_model_path.exists():
-        log(INFO, f"Training initial {model_type.value} model with ID {init_model_id}...")
+        log(INFO, f"Training initial model with runner {model_runner}. Model ID {init_model_id}...")
 
-        initial_model_training_results: TrainingResult
-        if model_type == ModelType.TABDDPM:
-            initial_model_training_results = train_tabddpm_and_synthesize(
-                train,
-                cast(ClavaDDPMTrainingConfig, configs),
-                save_dir,
-                synthesize=False,
-            )
-        elif model_type == ModelType.CTGAN:
-            initial_model_training_results = train_or_fine_tune_and_synthesize_with_ctgan(
-                train,
-                cast(CTGANTrainingConfig, configs),
-                save_dir,
-                synthesize=False,
-            )
-        else:
-            raise ValueError(f"Invalid model type: {model_type}")
+        initial_model_training_results = model_runner.train_or_fine_tune_and_synthesize(
+            dataset=train,
+            synthesize=False,
+        )
 
         # Save the initial model
         # Pickle dump the results
@@ -193,27 +173,11 @@ def train_fine_tuned_shadow_models(
         # Shuffle the dataset
         selected_challenges = selected_challenges.sample(frac=1, random_state=random_seed).reset_index(drop=True)
 
-        if model_type == ModelType.TABDDPM:
-            train_result = fine_tune_tabddpm_and_synthesize(
-                trained_models=initial_model_training_results.models,
-                fine_tune_set=selected_challenges,
-                configs=cast(ClavaDDPMTrainingConfig, configs),
-                save_dir=save_dir,
-                fine_tuning_diffusion_iterations=fine_tuning_config.fine_tune_diffusion_iterations,
-                fine_tuning_classifier_iterations=fine_tuning_config.fine_tune_classifier_iterations,
-                synthesize=True,
-                number_of_points_to_synthesize=number_of_points_to_synthesize,
-            )
-        elif model_type == ModelType.CTGAN:
-            train_result = train_or_fine_tune_and_synthesize_with_ctgan(
-                dataset=selected_challenges,
-                configs=cast(CTGANTrainingConfig, configs),
-                save_dir=save_dir,
-                synthesize=True,
-                trained_model=initial_model_training_results.models[(None, table_name)].model,
-            )
-        else:
-            raise ValueError(f"Invalid model type: {model_type}")
+        train_result = model_runner.train_or_fine_tune_and_synthesize(
+            dataset=selected_challenges,
+            synthesize=True,
+            trained_model=initial_model_training_results,
+        )
 
         assert train_result.synthetic_data is not None, "Fine-tuned models should generate synthetic data."
         log(
@@ -223,7 +187,7 @@ def train_fine_tuned_shadow_models(
         attack_data["fine_tuned_results"].append(train_result.synthetic_data)
 
     # Pickle dump the results
-    result_path = Path(save_dir / "rmia_shadows.pkl")
+    result_path = model_runner.training_config.save_dir / "rmia_shadows.pkl"
     with open(result_path, "wb") as file:
         pickle.dump(attack_data, file)
 
@@ -231,6 +195,7 @@ def train_fine_tuned_shadow_models(
 
 
 def train_shadow_on_half_challenge_data(
+    model_runner: EnsembleAttackModelRunner,
     n_models: int,
     n_reps: int,
     master_challenge_data: pd.DataFrame,
@@ -238,9 +203,7 @@ def train_shadow_on_half_challenge_data(
     training_json_config_paths: DictConfig,
     table_name: str,
     id_column_name: str,
-    number_of_points_to_synthesize: int = 20000,
     random_seed: int | None = None,
-    model_type: ModelType = ModelType.TABDDPM,
 ) -> Path:
     """
     1. Create eight training sets with exactly half of the observations included in the challenge lists
@@ -251,22 +214,21 @@ def train_shadow_on_half_challenge_data(
     3. A synthetic dataset of 20K observations is generated for each model.
 
     Args:
-            n_models: number of shadow models to train, must be even.
-            n_reps: number of repetitions for each challenge point in the fine-tuning set.
-            master_challenge_data: The master challenge training dataset.
-            shadow_models_output_path: Path where the all datasets and information necessary to train shadow models
-                will be saved.
-            training_json_config_paths: Configuration dictionary containing paths to the data JSON config files.
-                An example of this config is provided in ``examples/ensemble_attack/config.yaml``. Required keys are:
-                - table_domain_file_path (str): Path to the table domain json file.
-                - dataset_meta_file_path (str): Path to dataset meta json file.
-                - training_config_path (str): Path to table's training config json file.
-            table_name: Name of the main table to be used for training the TabDDPM model.
-            id_column_name: Name of the ID column in the data.
-            number_of_points_to_synthesize: Size of the synthetic data to be generated by each shadow model,
-                defaults to 20,000.
-            random_seed: Random seed used for reproducibility, defaults to None.
-            model_type: Type of model to be used for training the shadow models. Defaults to ModelType.TABDDPM.
+        model_runner: The model runner to be used for training the shadow models.
+            Should be an instance of `EnsembleAttackModelRunner`.
+        n_models: number of shadow models to train, must be even.
+        n_reps: number of repetitions for each challenge point in the fine-tuning set.
+        master_challenge_data: The master challenge training dataset.
+        shadow_models_output_path: Path where the all datasets and information necessary to train shadow models
+            will be saved.
+        training_json_config_paths: Configuration dictionary containing paths to the data JSON config files.
+            An example of this config is provided in ``examples/ensemble_attack/config.yaml``. Required keys are:
+            - table_domain_file_path (str): Path to the table domain json file.
+            - dataset_meta_file_path (str): Path to dataset meta json file.
+            - training_config_path (str): Path to table's training config json file.
+        table_name: Name of the main table to be used for training the TabDDPM model.
+        id_column_name: Name of the ID column in the data.
+        random_seed: Random seed used for reproducibility, defaults to None.
 
     Returns:
             The path where the shadow models and their artifacts are saved.
@@ -297,13 +259,15 @@ def train_shadow_on_half_challenge_data(
         training_json_config_paths.dataset_meta_file_path,
         shadow_folder / "dataset_meta.json",
     )
-    configs, save_dir = save_additional_training_config(
+
+    configs = update_and_save_training_config(
+        config=model_runner.training_config,
         data_dir=shadow_folder,
-        training_config_json_path=Path(training_json_config_paths.training_config_path),
         final_config_json_path=shadow_folder / f"{table_name}.json",  # Path to the new json
         experiment_name="trained_model",
-        model_type=model_type,
     )
+    model_runner.training_config = configs
+
     attack_data: dict[str, Any] = {
         "selected_sets": selected_id_lists,
         "trained_results": [],
@@ -322,24 +286,7 @@ def train_shadow_on_half_challenge_data(
         # Shuffle the dataset
         selected_challenges = selected_challenges.sample(frac=1, random_state=random_seed).reset_index(drop=True)
 
-        train_result: TrainingResult
-        if model_type == ModelType.TABDDPM:
-            train_result = train_tabddpm_and_synthesize(
-                selected_challenges,
-                cast(ClavaDDPMTrainingConfig, configs),
-                save_dir,
-                synthesize=True,
-                number_of_points_to_synthesize=number_of_points_to_synthesize,
-            )
-        elif model_type == ModelType.CTGAN:
-            train_result = train_or_fine_tune_and_synthesize_with_ctgan(
-                dataset=selected_challenges,
-                configs=cast(CTGANTrainingConfig, configs),
-                save_dir=save_dir,
-                synthesize=True,
-            )
-        else:
-            raise ValueError(f"Invalid model type: {model_type}")
+        train_result = model_runner.train_or_fine_tune_and_synthesize(dataset=selected_challenges, synthesize=True)
 
         assert train_result.synthetic_data is not None, "Trained shadow model did not generate synthetic data."
         log(
@@ -350,7 +297,8 @@ def train_shadow_on_half_challenge_data(
         attack_data["trained_results"].append(train_result.synthetic_data)
 
     # Pickle dump the results
-    result_path = Path(save_dir, "rmia_shadows_third_set.pkl")
+    assert model_runner.training_config.save_dir is not None, "Save dir is not set"
+    result_path = model_runner.training_config.save_dir / "rmia_shadows_third_set.pkl"
     with open(result_path, "wb") as file:
         pickle.dump(attack_data, file)
 
@@ -358,6 +306,7 @@ def train_shadow_on_half_challenge_data(
 
 
 def train_three_sets_of_shadow_models(
+    model_runner: EnsembleAttackModelRunner,
     population_data: pd.DataFrame,
     master_challenge_data: pd.DataFrame,
     shadow_models_output_path: Path,
@@ -367,9 +316,7 @@ def train_three_sets_of_shadow_models(
     id_column_name: str,
     n_models_per_set: int = 4,
     n_reps: int = 12,
-    number_of_points_to_synthesize: int = 20000,
     random_seed: int | None = None,
-    model_type: ModelType = ModelType.TABDDPM,
 ) -> tuple[Path, Path, Path]:
     """
     Runs the shadow model training pipeline of the ensemble attack. This pipeline trains three sets of shadow models.
@@ -396,6 +343,8 @@ def train_three_sets_of_shadow_models(
 
 
     Args:
+        model_runner: The model runner to be used for training the shadow models.
+            Should be an instance of `EnsembleAttackModelRunner`.
         population_data: The total population data used for pre-training some of the shadow models.
         master_challenge_data: The master challenge training dataset.
         shadow_models_output_path: Path where the all datasets and information (configs) necessary to
@@ -416,10 +365,7 @@ def train_three_sets_of_shadow_models(
         id_column_name: Name of the ID column in the data.
         n_models_per_set: Number of shadow models to train by each approach. Must be an even number. Defaults to 4.
         n_reps: Number of repetitions for each challenge point in the fine-tuning or training sets, defaults to 12.
-        number_of_points_to_synthesize: Size of the synthetic data to be generated by each shadow model,
-            defaults to 20,000.
         random_seed: Random seed used for reproducibility, defaults to None.
-        model_type: Type of model to be used for training the shadow models. Defaults to ModelType.TABDDPM.
 
     Returns:
         Paths where the shadow models and their artifacts including synthetic data are saved for each of
@@ -431,21 +377,19 @@ def train_three_sets_of_shadow_models(
     shadow_models_output_path.mkdir(parents=True, exist_ok=True)
 
     first_set_result_path = train_fine_tuned_shadow_models(
+        model_runner=model_runner,
         n_models=n_models_per_set,
         n_reps=n_reps,
         population_data=population_data,
         master_challenge_data=master_challenge_data,
         shadow_models_output_path=shadow_models_output_path,
         training_json_config_paths=training_json_config_paths,
-        fine_tuning_config=fine_tuning_config,
         init_model_id=1,  # To distinguish these shadow models from the next ones
         table_name=table_name,
         id_column_name=id_column_name,
         pre_training_data_size=fine_tuning_config.pre_train_data_size,
-        number_of_points_to_synthesize=number_of_points_to_synthesize,
         init_data_seed=random_seed,
         random_seed=random_seed,
-        model_type=model_type,
     )
     log(
         INFO,
@@ -455,22 +399,20 @@ def train_three_sets_of_shadow_models(
     # with a new initial training set
     # in the hopes of increased performance (gain was minimal based on the submission comments).""
     second_set_result_path = train_fine_tuned_shadow_models(
+        model_runner=model_runner,
         n_models=n_models_per_set,
         n_reps=n_reps,
         population_data=population_data,
         master_challenge_data=master_challenge_data,
         shadow_models_output_path=shadow_models_output_path,
         training_json_config_paths=training_json_config_paths,
-        fine_tuning_config=fine_tuning_config,
         init_model_id=2,  # To distinguish these shadow models from the previous ones
         table_name=table_name,
         id_column_name=id_column_name,
         pre_training_data_size=fine_tuning_config.pre_train_data_size,
-        number_of_points_to_synthesize=number_of_points_to_synthesize,
         # Setting a different seed for the second train set
         init_data_seed=random_seed + 1 if random_seed is not None else None,
         random_seed=random_seed,
-        model_type=model_type,
     )
     log(
         INFO,
@@ -479,6 +421,7 @@ def train_three_sets_of_shadow_models(
     # Original codebase comment: "The following eight models are trained from scratch on the challenge points,
     # still in the hopes of increased performance (again the gain was minimal).""
     third_set_result_path = train_shadow_on_half_challenge_data(
+        model_runner=model_runner,
         n_models=n_models_per_set * 2,
         n_reps=n_reps,
         master_challenge_data=master_challenge_data,
@@ -486,9 +429,7 @@ def train_three_sets_of_shadow_models(
         training_json_config_paths=training_json_config_paths,
         table_name=table_name,
         id_column_name=id_column_name,
-        number_of_points_to_synthesize=number_of_points_to_synthesize,
         random_seed=random_seed,
-        model_type=model_type,
     )
     log(
         INFO,

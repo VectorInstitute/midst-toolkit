@@ -9,6 +9,12 @@ from midst_toolkit.attacks.ensemble.data_utils import save_dataframe
 from midst_toolkit.common.logger import log
 
 
+PROCESSED_TRAIN_DATA_FILE_NAME = "master_challenge_train.csv"
+PROCESSED_TEST_DATA_FILE_NAME = "master_challenge_test.csv"
+PROCESSED_TRAIN_LABELS_FILE_NAME = "master_challenge_train_labels.npy"
+PROCESSED_TEST_LABELS_FILE_NAME = "master_challenge_test_labels.npy"
+
+
 def split_real_data(
     df_real: pd.DataFrame,
     column_to_stratify: str | None = None,
@@ -208,14 +214,14 @@ def process_split_data(
     save_dataframe(df_real_val, processed_attack_data_path, "real_val.csv")
     save_dataframe(df_real_test, processed_attack_data_path, "real_test.csv")
 
-    save_dataframe(df_val, processed_attack_data_path, "master_challenge_train.csv")
+    save_dataframe(df_val, processed_attack_data_path, PROCESSED_TRAIN_DATA_FILE_NAME)
     np.save(
-        processed_attack_data_path / "master_challenge_train_labels.npy",
+        processed_attack_data_path / PROCESSED_TRAIN_LABELS_FILE_NAME,
         y_val,
     )
-    save_dataframe(df_test, processed_attack_data_path, "master_challenge_test.csv")
+    save_dataframe(df_test, processed_attack_data_path, PROCESSED_TEST_DATA_FILE_NAME)
     np.save(
-        processed_attack_data_path / "master_challenge_test_labels.npy",
+        processed_attack_data_path / PROCESSED_TEST_LABELS_FILE_NAME,
         y_test,
     )
     log(INFO, f"Data splits saved to {processed_attack_data_path}")

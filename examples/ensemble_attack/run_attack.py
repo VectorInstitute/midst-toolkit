@@ -13,7 +13,8 @@ import examples.ensemble_attack.run_metaclassifier_training as meta_pipeline
 import examples.ensemble_attack.run_shadow_model_training as shadow_pipeline
 from examples.ensemble_attack.real_data_collection import COLLECTED_DATA_FILE_NAME, collect_population_data_ensemble
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
-from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
+from midst_toolkit.attacks.ensemble.models import EnsembleAttackClavaDDPMModelRunner
+from midst_toolkit.attacks.ensemble.process_split_data import PROCESSED_TRAIN_DATA_FILE_NAME, process_split_data
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
 
@@ -79,12 +80,15 @@ def main(config: DictConfig) -> None:
     if config.pipeline.run_shadow_model_training:
         df_master_challenge_train = load_dataframe(
             Path(config.data_paths.processed_attack_data_path),
-            "master_challenge_train.csv",
+            PROCESSED_TRAIN_DATA_FILE_NAME,
         )
-        shadow_data_paths = shadow_pipeline.run_shadow_model_training(config, df_master_challenge_train)
+
+        model_runner = EnsembleAttackClavaDDPMModelRunner(config)
+
+        shadow_data_paths = shadow_pipeline.run_shadow_model_training(model_runner, config, df_master_challenge_train)
         shadow_data_paths = [Path(path) for path in shadow_data_paths]
 
-        target_model_synthetic_path = shadow_pipeline.run_target_model_training(config)
+        target_model_synthetic_path = shadow_pipeline.run_target_model_training(model_runner, config)
 
     if config.pipeline.run_metaclassifier_training:
         if not config.pipeline.run_shadow_model_training:

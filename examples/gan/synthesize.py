@@ -3,7 +3,7 @@ from pathlib import Path
 
 import hydra
 from omegaconf import DictConfig
-from sdv.single_table import CTGANSynthesizer  # type: ignore[import-untyped]
+from sdv.single_table import CTGANSynthesizer
 
 from examples.gan.train import main as train_main
 from examples.gan.utils import get_table_name
