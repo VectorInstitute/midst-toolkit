@@ -1464,13 +1464,16 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
                 conditioning_function=conditioning_function,
             )
             mask_nan = torch.any(sample.isnan(), dim=1)
+            log(INFO, f"Found {mask_nan.sum()} NaNs in the generated samples.")
             sample = sample[~mask_nan]
             outputs["y"] = outputs["y"][~mask_nan]
 
             all_samples.append(sample)
             all_targets.append(outputs["y"].cpu())
             if sample.shape[0] != batch_size:
-                raise FoundNaNsError
+                log(INFO, f"BATCH SIZE: {batch_size}, NUM GENERATED: {num_generated}, NUM SAMPLES: {num_samples}")
+
+                # raise FoundNaNsError
             num_generated += sample.shape[0]
 
         generated_features = torch.cat(all_samples, dim=0)[:num_samples]
