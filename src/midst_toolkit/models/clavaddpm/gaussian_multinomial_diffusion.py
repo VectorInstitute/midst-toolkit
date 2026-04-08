@@ -1471,7 +1471,7 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
             all_samples.append(sample)
             all_targets.append(outputs["y"].cpu())
             if sample.shape[0] != batch_size:
-                log(INFO, f"BATCH SIZE: {batch_size}, NUM GENERATED: {num_generated}, NUM SAMPLES: {num_samples}")
+                log(INFO, f"SAMPLE.SHAPE[0]: {sample.shape[0]} BATCH SIZE: {batch_size}")
 
                 # raise FoundNaNsError
             num_generated += sample.shape[0]
