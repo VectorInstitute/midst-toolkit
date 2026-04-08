@@ -1,7 +1,10 @@
 from enum import Enum
 
+import numpy as np
+
 
 ArrayDict = dict[str, np.ndarray]
+
 
 class TaskType(Enum):
     BINARY_CLASSIFICATION = "binclass"
@@ -47,6 +50,7 @@ class ComputerRepresentation(Enum):
     """Possible types of computer representation for data values."""
 
     FLOAT = "Float"
+
 
 class IsTargetConditioned(Enum):
     """

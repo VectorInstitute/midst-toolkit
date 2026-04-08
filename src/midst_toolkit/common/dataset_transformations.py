@@ -1,5 +1,5 @@
 from collections import Counter
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from logging import INFO
 from pathlib import Path
 from typing import Any
@@ -16,35 +16,30 @@ from sklearn.preprocessing import (
     StandardScaler,
 )
 
-from midst_toolkit.common.enumerations import DataSplit, TaskType
 from midst_toolkit.common.dataset import (
     Dataset,
+    TargetInfo,
     Transformations,
-    setup_cache_path,
     get_cached_dataset,
     process_nans_in_numerical_features,
+    setup_cache_path,
 )
 from midst_toolkit.common.dataset_utils import dump_pickle
-from midst_toolkit.common.logger import log
 from midst_toolkit.common.enumerations import (
     ArrayDict,
     CategoricalEncoding,
     CategoricalNaNPolicy,
+    DataSplit,
     Normalization,
     TargetPolicy,
+    TaskType,
 )
+from midst_toolkit.common.logger import log
 
 
 # Wildcard value to which all rare categorical variables are mapped
 CAT_RARE_VALUE = "_rare_"
 CAT_MISSING_VALUE = "_nan_"
-
-
-@dataclass
-class TargetInfo:
-    policy: TargetPolicy | None = None
-    mean: float | None = None
-    std: float | None = None
 
 
 # Inspired by: https://github.com/yandex-research/rtdl/blob/a4c93a32b334ef55d2a0559a4407c8306ffeeaee/lib/data.py#L20
@@ -87,34 +82,6 @@ def normalize(
 
     normalizer.fit(train_split)
     return {k: normalizer.transform(v) for k, v in datasets.items()}, normalizer
-
-
-def drop_rows_according_to_mask(data_split: ArrayDict, valid_masks: dict[str, np.ndarray]) -> ArrayDict:
-    """
-    Provided a dictionary of keys to numpy arrays, this function drops rows in each numpy array in the dictionary
-    according to the values in `valid_masks`. The keys of `valid_masks` must match the entries in data.
-
-    Args:
-        data_split: The data to apply the mask to.
-        valid_masks: Mapping from datasplit key to 1D boolean array with entries corresponding to rows of an array.
-            An entry of True indicates that the row should be kept. False implies it should be dropped.
-
-    Returns:
-        The data with the mask applied, dropping rows corresponding to False entries of the mask.
-    """
-    if set(data_split.keys()) != set(valid_masks.keys()):
-        raise KeyError("Keys of data do not match the provided valid_masks")
-
-    # Dropping rows in each array that have a False entry in valid_masks
-    filtered_data_split: ArrayDict = {}
-    for split_name, data in data_split.items():
-        row_mask = valid_masks[split_name]
-        if row_mask.ndim != 1 or row_mask.shape[0] != data.shape[0]:
-            raise ValueError(f"Mask for split '{split_name}' has shape {row_mask.shape}; expected ({data.shape[0]},)")
-
-        filtered_data_split[split_name] = data[row_mask]
-
-    return filtered_data_split
 
 
 def process_nans_in_categorical_features(data_splits: ArrayDict, policy: CategoricalNaNPolicy | None) -> ArrayDict:
