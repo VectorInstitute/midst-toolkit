@@ -47,6 +47,35 @@ class Transformations:
         """Return the default transformations."""
         return cls(seed=0, normalization=Normalization.QUANTILE, target_policy=TargetPolicy.DEFAULT)
 
+    @classmethod
+    def from_dict(cls, transformations_dict: dict) -> Transformations:
+        parsed_dict = deepcopy(transformations_dict)
+
+        if "seed" in parsed_dict:
+            if parsed_dict["seed"] is None:
+                raise ValueError("Seed cannot be None")
+            parsed_dict.seed = int(parsed_dict["seed"])
+
+        if "normalization" in parsed_dict and parsed_dict["normalization"] is not None:
+            parsed_dict["normalization"] = Normalization(parsed_dict["normalization"])
+
+        if "numerical_nan_policy" in parsed_dict and parsed_dict["numerical_nan_policy"] is not None:
+            parsed_dict["numerical_nan_policy"] = NumericalNaNPolicy(parsed_dict["numerical_nan_policy"])
+
+        if "categorical_nan_policy" in parsed_dict and parsed_dict["categorical_nan_policy"] is not None:
+            parsed_dict["categorical_nan_policy"] = CategoricalNaNPolicy(parsed_dict["categorical_nan_policy"])
+
+        if "category_minimum_frequency" in parsed_dict and parsed_dict["category_minimum_frequency"] is not None:
+            parsed_dict["category_minimum_frequency"] = float(parsed_dict["category_minimum_frequency"])
+
+        if "categorical_encoding" in transformations_dict and transformations_dict["categorical_encoding"] is not None:
+            parsed_dict["categorical_encoding"] = CategoricalEncoding(parsed_dict["categorical_encoding"])
+
+        if "target_policy" in parsed_dict and parsed_dict["target_policy"] is not None:
+            parsed_dict["target_policy"] = TargetPolicy(parsed_dict["target_policy"])
+
+        return cls(**parsed_dict)
+
 
 @dataclass(frozen=True)
 class TableMetadata:

@@ -8,21 +8,21 @@ d_token = 4
 
 [transforms]
 normalization = "quantile"
-num_nan_policy = "mean"
-cat_nan_policy = "__none__"
-cat_min_frequency = "__none__"
-cat_encoding = "__none__"
-y_policy = "default"
+numerical_nan_policy = "mean"
+categorical_nan_policy = "__none__"
+category_minimum_frequency = "__none__"
+categorical_encoding = "__none__"
+target_policy = "default"
 
 [train.vae]
-num_epochs = 4000
-batch_size = 4096
-num_dataset_workers = 4
+num_epochs = 10
+batch_size = 10
+num_dataset_workers = 1
 
 [train.diffusion]
-num_epochs = 10001
-batch_size = 4096
-num_dataset_workers = 4
+num_epochs = 10
+batch_size = 10
+num_dataset_workers = 1
 
 [train.optim.vae]
 lr = 1e-3

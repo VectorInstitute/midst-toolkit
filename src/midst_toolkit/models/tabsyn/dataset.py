@@ -1,12 +1,12 @@
-import os
 import json
+import os
 from pathlib import Path
 
 import numpy as np
 
-from midst_toolkit.common.dataset import Dataset, Transformations
-from midst_toolkit.common.enumerations import TaskType
+from midst_toolkit.common.dataset import Dataset, TargetInfo, Transformations
 from midst_toolkit.common.dataset_transformations import transform_dataset
+from midst_toolkit.common.enumerations import TaskType
 
 
 class TabularDataset(Dataset):
@@ -30,35 +30,39 @@ def preprocess(
     dataset_path,
     ref_dataset_path,
     transforms,
-    task_type="binclass",
+    task_type=TaskType.BINARY_CLASSIFICATION,
     inverse=False,
     concat=True,
 ):
-    T = Transformations(**transforms)
+    transformations = Transformations.from_dict(transforms)
     ref_dataset = make_dataset(
         data_path=ref_dataset_path,
-        T=T,
+        transformations=transformations,
         task_type=task_type,
         change_val=False,
         concat=concat,
     )
+    assert ref_dataset.numerical_transform is not None, "transform_dataset must be run on ref_dataset"
+    assert ref_dataset.categorical_transform is not None, "transform_dataset must be run on ref_dataset"
 
     dataset = make_dataset(
         data_path=dataset_path,
-        T=T,
+        transformations=transformations,
         task_type=task_type,
         change_val=False,
         concat=concat,
     )
+    assert dataset.numerical_transform is not None, "transform_dataset must be run on dataset"
+    assert dataset.categorical_transform is not None, "transform_dataset must be run on dataset"
 
-    if transforms["cat_encoding"] is None:
-        X_num = dataset.X_num
-        X_cat = dataset.X_cat
+    if transformations.categorical_encoding is None:
+        X_num = dataset.numerical_features
+        X_cat = dataset.categorical_features
 
         X_train_num, X_test_num = X_num["train"], X_num["test"]
         X_train_cat, X_test_cat = X_cat["train"], X_cat["test"]
 
-        ref_X_train_cat = ref_dataset.X_cat["train"]
+        ref_X_train_cat = ref_dataset.categorical_features["train"]
         categories = get_categories(ref_X_train_cat)
         d_numerical = X_train_num.shape[1]
 
@@ -66,30 +70,25 @@ def preprocess(
         X_cat = (X_train_cat, X_test_cat)
 
         if inverse:
-            num_inverse = dataset.num_transform.inverse_transform
+            num_inverse = dataset.numerical_transform.inverse_transform
             # cat_inverse = None
-            cat_inverse = ref_dataset.cat_transform.inverse_transform
+            cat_inverse = ref_dataset.categorical_transform.inverse_transform
             return X_num, X_cat, categories, d_numerical, num_inverse, cat_inverse
-        else:
-            return X_num, X_cat, categories, d_numerical
-    else:
-        return dataset
+        return X_num, X_cat, categories, d_numerical
+    return dataset
+
 
 def make_dataset(
     data_path: str,
-    T: Transformations,
-    task_type,
+    transformations: Transformations,
+    task_type: TaskType,
     change_val: bool,
     concat=True,
-):
+) -> Dataset:
     # classification
-    if task_type == "binclass" or task_type == "multiclass":
-        X_cat = (
-            {} if os.path.exists(os.path.join(data_path, "X_cat_train.npy")) else None
-        )
-        X_num = (
-            {} if os.path.exists(os.path.join(data_path, "X_num_train.npy")) else None
-        )
+    if task_type == TaskType.BINARY_CLASSIFICATION or task_type == TaskType.MULTICLASS_CLASSIFICATION:
+        X_cat = {} if os.path.exists(os.path.join(data_path, "X_cat_train.npy")) else None
+        X_num = {} if os.path.exists(os.path.join(data_path, "X_num_train.npy")) else None
         y = {} if os.path.exists(os.path.join(data_path, "y_train.npy")) else None
 
         for split in ["train", "test"]:
@@ -104,12 +103,8 @@ def make_dataset(
                 y[split] = y_t
     else:
         # regression
-        X_cat = (
-            {} if os.path.exists(os.path.join(data_path, "X_cat_train.npy")) else None
-        )
-        X_num = (
-            {} if os.path.exists(os.path.join(data_path, "X_num_train.npy")) else None
-        )
+        X_cat = {} if os.path.exists(os.path.join(data_path, "X_cat_train.npy")) else None
+        X_num = {} if os.path.exists(os.path.join(data_path, "X_num_train.npy")) else None
         y = {} if os.path.exists(os.path.join(data_path, "y_train.npy")) else None
 
         for split in ["train", "test"]:
@@ -130,8 +125,8 @@ def make_dataset(
         X_num,
         X_cat,
         y,
-        y_info={},
-        task_type=TaskType(info["task_type"]),
+        target_info=TargetInfo(),
+        task_type=task_type,
         n_classes=info.get("n_classes"),
     )
 
@@ -147,15 +142,11 @@ def make_dataset(
     # for split in ['train', 'val', 'test']:
     # D.y[split] = categorical_to_idx(D.y[split].squeeze(1))
 
-    return transform_dataset(D, T, None)
+    return transform_dataset(D, transformations, None)
 
 
 def get_categories(X_train_cat):
-    return (
-        None
-        if X_train_cat is None
-        else [len(set(X_train_cat[:, i])) for i in range(X_train_cat.shape[1])]
-    )
+    return None if X_train_cat is None else [len(set(X_train_cat[:, i])) for i in range(X_train_cat.shape[1])]
 
 
 def read_pure_data(path, split="train"):

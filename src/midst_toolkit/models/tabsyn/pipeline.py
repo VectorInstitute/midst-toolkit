@@ -4,7 +4,7 @@ import time
 
 import numpy as np
 import torch
-import torch.nn as nn
+from torch import nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
 
@@ -40,23 +40,15 @@ class TabSyn:
         self.X_test_cat = X_test_cat
         self.d_numerical = num_numerical_features
         self.categories = num_classes
-        self.device = (
-            device
-            if device is not None
-            else torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        )
+        self.device = device if device is not None else torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def instantiate_vae(self, n_head, factor, num_layers, d_token, optim_params):
         """Construct VAE model and its optimizer and lr scheduler."""
         # construct vae model
-        self.vae_model, self.pre_encoder, self.pre_decoder = self.__get_vae_model(
-            n_head, factor, num_layers, d_token
-        )
+        self.vae_model, self.pre_encoder, self.pre_decoder = self.__get_vae_model(n_head, factor, num_layers, d_token)
         # construct vae optimizer and scheduler
         if optim_params is not None:
-            self.vae_optimizer, self.vae_scheduler = self.__load_optim(
-                self.vae_model, **optim_params
-            )
+            self.vae_optimizer, self.vae_scheduler = self.__load_optim(self.vae_model, **optim_params)
         print("Successfully instantiated VAE model.")
 
     def instantiate_diffusion(self, in_dim, hid_dim, optim_params):
@@ -65,9 +57,7 @@ class TabSyn:
         self.dif_model = self.__get_diffusion_model(in_dim=in_dim, hid_dim=hid_dim)
         # load optimizer and scheduler
         if optim_params is not None:
-            self.dif_optimizer, self.dif_scheduler = self.__load_optim(
-                self.dif_model, **optim_params
-            )
+            self.dif_optimizer, self.dif_scheduler = self.__load_optim(self.dif_model, **optim_params)
         print("Successfully instantiated diffusion model.")
 
     def __get_vae_model(self, n_head, factor, num_layers, d_token):
@@ -115,12 +105,8 @@ class TabSyn:
         return model
 
     def __load_optim(self, model, lr, weight_decay, factor, patience):
-        optimizer = torch.optim.Adam(
-            model.parameters(), lr=lr, weight_decay=weight_decay
-        )
-        scheduler = ReduceLROnPlateau(
-            optimizer, mode="min", factor=factor, patience=patience, verbose=True
-        )
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+        scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=factor, patience=patience)
         return optimizer, scheduler
 
     def train_vae(self, max_beta, min_beta, lambd, num_epochs, save_path):
@@ -139,7 +125,7 @@ class TabSyn:
         start_time = time.time()
         for epoch in range(num_epochs):
             pbar = tqdm(self.train_loader, total=len(self.train_loader))
-            pbar.set_description(f"Epoch {epoch+1}/{num_epochs}")
+            pbar.set_description(f"Epoch {epoch + 1}/{num_epochs}")
 
             curr_loss_multi = 0.0
             curr_loss_gauss = 0.0
@@ -154,9 +140,7 @@ class TabSyn:
                 batch_num = batch_num.to(self.device)
                 batch_cat = batch_cat.to(self.device)
 
-                Recon_X_num, Recon_X_cat, mu_z, std_z = self.vae_model(
-                    batch_num, batch_cat
-                )
+                Recon_X_num, Recon_X_cat, mu_z, std_z = self.vae_model(batch_num, batch_cat)
 
                 loss_mse, loss_ce, loss_kld, train_acc = self.compute_loss(
                     batch_num, batch_cat, Recon_X_num, Recon_X_cat, mu_z, std_z
@@ -181,9 +165,7 @@ class TabSyn:
             """
             self.vae_model.eval()
             with torch.no_grad():
-                Recon_X_num, Recon_X_cat, mu_z, std_z = self.vae_model(
-                    self.X_test_num, self.X_test_cat
-                )
+                Recon_X_num, Recon_X_cat, mu_z, std_z = self.vae_model(self.X_test_num, self.X_test_cat)
 
                 val_mse_loss, val_ce_loss, val_kl_loss, val_acc = self.compute_loss(
                     self.X_test_num,
@@ -287,19 +269,19 @@ class TabSyn:
         train_z = train_z.view(B, in_dim)
 
         return train_z, token_dim
-    
+
     def save_embeddings_attributes(self, vae_ckpt_dir):
         train_z, token_dim = self.load_latent_embeddings(vae_ckpt_dir)
         embedding_att = {
-            'token_dim': token_dim,
-            'in_dim': train_z.shape[1],
-            'hid_dim': train_z.shape[1],
-            'num_samples': train_z.shape[0],
-            'mean_input_emb': train_z.mean(0),
-            'std_input_emb': train_z.std(0)
+            "token_dim": token_dim,
+            "in_dim": train_z.shape[1],
+            "hid_dim": train_z.shape[1],
+            "num_samples": train_z.shape[0],
+            "mean_input_emb": train_z.mean(0),
+            "std_input_emb": train_z.std(0),
         }
         pickle.dump(embedding_att, open(os.path.join(vae_ckpt_dir, "train_z_attributes.pkl"), "wb"))
-        
+
     def load_embeddings_attributes(self, vae_ckpt_dir):
         embedding_att = pickle.load(open(os.path.join(vae_ckpt_dir, "train_z_attributes.pkl"), "rb"))
         return embedding_att
@@ -312,7 +294,7 @@ class TabSyn:
         start_time = time.time()
         for epoch in range(num_epochs):
             pbar = tqdm(train_loader, total=len(train_loader))
-            pbar.set_description(f"Epoch {epoch+1}/{num_epochs}")
+            pbar.set_description(f"Epoch {epoch + 1}/{num_epochs}")
 
             batch_loss = 0.0
             len_input = 0
@@ -337,9 +319,7 @@ class TabSyn:
             if curr_loss < best_loss:
                 best_loss = curr_loss
                 patience = 0
-                torch.save(
-                    self.dif_model.state_dict(), os.path.join(ckpt_path, "model.pt")
-                )
+                torch.save(self.dif_model.state_dict(), os.path.join(ckpt_path, "model.pt"))
             else:
                 patience += 1
                 if patience == 500:
@@ -384,9 +364,7 @@ class TabSyn:
         model = Model(denoise_fn=denoise_fn, hid_dim=hid_dim).to(self.device)
         model.load_state_dict(torch.load(os.path.join(ckpt_dir, "model.pt")))
 
-        pre_decoder = Decoder_model(
-            num_layers, d_numerical, categories, d_token, n_head=n_head, factor=factor
-        )
+        pre_decoder = Decoder_model(num_layers, d_numerical, categories, d_token, n_head=n_head, factor=factor)
         decoder_save_path = os.path.join(ckpt_dir, "vae", "decoder.pt")
         pre_decoder.load_state_dict(torch.load(decoder_save_path))
 
@@ -419,9 +397,7 @@ class TabSyn:
         x_next = x_next * 2 + mean.to(self.device)
 
         syn_data = x_next.float().cpu().numpy()
-        syn_num, syn_cat, syn_target = split_num_cat_target(
-            syn_data, info, num_inverse, cat_inverse, self.device
-        )
+        syn_num, syn_cat, syn_target = split_num_cat_target(syn_data, info, num_inverse, cat_inverse, self.device)
 
         syn_df = recover_data(syn_num, syn_cat, syn_target, info)
 

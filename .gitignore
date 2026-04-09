@@ -49,6 +49,7 @@ tests/integration/attacks/tartan_federer/assets/tabddpm_models/**/challenge_labe
 tests/integration/attacks/tartan_federer/assets/tartan_federer_attack_results
 tests/integration/attacks/ensemble/assets/workspace
 tests/integration/assets/tabsyn/processed_data
+tests/integration/assets/tabsyn/results
 
 # Training Logs
 *.err
