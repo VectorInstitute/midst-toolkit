@@ -1,3 +1,4 @@
+import json
 import shutil
 from pathlib import Path
 
@@ -23,12 +24,12 @@ def test_dirs():
     shutil.rmtree(results_dir, ignore_errors=True)
 
 
-def test_train(test_dirs):
+def test_train_load_and_synthesize(test_dirs):
     test_data_dir, results_dir = test_dirs
     test_data_name = "trans"
     process_data(test_data_name, test_data_dir, test_data_dir)
 
-    config_file_path = "tests/integration/assets/tabsyn/config.toml"
+    config_file_path = test_data_dir / "config.toml"
     config = load_config(config_file_path)
 
     # The preprocess function below expects 2 folders of preprocessed data:
@@ -116,8 +117,7 @@ def test_train(test_dirs):
     train_z, _ = tabsyn.load_latent_embeddings(vae_save_dir)  # train_z dim: B x in_dim
 
     # normalize embeddings
-    mean, std = train_z.mean(0), train_z.std(0)
-    latent_train_data = (train_z - mean) / 2
+    latent_train_data = (train_z - train_z.mean(0)) / 2
 
     # create data loader
     latent_train_loader = DataLoader(
@@ -139,4 +139,55 @@ def test_train(test_dirs):
         latent_train_loader,
         num_epochs=config["train"]["diffusion"]["num_epochs"],
         ckpt_path=model_save_dir,
+    )
+
+    ###### Load the model ######
+
+    # instantiate VAE model
+    tabsyn.instantiate_vae(**config["model_params"], optim_params=None)
+
+    # load latent embeddings attributes of input data
+    train_z_att = tabsyn.load_embeddings_attributes(vae_save_dir)
+    token_dim = train_z_att["token_dim"]
+    in_dim = train_z_att["in_dim"]
+    hid_dim = train_z_att["hid_dim"]
+
+    # instantiate diffusion model
+    tabsyn.instantiate_diffusion(in_dim=in_dim, hid_dim=hid_dim, optim_params=None)
+
+    # load state from checkpoint
+    tabsyn.load_model_state(ckpt_dir=model_save_dir, dif_ckpt_name="model.pt")
+
+    ###### Synthesize data ######
+
+    # get inverse tokenizers
+    _, _, categories, d_numerical, num_inverse, cat_inverse = preprocess(
+        dataset_path=dataset_path,
+        ref_dataset_path=ref_dataset_path,
+        transforms=config["transforms"],
+        task_type=config["task_type"],
+        inverse=True,
+    )
+
+    synthetic_data_dir = results_dir / test_data_name / "synthetic_data"
+    synthetic_data_dir.mkdir(parents=True, exist_ok=True)
+
+    # load data info file
+    with open(dataset_path / "info.json", "r") as file:
+        data_info = json.load(file)
+
+    data_info["token_dim"] = token_dim
+
+    # sample data
+    num_samples = train_z_att["num_samples"]
+    in_dim = train_z_att["in_dim"]
+    mean_input_emb = train_z_att["mean_input_emb"]
+    tabsyn.sample(
+        num_samples,
+        in_dim,
+        mean_input_emb,
+        info=data_info,
+        num_inverse=num_inverse,
+        cat_inverse=cat_inverse,
+        save_path=synthetic_data_dir / f"{test_data_name}_synthetic.csv",
     )

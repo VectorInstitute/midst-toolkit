@@ -1,8 +1,12 @@
 """Loss functions used in the paper
-"Elucidating the Design Space of Diffusion-Based Generative Models"."""
+"Elucidating the Design Space of Diffusion-Based Generative Models".
+"""
 
 import numpy as np
 import torch
+
+from midst_toolkit.common.variables import DEVICE
+
 
 # ----------------------------------------------------------------------------
 # Loss function corresponding to the variance preserving (VP) formulation
@@ -20,7 +24,7 @@ S_max = float("inf")
 S_noise = 1
 
 
-def sample(net, num_samples, dim, num_steps=50, device="cuda:0"):
+def sample(net, num_samples, dim, num_steps=50, device=DEVICE):
     latents = torch.randn([num_samples, dim], device=device)
 
     step_indices = torch.arange(num_steps, dtype=torch.float32, device=latents.device)
@@ -29,10 +33,7 @@ def sample(net, num_samples, dim, num_steps=50, device="cuda:0"):
     sigma_max = min(SIGMA_MAX, net.sigma_max)
 
     t_steps = (
-        sigma_max ** (1 / rho)
-        + step_indices
-        / (num_steps - 1)
-        * (sigma_min ** (1 / rho) - sigma_max ** (1 / rho))
+        sigma_max ** (1 / rho) + step_indices / (num_steps - 1) * (sigma_min ** (1 / rho) - sigma_max ** (1 / rho))
     ) ** rho
     t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])
 
@@ -76,9 +77,7 @@ class VPLoss:
         rnd_uniform = torch.rand([data.shape[0], 1, 1, 1], device=data.device)
         sigma = self.sigma(1 + rnd_uniform * (self.epsilon_t - 1))
         weight = 1 / sigma**2
-        y, augment_labels = (
-            augment_pipe(data) if augment_pipe is not None else (data, None)
-        )
+        y, augment_labels = augment_pipe(data) if augment_pipe is not None else (data, None)
         n = torch.randn_like(y) * sigma
         D_yn = denosie_fn(y + n, sigma, labels, augment_labels=augment_labels)
         loss = weight * ((D_yn - y) ** 2)
@@ -120,9 +119,7 @@ class VELoss:
 
             r = sigma.double() * np.sqrt(self.D).astype(np.float64)
             # Sampling form inverse-beta distribution
-            samples_norm = np.random.beta(
-                a=self.N / 2.0, b=self.D / 2.0, size=data.shape[0]
-            ).astype(np.double)
+            samples_norm = np.random.beta(a=self.N / 2.0, b=self.D / 2.0, size=data.shape[0]).astype(np.double)
 
             samples_norm = np.clip(samples_norm, 1e-3, 1 - 1e-3)
 
@@ -140,18 +137,14 @@ class VELoss:
 
             sigma = sigma.reshape((len(sigma), 1, 1, 1))
             weight = 1 / sigma**2
-            y, augment_labels = (
-                augment_pipe(data) if augment_pipe is not None else (data, None)
-            )
+            y, augment_labels = augment_pipe(data) if augment_pipe is not None else (data, None)
             n = perturbation_x.view_as(y)
             D_yn = denosie_fn(y + n, sigma, labels, augment_labels=augment_labels)
         else:
             rnd_uniform = torch.rand([data.shape[0], 1, 1, 1], device=data.device)
             sigma = self.sigma_min * ((self.sigma_max / self.sigma_min) ** rnd_uniform)
             weight = 1 / sigma**2
-            y, augment_labels = (
-                augment_pipe(data) if augment_pipe is not None else (data, None)
-            )
+            y, augment_labels = augment_pipe(data) if augment_pipe is not None else (data, None)
             n = torch.randn_like(y) * sigma
             D_yn = denosie_fn(y + n, sigma, labels, augment_labels=augment_labels)
 
@@ -165,9 +158,7 @@ class VELoss:
 
 
 class EDMLoss:
-    def __init__(
-        self, P_mean=-1.2, P_std=1.2, sigma_data=0.5, hid_dim=100, gamma=5, opts=None
-    ):
+    def __init__(self, P_mean=-1.2, P_std=1.2, sigma_data=0.5, hid_dim=100, gamma=5, opts=None):
         self.P_mean = P_mean
         self.P_std = P_std
         self.sigma_data = sigma_data
