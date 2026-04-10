@@ -14,9 +14,7 @@ def get_input_train(args):
 
     curr_dir = os.path.dirname(os.path.abspath(__file__))
 
-    dataset_dir = (
-        f"/projects/aieng/diffusion_bootcamp/data/tabular/processed_data/{dataname}"
-    )
+    dataset_dir = f"/projects/aieng/diffusion_bootcamp/data/tabular/processed_data/{dataname}"
 
     with open(
         f"/projects/aieng/diffusion_bootcamp/data/tabular/processed_data/{dataname}/info.json",
@@ -24,9 +22,7 @@ def get_input_train(args):
     ) as f:
         info = json.load(f)
 
-        ckpt_dir = (
-            f"/projects/aieng/diffussion_bootcamp/models/tabular/tabsyn/{dataname}"
-        )
+        ckpt_dir = f"/projects/aieng/diffussion_bootcamp/models/tabular/tabsyn/{dataname}"
     embedding_save_path = f"/projects/aieng/diffusion_bootcamp/models/tabular/tabsyn/{dataname}/vae/train_z.npy"
     train_z = torch.tensor(np.load(embedding_save_path)).float()
 
@@ -43,9 +39,7 @@ def get_input_generate(args):
     dataname = args.dataname
 
     curr_dir = os.path.dirname(os.path.abspath(__file__))
-    dataset_dir = (
-        f"/projects/aieng/diffusion_bootcamp/data/tabular/processed_data/{dataname}"
-    )
+    dataset_dir = f"/projects/aieng/diffusion_bootcamp/data/tabular/processed_data/{dataname}"
     ckpt_dir = f"/projects/aieng/diffusion_bootcamp/models/tabular/tabsyn/{dataname}"
 
     with open(f"{dataset_dir}/info.json", "r") as f:
@@ -140,9 +134,7 @@ def recover_data(syn_num, syn_cat, syn_target, info):
             elif i in set(cat_col_idx):
                 syn_df[i] = syn_cat[:, idx_mapping[i] - len(num_col_idx)]
             else:
-                syn_df[i] = syn_target[
-                    :, idx_mapping[i] - len(num_col_idx) - len(cat_col_idx)
-                ]
+                syn_df[i] = syn_target[:, idx_mapping[i] - len(num_col_idx) - len(cat_col_idx)]
 
     else:
         for i in range(len(num_col_idx) + len(cat_col_idx) + len(target_col_idx)):
@@ -151,9 +143,7 @@ def recover_data(syn_num, syn_cat, syn_target, info):
             elif i in set(cat_col_idx):
                 syn_df[i] = syn_cat[:, idx_mapping[i] - len(num_col_idx)]
             else:
-                syn_df[i] = syn_target[
-                    :, idx_mapping[i] - len(num_col_idx) - len(cat_col_idx)
-                ]
+                syn_df[i] = syn_target[:, idx_mapping[i] - len(num_col_idx) - len(cat_col_idx)]
 
     return syn_df
 

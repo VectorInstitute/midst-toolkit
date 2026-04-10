@@ -6,7 +6,7 @@ import warnings
 
 import numpy as np
 import torch
-import torch.nn as nn
+from torch import nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -17,6 +17,7 @@ from midst_toolkit.models.tabsyn.model.vae import (
     Encoder_model,
     Model_VAE,
 )
+
 
 warnings.filterwarnings("ignore")
 
@@ -57,9 +58,7 @@ def compute_loss(X_num, X_cat, Recon_X_num, Recon_X_cat, mu_z, logvar_z):
 
 def main(args):
     dataname = args.dataname
-    data_dir = (
-        f"/projects/aieng/diffusion_bootcamp/data/tabular/processed_data/{dataname}"
-    )
+    data_dir = f"/projects/aieng/diffusion_bootcamp/data/tabular/processed_data/{dataname}"
 
     max_beta = args.max_beta
     min_beta = args.min_beta
@@ -72,9 +71,7 @@ def main(args):
     with open(info_path, "r") as f:
         info = json.load(f)
 
-    ckpt_dir = (
-        f"/projects/aieng/diffusion_bootcamp/models/tabular/tabsyn/{dataname}/vae"
-    )
+    ckpt_dir = f"/projects/aieng/diffusion_bootcamp/models/tabular/tabsyn/{dataname}/vae"
     if not os.path.exists(ckpt_dir):
         os.makedirs(ckpt_dir)
 
@@ -82,9 +79,7 @@ def main(args):
     encoder_save_path = f"{ckpt_dir}/encoder.pt"
     decoder_save_path = f"{ckpt_dir}/decoder.pt"
 
-    X_num, X_cat, categories, d_numerical = preprocess(
-        data_dir, task_type=info["task_type"]
-    )
+    X_num, X_cat, categories, d_numerical = preprocess(data_dir, task_type=info["task_type"])
 
     X_train_num, _ = X_num
     X_train_cat, _ = X_cat
@@ -122,20 +117,14 @@ def main(args):
     )
     model = model.to(device)
 
-    pre_encoder = Encoder_model(
-        NUM_LAYERS, d_numerical, categories, D_TOKEN, n_head=N_HEAD, factor=FACTOR
-    ).to(device)
-    pre_decoder = Decoder_model(
-        NUM_LAYERS, d_numerical, categories, D_TOKEN, n_head=N_HEAD, factor=FACTOR
-    ).to(device)
+    pre_encoder = Encoder_model(NUM_LAYERS, d_numerical, categories, D_TOKEN, n_head=N_HEAD, factor=FACTOR).to(device)
+    pre_decoder = Decoder_model(NUM_LAYERS, d_numerical, categories, D_TOKEN, n_head=N_HEAD, factor=FACTOR).to(device)
 
     pre_encoder.eval()
     pre_decoder.eval()
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WD)
-    scheduler = ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.95, patience=10, verbose=True
-    )
+    scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.95, patience=10, verbose=True)
 
     num_epochs = 4000
     best_train_loss = float("inf")
@@ -147,7 +136,7 @@ def main(args):
     start_time = time.time()
     for epoch in range(num_epochs):
         pbar = tqdm(train_loader, total=len(train_loader))
-        pbar.set_description(f"Epoch {epoch+1}/{num_epochs}")
+        pbar.set_description(f"Epoch {epoch + 1}/{num_epochs}")
 
         curr_loss_multi = 0.0
         curr_loss_gauss = 0.0
@@ -253,9 +242,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Variational Autoencoder")
 
-    parser.add_argument(
-        "--dataname", type=str, default="adult", help="Name of dataset."
-    )
+    parser.add_argument("--dataname", type=str, default="adult", help="Name of dataset.")
     parser.add_argument("--gpu", type=int, default=0, help="GPU index.")
     parser.add_argument("--max_beta", type=float, default=1e-2, help="Initial Beta.")
     parser.add_argument("--min_beta", type=float, default=1e-5, help="Minimum Beta.")

@@ -8,6 +8,7 @@ from midst_toolkit.models.tabsyn.model.gaussian_diffusion import Model
 from midst_toolkit.models.tabsyn.model.modules import MLPDiffusion
 from midst_toolkit.models.tabsyn.utils import get_input_generate, recover_data, split_num_cat_target
 
+
 warnings.filterwarnings("ignore")
 
 
@@ -40,9 +41,7 @@ def main(args):
     x_next = x_next * 2 + mean.to(device)
 
     syn_data = x_next.float().cpu().numpy()
-    syn_num, syn_cat, syn_target = split_num_cat_target(
-        syn_data, info, num_inverse, cat_inverse, args.device
-    )
+    syn_num, syn_cat, syn_target = split_num_cat_target(syn_data, info, num_inverse, cat_inverse, args.device)
 
     syn_df = recover_data(syn_num, syn_cat, syn_target, info)
 
@@ -61,14 +60,10 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generation")
 
-    parser.add_argument(
-        "--dataname", type=str, default="adult", help="Name of dataset."
-    )
+    parser.add_argument("--dataname", type=str, default="adult", help="Name of dataset.")
     parser.add_argument("--gpu", type=int, default=0, help="GPU index.")
     parser.add_argument("--epoch", type=int, default=None, help="Epoch.")
-    parser.add_argument(
-        "--steps", type=int, default=None, help="Number of function evaluations."
-    )
+    parser.add_argument("--steps", type=int, default=None, help="Number of function evaluations.")
 
     args = parser.parse_args()
 

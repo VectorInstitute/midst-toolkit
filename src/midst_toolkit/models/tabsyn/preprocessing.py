@@ -6,10 +6,27 @@ import pandas as pd
 
 
 def get_processed_data_dir(data_dir: Path) -> Path:
+    """Get the processed data directory.
+
+    Args:
+        data_dir: The data directory.
+
+    Returns:
+        The processed data directory.
+    """
     return data_dir / "processed_data"
 
 
 def preprocess_beijing(info_path: Path):
+    """Preprocess the Beijing dataset.
+
+    Args:
+        info_path: The directory where the beijing.json info file is located.
+             The info file should also contain the data path.
+
+    Returns:
+        The preprocessed data.
+    """
     with open(info_path / "beijing.json", "r") as f:
         info = json.load(f)
 
@@ -25,6 +42,15 @@ def preprocess_beijing(info_path: Path):
 
 
 def preprocess_news(info_path: Path, raw_data_dir: Path):
+    """Preprocess the News dataset.
+
+    Args:
+        info_path: The directory where the news.json info file is located.
+        raw_data_dir: The directory where the raw data is located.
+
+    Returns:
+        The preprocessed data.
+    """
     with open(info_path / "news.json", "r") as f:
         info = json.load(f)
 
@@ -61,7 +87,26 @@ def preprocess_news(info_path: Path, raw_data_dir: Path):
         json.dump(info, file, indent=4)
 
 
-def get_column_name_mapping(data_df, num_col_idx, cat_col_idx, target_col_idx, column_names=None):
+def get_column_name_mapping(
+    data_df: pd.DataFrame,
+    num_col_idx: list[int],
+    cat_col_idx: list[int],
+    target_col_idx: list[int],
+    column_names: list[str] | None = None,
+) -> tuple[dict[int, int], dict[int, int], dict[int, str]]:
+    """Get the column name mappings for preprocessing.
+
+    Args:
+        data_df: The data frame.
+        num_col_idx: The index of the numerical columns.
+        cat_col_idx: The index of the categorical columns.
+        target_col_idx: The index of the target column.
+        column_names: The names of the columns. If not provided, the column names
+            will be extracted from the data frame.
+
+    Returns:
+        A tuple of the index mapping, the inverse index mapping and the name mapping.
+    """
     if not column_names:
         column_names = np.array(data_df.columns.tolist())
 
@@ -94,14 +139,29 @@ def get_column_name_mapping(data_df, num_col_idx, cat_col_idx, target_col_idx, c
     return idx_mapping, inverse_idx_mapping, idx_name_mapping
 
 
-def train_val_test_split(data_df, cat_columns, num_train=0, num_test=0):
+def train_val_test_split(
+    data_df: pd.DataFrame,
+    cat_columns: list[str],
+    num_train: int = 0,
+    num_test: int = 0,
+    random_seed: int = 42,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split the data into train, validation and test sets.
+
+    Args:
+        data_df: The data frame.
+        cat_columns: The names of the categorical columns.
+        num_train: The number of samples to be used for training.
+        num_test: The number of samples to be used for testing.
+
+    Returns:
+        A tuple of the train dataframe and the test dataframe.
+    """
     total_num = data_df.shape[0]
     idx = np.arange(total_num)
 
-    seed = 2024
-
     while True:
-        np.random.seed(seed)
+        np.random.seed(random_seed)
         np.random.shuffle(idx)
 
         train_idx = idx[:num_train]
@@ -118,12 +178,22 @@ def train_val_test_split(data_df, cat_columns, num_train=0, num_test=0):
 
         if flag == 0:
             break
-        seed += 1
+        random_seed += 1
 
-    return train_df, test_df, seed
+    np.random.seed(None)
+    return train_df, test_df
 
 
-def process_data(name: str, info_path: Path, data_dir: Path):
+def process_data(name: str, info_path: Path, data_dir: Path) -> None:
+    """Process the data for the given dataset name.
+
+    It will save the processed data to the processed data directory.
+
+    Args:
+        name: The name of the dataset.
+        info_path: The directory where the info file is located.
+        data_dir: The directory where the raw data is located.
+    """
     raw_data_dir = data_dir / "raw_data"
     processed_data_dir = get_processed_data_dir(data_dir)
 
@@ -178,7 +248,7 @@ def process_data(name: str, info_path: Path, data_dir: Path):
         num_train = int(num_data * 0.99)
         num_test = num_data - num_train
 
-        train_df, test_df, seed = train_val_test_split(data_df, cat_columns, num_train, num_test)
+        train_df, test_df = train_val_test_split(data_df, cat_columns, num_train, num_test)
 
     train_df.columns = range(len(train_df.columns))
     test_df.columns = range(len(test_df.columns))

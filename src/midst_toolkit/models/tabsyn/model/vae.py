@@ -1,14 +1,24 @@
 import math
+from enum import Enum
+from typing import Callable
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as nn_init
-from torch import Tensor
+from torch import Tensor, nn
 
 
 class Tokenizer(nn.Module):
-    def __init__(self, d_numerical, categories, d_token, bias):
+    def __init__(self, d_numerical: int, categories: list[int] | None, d_token: int, bias: bool) -> None:
+        """Initialize the tokenizer module for the VAE.
+
+        Args:
+            d_numerical: The number of numerical features.
+            categories: The number of categories for each categorical feature.
+                If None, the tokenizer will only use the numerical features.
+            d_token: The dimension of the token.
+            bias: Whether to use bias in the linear layers.
+        """
         super().__init__()
         if categories is None:
             d_bias = d_numerical
@@ -31,12 +41,24 @@ class Tokenizer(nn.Module):
             nn_init.kaiming_uniform_(self.bias, a=math.sqrt(5))
 
     @property
-    def n_tokens(self):
-        return len(self.weight) + (
-            0 if self.category_offsets is None else len(self.category_offsets)
-        )
+    def n_tokens(self) -> int:
+        """Get the number of tokens.
 
-    def forward(self, x_num, x_cat):
+        Returns:
+            The number of tokens.
+        """
+        return len(self.weight) + (0 if self.category_offsets is None else len(self.category_offsets))
+
+    def forward(self, x_num: Tensor, x_cat: Tensor) -> Tensor:
+        """Forward pass of the tokenizer.
+
+        Args:
+            x_num: The numerical features.
+            x_cat: The categorical features.
+
+        Returns:
+            The tokens.
+        """
         x_some = x_num if x_cat is None else x_cat
         assert x_some is not None
         x_num = torch.cat(
@@ -65,7 +87,15 @@ class Tokenizer(nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout=0.5):
+    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, dropout: float = 0.5) -> None:
+        """Initialize the MLP module for the VAE.
+
+        Args:
+            input_dim: The dimension of the input.
+            hidden_dim: The dimension of the hidden layer.
+            output_dim: The dimension of the output.
+            dropout: The dropout rate.
+        """
         super(MLP, self).__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
@@ -76,18 +106,44 @@ class MLP(nn.Module):
         self.fc2 = nn.Linear(hidden_dim, output_dim)
         self.dropout = nn.Dropout(p=dropout)
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
+        """Forward pass of the MLP.
+
+        Args:
+            x: The input tensor.
+
+        Returns:
+            The output tensor.
+        """
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
         x = self.fc2(x)
         return x
 
 
+class InitializationMethod(Enum):
+    XAVIER = "xavier"
+    KAIMING = "kaiming"
+
+
 class MultiheadAttention(nn.Module):
-    def __init__(self, d, n_heads, dropout, initialization="kaiming"):
+    def __init__(
+        self,
+        d: int,
+        n_heads: int,
+        dropout: float,
+        initialization: InitializationMethod = InitializationMethod.KAIMING,
+    ) -> None:
+        """Initialize the multihead attention module for the VAE.
+
+        Args:
+            d: The dimension of the input.
+            n_heads: The number of heads.
+            dropout: The dropout rate.
+            initialization: The initialization method.
+        """
         if n_heads > 1:
             assert d % n_heads == 0
-        assert initialization in ["xavier", "kaiming"]
 
         super().__init__()
         self.W_q = nn.Linear(d, d)
@@ -98,14 +154,22 @@ class MultiheadAttention(nn.Module):
         self.dropout = nn.Dropout(dropout) if dropout else None
 
         for m in [self.W_q, self.W_k, self.W_v]:
-            if initialization == "xavier" and (n_heads > 1 or m is not self.W_v):
+            if initialization == InitializationMethod.XAVIER and (n_heads > 1 or m is not self.W_v):
                 # gain is needed since W_qkv is represented with 3 separate layers
                 nn_init.xavier_uniform_(m.weight, gain=1 / math.sqrt(2))
             nn_init.zeros_(m.bias)
         if self.W_out is not None:
             nn_init.zeros_(self.W_out.bias)
 
-    def _reshape(self, x):
+    def _reshape(self, x: Tensor) -> Tensor:
+        """Reshape the input tensor.
+
+        Args:
+            x: The input tensor.
+
+        Returns:
+            The reshaped tensor.
+        """
         batch_size, n_tokens, d = x.shape
         d_head = d // self.n_heads
         return (
@@ -114,7 +178,26 @@ class MultiheadAttention(nn.Module):
             .reshape(batch_size * self.n_heads, n_tokens, d_head)
         )
 
-    def forward(self, x_q, x_kv, key_compression=None, value_compression=None):
+    def forward(
+        self,
+        x_q: Tensor,
+        x_kv: Tensor,
+        key_compression: Callable | None = None,
+        value_compression: Callable | None = None,
+    ) -> Tensor:
+        """Forward pass of the multihead attention.
+
+        Args:
+            x_q: The query tensor.
+            x_kv: The key and value tensor.
+            key_compression: The key compression function. If None, the key will not be compressed.
+                If provided, the value_compression must also be provided. Optional, default is None.
+            value_compression: The value compression function. If None, the value will not be compressed.
+                If provided, the key_compression must also be provided. Optional, default is None.
+
+        Returns:
+            The output tensor.
+        """
         q, k, v = self.W_q(x_q), self.W_k(x_kv), self.W_v(x_kv)
         for tensor in [q, k, v]:
             assert tensor.shape[-1] % self.n_heads == 0
@@ -162,10 +245,23 @@ class Transformer(nn.Module):
         attention_dropout=0.0,
         ffn_dropout=0.0,
         residual_dropout=0.0,
-        activation="relu",
         prenormalization=True,
-        initialization="kaiming",
+        initialization=InitializationMethod.KAIMING,
     ):
+        """Initialize the transformer module for the VAE.
+
+        Args:
+            n_layers: The number of layers.
+            d_token: The dimension of the token.
+            n_heads: The number of heads.
+            d_out: The dimension of the output.
+            d_ffn_factor: The factor for the dimension of the hidden layer.
+            attention_dropout: The dropout rate for the attention. Optional, default is 0.0.
+            ffn_dropout: The dropout rate for the FFN. Optional, default is 0.0.
+            residual_dropout: The dropout rate for the residual. Optional, default is 0.0.
+            prenormalization: Whether to use pre-normalization. Optional, default is True.
+            initialization: The initialization method. Optional, default is InitializationMethod.KAIMING.
+        """
         super().__init__()
 
         def make_normalization():
@@ -176,9 +272,7 @@ class Transformer(nn.Module):
         for layer_idx in range(n_layers):
             layer = nn.ModuleDict(
                 {
-                    "attention": MultiheadAttention(
-                        d_token, n_heads, attention_dropout, initialization
-                    ),
+                    "attention": MultiheadAttention(d_token, n_heads, attention_dropout, initialization),
                     "linear0": nn.Linear(d_token, d_hidden),
                     "linear1": nn.Linear(d_hidden, d_token),
                     "norm1": make_normalization(),
@@ -191,15 +285,23 @@ class Transformer(nn.Module):
 
         self.activation = nn.ReLU()
         self.last_activation = nn.ReLU()
-        # self.activation = lib.get_activation_fn(activation)
-        # self.last_activation = lib.get_nonglu_activation_fn(activation)
         self.prenormalization = prenormalization
         self.last_normalization = make_normalization() if prenormalization else None
         self.ffn_dropout = ffn_dropout
         self.residual_dropout = residual_dropout
         self.head = nn.Linear(d_token, d_out)
 
-    def _start_residual(self, x, layer, norm_idx):
+    def _start_residual(self, x: Tensor, layer: nn.ModuleDict, norm_idx: int) -> Tensor:
+        """Start the residual connection.
+
+        Args:
+            x: The input tensor.
+            layer: The layer.
+            norm_idx: The index of the normalization layer.
+
+        Returns:
+            The residual tensor.
+        """
         x_residual = x
         if self.prenormalization:
             norm_key = f"norm{norm_idx}"
@@ -207,7 +309,18 @@ class Transformer(nn.Module):
                 x_residual = layer[norm_key](x_residual)
         return x_residual
 
-    def _end_residual(self, x, x_residual, layer, norm_idx):
+    def _end_residual(self, x: Tensor, x_residual: Tensor, layer: nn.ModuleDict, norm_idx: int) -> Tensor:
+        """End the residual connection.
+
+        Args:
+            x: The input tensor.
+            x_residual: The residual tensor.
+            layer: The layer.
+            norm_idx: The index of the normalization layer.
+
+        Returns:
+            The output tensor.
+        """
         if self.residual_dropout:
             x_residual = F.dropout(x_residual, self.residual_dropout, self.training)
         x = x + x_residual
@@ -215,7 +328,15 @@ class Transformer(nn.Module):
             x = layer[f"norm{norm_idx}"](x)
         return x
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
+        """Forward pass of the transformer.
+
+        Args:
+            x: The input tensor.
+
+        Returns:
+            The output tensor.
+        """
         for _, layer in enumerate(self.layers):
             x_residual = self._start_residual(x, layer, 0)
             x_residual = layer["attention"](
@@ -237,7 +358,13 @@ class Transformer(nn.Module):
 
 
 class AE(nn.Module):
-    def __init__(self, hid_dim, n_head):
+    def __init__(self, hid_dim: int, n_head: int) -> None:
+        """Initialize the AE module for the VAE.
+
+        Args:
+            hid_dim: The dimension of the hidden layer.
+            n_heads: The number of heads.
+        """
         super(AE, self).__init__()
 
         self.hid_dim = hid_dim
@@ -246,10 +373,26 @@ class AE(nn.Module):
         self.encoder = MultiheadAttention(hid_dim, n_head)
         self.decoder = MultiheadAttention(hid_dim, n_head)
 
-    def get_embedding(self, x):
+    def get_embedding(self, x: Tensor) -> Tensor:
+        """Get the embedding of the input tensor.
+
+        Args:
+            x: The input tensor.
+
+        Returns:
+            The embedding tensor.
+        """
         return self.encoder(x, x).detach()
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
+        """Forward pass of the AE.
+
+        Args:
+            x: The input tensor.
+
+        Returns:
+            The output tensor.
+        """
         z = self.encoder(x, x)
         h = self.decoder(z, z)
 
@@ -259,14 +402,28 @@ class AE(nn.Module):
 class VAE(nn.Module):
     def __init__(
         self,
-        d_numerical,
-        categories,
-        num_layers,
-        hid_dim,
-        n_head=1,
-        factor=4,
-        bias=True,
+        d_numerical: int,
+        categories: list[int] | None,
+        num_layers: int,
+        hid_dim: int,
+        n_head: int = 1,
+        factor: int = 4,
+        bias: bool = True,
     ):
+        """Initialize the VAE module for the VAE.
+
+        Args:
+            d_numerical: The number of numerical features.
+            categories: The number of categories for each categorical feature.
+            num_layers: The number of layers.
+            hid_dim: The dimension of the hidden layer.
+            n_heads: The number of heads.
+            factor: The factor for the dimension of the hidden layer.
+            bias: Whether to use bias in the linear layers.
+
+        Returns:
+            The VAE module.
+        """
         super(VAE, self).__init__()
 
         self.d_numerical = d_numerical
@@ -282,15 +439,41 @@ class VAE(nn.Module):
 
         self.decoder = Transformer(num_layers, hid_dim, n_head, hid_dim, factor)
 
-    def get_embedding(self, x):
+    def get_embedding(self, x: Tensor) -> Tensor:
+        """Get the embedding of the input tensor.
+
+        Args:
+            x: The input tensor.
+
+        Returns:
+            The embedding tensor.
+        """
         return self.encoder_mu(x, x).detach()
 
-    def reparameterize(self, mu, logvar):
+    def reparameterize(self, mu: Tensor, logvar: Tensor) -> Tensor:
+        """Reparameterize the input tensor.
+
+        Args:
+            mu: The mean tensor.
+            logvar: The log variance tensor.
+
+        Returns:
+            The reparameterized tensor.
+        """
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return mu + eps * std
 
-    def forward(self, x_num, x_cat):
+    def forward(self, x_num: Tensor, x_cat: Tensor) -> Tensor:
+        """Forward pass of the VAE.
+
+        Args:
+            x_num: The numerical features.
+            x_cat: The categorical features.
+
+        Returns:
+            The output tensor.
+        """
         x = self.Tokenizer(x_num, x_cat)
 
         mu_z = self.encoder_mu(x)
@@ -304,7 +487,14 @@ class VAE(nn.Module):
 
 
 class Reconstructor(nn.Module):
-    def __init__(self, d_numerical, categories, d_token):
+    def __init__(self, d_numerical: int, categories: list[int] | None, d_token: int) -> None:
+        """Initialize the reconstructor module for the VAE.
+
+        Args:
+            d_numerical: The number of numerical features.
+            categories: The number of categories for each categorical feature.
+            d_token: The dimension of the token.
+        """
         super(Reconstructor, self).__init__()
 
         self.d_numerical = d_numerical
@@ -320,7 +510,15 @@ class Reconstructor(nn.Module):
             nn.init.xavier_uniform_(recon.weight, gain=1 / math.sqrt(2))
             self.cat_recons.append(recon)
 
-    def forward(self, h):
+    def forward(self, h: Tensor) -> Tensor:
+        """Forward pass of the reconstructor.
+
+        Args:
+            h: The input tensor.
+
+        Returns:
+            The output tensor.
+        """
         h_num = h[:, : self.d_numerical]
         h_cat = h[:, self.d_numerical :]
 
@@ -336,14 +534,25 @@ class Reconstructor(nn.Module):
 class Model_VAE(nn.Module):
     def __init__(
         self,
-        num_layers,
-        d_numerical,
-        categories,
-        d_token,
-        n_head=1,
-        factor=4,
-        bias=True,
-    ):
+        num_layers: int,
+        d_numerical: int,
+        categories: list[int] | None,
+        d_token: int,
+        n_head: int = 1,
+        factor: int = 4,
+        bias: bool = True,
+    ) -> None:
+        """Initialize the VAE Model.
+
+        Args:
+            num_layers: The number of layers.
+            d_numerical: The number of numerical features.
+            categories: The number of categories for each categorical feature.
+            d_token: The dimension of the token.
+            n_head: The number of heads.
+            factor: The factor for the dimension of the hidden layer.
+            bias: Whether to use bias in the linear layers.
+        """
         super(Model_VAE, self).__init__()
 
         self.VAE = VAE(
@@ -357,11 +566,29 @@ class Model_VAE(nn.Module):
         )
         self.Reconstructor = Reconstructor(d_numerical, categories, d_token)
 
-    def get_embedding(self, x_num, x_cat):
+    def get_embedding(self, x_num: Tensor, x_cat: Tensor) -> Tensor:
+        """Get the embedding of the input tensor.
+
+        Args:
+            x_num: The numerical features.
+            x_cat: The categorical features.
+
+        Returns:
+            The embedding tensor.
+        """
         x = self.Tokenizer(x_num, x_cat)
         return self.VAE.get_embedding(x)
 
-    def forward(self, x_num, x_cat):
+    def forward(self, x_num: Tensor, x_cat: Tensor) -> Tensor:
+        """Forward pass of the VAE.
+
+        Args:
+            x_num: The numerical features.
+            x_cat: The categorical features.
+
+        Returns:
+            The output tensor.
+        """
         h, mu_z, std_z = self.VAE(x_num, x_cat)
 
         # recon_x_num, recon_x_cat = self.Reconstructor(h[:, 1:])
@@ -372,17 +599,49 @@ class Model_VAE(nn.Module):
 
 class Encoder_model(nn.Module):
     def __init__(
-        self, num_layers, d_numerical, categories, d_token, n_head, factor, bias=True
-    ):
-        super(Encoder_model, self).__init__()
+        self,
+        num_layers: int,
+        d_numerical: int,
+        categories: list[int] | None,
+        d_token: int,
+        n_head: int = 1,
+        factor: int = 4,
+        bias: bool = True,
+    ) -> None:
+        """Initialize the Encoder model.
+
+        Args:
+            num_layers: The number of layers.
+            d_numerical: The number of numerical features.
+            categories: The number of categories for each categorical feature.
+            d_token: The dimension of the token.
+            n_head: The number of heads.
+            factor: The factor for the dimension of the hidden layer.
+            bias: Whether to use bias in the linear layers.
+        """
+        super().__init__()
         self.Tokenizer = Tokenizer(d_numerical, categories, d_token, bias)
         self.VAE_Encoder = Transformer(num_layers, d_token, n_head, d_token, factor)
 
-    def load_weights(self, Pretrained_VAE):
-        self.Tokenizer.load_state_dict(Pretrained_VAE.VAE.Tokenizer.state_dict())
-        self.VAE_Encoder.load_state_dict(Pretrained_VAE.VAE.encoder_mu.state_dict())
+    def load_weights(self, pretrained_VAE: nn.Module) -> None:
+        """Load the weights of the encoder model.
+        
+        Args:
+            pretrained_VAE: The pretrained VAE model.
+        """
+        self.Tokenizer.load_state_dict(pretrained_VAE.VAE.Tokenizer.state_dict())
+        self.VAE_Encoder.load_state_dict(pretrained_VAE.VAE.encoder_mu.state_dict())
 
-    def forward(self, x_num, x_cat):
+    def forward(self, x_num: Tensor, x_cat: Tensor) -> Tensor:
+        """Forward pass of the encoder model.
+        
+        Args:
+            x_num: The numerical features.
+            x_cat: The categorical features.
+        
+        Returns:
+            The output tensor.
+        """
         x = self.Tokenizer(x_num, x_cat)
         z = self.VAE_Encoder(x)
 
@@ -391,17 +650,48 @@ class Encoder_model(nn.Module):
 
 class Decoder_model(nn.Module):
     def __init__(
-        self, num_layers, d_numerical, categories, d_token, n_head, factor, bias=True
-    ):
+        self,
+        num_layers: int,
+        d_numerical: int,
+        categories: list[int] | None,
+        d_token: int,
+        n_head: int = 1,
+        factor: int = 4,
+        bias: bool = True,
+    ) -> None:
+        """Initialize the Decoder model.
+
+        Args:
+            num_layers: The number of layers.
+            d_numerical: The number of numerical features.
+            categories: The number of categories for each categorical feature.
+            d_token: The dimension of the token.
+            n_head: The number of heads.
+            factor: The factor for the dimension of the hidden layer.
+            bias: Whether to use bias in the linear layers.
+        """
         super(Decoder_model, self).__init__()
         self.VAE_Decoder = Transformer(num_layers, d_token, n_head, d_token, factor)
         self.Detokenizer = Reconstructor(d_numerical, categories, d_token)
 
-    def load_weights(self, Pretrained_VAE):
-        self.VAE_Decoder.load_state_dict(Pretrained_VAE.VAE.decoder.state_dict())
-        self.Detokenizer.load_state_dict(Pretrained_VAE.Reconstructor.state_dict())
+    def load_weights(self, pretrained_VAE: nn.Module) -> None:
+        """Load the weights of the decoder model.
 
-    def forward(self, z):
+        Args:
+            pretrained_VAE: The pretrained VAE model.
+        """
+        self.VAE_Decoder.load_state_dict(pretrained_VAE.VAE.decoder.state_dict())
+        self.Detokenizer.load_state_dict(pretrained_VAE.Reconstructor.state_dict())
+
+    def forward(self, z: Tensor) -> Tensor:
+        """Forward pass of the decoder model.
+
+        Args:
+            z: The input tensor.
+
+        Returns:
+            The output tensor.
+        """
         h = self.VAE_Decoder(z)
         x_hat_num, x_hat_cat = self.Detokenizer(h)
 

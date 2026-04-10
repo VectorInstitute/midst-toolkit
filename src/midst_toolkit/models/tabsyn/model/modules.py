@@ -2,11 +2,11 @@ from typing import Callable, Union
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from torch import Tensor
+from torch import Tensor, nn
 
 from midst_toolkit.models.tabsyn.model.utils import EDMLoss
+
 
 ModuleType = Union[str, Callable[..., nn.Module]]
 
@@ -24,9 +24,7 @@ class PositionalEmbedding(torch.nn.Module):
         self.endpoint = endpoint
 
     def forward(self, x):
-        freqs = torch.arange(
-            start=0, end=self.num_channels // 2, dtype=torch.float32, device=x.device
-        )
+        freqs = torch.arange(start=0, end=self.num_channels // 2, dtype=torch.float32, device=x.device)
         freqs = freqs / (self.num_channels // 2 - (1 if self.endpoint else 0))
         freqs = (1 / self.max_positions) ** freqs
         x = x.ger(freqs.to(x.dtype))
@@ -36,6 +34,7 @@ class PositionalEmbedding(torch.nn.Module):
 
 def reglu(x: Tensor) -> Tensor:
     """The ReGLU activation function from [1].
+
     References:
         [1] Noam Shazeer, "GLU Variants Improve Transformer", 2020
     """
@@ -46,6 +45,7 @@ def reglu(x: Tensor) -> Tensor:
 
 def geglu(x: Tensor) -> Tensor:
     """The GEGLU activation function from [1].
+
     References:
         [1] Noam Shazeer, "GLU Variants Improve Transformer", 2020
     """
@@ -119,15 +119,11 @@ class MLPDiffusion(nn.Module):
         )
 
         self.map_noise = PositionalEmbedding(num_channels=dim_t)
-        self.time_embed = nn.Sequential(
-            nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t)
-        )
+        self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
 
     def forward(self, x, noise_labels, class_labels=None):
         emb = self.map_noise(noise_labels)
-        emb = (
-            emb.reshape(emb.shape[0], 2, -1).flip(1).reshape(*emb.shape)
-        )  # swap sin/cos
+        emb = emb.reshape(emb.shape[0], 2, -1).flip(1).reshape(*emb.shape)  # swap sin/cos
         emb = self.time_embed(emb)
 
         x = self.proj(x) + emb
@@ -189,9 +185,7 @@ class Model(nn.Module):
         super().__init__()
 
         self.denoise_fn_D = Precond(denoise_fn, hid_dim)
-        self.loss_fn = EDMLoss(
-            P_mean, P_std, sigma_data, hid_dim=hid_dim, gamma=5, opts=None
-        )
+        self.loss_fn = EDMLoss(P_mean, P_std, sigma_data, hid_dim=hid_dim, gamma=5, opts=None)
 
     def forward(self, x):
         loss = self.loss_fn(self.denoise_fn_D, x)

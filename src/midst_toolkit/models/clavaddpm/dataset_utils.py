@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.preprocessing import LabelEncoder
 
-from midst_toolkit.common.enumerations import DataSplit, ArrayDict
+from midst_toolkit.common.enumerations import ArrayDict, DataSplit
 
 
 def encode_and_merge_features(

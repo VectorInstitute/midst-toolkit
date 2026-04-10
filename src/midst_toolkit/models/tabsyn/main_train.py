@@ -12,6 +12,7 @@ from midst_toolkit.models.tabsyn.model.gaussian_diffusion import Model
 from midst_toolkit.models.tabsyn.model.modules import MLPDiffusion
 from midst_toolkit.models.tabsyn.utils import get_input_train
 
+
 warnings.filterwarnings("ignore")
 
 
@@ -51,9 +52,7 @@ def main(args):
     model = Model(denoise_fn=denoise_fn, hid_dim=train_z.shape[1]).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=0)
-    scheduler = ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.9, patience=20, verbose=True
-    )
+    scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.9, patience=20, verbose=True)
 
     model.train()
 
@@ -62,7 +61,7 @@ def main(args):
     start_time = time.time()
     for epoch in range(num_epochs):
         pbar = tqdm(train_loader, total=len(train_loader))
-        pbar.set_description(f"Epoch {epoch+1}/{num_epochs}")
+        pbar.set_description(f"Epoch {epoch + 1}/{num_epochs}")
 
         batch_loss = 0.0
         len_input = 0
@@ -104,9 +103,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Training of TabSyn")
 
-    parser.add_argument(
-        "--dataname", type=str, default="adult", help="Name of dataset."
-    )
+    parser.add_argument("--dataname", type=str, default="adult", help="Name of dataset.")
     parser.add_argument("--gpu", type=int, default=0, help="GPU index.")
 
     args = parser.parse_args()
