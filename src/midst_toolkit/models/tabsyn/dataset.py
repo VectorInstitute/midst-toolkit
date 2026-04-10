@@ -64,6 +64,7 @@ def preprocess(
 
         ref_X_train_cat = ref_dataset.categorical_features["train"]
         categories = get_categories(ref_X_train_cat)
+
         d_numerical = X_train_num.shape[1]
 
         X_num = (X_train_num, X_test_num)

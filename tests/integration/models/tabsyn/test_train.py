@@ -84,6 +84,12 @@ def test_train(test_dirs):
         device=device,
     )
 
+    model_save_dir = results_dir / test_data_name
+    vae_save_dir = model_save_dir / "vae"
+    vae_save_dir.mkdir(parents=True, exist_ok=True)
+
+    ###### A. Train the VAE model ######
+
     # instantiate VAE model for training
     tabsyn.instantiate_vae(
         **config["model_params"],
@@ -93,5 +99,44 @@ def test_train(test_dirs):
     tabsyn.train_vae(
         **config["loss_params"],
         num_epochs=config["train"]["vae"]["num_epochs"],
-        save_path=results_dir / test_data_name / "vae",
+        save_path=vae_save_dir,
+    )
+
+    # embed all inputs in the latent space
+    tabsyn.save_vae_embeddings(
+        X_train_num,
+        X_train_cat,
+        vae_ckpt_dir=vae_save_dir,
+    )
+    tabsyn.save_embeddings_attributes(vae_ckpt_dir=vae_save_dir)
+
+    ###### B. Train the Diffusion model ######
+
+    # load latent space embeddings
+    train_z, _ = tabsyn.load_latent_embeddings(vae_save_dir)  # train_z dim: B x in_dim
+
+    # normalize embeddings
+    mean, std = train_z.mean(0), train_z.std(0)
+    latent_train_data = (train_z - mean) / 2
+
+    # create data loader
+    latent_train_loader = DataLoader(
+        latent_train_data,
+        batch_size=config["train"]["diffusion"]["batch_size"],
+        shuffle=True,
+        num_workers=config["train"]["diffusion"]["num_dataset_workers"],
+    )
+
+    # instantiate diffusion model for training
+    tabsyn.instantiate_diffusion(
+        in_dim=train_z.shape[1],
+        hid_dim=train_z.shape[1],
+        optim_params=config["train"]["optim"]["diffusion"],
+    )
+
+    # train diffusion model
+    tabsyn.train_diffusion(
+        latent_train_loader,
+        num_epochs=config["train"]["diffusion"]["num_epochs"],
+        ckpt_path=model_save_dir,
     )
