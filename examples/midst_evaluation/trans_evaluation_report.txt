@@ -1,0 +1,196 @@
+
+ALPHA PRECISION
+--------------------------------------------------------------------------------
+Metric: delta_precision_alpha_OC                Metric: 0.9336149425287357
+Metric: delta_coverage_beta_OC                  Metric: 0.5649866666666666
+Metric: authenticity_OC                         Metric: 0.6006
+Metric: delta_precision_alpha_naive             Metric: 0.9919942528735631
+Metric: delta_coverage_beta_naive               Metric: 0.4394733333333334
+Metric: authenticity_naive                      Metric: 0.4846
+--------------------------------------------------------------------------------
+
+KOLMOGOROV SMIRNOV AND TOTAL VARIATION
+--------------------------------------------------------------------------------
+Metric: avg stat                                Metric: 0.021716666666666676
+Metric: stat err                                Metric: 0.014705733953499604
+Metric: avg ks                                  Metric: 0.03215
+Metric: ks err                                  Metric: 0.026713400195407553
+Metric: avg tvd                                 Metric: 0.008675000000000026
+Metric: tvd err                                 Metric: 0.002481473016845695
+Metric: avg pval                                Metric: 0.5874352459538725
+Metric: pval err                                Metric: 0.09937163954490548
+Metric: num sigs                                Metric: 1
+Metric: frac sigs                               Metric: 0.1111111111111111
+--------------------------------------------------------------------------------
+
+CONFIDENCE INTERVAL OVERLAP
+--------------------------------------------------------------------------------
+Metric: avg overlap                             Metric: 0.7779825009001834
+Metric: overlap err                             Metric: 0.07161688172701317
+Metric: num non-overlaps                        Metric: 0
+Metric: frac non-overlaps                       Metric: 0.0
+--------------------------------------------------------------------------------
+
+CORRELATION MATRIX DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: corr_mat_diff                           Metric: 0.04447520939641834
+Metric: corr_mat_dims                           Metric: 9
+--------------------------------------------------------------------------------
+
+DIMENSIONWISE MEAN DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: dimensionwise_mean_difference           Metric: 0.0007479826858907635
+Metric: standard_error_difference               Metric: 0.001236023489265874
+--------------------------------------------------------------------------------
+
+HELLINGER DISTANCE DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: mean_hellinger_distance                 Metric: 0.031227389045405927
+Metric: hellinger_standard_error                Metric: 0.00952175408081142
+--------------------------------------------------------------------------------
+
+PROPENSITY MEAN SQUARED ERROR
+--------------------------------------------------------------------------------
+Metric: avg_pmse                                Metric: 0.00012267728957245704
+Metric: pmse_standard_error                     Metric: 1.291832931909662e-05
+Metric: avg_macro_f1_score                      Metric: 0.5044193180013701
+Metric: macro_f1_standard_error                 Metric: 0.002072969680732005
+--------------------------------------------------------------------------------
+
+MUTUAL INFORMATION DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: mutual_inf_diff                         Metric: 0.020127884702853052
+Metric: mi_mat_dims                             Metric: 4
+--------------------------------------------------------------------------------
+
+CORRELATION MATRIX DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: corr_mat_diff                           Metric: 0.031452662526265746
+Metric: corr_mat_dims                           Metric: 5
+Metric: real_corr_sum                           Metric: 5.717255415348667
+Metric: synthetic_corr_sum                      Metric: 5.72908240470885
+Metric: corr_sum_diff                           Metric: -0.011826989360183227
+Metric: real_corr_frobenius                     Metric: 2.369237299878172
+Metric: synthetic_corr_frobenius                Metric: 2.37293182878468
+Metric: diff_corr_frobenius                     Metric: 0.031452662526265746
+--------------------------------------------------------------------------------
+
+MUTUAL INFORMATION DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: mutual_inf_diff                         Metric: 0.020127884702853493
+Metric: mi_mat_dims                             Metric: 4
+Metric: real_mi_sum                             Metric: 8.667546208052281
+Metric: synthetic_mi_sum                        Metric: 8.60919622632164
+Metric: mi_sum_diff                             Metric: 0.05834998173064143
+Metric: real_mi_frobenius                       Metric: 2.519819671894869
+Metric: synthetic_mi_frobenius                  Metric: 2.508789205142539
+Metric: diff_mi_frobenius                       Metric: 0.020127884702853493
+--------------------------------------------------------------------------------
+
+CORRELATION MATRIX DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: corr_mat_diff                           Metric: 0.04447520939641834
+Metric: corr_mat_dims                           Metric: 9
+Metric: real_cor_mat                            Metric:             trans_type  operation  k_symbol      bank  trans_date    amount   balance   account  trans_type
+trans_type    1.000000   0.505859  0.280021  0.020521    0.001171  0.047022  0.014521  0.027370    1.000000
+operation     0.505859   1.000000  0.507637  0.200744    0.004114  0.272686  0.056997  0.683201    0.985360
+k_symbol      0.280021   0.507637  1.000000  0.102066    0.002750  0.280940  0.038020  0.551423    0.542728
+bank          0.020521   0.200744  0.102066  1.000000    0.001136  0.003024  0.007428  0.685181    0.036730
+trans_date    0.001171   0.004114  0.002750  0.001136    1.000000 -0.004096  0.101889  0.020665    0.034104
+amount        0.047022   0.272686  0.280940  0.003024   -0.004096  1.000000  0.460162 -0.031923   -0.200847
+balance       0.014521   0.056997  0.038020  0.007428    0.101889  0.460162  1.000000 -0.062799   -0.114805
+account       0.027370   0.683201  0.551423  0.685181    0.020665 -0.031923 -0.062799  1.000000    0.156277
+trans_type    1.000000   0.985360  0.542728  0.036730    0.034104 -0.200847 -0.114805  0.156277    1.000000
+Metric: synt_cor_mat                            Metric:             trans_type  operation  k_symbol      bank  trans_date    amount   balance   account  trans_type
+trans_type    1.000000   0.499293  0.270575  0.018933    0.000808  0.049327  0.012287  0.024659    1.000000
+operation     0.499293   1.000000  0.501904  0.200654    0.005109  0.277168  0.058544  0.683811    0.979114
+k_symbol      0.270575   0.501904  1.000000  0.101408    0.003296  0.276177  0.038991  0.547071    0.528771
+bank          0.018933   0.200654  0.101408  1.000000    0.002088  0.002932  0.008160  0.683696    0.034668
+trans_date    0.000808   0.005109  0.003296  0.002088    1.000000 -0.005024  0.110446  0.029787    0.027561
+amount        0.049327   0.277168  0.276177  0.002932   -0.005024  1.000000  0.467312 -0.035079   -0.210248
+balance       0.012287   0.058544  0.038991  0.008160    0.110446  0.467312  1.000000 -0.065207   -0.104888
+account       0.024659   0.683811  0.547071  0.683696    0.029787 -0.035079 -0.065207  1.000000    0.149879
+trans_type    1.000000   0.979114  0.528771  0.034668    0.027561 -0.210248 -0.104888  0.149879    1.000000
+Metric: diff_cor_mat                            Metric:               trans_type  operation  k_symbol      bank  trans_date    amount   balance   account    trans_type
+trans_type  0.000000e+00   0.006566  0.009447  0.001589    0.000363 -0.002304  0.002234  0.002711  2.220446e-16
+operation   6.566228e-03   0.000000  0.005732  0.000090   -0.000995 -0.004482 -0.001547 -0.000610  6.245976e-03
+k_symbol    9.446504e-03   0.005732  0.000000  0.000658   -0.000546  0.004763 -0.000971  0.004352  1.395713e-02
+bank        1.588798e-03   0.000090  0.000658  0.000000   -0.000951  0.000092 -0.000732  0.001485  2.062015e-03
+trans_date  3.633848e-04  -0.000995 -0.000546 -0.000951    0.000000  0.000928 -0.008557 -0.009123  6.542555e-03
+amount     -2.304223e-03  -0.004482  0.004763  0.000092    0.000928  0.000000 -0.007150  0.003156  9.400807e-03
+balance     2.234407e-03  -0.001547 -0.000971 -0.000732   -0.008557 -0.007150  0.000000  0.002407 -9.916875e-03
+account     2.710553e-03  -0.000610  0.004352  0.001485   -0.009123  0.003156  0.002407  0.000000  6.397860e-03
+trans_type  2.220446e-16   0.006246  0.013957  0.002062    0.006543  0.009401 -0.009917  0.006398  0.000000e+00
+Metric: real_corr_sum                           Metric: 23.43455870049839
+Metric: synthetic_corr_sum                      Metric: 23.347969741356525
+Metric: corr_sum_diff                           Metric: 0.0865889591418636
+Metric: real_corr_frobenius                     Metric: 4.27040139009896
+Metric: synthetic_corr_frobenius                Metric: 4.260483968748378
+Metric: diff_corr_frobenius                     Metric: 0.04447520939641834
+--------------------------------------------------------------------------------
+
+MUTUAL INFORMATION DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: mutual_inf_diff                         Metric: 0.020127884702853052
+Metric: mi_mat_dims                             Metric: 4
+Metric: real_mi_sum                             Metric: 8.667546208052281
+Metric: synthetic_mi_sum                        Metric: 8.60919622632164
+Metric: mi_sum_diff                             Metric: 0.05834998173064143
+Metric: real_mi_frobenius                       Metric: 2.519819671894869
+Metric: synthetic_mi_frobenius                  Metric: 2.508789205142539
+Metric: diff_mi_frobenius                       Metric: 0.020127884702853052
+--------------------------------------------------------------------------------
+
+MUTUAL INFORMATION DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: mutual_inf_diff                         Metric: 0.020127884702853052
+Metric: mi_mat_dims                             Metric: 4
+Metric: real_mi_sum                             Metric: 8.667546208052281
+Metric: synthetic_mi_sum                        Metric: 8.60919622632164
+Metric: mi_sum_diff                             Metric: 0.05834998173064143
+Metric: real_mi_frobenius                       Metric: 2.519819671894869
+Metric: synthetic_mi_frobenius                  Metric: 2.508789205142539
+Metric: diff_mi_frobenius                       Metric: 0.020127884702853052
+--------------------------------------------------------------------------------
+
+MUTUAL INFORMATION DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: mutual_inf_diff                         Metric: 0.020127884702853052
+Metric: mi_mat_dims                             Metric: 4
+Metric: real_mi_sum                             Metric: 8.667546208052281
+Metric: synthetic_mi_sum                        Metric: 8.60919622632164
+Metric: mi_sum_diff                             Metric: 0.05834998173064143
+Metric: real_mi_frobenius                       Metric: 2.519819671894869
+Metric: synthetic_mi_frobenius                  Metric: 2.508789205142539
+Metric: diff_mi_frobenius                       Metric: 0.020127884702853052
+--------------------------------------------------------------------------------
+
+CORRELATION MATRIX DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: corr_mat_diff                           Metric: 0.031452662526265746
+Metric: corr_mat_dims                           Metric: 5
+Metric: real_cor_mat                            Metric:             trans_date    amount   balance   account  trans_type
+trans_date    1.000000 -0.004096  0.101889  0.020665    0.034104
+amount       -0.004096  1.000000  0.460162 -0.031923   -0.200847
+balance       0.101889  0.460162  1.000000 -0.062799   -0.114805
+account       0.020665 -0.031923 -0.062799  1.000000    0.156277
+trans_type    0.034104 -0.200847 -0.114805  0.156277    1.000000
+Metric: synt_cor_mat                            Metric:             trans_date    amount   balance   account  trans_type
+trans_date    1.000000 -0.005024  0.110446  0.029787    0.027561
+amount       -0.005024  1.000000  0.467312 -0.035079   -0.210248
+balance       0.110446  0.467312  1.000000 -0.065207   -0.104888
+account       0.029787 -0.035079 -0.065207  1.000000    0.149879
+trans_type    0.027561 -0.210248 -0.104888  0.149879    1.000000
+Metric: diff_cor_mat                            Metric:             trans_date    amount   balance   account  trans_type
+trans_date    0.000000  0.000928 -0.008557 -0.009123    0.006543
+amount        0.000928  0.000000 -0.007150  0.003156    0.009401
+balance      -0.008557 -0.007150  0.000000  0.002407   -0.009917
+account      -0.009123  0.003156  0.002407  0.000000    0.006398
+trans_type    0.006543  0.009401 -0.009917  0.006398    0.000000
+Metric: real_corr_sum                           Metric: 5.717255415348667
+Metric: synthetic_corr_sum                      Metric: 5.72908240470885
+Metric: corr_sum_diff                           Metric: -0.011826989360183227
+Metric: real_corr_frobenius                     Metric: 2.369237299878172
+Metric: synthetic_corr_frobenius                Metric: 2.37293182878468
+Metric: diff_corr_frobenius                     Metric: 0.031452662526265746
+--------------------------------------------------------------------------------

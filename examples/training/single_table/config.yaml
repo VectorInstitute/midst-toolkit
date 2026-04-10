@@ -1,14 +1,12 @@
 # Training example configuration
-# Base data directory (can be overridden from command line)
-base_data_dir: examples/training/single_table/data
-results_dir: examples/training/single_table/results
-
+base_data_dir: whitebox_single_table_70/tabddpm_1
+results_dir: whitebox_single_table_70/tabddpm_1
 diffusion_config:
   d_layers: [512, 1024, 1024, 1024, 1024, 512]
   dropout: 0.0
   num_timesteps: 2000
   model_type: mlp
-  iterations: 20000
+  iterations: 200000
   batch_size: 4096
   lr: 0.0006
   gaussian_loss_type: mse

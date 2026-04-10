@@ -1,0 +1,103 @@
+# Evaluation Configuration for Trans/Berka Dataset
+# Base data directory
+base_data_dir: examples/training/single_table/data
+
+# Data paths
+data_paths:
+  meta_data_path: ${base_data_dir}/meta_info.json
+  synthetic_data_path: examples/synthesizing/single_table/results/single_table_synthesizing/trans/_final/trans_synthetic.csv
+  real_train_data_path: ${base_data_dir}/trans.csv
+  real_test_data_path: ${base_data_dir}/trans.csv  # Using same as train
+
+# Reporting Configuration
+write_report: True
+metric_report_path: examples/midst_evaluation/trans_evaluation_report.txt
+
+
+# Privacy Evaluation Configurations
+dcr:
+  run: True
+  norm: "l2"
+  batch_size: 1000
+
+median_dcr:
+  run: False
+  norm: "l2"
+  batch_size: 1000
+
+hitting_rate:
+  run: True
+  hitting_threshold: 0.03
+
+eir:
+  run: True
+  norm: "gower"
+
+nndr:
+  run: True
+  norm: "l2"
+  batch_size: 500
+  use_cpu: True  # Force CPU mode
+
+# Quality Evaluation Configurations
+ks_tv:
+  run: False
+  significance_level: 0.05
+  permutations: 1000
+
+alpha_precision:
+  run: False
+  naive_only: False
+
+ci_overlap:
+  run: False
+  confidence_level: 95
+
+correlation_diff:
+  run: False
+  compute_mixed_correlations: True
+
+mean_diff:
+  run: False
+
+f1_score_diff:
+  run: False
+  label_column: "balance"
+  folds: 5
+  f1_type: "macro"
+
+regression_score_diff:
+  run: False
+  label_column: "balance"
+  preprocess_labels: True
+  measure_metrics_in_original_label_space: False
+  verbose: True
+  
+multi_target_modeling_diff:
+  run: False
+  label_columns_and_type:
+    
+    admission_type: "categorical" 
+  
+    
+    
+    num_procedures: "numerical"     # Regression
+    
+  folds: 5
+  f1_type: "macro"
+  preprocess_labels: False
+  n_jobs: 4
+
+hellinger:
+  run: False
+  include_numerical_columns: True
+
+propensity_mse:
+  run: False
+  folds: 5
+  max_iterations: 50
+  solver: "liblinear"
+
+mutual_information:
+  run: False
+  include_numerical_columns: False

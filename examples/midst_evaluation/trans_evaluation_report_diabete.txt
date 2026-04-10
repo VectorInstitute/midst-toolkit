@@ -1,0 +1,12 @@
+
+CORRELATION MATRIX DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: corr_mat_diff                           Metric: 1.3434843933963088
+Metric: corr_mat_dims                           Metric: 9
+Metric: real_corr_sum                           Metric: 15.939877156604345
+Metric: synthetic_corr_sum                      Metric: 15.983228202616974
+Metric: corr_sum_diff                           Metric: -0.043351046012629624
+Metric: real_corr_frobenius                     Metric: 3.299234789716533
+Metric: synthetic_corr_frobenius                Metric: 3.5329046884888196
+Metric: diff_corr_frobenius                     Metric: 1.3434843933963088
+--------------------------------------------------------------------------------

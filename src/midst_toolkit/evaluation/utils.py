@@ -115,7 +115,7 @@ def one_hot_encode_categoricals_and_merge_with_numerical(
         log(INFO, "No categorical features are present. Returning just numerical data")
         return pd.DataFrame(real_numerical_data).astype(float), pd.DataFrame(synthetic_numerical_data).astype(float)
 
-    encoder = OneHotEncoder()
+    encoder = OneHotEncoder(handle_unknown='ignore')
     one_hot_real_data = encoder.fit_transform(real_categorical_data).toarray()
     one_hot_synthetic_data = encoder.transform(synthetic_categorical_data).toarray()
 

@@ -1,0 +1,14 @@
+{
+  "relation_order": [
+    [
+      null,
+      "trans"
+    ]
+  ],
+  "tables": {
+    "trans": {
+      "children": [],
+      "parents": []
+    }
+  }
+}

@@ -1,0 +1,41 @@
+# Tartan-Federer experiment configuration for data_try_20K_again (30 models, indices 111-140)
+base_experiment_dir: examples/tartan_federer_attack/data_try_20K_again
+
+# Pipeline control
+pipeline:
+  run_data_processing: true
+
+# Data paths
+data_paths:
+  midst_data_path: ${base_experiment_dir}/tabddpm_white_box
+  population_data_path: ${base_experiment_dir}/population_data
+  metadata_dir: ${base_experiment_dir}/configs/data_configs
+
+# Dataset specific information used for processing
+data_processing_config:
+  population_attack_indices_to_collect_for_training:
+    [111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130]
+  population_attack_indices_to_collect_for_validation:
+    [131,132,133,134,135,136,137,138,139,140]
+  model_type: tabddpm
+  columns_for_deduplication: ['trans_id', 'balance']
+
+attack_config:
+  model_type: tabddpm
+  target_shadow_model_subdir: "."
+  samples_per_train_model: 3000
+  samples_per_val_model: 1000
+  num_noise_per_time_step: 300
+  timesteps: [5, 10, 20, 30, 40, 50, 100]
+  additional_timesteps: [0]
+  predictions_file_name: challenge_label_predictions
+  results_path: ${base_experiment_dir}/tartan_federer_attack_results
+  test_indices: [111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140]
+  train_indices: [111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130]
+  val_indices: [131,132,133,134,135,136,137,138,139,140]
+  columns_for_deduplication: ['trans_id', 'balance']
+
+classifier_config:
+  hidden_dim: 200
+  learning_rate: 1e-4
+  num_epochs: 5000

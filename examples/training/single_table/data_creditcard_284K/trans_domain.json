@@ -1,0 +1,126 @@
+{
+    "Time": {
+        "size": 124592,
+        "type": "continuous"
+    },
+    "V1": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V2": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V3": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V4": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V5": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V6": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V7": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V8": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V9": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V10": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V11": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V12": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V13": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V14": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V15": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V16": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V17": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V18": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V19": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V20": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V21": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V22": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V23": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V24": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V25": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V26": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V27": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "V28": {
+        "size": 275663,
+        "type": "continuous"
+    },
+    "Amount": {
+        "size": 32767,
+        "type": "continuous"
+    },
+    "Class": {
+        "size": 2,
+        "type": "discrete"
+    }
+}

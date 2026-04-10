@@ -1,7 +1,7 @@
 from logging import INFO
 from pathlib import Path
 from typing import Any
-
+import torch
 import hydra
 import pandas as pd
 from omegaconf import DictConfig
@@ -25,6 +25,7 @@ from midst_toolkit.evaluation.privacy.distance_preprocess import preprocess_for_
 from midst_toolkit.evaluation.privacy.distance_utils import NormType
 from midst_toolkit.evaluation.privacy.epsilon_identifiability_risk import EpsilonIdentifiabilityNorm
 from midst_toolkit.evaluation.quality import (
+    MultiTargetModelingDifference,  # ← ADD THIS LINE
     AlphaPrecision,
     CorrelationMatrixDifference,
     DimensionwiseMeanDifference,
@@ -167,6 +168,42 @@ def run_quality_evaluations(
             numerical and categorical values or whether there is a column corresponding to a label.
     """
     metric: MetricBase
+        
+        
+        
+    if cfg.multi_target_modeling_diff.run:
+        log(INFO, "Running Multi-Target Modeling Difference Evaluation")
+        
+        # Ensure columns are extracted
+        numerical_columns, categorical_columns = get_numerical_and_categorical_column_names(real_data_train, meta_info)
+        
+        # Preprocess data
+        syntheval_real_data_train, syntheval_synthetic_data = syntheval_preprocess(
+            numerical_columns, categorical_columns, real_data_train, synthetic_data
+        )
+        syntheval_real_data_test = syntheval_preprocess(
+            numerical_columns, categorical_columns, real_data_train, real_data_test
+        )[1]
+        
+        # Build label_columns_and_type from config
+        from midst_toolkit.common.enumerations import ColumnType
+        label_columns_and_type = {
+            col_name: ColumnType.CATEGORICAL if col_type == "categorical" else ColumnType.NUMERICAL
+            for col_name, col_type in cfg.multi_target_modeling_diff.label_columns_and_type.items()
+        }
+        
+        metric = MultiTargetModelingDifference(
+            categorical_columns=categorical_columns,
+            numerical_columns=numerical_columns,
+            label_columns_and_type=label_columns_and_type,
+            folds=cfg.multi_target_modeling_diff.get("folds", 5),
+            preprocess_labels=cfg.multi_target_modeling_diff.get("preprocess_labels", False),
+            n_jobs=cfg.multi_target_modeling_diff.get("n_jobs", 1),
+            do_preprocess=False,
+        )
+        results = metric.compute(syntheval_real_data_train, syntheval_synthetic_data, syntheval_real_data_test)
+        report_metrics(cfg, "MULTI-TARGET MODELING DIFFERENCE", results)
+        
     if cfg.alpha_precision.run:
         log(INFO, "Preprocessing Data for Alpha Precision Evaluation")
         # Categorical values are one-hot encoded, numerical values are left alone.
@@ -221,6 +258,8 @@ def run_quality_evaluations(
             compute_mixed_correlations=cfg.correlation_diff.compute_mixed_correlations,
             # Already preprocessing above
             do_preprocess=False,
+            save_heatmaps=cfg.correlation_diff.get("save_heatmaps", True),  # NEW: Enable/disable heatmap generation
+            output_dir=cfg.correlation_diff.get("output_dir", "correlation_heatmaps")  # NEW: Where to save heatmaps
         )
         results = metric.compute(syntheval_real_data_train, syntheval_synthetic_data)
         report_metrics(cfg, "CORRELATION MATRIX DIFFERENCE", results)
@@ -309,6 +348,8 @@ def run_quality_evaluations(
             include_numerical_columns=cfg.mutual_information.include_numerical_columns,
             # Already preprocessing above
             do_preprocess=False,
+            save_heatmaps=cfg.mutual_information.get("save_heatmaps", True),  # NEW: Enable/disable heatmap generation
+            output_dir=cfg.mutual_information.get("output_dir", "mutual_information_heatmaps")  # NEW: Where to save heatmaps
         )
         results = metric.compute(syntheval_real_data_train, syntheval_synthetic_data)
         report_metrics(cfg, "MUTUAL INFORMATION DIFFERENCE", results)
@@ -396,11 +437,26 @@ def run_privacy_evaluations(
         results = metric.compute(distance_real_data, distance_synthetic_data)
         report_metrics(cfg, "MEDIAN DISTANCE TO CLOSEST RECORD", results)
 
-    if cfg.nndr.run:
+    '''if cfg.nndr.run:
         log(INFO, "Running NNDR Evaluation")
         metric = NearestNeighborDistanceRatio(NormType(cfg.nndr.norm), cfg.nndr.batch_size, do_preprocess=False)
         results = metric.compute(distance_real_data, distance_synthetic_data, distance_holdout_data)
-        report_metrics(cfg, "NEAREST NEIGHBOR DISTANCE RATIO", results)
+        report_metrics(cfg, "NEAREST NEIGHBOR DISTANCE RATIO", results)'''
+    if cfg.nndr.run:
+        log(INFO, "Running NNDR Evaluation")
+
+        # Use CPU if specified, otherwise use DEVICE
+        device = torch.device('cpu') if cfg.nndr.get('use_cpu', False) else DEVICE
+
+        metric = NearestNeighborDistanceRatio(
+            norm=NormType(cfg.nndr.norm),
+            batch_size=cfg.nndr.batch_size,
+            device=device,
+            meta_info=meta_info,
+            do_preprocess=True,
+        )
+        results = metric.compute(distance_real_data, distance_synthetic_data, distance_holdout_data)
+        report_metrics(cfg, "NNDR", results)
 
 
 @hydra.main(config_path=".", config_name="config_berka", version_base=None)

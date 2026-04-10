@@ -1,0 +1,100 @@
+# Evaluation Configuration for Diabetes DI_1
+base_data_dir: whitebox_single_table_DI_1/tabddpm_1
+
+# Data paths
+data_paths:
+  meta_data_path: ${base_data_dir}/meta_data.json
+  synthetic_data_path: whitebox_single_table_DI_1/tabddpm_1/models_Tm80/tabddpm_1_synthesizing_Tm80/trans/_final/trans_synthetic_clean.csv
+  real_train_data_path: ${base_data_dir}/trans.csv
+  real_test_data_path: whitebox_single_table_DI_1/tabddpm_2/trans.csv
+
+# Reporting
+write_report: True
+metric_report_path: examples/midst_evaluation/trans_evaluation_report_DI_1_Tm80.txt
+
+# Privacy Metrics
+dcr:
+  run: False
+  norm: "l2"
+  batch_size: 1000
+
+median_dcr:
+  run: False
+  norm: "l2"
+  batch_size: 1000
+
+hitting_rate:
+  run: True
+  hitting_threshold: 0.03
+
+eir:
+  run: True
+  norm: "gower"
+
+nndr:
+  run: False
+  norm: "l2"
+  batch_size: 50
+  use_cpu: True
+
+# Quality Metrics
+ks_tv:
+  run: True
+  significance_level: 0.05
+  permutations: 1000
+
+alpha_precision:
+  run: True
+  naive_only: False
+
+ci_overlap:
+  run: True
+  confidence_level: 95
+
+mean_diff:
+  run: True
+
+f1_score_diff:
+  run: True
+  label_column: "readmitted_categorical"
+  folds: 5
+  f1_type: "macro"
+
+regression_score_diff:
+  run: False
+  label_column: "time_in_hospital_integer"
+  preprocess_labels: True
+  measure_metrics_in_original_label_space: False
+  verbose: True
+
+multi_target_modeling_diff:
+  run: True
+  label_columns_and_type:
+    readmitted_categorical: "categorical"
+    time_in_hospital_integer: "numerical"
+  folds: 5
+  f1_type: "macro"
+  preprocess_labels: False
+  n_jobs: 4
+
+hellinger:
+  run: True
+  include_numerical_columns: True
+
+propensity_mse:
+  run: False
+  folds: 5
+  max_iterations: 50
+  solver: "liblinear"
+
+mutual_information:
+  run: True
+  include_numerical_columns: False
+  save_heatmaps: True
+  output_dir: "mutual_information_heatmaps"
+
+correlation_diff:
+  run: True
+  compute_mixed_correlations: False
+  save_heatmaps: True
+  output_dir: "correlation_heatmaps"

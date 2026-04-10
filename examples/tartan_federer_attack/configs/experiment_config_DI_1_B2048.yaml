@@ -1,0 +1,31 @@
+base_experiment_dir: whitebox_single_table_DI_1
+base_data_config_dir: whitebox_single_table_DI_1/configs
+pipeline:
+  run_data_processing: true
+data_paths:
+  midst_data_path: ${base_experiment_dir}
+  population_data_path: ${base_experiment_dir}/population_data
+  metadata_dir: ${base_experiment_dir}/tabddpm_1
+data_processing_config:
+  population_attack_indices_to_collect_for_training: [1,2,3,4,5,6,7]
+  population_attack_indices_to_collect_for_validation: [8,9,10]
+  model_type: tabddpm
+  columns_for_deduplication: ['encounter_id']
+attack_config:
+  model_type: tabddpm
+  target_shadow_model_subdir: "models_B2048/models"
+  samples_per_train_model: 3000
+  samples_per_val_model: 1000
+  num_noise_per_time_step: 300
+  timesteps: [5, 10, 20, 30, 40, 50, 100]
+  additional_timesteps: [0]
+  predictions_file_name: challenge_label_predictions
+  results_path: ${base_experiment_dir}/tartan_federer_attack_results_B2048
+  test_indices: [8,9,10]
+  train_indices: [1,2,3,4,5,6,7]
+  val_indices: [8,9,10]
+  columns_for_deduplication: ['encounter_id']
+classifier_config:
+  hidden_dim: 200
+  learning_rate: 1e-4
+  num_epochs: 5000

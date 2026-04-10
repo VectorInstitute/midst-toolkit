@@ -1,7 +1,7 @@
 # Training example configuration
 # Base data directory (can be overridden from command line)
-base_data_dir: examples/synthesizing/single_table/data
-results_dir: examples/synthesizing/single_table/results
+base_data_dir: sara/tabddpm_1
+results_dir: sara/tabddpm_1
 
 # diffusion_config is only required when training a new model from scratch
 diffusion_config:
@@ -9,7 +9,7 @@ diffusion_config:
   dropout: 0.0
   num_timesteps: 2000
   model_type: mlp
-  iterations: 20000
+  iterations: 200000
   batch_size: 4096
   lr: 0.0006
   gaussian_loss_type: mse
@@ -19,10 +19,10 @@ diffusion_config:
 
 # Synthesizing configuration
 general_config:
-    data_dir: examples/synthesizing/single_table/data
-    test_data_dir: examples/synthesizing/single_table/data
+    data_dir: sara/tabddpm_1
+    test_data_dir: sara/tabddpm_1
     exp_name: single_table_synthesizing
-    workspace_dir: examples/synthesizing/single_table/results
+    workspace_dir: sara/tabddpm_1/results
     sample_prefix: ""
 
 sampling_config:

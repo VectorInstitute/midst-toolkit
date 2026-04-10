@@ -1,0 +1,156 @@
+{
+    "Time": {
+        "size": 124592,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V1": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V2": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V3": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V4": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V5": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V6": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V7": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V8": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V9": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V10": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V11": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V12": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V13": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V14": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V15": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V16": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V17": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V18": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V19": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V20": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V21": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V22": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V23": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V24": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V25": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V26": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V27": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "V28": {
+        "size": 275663,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "Amount": {
+        "size": 32767,
+        "type": "continuous",
+        "dtype": "float"
+    },
+    "Class": {
+        "size": 2,
+        "type": "discrete"
+    }
+}

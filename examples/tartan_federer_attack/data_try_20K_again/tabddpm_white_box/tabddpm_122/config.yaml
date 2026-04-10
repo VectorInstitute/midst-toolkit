@@ -1,0 +1,15 @@
+base_data_dir: examples/tartan_federer_attack/data_try_20K_again/tabddpm_white_box/tabddpm_122
+results_dir: examples/tartan_federer_attack/data_try_20K_again/tabddpm_white_box/tabddpm_122/workspace/train_1
+
+diffusion_config:
+  d_layers: [512, 1024, 1024, 1024, 1024, 512]
+  dropout: 0.0
+  num_timesteps: 2000
+  model_type: mlp
+  iterations: 200000
+  batch_size: 4096
+  lr: 0.0006
+  gaussian_loss_type: mse
+  weight_decay: 1e-05
+  scheduler: cosine
+  data_split_ratios: [0.99, 0.005, 0.005]

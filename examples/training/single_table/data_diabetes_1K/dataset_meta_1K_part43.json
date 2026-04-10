@@ -1,0 +1,14 @@
+{
+    "relation_order": [
+        [
+            null,
+            "trans_1K_part43"
+        ]
+    ],
+    "tables": {
+        "trans_1K_part43": {
+            "children": [],
+            "parents": []
+        }
+    }
+}

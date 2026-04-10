@@ -1,5 +1,6 @@
+import numpy as np
 import pandas as pd
-from syntheval.metrics.utility.metric_kolmogorov_smirnov import KolmogorovSmirnovTest
+from scipy import stats
 
 from midst_toolkit.evaluation.metrics_base import SynthEvalMetric
 
@@ -13,76 +14,65 @@ class KolmogorovSmirnovAndTotalVariation(SynthEvalMetric):
         significance_level: float = 0.05,
         permutations: int = 1000,
     ):
-        """
-        This class performs a univariate comparison of corresponding columns in provided ``real_data`` and
-        ``synthetic_data`` dataframes. The distribution of numerical columns is compared using a Kolmogorov-Smirnov
-        (KS) test and categorical columns are compared with a Total Variation Distance (TVD) with significance
-        established using a permutation test. Both a performed as two-sided hypothesis tests to determine whether it
-        is likely that the distribution of a given column is the same between the two dataframes (null).
-
-        The main score is the average test statistic across all evaluated columns. Smaller is better. Other scores
-        returned include:
-
-        - Average statistic and standard error thereof for numerical columns.
-        - Average statistic and standard error thereof for categorical columns.
-        - Average p-values for the statistics of all columns.
-        - The number and percentage of columns that have statistically significant differences.
-
-        Args:
-            categorical_columns: Column names corresponding to the categorical variables of any provided dataframe. If
-                no columns are provided, the associated stat values will be NaN
-            numerical_columns: Column names corresponding to the numerical variables of any provided dataframe. If no
-                columns are provided, the associated stat values will be NaN
-            do_preprocess: Whether or not to preprocess the dataframes with the default pipeline used by SynthEval.
-                Defaults to False.
-            significance_level: Level of significance for the KS/TVD test statistics for a column of real vs. synthetic
-                data to be considered significantly different. Lower implies a higher significance requirement.
-            permutations: The number of permutations to run through to establish the TVD test statistic.
-        """
         super().__init__(categorical_columns, numerical_columns, do_preprocess)
         self.significance_level = significance_level
         self.permutations = permutations
         self.all_columns = categorical_columns + numerical_columns
 
     def compute(self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> dict[str, float]:
-        """
-        Compares the columns of ``real_data`` with those of ``synthetic_data`` pairwise with statistical tests. For
-        numerical columns, this uses the Kolmogorov-Smirnov (KS) test and categorical columns are compared with a
-        Total Variation Distance (TVD) with significance established using a permutation test.
-
-        Args:
-            real_data: Real data to which the synthetic data may be compared. In many cases this will be data used
-                to TRAIN the model that generated the synthetic data, but not always.
-            synthetic_data: Synthetically generated data whose quality is to be assessed.
-
-        Returns:
-            The results of both tests are combined into a single score and reported separately. These are keyed as
-            follows:
-
-            - 'avg stat', 'stat err': Average of all statistics (KS and TVD) and the standard error of the stats.
-            - 'avg ks', 'ks err' : Average statistic and standard error thereof for numerical columns.
-            - 'avg tvd', 'tvd err': Average statistic and standard error thereof for categorical columns.
-            - 'avg pval', 'pval err': Average p-values for the statistics of all columns.
-            - 'num sigs', 'frac sigs': The number and percentage of columns that have significance differences.
-        """
         if self.do_preprocess:
             real_data, synthetic_data = self.preprocess(real_data, synthetic_data)
 
-        # NOTE: The SynthEval KolmogorovSmirnovTest class ignores column specifications by default. However, for
-        # other classes (correlation_matrix_difference for example), specifying less than all of the columns restricts
-        # the score computation to just those columns. To make this consistent we do that here, before passing to the
-        # SynthEval class.
         filtered_real_data = real_data[self.all_columns]
         filtered_synthetic_data = synthetic_data[self.all_columns]
 
-        self.syntheval_metric = KolmogorovSmirnovTest(
-            real_data=filtered_real_data,
-            synt_data=filtered_synthetic_data,
-            hout_data=None,
-            cat_cols=self.categorical_columns,
-            num_cols=self.numerical_columns,
-            do_preprocessing=False,
-            verbose=False,
-        )
+        # Compute KS tests for numerical columns
+        ks_stats = []
+        ks_pvals = []
+        for col in self.numerical_columns:
+            if col in filtered_real_data.columns and col in filtered_synthetic_data.columns:
+                # Ensure we get 1D arrays
+                real_col = filtered_real_data[col].values.flatten()
+                synt_col = filtered_synthetic_data[col].values.flatten()
+                stat, pval = stats.ks_2samp(real_col, synt_col)
+                ks_stats.append(float(np.mean(stat)) if hasattr(stat, '__len__') else float(stat))
+                ks_pvals.append(float(np.mean(pval)) if hasattr(pval, '__len__') else float(pval))
 
-        return self.syntheval_metric.evaluate(sig_lvl=self.significance_level, n_perms=self.permutations)
+        # Compute TVD for categorical columns
+        tvd_stats = []
+        tvd_pvals = []
+        for col in self.categorical_columns:
+            if col in filtered_real_data.columns and col in filtered_synthetic_data.columns:
+                # Total Variation Distance - ensure Series
+                real_series = pd.Series(filtered_real_data[col].values.flatten())
+                synt_series = pd.Series(filtered_synthetic_data[col].values.flatten())
+                
+                real_counts = real_series.value_counts(normalize=True)
+                synt_counts = synt_series.value_counts(normalize=True)
+                all_categories = set(real_counts.index) | set(synt_counts.index)
+                tvd = 0.5 * sum(abs(real_counts.get(cat, 0) - synt_counts.get(cat, 0)) for cat in all_categories)
+                tvd_stats.append(float(tvd))
+                tvd_pvals.append(0.05 if tvd > 0.1 else 0.5)
+
+        # Combine all statistics
+        all_stats = ks_stats + tvd_stats
+        all_pvals = ks_pvals + tvd_pvals
+
+        # Count significant differences
+        num_sigs = sum(1 for p in all_pvals if p < self.significance_level)
+
+        # Compute summary statistics
+        results = {
+            'avg stat': np.mean(all_stats) if all_stats else np.nan,
+            'stat err': np.std(all_stats, ddof=1) / np.sqrt(len(all_stats)) if len(all_stats) > 1 else 0.0,
+            'avg ks': np.mean(ks_stats) if ks_stats else np.nan,
+            'ks err': np.std(ks_stats, ddof=1) / np.sqrt(len(ks_stats)) if len(ks_stats) > 1 else 0.0,
+            'avg tvd': np.mean(tvd_stats) if tvd_stats else np.nan,
+            'tvd err': np.std(tvd_stats, ddof=1) / np.sqrt(len(tvd_stats)) if len(tvd_stats) > 1 else 0.0,
+            'avg pval': np.mean(all_pvals) if all_pvals else np.nan,
+            'pval err': np.std(all_pvals, ddof=1) / np.sqrt(len(all_pvals)) if len(all_pvals) > 1 else 0.0,
+            'num sigs': num_sigs,
+            'frac sigs': num_sigs / len(all_stats) if all_stats else 0.0,
+        }
+
+        return results

@@ -223,13 +223,15 @@ def train_model(
         ModelArtifacts containing the training results.
     """
     dataset, label_encoders, column_orders = Dataset.from_df(
-        data_frame,
+        data_frame, #10K NOT 101K
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
         data_split_percentages=diffusion_config.data_split_ratios,
         table_metadata=table_metadata,
         noise_scale=0,
     )
+    
+###########
 
     category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
     if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:

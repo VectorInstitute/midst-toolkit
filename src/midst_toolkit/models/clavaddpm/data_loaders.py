@@ -75,24 +75,7 @@ def load_tables(
     training_data_ratio: float = 1,
     train_data: dict[str, pd.DataFrame] | None = None,
 ) -> tuple[Tables, RelationOrder, dict[str, Any]]:
-    """
-    Load the multi-table dataset from the data directory.
 
-    Args:
-        data_dir: The directory to load the dataset from.
-        verbose: Whether to print verbose output. Optional, default is True.
-        training_data_ratio: The ratio of the data to be used for training. Should be between 0 and 1.
-            If it's equal to 1, it will only return the training set. Optional, default is 1.
-        train_data: Optional dictionary of already loaded table DataFrames to be used
-            as the training data. If None, the function will look for a train.csv or ``f{table_name}.csv``
-            file in the ``data_dir``.
-
-    Returns:
-        A tuple with 3 values:
-            - The tables dictionary.
-            - The relation order between the tables.
-            - The dataset metadata dictionary.
-    """
     with open(data_dir / "dataset_meta.json", "r") as f:
         dataset_meta = json.load(f)
 
@@ -129,21 +112,7 @@ def load_tables(
 
 
 def get_info_from_domain(data: pd.DataFrame, table_domain: dict[str, Any]) -> DomainInfo:
-    """
-    Get the information dictionary from the table domain dictionary.
 
-    Args:
-        data: The dataframe containing the data.
-        table_domain: The table's domain dictionary containing metadata about the data columns.
-
-    Returns:
-        An instance of DomainInfo with the following fields populated:
-            - numerical_column_indices: The indices of the numerical columns.
-            - categorical_column_indices: The indices of the categorical columns.
-            - target_column_indices: The indices of the target columns.
-            - task_type: The type of the task.
-            - column_names: The names of all the columns.
-    """
     numerical_column_indices = []
     categorical_column_indices = []
     columns = data.columns.tolist()
@@ -183,24 +152,7 @@ def process_pipeline_data(
     training_data_ratio: float = 0.9,
     verbose: bool = True,
 ) -> DomainInfo:
-    """
-    Processes the data to be sent through the pipeline.
 
-    Will split the data into training and test sets (saving the data when specified),
-    replace invalid and missing values, split the data sets categorical, numerical
-    and target columns, and populate the information dictionary with additional
-    metadata.
-
-    Args:
-        data: The dataframe containing the data.
-        table_domain: The table domain dictionary containing metadata about the data columns.
-        training_data_ratio: The ratio of the data to be used for training. Should be between 0 and 1.
-            If it's equal to 1, it will only return the training set. Optional, default is 0.9.
-        verbose: Whether to print verbose output. Optional, default is True.
-
-    Returns:
-        A fully populated DomainInfo object.
-    """
     data_splits, info = _split_data_and_generate_info(data, table_domain, training_data_ratio)
 
     metadata: dict[int, ColumnMetadata] = {}
@@ -248,27 +200,7 @@ def _get_columns_info(
     target_column_indices: list[int],
     task_type: TaskType | None,
 ) -> dict[str, ColumnInfo]:
-    """
-    Get the columns info dictionary to be populated into the info dictionary.
 
-    Args:
-        train_data: The training data.
-        numerical_column_indices: The indices of the numerical columns.
-        categorical_column_indices: The indices of the categorical columns.
-        target_column_indices: The indices of the target columns.
-        task_type: The type of the task. If None, it will assume the target
-            columns are categorical.
-
-    Returns:
-        The columns info dictionary to be populated into the info dictionary.
-        It will contain the following keys for numerical columns:
-            - type: equals to InfoDataType.NUMERICAL.value.
-            - max: The maximum value of the column.
-            - min: The minimum value of the column.
-        It will contain the following keys for categorical columns:
-            - type: equals to InfoDataType.CATEGORICAL.value.
-            - categorizes: The list of possible categories of the column.
-    """
     columns_info: dict[str, ColumnInfo] = {}
 
     for column in numerical_column_indices:
@@ -317,22 +249,7 @@ def _split_data_and_generate_info(
     table_domain: dict[str, Any],
     training_data_ratio: float,
 ) -> tuple[DataSplits, DomainInfo]:
-    """
-    Split the data into training and test sets and populate the info dictionary
-    with additional metadata.
 
-    Args:
-        data: The dataframe containing the data.
-        table_domain: The table domain dictionary containing metadata about the data columns.
-        training_data_ratio: The ratio of the data to be used for training.
-            Should be between 0 and 1. If it's equal to 1, it will only return the training set.
-
-    Returns:
-        A tuple with 2 values:
-            - The data splits as an instance of the DataSplits class. Test data will be None if the
-                training_data_ratio is 1.
-            - The DomainInfo object, which holds information about the data columns.
-    """
     info = get_info_from_domain(data, table_domain)
 
     numerical_column_names = [info.column_names[i] for i in info.numerical_column_indices]
@@ -408,24 +325,7 @@ def train_test_split(
     categorical_columns: list[str],
     training_data_ratio: float = 0.9,
 ) -> DataSplits:
-    """
-    Split the data into training and test sets.
 
-    Will make the split in a way that both sets have all the values for the categorical
-    columns represented.
-
-    Args:
-        data: The dataframe containing the data.
-        categorical_columns: The names of the categorical columns.
-        training_data_ratio: The ratio of the data to be used for training. Should be between 0 and 1.
-            If it's equal to 1, it will only return the training set. Optional, default is 0.9.
-
-    Returns:
-        A tuple with 3 values:
-            - The training dataframe.
-            - The test dataframe.
-            - The seed used by the random number generator to generate the split.
-    """
     assert 0 < training_data_ratio <= 1, "Training data ratio must be between 0 and 1."
     if training_data_ratio == 1:
         log(INFO, "Training data ratio is 1, so the data will not be split into training and test sets.")
@@ -472,21 +372,7 @@ def train_test_split(
 
 class FastTensorDataLoader:
     def __init__(self, tensors: list[Tensor], batch_size: int = 32, shuffle: bool = False):
-        """
-        Initialize a FastTensorDataLoader.
 
-        A DataLoader-like object for a set of tensors that can be much faster than
-        TensorDataset + DataLoader because dataloader grabs individual indices of
-        the dataset and calls cat (slow).
-        Source: https://discuss.pytorch.org/t/dataloader-much-slower-than-manual-batching/27014/6
-
-        Args:
-            tensors: a list of tensors to store. The first dimension for each tensor is the
-                number of samples, and all tensors must have the same number of samples.
-            batch_size: batch size to load. Optional, default is 32.
-            shuffle: if True, shuffle the data *in-place* whenever an
-                iterator is created out of this object. Optional, default is False.
-        """
         assert all(t.shape[0] == tensors[0].shape[0] for t in tensors), (
             "All tensors must have the same amount of samples."
         )
@@ -543,18 +429,7 @@ def prepare_fast_dataloader(
     batch_size: int,
     target_type: TargetType = TargetType.FLOAT,
 ) -> Generator[list[Tensor]]:
-    """
-    Prepare a fast dataloader for the dataset.
-
-    Args:
-        dataset: The dataset to prepare the dataloader for.
-        split: The split to prepare the dataloader for.
-        batch_size: The batch size to use for the dataloader.
-        target_type: The type of the target values. Default is TargetType.FLOAT.
-
-    Returns:
-        A generator of batches of data from the dataset.
-    """
+   
     if dataset.categorical_features is not None:
         if dataset.numerical_features is not None:
             concatenated_features = np.concatenate(

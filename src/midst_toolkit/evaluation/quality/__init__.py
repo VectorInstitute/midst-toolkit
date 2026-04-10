@@ -8,6 +8,7 @@ from .mean_hellinger_distance import MeanHellingerDistance
 from .mean_propensity_mse import MeanPropensityMeanSquaredError
 from .mean_regression_difference import MeanRegressionDifference
 from .mutual_information_difference import MutualInformationDifference
+from .multi_target_modeling_difference import MultiTargetModelingDifference
 
 
 __all__ = [
@@ -21,4 +22,5 @@ __all__ = [
     "MeanPropensityMeanSquaredError",
     "MutualInformationDifference",
     "MeanRegressionDifference",
+    "MultiTargetModelingDifference",  # ← ADD THIS
 ]

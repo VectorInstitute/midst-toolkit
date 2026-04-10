@@ -17,15 +17,23 @@ def prepare_population_dataset_for_attack(
     model_type: str,
     models_base_dir: Path,
     columns_for_deduplication: list[str],
+    all_model_indices: list[int] | None = None,
 ) -> pd.DataFrame:
     """
     Prepares data for an attack by merging and deduplicating datasets.
+
+    Challenge data from ALL available models (not just the population indices) is excluded from the
+    population pool. This prevents any challenge member from being incorrectly labelled as a non-member
+    during MLP training, which would corrupt the training signal.
 
     Args:
         model_indices: List of model indices over which to iterate and for which to gather information.
         model_type: Name of the model type for which we're loading data.
         models_base_dir: Where the various models' data lives.
-        columns_for_deduplication: Names of columns to use in de-duplicating the dataframes
+        columns_for_deduplication: Names of columns to use in de-duplicating the dataframes.
+        all_model_indices: List of ALL model indices available (train + val + test). Challenge data from
+            every one of these models is excluded from the returned population pool. If None, only
+            challenge data from ``model_indices`` is excluded (old, incorrect behaviour).
 
     Raises:
         ValueError: Throws if the list of model indices is empty.
@@ -33,18 +41,26 @@ def prepare_population_dataset_for_attack(
             ``columns_for_deduplication``
 
     Returns:
-        A DataFrame containing the merged trainig data that has been deduplicated and is free from challenge data.
+        A DataFrame containing the merged training data that has been deduplicated and is free from
+        challenge data across all models.
     """
     if len(model_indices) == 0:
         raise ValueError("The 'indices' list is empty. Please provide indices to process datasets.")
 
     df_merge_list = []
-    df_challenge_list = []
-
     for model_index in model_indices:
         base_path = models_base_dir / f"{model_type}_{model_index}"
         df_merge_list.append(pd.read_csv(os.path.join(base_path, "train_with_id.csv")))
-        df_challenge_list.append(pd.read_csv(os.path.join(base_path, "challenge_with_id.csv")))
+
+    # Fix 3: collect challenge data from ALL models, not just population indices, so that no
+    # challenge member can accidentally appear as a non-member in the population pool.
+    challenge_source_indices = all_model_indices if all_model_indices is not None else model_indices
+    df_challenge_list = []
+    for model_index in challenge_source_indices:
+        base_path = models_base_dir / f"{model_type}_{model_index}"
+        challenge_path = os.path.join(base_path, "challenge_with_id.csv")
+        if os.path.exists(challenge_path):
+            df_challenge_list.append(pd.read_csv(challenge_path))
 
     df_merge = pd.concat(df_merge_list, ignore_index=True)
     df_challenge = pd.concat(df_challenge_list, ignore_index=True)
@@ -83,11 +99,20 @@ def run_data_processing(config: dict[str, Any]) -> None:
     midst_data_path = Path(config["data_paths"]["midst_data_path"])
     population_data_path.mkdir(parents=True, exist_ok=True)
 
+    attack_cfg = config["attack_config"]
+    # Fix 3: build the full set of all model indices so challenge data is excluded globally.
+    all_model_indices = list(
+        set(attack_cfg["train_indices"])
+        | set(attack_cfg["val_indices"])
+        | set(attack_cfg["test_indices"])
+    )
+
     population_data_for_training_attack = prepare_population_dataset_for_attack(
         model_indices=config["data_processing_config"]["population_attack_indices_to_collect_for_training"],
         model_type=config["data_processing_config"]["model_type"],
         models_base_dir=midst_data_path,
         columns_for_deduplication=config["data_processing_config"]["columns_for_deduplication"],
+        all_model_indices=all_model_indices,
     )
 
     population_data_for_training_attack.to_csv(
@@ -100,6 +125,7 @@ def run_data_processing(config: dict[str, Any]) -> None:
         model_type=config["data_processing_config"]["model_type"],
         models_base_dir=midst_data_path,
         columns_for_deduplication=config["data_processing_config"]["columns_for_deduplication"],
+        all_model_indices=all_model_indices,
     )
 
     population_data_for_validating_attack.to_csv(

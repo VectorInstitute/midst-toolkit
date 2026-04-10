@@ -1,0 +1,457 @@
+
+ALPHA PRECISION
+--------------------------------------------------------------------------------
+Metric: delta_precision_alpha_OC                Metric: 0.8571533333333333
+Metric: delta_coverage_beta_OC                  Metric: 0.42684
+Metric: authenticity_OC                         Metric: 0.554
+Metric: delta_precision_alpha_naive             Metric: 0.94668
+Metric: delta_coverage_beta_naive               Metric: 0.33742000000000016
+Metric: authenticity_naive                      Metric: 0.7496
+--------------------------------------------------------------------------------
+
+KOLMOGOROV SMIRNOV AND TOTAL VARIATION
+--------------------------------------------------------------------------------
+Metric: avg stat                                Metric: 0.026429729729729717
+Metric: stat err                                Metric: 0.006777394488224949
+Metric: avg ks                                  Metric: 0.02036666666666667
+Metric: ks err                                  Metric: 0.0037445515975436452
+Metric: avg tvd                                 Metric: 0.028378571428571413
+Metric: tvd err                                 Metric: 0.008889095271130177
+Metric: avg pval                                Metric: 0.4041911632847583
+Metric: pval err                                Metric: 0.04096927822478078
+Metric: num sigs                                Metric: 5
+Metric: frac sigs                               Metric: 0.13513513513513514
+--------------------------------------------------------------------------------
+
+CONFIDENCE INTERVAL OVERLAP
+--------------------------------------------------------------------------------
+Metric: avg overlap                             Metric: 0.12053992457539581
+Metric: overlap err                             Metric: 0.08265970625232699
+Metric: num non-overlaps                        Metric: 6
+Metric: frac non-overlaps                       Metric: 0.6666666666666666
+--------------------------------------------------------------------------------
+
+CORRELATION MATRIX DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: corr_mat_diff                           Metric: 1.840088096710685
+Metric: corr_mat_dims                           Metric: 37
+--------------------------------------------------------------------------------
+
+DIMENSIONWISE MEAN DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: dimensionwise_mean_difference           Metric: 0.005615772316800867
+Metric: standard_error_difference               Metric: 0.0008672987217971365
+--------------------------------------------------------------------------------
+
+HELLINGER DISTANCE DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: mean_hellinger_distance                 Metric: 0.05372844689287047
+Metric: hellinger_standard_error                Metric: 0.009093267679666908
+--------------------------------------------------------------------------------
+
+PROPENSITY MEAN SQUARED ERROR
+--------------------------------------------------------------------------------
+Metric: avg_pmse                                Metric: 0.002077635066258909
+Metric: pmse_standard_error                     Metric: 4.820142739669346e-05
+Metric: avg_macro_f1_score                      Metric: 0.5243000347238285
+Metric: macro_f1_standard_error                 Metric: 0.0018686483536982255
+--------------------------------------------------------------------------------
+
+MUTUAL INFORMATION DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: mutual_inf_diff                         Metric: 0.4323223658777336
+Metric: mi_mat_dims                             Metric: 28
+--------------------------------------------------------------------------------
+
+MULTI-TARGET MODELING DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: avg_r2_difference                       Metric: -0.010108770669449318
+Metric: avg_explained_variance_difference       Metric: -0.01887157014906138
+Metric: avg_mean_squared_error_difference       Metric: 0.0003667889850211244
+Metric: avg_mean_absolute_error_difference      Metric: 4.298985730247923e-05
+Metric: avg_f1_difference                       Metric: 0.01017499999999999
+Metric: avg_r2_difference_and_f1_difference     Metric: -0.0033475137796328824
+Metric: avg_explained_variance_difference_and_f1_differenceMetric: -0.009189380099374256
+Metric: avg_mean_squared_error_difference_and_f1_differenceMetric: 0.003636192656680746
+Metric: avg_mean_absolute_error_difference_and_f1_differenceMetric: 0.0034203265715349825
+--------------------------------------------------------------------------------
+
+MULTI-TARGET MODELING DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: avg_r2_difference                       Metric: 0.0959076539600986
+Metric: avg_explained_variance_difference       Metric: 0.07852706008206278
+Metric: avg_mean_squared_error_difference       Metric: -0.0074952712135344796
+Metric: avg_mean_absolute_error_difference      Metric: -0.00900113802476682
+Metric: avg_f1_difference                       Metric: 0.09762499999999996
+Metric: avg_r2_difference_and_f1_difference     Metric: 0.09676632698004928
+Metric: avg_explained_variance_difference_and_f1_differenceMetric: 0.08807603004103137
+Metric: avg_mean_squared_error_difference_and_f1_differenceMetric: 0.04506486439323274
+Metric: avg_mean_absolute_error_difference_and_f1_differenceMetric: 0.04431193098761657
+--------------------------------------------------------------------------------
+
+HITTING RATE
+--------------------------------------------------------------------------------
+Metric: hitting_rate                            Metric: 0.0
+--------------------------------------------------------------------------------
+
+EPSILON IDENTIFIABILITY RISK
+--------------------------------------------------------------------------------
+Metric: epsilon_identifiability_risk            Metric: 0.4889
+--------------------------------------------------------------------------------
+
+DISTANCE TO CLOSEST RECORD
+--------------------------------------------------------------------------------
+Metric: dcr_score                               Metric: 0.5910999774932861
+--------------------------------------------------------------------------------
+
+MEDIAN DISTANCE TO CLOSEST RECORD
+--------------------------------------------------------------------------------
+Metric: median_dcr_score                        Metric: 1.0073905703252963
+--------------------------------------------------------------------------------
+
+HITTING RATE
+--------------------------------------------------------------------------------
+Metric: hitting_rate                            Metric: 0.0
+--------------------------------------------------------------------------------
+
+NNDR
+--------------------------------------------------------------------------------
+Metric: mean_nndr                               Metric: 0.8375806822938119
+Metric: nndr_standard_error                     Metric: 0.001585649434496827
+Metric: privacy_loss                            Metric: -0.004619908372262005
+Metric: privacy_loss_standard_error             Metric: 0.002214540809601887
+--------------------------------------------------------------------------------
+
+CORRELATION MATRIX DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: corr_mat_diff                           Metric: 0.8024334261214043
+Metric: corr_mat_dims                           Metric: 9
+Metric: real_corr_sum                           Metric: 16.42232523104352
+Metric: synthetic_corr_sum                      Metric: 16.118500171430018
+Metric: corr_sum_diff                           Metric: 0.3038250596135015
+Metric: real_corr_frobenius                     Metric: 3.3725454776969723
+Metric: synthetic_corr_frobenius                Metric: 3.4159149761641
+Metric: diff_corr_frobenius                     Metric: 0.8024334261214043
+--------------------------------------------------------------------------------
+
+CORRELATION MATRIX DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: corr_mat_diff                           Metric: 1.8400880967106854
+Metric: corr_mat_dims                           Metric: 37
+Metric: real_corr_sum                           Metric: 16.42232523104352
+Metric: synthetic_corr_sum                      Metric: 16.118500171430018
+Metric: corr_sum_diff                           Metric: 0.3038250596135015
+Metric: real_corr_frobenius                     Metric: 3.3725454776969723
+Metric: synthetic_corr_frobenius                Metric: 3.4159149761641
+Metric: diff_corr_frobenius                     Metric: 0.8024334261214043
+--------------------------------------------------------------------------------
+
+CORRELATION MATRIX DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: corr_mat_diff                           Metric: 1.8400880967106854
+Metric: corr_mat_dims                           Metric: 37
+Metric: real_cor_mat                            Metric:                            race    gender  admission_type  discharge_disposition  ...           age  time_in_hospital  num_procedures  number_diagnoses
+race                   1.000000  0.008856        0.007748               0.002742  ...  2.924999e-02      5.984351e-04        0.007845      5.121354e-03
+gender                 0.008856  1.000000        0.003924               0.005731  ...  9.286522e-04      5.859658e-06        0.007891      6.136453e-04
+admission_type         0.007748  0.003924        1.000000               0.072489  ...  8.933727e-03      4.937126e-03        0.100311      2.408995e-02
+discharge_disposition  0.002742  0.005731        0.072489               1.000000  ...  1.073595e-01      7.741199e-02        0.012280      3.249198e-02
+admission_source       0.013370  0.005942        0.215254               0.017557  ...  2.070235e-02      1.671602e-02        0.112846      2.052065e-02
+diag_1                 0.067952  0.092200        0.098908               0.062702  ...  3.609688e-01      1.747511e-01        0.387994      1.987762e-01
+diag_2                 0.056147  0.077541        0.048874               0.057912  ...  2.580601e-01      1.370066e-01        0.147514      2.943602e-01
+diag_3                 0.060249  0.076854        0.054722               0.059748  ...  2.660566e-01      1.546100e-01        0.113187      4.117365e-01
+max_glu_serum          0.003931  0.000486        0.184691               0.029915  ...  1.120774e-02      2.819801e-03        0.024474      6.410126e-03
+A1Cresult              0.002833  0.000812        0.010226               0.005072  ...  4.210522e-02      7.717505e-03        0.001158      1.060513e-02
+metformin              0.000707  0.000255        0.001874               0.003771  ...  5.468857e-04      8.541025e-04        0.000546      7.032823e-03
+repaglinide            0.000538  0.000202        0.000729               0.001131  ...  5.278046e-04      7.708863e-04        0.000898      7.673630e-04
+nateglinide            0.000076  0.000000        0.000233               0.000142  ...  1.970752e-06      1.474617e-04        0.000061      2.617605e-05
+chlorpropamide         0.000223  0.000233        0.000390               0.003150  ...  7.628290e-04      1.014007e-03        0.000031      6.132750e-04
+glimepiride            0.000779  0.000411        0.002408               0.001561  ...  2.157817e-04      2.262713e-03        0.001300      2.895252e-04
+glipizide              0.000284  0.000768        0.000817               0.002670  ...  2.051545e-03      5.009376e-03        0.001320      3.095448e-04
+glyburide              0.000612  0.000828        0.001736               0.004282  ...  1.373634e-02      6.170634e-03        0.001088      8.377438e-04
+tolbutamide            0.000635  0.000000        0.000231               0.001157  ...  8.717000e-05      7.126445e-05        0.000147      2.866894e-07
+pioglitazone           0.000319  0.000104        0.001834               0.001851  ...  1.940844e-04      1.461917e-03        0.000432      7.694371e-04
+rosiglitazone          0.000558  0.000171        0.000441               0.001487  ...  1.826781e-04      2.090687e-03        0.000299      1.305994e-03
+acarbose               0.000393  0.000330        0.000441               0.001152  ...  3.173653e-04      3.929301e-05        0.000196      7.016698e-05
+miglitol               0.000000  0.000000        0.000000               0.000000  ...  0.000000e+00      0.000000e+00        0.000000      0.000000e+00
+tolazamide             0.000300  0.000116        0.000309               0.000947  ...  2.187563e-04      1.391987e-04        0.000092      2.676368e-04
+insulin                0.002833  0.000509        0.008584               0.011930  ...  3.178793e-02      1.541688e-02        0.002591      3.360026e-03
+glyburide-metformin    0.000024  0.000013        0.027860               0.000204  ...  9.460380e-07      7.027278e-08        0.000035      5.635000e-06
+change                 0.002191  0.000015        0.006141               0.006432  ...  1.220115e-03      1.285144e-02        0.002562      6.095443e-04
+diabetesMed            0.002190  0.000328        0.002147               0.009257  ...  6.057287e-03      4.195406e-03        0.000939      1.089026e-05
+readmitted             0.001939  0.000134        0.009623               0.018755  ...  1.391178e-03      6.443372e-03        0.004208      1.462905e-02
+num_lab_procedures     0.005920  0.000154        0.162716               0.007898  ...  5.180864e-03      3.503094e-01        0.112402      2.309368e-01
+num_medications        0.010439  0.000221        0.052608               0.033128  ...  6.970222e-02      4.912047e-01        0.477978      2.824817e-01
+number_outpatient      0.002325  0.000029        0.010969               0.002840  ... -3.564846e-02     -2.209441e-02       -0.025938      3.022093e-02
+number_emergency       0.000367  0.000247        0.013792               0.002458  ... -5.331670e-02     -2.910907e-02       -0.046340     -5.813377e-03
+number_inpatient       0.004069  0.000171        0.008930               0.009984  ... -6.386064e-03      8.270828e-02       -0.079261      1.252064e-01
+age                    0.029250  0.000929        0.008934               0.107360  ...  1.000000e+00      1.380273e-01        0.027860      3.127326e-01
+time_in_hospital       0.000598  0.000006        0.004937               0.077412  ...  1.380273e-01      1.000000e+00        0.242484      2.983591e-01
+num_procedures         0.007845  0.007891        0.100311               0.012280  ...  2.786040e-02      2.424839e-01        1.000000      1.277582e-01
+number_diagnoses       0.005121  0.000614        0.024090               0.032492  ...  3.127326e-01      2.983591e-01        0.127758      1.000000e+00
+
+[37 rows x 37 columns]
+Metric: synt_cor_mat                            Metric:                            race    gender  admission_type  discharge_disposition  ...       age  time_in_hospital  num_procedures  number_diagnoses
+race                   1.000000  0.008299        0.037897               0.007113  ...  0.035585          0.019646        0.010968          0.021956
+gender                 0.008299  1.000000        0.008454               0.001753  ...  0.001022          0.000001        0.006308          0.000012
+admission_type         0.037897  0.008454        1.000000               0.025261  ...  0.027055          0.068576        0.083737          0.063601
+discharge_disposition  0.007113  0.001753        0.025261               1.000000  ...  0.070817          0.055367        0.003902          0.024326
+admission_source       0.033101  0.007776        0.259400               0.013555  ...  0.042919          0.061407        0.086320          0.047604
+diag_1                 0.082688  0.046933        0.143275               0.040206  ...  0.172808          0.137568        0.063710          0.127124
+diag_2                 0.071328  0.042319        0.131766               0.053189  ...  0.174462          0.117728        0.044355          0.244202
+diag_3                 0.081465  0.042263        0.103761               0.045596  ...  0.157596          0.088260        0.067798          0.276371
+max_glu_serum          0.011235  0.002082        0.139484               0.011106  ...  0.018924          0.014708        0.014272          0.015628
+A1Cresult              0.002473  0.000063        0.004823               0.001554  ...  0.025660          0.003240        0.000997          0.003742
+metformin              0.000666  0.000096        0.002528               0.004056  ...  0.000800          0.001922        0.000891          0.003804
+repaglinide            0.000947  0.000231        0.005118               0.000897  ...  0.000410          0.000986        0.000347          0.000186
+nateglinide            0.011735  0.000200        0.046130               0.000275  ...  0.004298          0.003304        0.002727          0.002987
+chlorpropamide         0.000052  0.000183        0.000859               0.000781  ...  0.000308          0.000179        0.000242          0.000148
+glimepiride            0.001185  0.000368        0.000415               0.002104  ...  0.000618          0.000569        0.000759          0.000045
+glipizide              0.001359  0.000309        0.000948               0.002852  ...  0.003643          0.001837        0.000946          0.000508
+glyburide              0.009440  0.000845        0.019808               0.003313  ...  0.013184          0.008917        0.005544          0.002028
+tolbutamide            0.029875  0.000226        0.066339               0.020084  ...  0.010914          0.008731        0.003781          0.000644
+pioglitazone           0.000341  0.001058        0.005558               0.001929  ...  0.000345          0.000398        0.000101          0.000502
+rosiglitazone          0.008506  0.000611        0.018404               0.000818  ...  0.004131          0.004086        0.002944          0.001964
+acarbose               0.000310  0.000072        0.000507               0.000984  ...  0.000194          0.000191        0.000195          0.000404
+miglitol               0.000000  0.000000        0.000000               0.000000  ...  0.000000          0.000000        0.000000          0.000000
+tolazamide             0.000155  0.000017        0.000429               0.000519  ...  0.000297          0.000003        0.000161          0.000007
+insulin                0.002354  0.000138        0.004131               0.003359  ...  0.028271          0.014281        0.001045          0.003095
+glyburide-metformin    0.021883  0.001281        0.162190               0.031218  ...  0.014700          0.011334        0.000049          0.010203
+change                 0.002662  0.000008        0.005861               0.005509  ...  0.000833          0.005852        0.001197          0.001358
+diabetesMed            0.002573  0.000143        0.004042               0.004704  ...  0.007216          0.006659        0.001224          0.000119
+readmitted             0.004119  0.000797        0.014571               0.008244  ...  0.002107          0.007213        0.001613          0.011558
+num_lab_procedures     0.015435  0.000002        0.093859               0.001969  ...  0.087922          0.272617        0.080366          0.230889
+num_medications        0.014312  0.000270        0.046529               0.024615  ...  0.078511          0.402227        0.440860          0.337148
+number_outpatient      0.007291  0.000138        0.000822               0.057799  ... -0.069813          0.027163       -0.015529          0.020819
+number_emergency       0.037621  0.000516        0.137098               0.183318  ... -0.173423          0.128187       -0.007097         -0.096016
+number_inpatient       0.051641  0.002079        0.323567               0.041273  ... -0.136683          0.218818        0.022564         -0.068223
+age                    0.035585  0.001022        0.027055               0.070817  ...  1.000000          0.026299       -0.003694          0.320161
+time_in_hospital       0.019646  0.000001        0.068576               0.055367  ...  0.026299          1.000000        0.234498          0.192926
+num_procedures         0.010968  0.006308        0.083737               0.003902  ... -0.003694          0.234498        1.000000          0.115079
+number_diagnoses       0.021956  0.000012        0.063601               0.024326  ...  0.320161          0.192926        0.115079          1.000000
+
+[37 rows x 37 columns]
+Metric: diff_cor_mat                            Metric:                            race    gender  admission_type  discharge_disposition  ...       age  time_in_hospital  num_procedures  number_diagnoses
+race                   0.000000  0.000556       -0.030148              -0.004371  ... -0.006335         -0.019047       -0.003123         -0.016834
+gender                 0.000556  0.000000       -0.004530               0.003978  ... -0.000093          0.000005        0.001583          0.000602
+admission_type        -0.030148 -0.004530        0.000000               0.047228  ... -0.018122         -0.063639        0.016575         -0.039511
+discharge_disposition -0.004371  0.003978        0.047228               0.000000  ...  0.036543          0.022045        0.008378          0.008166
+admission_source      -0.019731 -0.001835       -0.044146               0.004003  ... -0.022217         -0.044691        0.026526         -0.027083
+diag_1                -0.014736  0.045267       -0.044366               0.022496  ...  0.188161          0.037183        0.324284          0.071652
+diag_2                -0.015181  0.035222       -0.082892               0.004724  ...  0.083598          0.019279        0.103159          0.050158
+diag_3                -0.021215  0.034591       -0.049039               0.014152  ...  0.108461          0.066350        0.045389          0.135366
+max_glu_serum         -0.007304 -0.001596        0.045207               0.018809  ... -0.007716         -0.011888        0.010202         -0.009218
+A1Cresult              0.000360  0.000749        0.005403               0.003519  ...  0.016445          0.004478        0.000162          0.006863
+metformin              0.000041  0.000159       -0.000653              -0.000285  ... -0.000253         -0.001067       -0.000344          0.003229
+repaglinide           -0.000409 -0.000029       -0.004389               0.000233  ...  0.000118         -0.000215        0.000551          0.000582
+nateglinide           -0.011659 -0.000200       -0.045897              -0.000132  ... -0.004296         -0.003156       -0.002665         -0.002961
+chlorpropamide         0.000172  0.000050       -0.000469               0.002368  ...  0.000454          0.000835       -0.000212          0.000465
+glimepiride           -0.000406  0.000043        0.001993              -0.000543  ... -0.000402          0.001693        0.000541          0.000244
+glipizide             -0.001075  0.000458       -0.000131              -0.000181  ... -0.001591          0.003172        0.000374         -0.000199
+glyburide             -0.008828 -0.000018       -0.018073               0.000969  ...  0.000552         -0.002746       -0.004456         -0.001190
+tolbutamide           -0.029240 -0.000226       -0.066108              -0.018927  ... -0.010827         -0.008660       -0.003634         -0.000644
+pioglitazone          -0.000022 -0.000954       -0.003724              -0.000078  ... -0.000151          0.001064        0.000331          0.000268
+rosiglitazone         -0.007948 -0.000440       -0.017963               0.000669  ... -0.003948         -0.001995       -0.002645         -0.000658
+acarbose               0.000082  0.000258       -0.000066               0.000168  ...  0.000123         -0.000152        0.000001         -0.000334
+miglitol               0.000000  0.000000        0.000000               0.000000  ...  0.000000          0.000000        0.000000          0.000000
+tolazamide             0.000145  0.000099       -0.000120               0.000428  ... -0.000079          0.000136       -0.000069          0.000261
+insulin                0.000479  0.000370        0.004452               0.008572  ...  0.003517          0.001136        0.001545          0.000265
+glyburide-metformin   -0.021859 -0.001269       -0.134330              -0.031013  ... -0.014699         -0.011334       -0.000014         -0.010197
+change                -0.000472  0.000007        0.000280               0.000924  ...  0.000387          0.006999        0.001365         -0.000749
+diabetesMed           -0.000384  0.000185       -0.001895               0.004554  ... -0.001159         -0.002464       -0.000285         -0.000108
+readmitted            -0.002180 -0.000663       -0.004949               0.010511  ... -0.000716         -0.000770        0.002595          0.003072
+num_lab_procedures    -0.009515  0.000152        0.068857               0.005929  ... -0.082741          0.077692        0.032036          0.000047
+num_medications       -0.003872 -0.000049        0.006079               0.008513  ... -0.008808          0.088978        0.037118         -0.054666
+number_outpatient     -0.004966 -0.000109        0.010147              -0.054959  ...  0.034165         -0.049257       -0.010409          0.009402
+number_emergency      -0.037254 -0.000269       -0.123306              -0.180860  ...  0.120106         -0.157296       -0.039243          0.090202
+number_inpatient      -0.047572 -0.001908       -0.314637              -0.031289  ...  0.130296         -0.136110       -0.101825          0.193429
+age                   -0.006335 -0.000093       -0.018122               0.036543  ...  0.000000          0.111729        0.031554         -0.007429
+time_in_hospital      -0.019047  0.000005       -0.063639               0.022045  ...  0.111729          0.000000        0.007986          0.105434
+num_procedures        -0.003123  0.001583        0.016575               0.008378  ...  0.031554          0.007986        0.000000          0.012679
+number_diagnoses      -0.016834  0.000602       -0.039511               0.008166  ... -0.007429          0.105434        0.012679          0.000000
+
+[37 rows x 37 columns]
+Metric: real_corr_sum                           Metric: 70.4843914379453
+Metric: synthetic_corr_sum                      Metric: 76.96340056346669
+Metric: corr_sum_diff                           Metric: -6.479009125521387
+Metric: real_corr_frobenius                     Metric: 6.566865303169943
+Metric: synthetic_corr_frobenius                Metric: 6.661025080812482
+Metric: diff_corr_frobenius                     Metric: 1.8400880967106854
+--------------------------------------------------------------------------------
+
+MUTUAL INFORMATION DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: mutual_inf_diff                         Metric: 0.432322365878031
+Metric: mi_mat_dims                             Metric: 28
+Metric: real_mi_sum                             Metric: 39.085843548450015
+Metric: synthetic_mi_sum                        Metric: 38.38110829797752
+Metric: mi_sum_diff                             Metric: 0.7047352504724955
+Metric: real_mi_frobenius                       Metric: 5.450165412645591
+Metric: synthetic_mi_frobenius                  Metric: 5.4197401666076575
+Metric: diff_mi_frobenius                       Metric: 0.432322365878031
+--------------------------------------------------------------------------------
+
+MUTUAL INFORMATION DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: mutual_inf_diff                         Metric: 0.43232236587773354
+Metric: mi_mat_dims                             Metric: 28
+Metric: real_mi_sum                             Metric: 39.08584354845318
+Metric: synthetic_mi_sum                        Metric: 38.38110829798441
+Metric: mi_sum_diff                             Metric: 0.7047352504687652
+Metric: real_mi_frobenius                       Metric: 5.450165412645591
+Metric: synthetic_mi_frobenius                  Metric: 5.419740166607655
+Metric: diff_mi_frobenius                       Metric: 0.43232236587773354
+--------------------------------------------------------------------------------
+
+MUTUAL INFORMATION DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: mutual_inf_diff                         Metric: 0.43232236587773354
+Metric: mi_mat_dims                             Metric: 28
+Metric: real_mi_sum                             Metric: 39.08584354845318
+Metric: synthetic_mi_sum                        Metric: 38.38110829798441
+Metric: mi_sum_diff                             Metric: 0.7047352504687652
+Metric: real_mi_frobenius                       Metric: 5.450165412645591
+Metric: synthetic_mi_frobenius                  Metric: 5.419740166607655
+Metric: diff_mi_frobenius                       Metric: 0.43232236587773354
+--------------------------------------------------------------------------------
+
+MUTUAL INFORMATION DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: mutual_inf_diff                         Metric: 0.43232236587773354
+Metric: mi_mat_dims                             Metric: 28
+Metric: real_mi_sum                             Metric: 39.08584354845318
+Metric: synthetic_mi_sum                        Metric: 38.38110829798441
+Metric: mi_sum_diff                             Metric: 0.7047352504687652
+Metric: real_mi_frobenius                       Metric: 5.450165412645591
+Metric: synthetic_mi_frobenius                  Metric: 5.419740166607655
+Metric: diff_mi_frobenius                       Metric: 0.43232236587773354
+--------------------------------------------------------------------------------
+
+CORRELATION MATRIX DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: corr_mat_diff                           Metric: 0.8024334261214043
+Metric: corr_mat_dims                           Metric: 9
+Metric: real_cor_mat                            Metric:                     num_lab_procedures  num_medications  ...  num_procedures  number_diagnoses
+num_lab_procedures            1.000000         0.254996  ...        0.112402          0.230937
+num_medications               0.254996         1.000000  ...        0.477978          0.282482
+number_outpatient            -0.038834         0.023641  ...       -0.025938          0.030221
+number_emergency             -0.070348        -0.010395  ...       -0.046340         -0.005813
+number_inpatient              0.033187         0.032519  ...       -0.079261          0.125206
+age                           0.005181         0.069702  ...        0.027860          0.312733
+time_in_hospital              0.350309         0.491205  ...        0.242484          0.298359
+num_procedures                0.112402         0.477978  ...        1.000000          0.127758
+number_diagnoses              0.230937         0.282482  ...        0.127758          1.000000
+
+[9 rows x 9 columns]
+Metric: synt_cor_mat                            Metric:                     num_lab_procedures  num_medications  ...  num_procedures  number_diagnoses
+num_lab_procedures            1.000000         0.254945  ...        0.080366          0.230889
+num_medications               0.254945         1.000000  ...        0.440860          0.337148
+number_outpatient             0.034504        -0.003372  ...       -0.015529          0.020819
+number_emergency             -0.074145        -0.088415  ...       -0.007097         -0.096016
+number_inpatient             -0.017924        -0.078110  ...        0.022564         -0.068223
+age                           0.087922         0.078511  ...       -0.003694          0.320161
+time_in_hospital              0.272617         0.402227  ...        0.234498          0.192926
+num_procedures                0.080366         0.440860  ...        1.000000          0.115079
+number_diagnoses              0.230889         0.337148  ...        0.115079          1.000000
+
+[9 rows x 9 columns]
+Metric: diff_cor_mat                            Metric:                     num_lab_procedures  num_medications  ...  num_procedures  number_diagnoses
+num_lab_procedures            0.000000         0.000050  ...        0.032036          0.000047
+num_medications               0.000050         0.000000  ...        0.037118         -0.054666
+number_outpatient            -0.073338         0.027013  ...       -0.010409          0.009402
+number_emergency              0.003797         0.078020  ...       -0.039243          0.090202
+number_inpatient              0.051111         0.110629  ...       -0.101825          0.193429
+age                          -0.082741        -0.008808  ...        0.031554         -0.007429
+time_in_hospital              0.077692         0.088978  ...        0.007986          0.105434
+num_procedures                0.032036         0.037118  ...        0.000000          0.012679
+number_diagnoses              0.000047        -0.054666  ...        0.012679          0.000000
+
+[9 rows x 9 columns]
+Metric: real_corr_sum                           Metric: 16.42232523104352
+Metric: synthetic_corr_sum                      Metric: 16.118500171430018
+Metric: corr_sum_diff                           Metric: 0.3038250596135015
+Metric: real_corr_frobenius                     Metric: 3.3725454776969723
+Metric: synthetic_corr_frobenius                Metric: 3.4159149761641
+Metric: diff_corr_frobenius                     Metric: 0.8024334261214043
+--------------------------------------------------------------------------------
+
+CORRELATION MATRIX DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: corr_mat_diff                           Metric: 0.8024334261214043
+Metric: corr_mat_dims                           Metric: 9
+Metric: real_cor_mat                            Metric:                     num_lab_procedures  num_medications  ...  num_procedures  number_diagnoses
+num_lab_procedures            1.000000         0.254996  ...        0.112402          0.230937
+num_medications               0.254996         1.000000  ...        0.477978          0.282482
+number_outpatient            -0.038834         0.023641  ...       -0.025938          0.030221
+number_emergency             -0.070348        -0.010395  ...       -0.046340         -0.005813
+number_inpatient              0.033187         0.032519  ...       -0.079261          0.125206
+age                           0.005181         0.069702  ...        0.027860          0.312733
+time_in_hospital              0.350309         0.491205  ...        0.242484          0.298359
+num_procedures                0.112402         0.477978  ...        1.000000          0.127758
+number_diagnoses              0.230937         0.282482  ...        0.127758          1.000000
+
+[9 rows x 9 columns]
+Metric: synt_cor_mat                            Metric:                     num_lab_procedures  num_medications  ...  num_procedures  number_diagnoses
+num_lab_procedures            1.000000         0.254945  ...        0.080366          0.230889
+num_medications               0.254945         1.000000  ...        0.440860          0.337148
+number_outpatient             0.034504        -0.003372  ...       -0.015529          0.020819
+number_emergency             -0.074145        -0.088415  ...       -0.007097         -0.096016
+number_inpatient             -0.017924        -0.078110  ...        0.022564         -0.068223
+age                           0.087922         0.078511  ...       -0.003694          0.320161
+time_in_hospital              0.272617         0.402227  ...        0.234498          0.192926
+num_procedures                0.080366         0.440860  ...        1.000000          0.115079
+number_diagnoses              0.230889         0.337148  ...        0.115079          1.000000
+
+[9 rows x 9 columns]
+Metric: diff_cor_mat                            Metric:                     num_lab_procedures  num_medications  ...  num_procedures  number_diagnoses
+num_lab_procedures            0.000000         0.000050  ...        0.032036          0.000047
+num_medications               0.000050         0.000000  ...        0.037118         -0.054666
+number_outpatient            -0.073338         0.027013  ...       -0.010409          0.009402
+number_emergency              0.003797         0.078020  ...       -0.039243          0.090202
+number_inpatient              0.051111         0.110629  ...       -0.101825          0.193429
+age                          -0.082741        -0.008808  ...        0.031554         -0.007429
+time_in_hospital              0.077692         0.088978  ...        0.007986          0.105434
+num_procedures                0.032036         0.037118  ...        0.000000          0.012679
+number_diagnoses              0.000047        -0.054666  ...        0.012679          0.000000
+
+[9 rows x 9 columns]
+Metric: real_corr_sum                           Metric: 16.42232523104352
+Metric: synthetic_corr_sum                      Metric: 16.118500171430018
+Metric: corr_sum_diff                           Metric: 0.3038250596135015
+Metric: real_corr_frobenius                     Metric: 3.3725454776969723
+Metric: synthetic_corr_frobenius                Metric: 3.4159149761641
+Metric: diff_corr_frobenius                     Metric: 0.8024334261214043
+--------------------------------------------------------------------------------
+
+MULTI-TARGET MODELING DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: avg_r2_difference                       Metric: 0.10212956970927634
+Metric: avg_explained_variance_difference       Metric: 0.08591865750208116
+Metric: avg_mean_squared_error_difference       Metric: -0.008554660160134585
+Metric: avg_mean_absolute_error_difference      Metric: -0.007412173268561029
+Metric: avg_real_r2                             Metric: 0.23184482539714846
+Metric: avg_synthetic_r2                        Metric: 0.3339743951064248
+Metric: avg_f1_difference                       Metric: 0.14200000000000002
+Metric: avg_real_f1                             Metric: 0.575
+Metric: avg_synthetic_f1                        Metric: 0.717
+Metric: avg_r2_difference_and_f1_difference     Metric: 0.12206478485463818
+Metric: avg_explained_variance_difference_and_f1_differenceMetric: 0.11395932875104059
+Metric: avg_mean_squared_error_difference_and_f1_differenceMetric: 0.06672266991993271
+Metric: avg_mean_absolute_error_difference_and_f1_differenceMetric: 0.0672939133657195
+--------------------------------------------------------------------------------
+
+MULTI-TARGET MODELING DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: avg_r2_difference                       Metric: 0.10783822029215162
+Metric: avg_explained_variance_difference       Metric: 0.08689870354871698
+Metric: avg_mean_squared_error_difference       Metric: -0.009103476561363025
+Metric: avg_mean_absolute_error_difference      Metric: -0.008574439885395302
+Metric: avg_real_r2                             Metric: 0.2258172376128783
+Metric: avg_synthetic_r2                        Metric: 0.33365545790502993
+Metric: avg_f1_difference                       Metric: 0.14200000000000002
+Metric: avg_real_f1                             Metric: 0.575
+Metric: avg_synthetic_f1                        Metric: 0.717
+Metric: avg_r2_difference_and_f1_difference     Metric: 0.12491911014607582
+Metric: avg_explained_variance_difference_and_f1_differenceMetric: 0.1144493517743585
+Metric: avg_mean_squared_error_difference_and_f1_differenceMetric: 0.0664482617193185
+Metric: avg_mean_absolute_error_difference_and_f1_differenceMetric: 0.06671278005730236
+--------------------------------------------------------------------------------

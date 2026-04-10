@@ -1,0 +1,155 @@
+
+MULTI-TARGET MODELING DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: avg_r2_difference                       Metric: 0.019440444519079336
+Metric: avg_explained_variance_difference       Metric: 0.01974316788585695
+Metric: avg_mean_squared_error_difference       Metric: -0.0012198633627922145
+Metric: avg_mean_absolute_error_difference      Metric: -0.00043683832582921966
+Metric: avg_real_r2                             Metric: 0.3005689031686739
+Metric: avg_synthetic_r2                        Metric: 0.32000934768775324
+Metric: avg_f1_difference                       Metric: -0.01770000000000005
+Metric: avg_real_f1                             Metric: 0.5782
+Metric: avg_synthetic_f1                        Metric: 0.5605
+Metric: avg_r2_difference_and_f1_difference     Metric: 0.0008702222595396436
+Metric: avg_explained_variance_difference_and_f1_differenceMetric: 0.0010215839429284501
+Metric: avg_mean_squared_error_difference_and_f1_differenceMetric: -0.009459931681396132
+Metric: avg_mean_absolute_error_difference_and_f1_differenceMetric: -0.009068419162914634
+--------------------------------------------------------------------------------
+
+ALPHA PRECISION
+--------------------------------------------------------------------------------
+Metric: delta_precision_alpha_OC                Metric: 0.7936333333333333
+Metric: delta_coverage_beta_OC                  Metric: 0.40913333333333335
+Metric: authenticity_OC                         Metric: 0.6772
+Metric: delta_precision_alpha_naive             Metric: 0.8334199999999999
+Metric: delta_coverage_beta_naive               Metric: 0.5300400000000001
+Metric: authenticity_naive                      Metric: 0.6834
+--------------------------------------------------------------------------------
+
+KOLMOGOROV SMIRNOV AND TOTAL VARIATION
+--------------------------------------------------------------------------------
+Metric: avg stat                                Metric: 0.0248520833333333
+Metric: stat err                                Metric: 0.006525092041403567
+Metric: avg ks                                  Metric: 0.019925
+Metric: ks err                                  Metric: 0.0025865552105344388
+Metric: avg tvd                                 Metric: 0.025837499999999958
+Metric: tvd err                                 Metric: 0.007821961757588638
+Metric: avg pval                                Metric: 0.4194515775238828
+Metric: pval err                                Metric: 0.027155614477229122
+Metric: num sigs                                Metric: 5
+Metric: frac sigs                               Metric: 0.10416666666666667
+--------------------------------------------------------------------------------
+
+CONFIDENCE INTERVAL OVERLAP
+--------------------------------------------------------------------------------
+Metric: avg overlap                             Metric: 0.2886217497534228
+Metric: overlap err                             Metric: 0.1064522260991809
+Metric: num non-overlaps                        Metric: 2
+Metric: frac non-overlaps                       Metric: 0.25
+--------------------------------------------------------------------------------
+
+CORRELATION MATRIX DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: corr_mat_diff                           Metric: 0.34404910575101916
+Metric: corr_mat_dims                           Metric: 8
+Metric: real_cor_mat                            Metric:                             num_lab_procedures_integer  num_procedures_integer  ...  number_diagnoses_integer  time_in_hospital_integer
+num_lab_procedures_integer                    1.000000                0.047989  ...                  0.168387                  0.324565
+num_procedures_integer                        0.047989                1.000000  ...                  0.078031                  0.186405
+num_medications_integer                       0.266751                0.387047  ...                  0.249567                  0.473245
+number_outpatient_integer                    -0.033165               -0.026431  ...                  0.098698                 -0.002177
+number_emergency_integer                     -0.022935               -0.031429  ...                  0.035993                 -0.013994
+number_inpatient_integer                      0.028122               -0.080111  ...                  0.103236                  0.076699
+number_diagnoses_integer                      0.168387                0.078031  ...                  1.000000                  0.218340
+time_in_hospital_integer                      0.324565                0.186405  ...                  0.218340                  1.000000
+
+[8 rows x 8 columns]
+Metric: synt_cor_mat                            Metric:                             num_lab_procedures_integer  num_procedures_integer  ...  number_diagnoses_integer  time_in_hospital_integer
+num_lab_procedures_integer                    1.000000                0.028397  ...                  0.149572                  0.335829
+num_procedures_integer                        0.028397                1.000000  ...                  0.083004                  0.192033
+num_medications_integer                       0.278383                0.384661  ...                  0.240635                  0.484936
+number_outpatient_integer                    -0.040773               -0.014107  ...                  0.092293                 -0.015297
+number_emergency_integer                     -0.031334               -0.002500  ...                  0.051195                 -0.019727
+number_inpatient_integer                      0.027240               -0.067461  ...                  0.101280                  0.071377
+number_diagnoses_integer                      0.149572                0.083004  ...                  1.000000                  0.200624
+time_in_hospital_integer                      0.335829                0.192033  ...                  0.200624                  1.000000
+
+[8 rows x 8 columns]
+Metric: diff_cor_mat                            Metric:                             num_lab_procedures_integer  num_procedures_integer  ...  number_diagnoses_integer  time_in_hospital_integer
+num_lab_procedures_integer                    0.000000                0.019592  ...                  0.018815                 -0.011265
+num_procedures_integer                        0.019592                0.000000  ...                 -0.004973                 -0.005629
+num_medications_integer                      -0.011632                0.002386  ...                  0.008932                 -0.011691
+number_outpatient_integer                     0.007609               -0.012324  ...                  0.006405                  0.013120
+number_emergency_integer                      0.008398               -0.028928  ...                 -0.015201                  0.005733
+number_inpatient_integer                      0.000882               -0.012650  ...                  0.001956                  0.005322
+number_diagnoses_integer                      0.018815               -0.004973  ...                  0.000000                  0.017716
+time_in_hospital_integer                     -0.011265               -0.005629  ...                  0.017716                  0.000000
+
+[8 rows x 8 columns]
+Metric: real_corr_sum                           Metric: 14.109270004668335
+Metric: synthetic_corr_sum                      Metric: 14.837622960758843
+Metric: corr_sum_diff                           Metric: -0.7283529560905073
+Metric: real_corr_frobenius                     Metric: 3.1118140233711307
+Metric: synthetic_corr_frobenius                Metric: 3.150642339515355
+Metric: diff_corr_frobenius                     Metric: 0.34404910575101916
+--------------------------------------------------------------------------------
+
+DIMENSIONWISE MEAN DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: dimensionwise_mean_difference           Metric: 0.004258343265216501
+Metric: standard_error_difference               Metric: 0.0007588387872167305
+--------------------------------------------------------------------------------
+
+F1 SCORE DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: random_forest_f1_difference_holdout     Metric: -0.0426758947386322
+Metric: mean_f1_difference_holdout              Metric: -0.0426758947386322
+Metric: real_f1_holdout                         Metric: 0.36260612754963545
+Metric: synthetic_f1_holdout                    Metric: 0.31993023281100325
+Metric: f1_difference_standard_error_holdout    Metric: 0.0
+--------------------------------------------------------------------------------
+
+HELLINGER DISTANCE DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: mean_hellinger_distance                 Metric: 0.12291632860008757
+Metric: hellinger_standard_error                Metric: 0.03890122478775903
+--------------------------------------------------------------------------------
+
+MUTUAL INFORMATION DIFFERENCE
+--------------------------------------------------------------------------------
+Metric: mutual_inf_diff                         Metric: 5.848442353208583
+Metric: mi_mat_dims                             Metric: 40
+Metric: real_mi_sum                             Metric: 110.2743977835889
+Metric: synthetic_mi_sum                        Metric: 144.1171042104911
+Metric: mi_sum_diff                             Metric: -33.84270642690221
+Metric: real_mi_frobenius                       Metric: 9.892455636320873
+Metric: synthetic_mi_frobenius                  Metric: 11.480295526842852
+Metric: diff_mi_frobenius                       Metric: 5.848442353208583
+--------------------------------------------------------------------------------
+
+HITTING RATE
+--------------------------------------------------------------------------------
+Metric: hitting_rate                            Metric: 0.0
+--------------------------------------------------------------------------------
+
+EPSILON IDENTIFIABILITY RISK
+--------------------------------------------------------------------------------
+Metric: epsilon_identifiability_risk            Metric: 0.495
+--------------------------------------------------------------------------------
+
+DISTANCE TO CLOSEST RECORD
+--------------------------------------------------------------------------------
+Metric: dcr_score                               Metric: 0.5435999631881714
+--------------------------------------------------------------------------------
+
+MEDIAN DISTANCE TO CLOSEST RECORD
+--------------------------------------------------------------------------------
+Metric: median_dcr_score                        Metric: 1.0046769737560808
+--------------------------------------------------------------------------------
+
+NNDR
+--------------------------------------------------------------------------------
+Metric: mean_nndr                               Metric: 0.9353523340785705
+Metric: nndr_standard_error                     Metric: 0.0010193846074012284
+Metric: privacy_loss                            Metric: -0.0013286942031561777
+Metric: privacy_loss_standard_error             Metric: 0.0014503658664654533
+--------------------------------------------------------------------------------

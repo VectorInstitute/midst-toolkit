@@ -18,15 +18,7 @@ TOOLKIT_LOGGER.setLevel(INFO)
 
 @hydra.main(config_path=".", config_name="config", version_base=None)
 def main(config: DictConfig) -> None:
-    """
-    Run the training pipeline for a single-table diffusion model.
-
-    It will load the config and then data from the `config.base_data_dir` folder,
-    train the model and save the results in the `config.results_dir` folder.
-
-    Args:
-        config: Training configuration as an OmegaConf DictConfig object.
-    """
+   
     log(INFO, f"Loading data from {config.base_data_dir}...")
     tables, relation_order, _ = load_tables(Path(config.base_data_dir))
 

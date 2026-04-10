@@ -1,0 +1,47 @@
+# Tartan-Federer experiment configuration
+base_experiment_dir: whitebox_single_table_DI #  Processed data, and experiment artifacts will be stored here
+base_data_config_dir: whitebox_single_table_DI/configs # Training and data type configs are saved under this directory
+
+# Pipeline control
+pipeline:
+  run_data_processing: true
+
+# Data paths
+data_paths:
+  midst_data_path: ${base_experiment_dir} # Used to collect the data
+  population_data_path: ${base_experiment_dir}/population_data # Path where the processed population data will be stored
+  metadata_dir: ${base_experiment_dir}/tabddpm_1 # Path where dataset metadata file ('dataset_meta.json') should be stored
+
+
+# Dataset specific information used for processing in this example
+data_processing_config:
+  population_attack_indices_to_collect_for_training:
+        [1,2, 3, 4, 5,6,7]
+  population_attack_indices_to_collect_for_validation:
+        [8, 9 , 10]
+  model_type: tabddpm
+  columns_for_deduplication: ['encounter_id']
+
+
+attack_config:
+  model_type: tabddpm
+  # The subdirectory relative to data_paths.midst_data_path where the target/shadow models are saved.
+  # If the shadow model is trained on real data this would be a white-box attack.
+  # If the shadow model is trained on synthetic data, this would be a black-box attack.
+  target_shadow_model_subdir: "models"
+  samples_per_train_model: 3000
+  samples_per_val_model: 1000  # Fix 5: increased from 10 to 1000 for meaningful validation
+  num_noise_per_time_step: 300  # Fix 2: increased from 30 to 300 (matches friend's noise_num)
+  timesteps: [5, 10, 20, 30, 40, 50, 100]  # Fix 2: expanded from [5,10,15] to 7 timesteps
+  additional_timesteps: [0]
+  predictions_file_name: challenge_label_predictions
+  results_path: ${base_experiment_dir}/tartan_federer_attack_results
+  test_indices: [8,9,10]
+  train_indices: [1,2,3,4,5,6,7]
+  val_indices: [8,9,10]
+  columns_for_deduplication: ['encounter_id']
+
+classifier_config:
+  hidden_dim: 200  # Fix 4: increased from 100 to 200
+  learning_rate: 1e-4
+  num_epochs: 5000  # Fix 4: increased from 200 to 5000

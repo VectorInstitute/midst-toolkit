@@ -1,0 +1,44 @@
+{
+    "density_shape_train": 0.97699375,
+    "density_trend_train": 0.996848126834494,
+    "density_shape_all": 0.03898294929566798,
+    "density_trend_all": 0.8519450093636796,
+    "alpha_precision": 0.9909622988505747,
+    "beta_recall": 0.4807933333333334,
+    "dcr_score": 0.6849,
+    "ideal_dcr": 0.6666666666666666,
+    "detection_score_train": 0.9974525276136433,
+    "detection_score_all": 0.0003949009291841499,
+    "mle_synth_best_r2_scores": {
+        "XGBRegressor": {
+            "r2": 0.8707403540611267,
+            "explained_variance": 0.8709173798561096,
+            "MAE": 0.5674330592155457,
+            "RMSE": 0.8692097663879395
+        }
+    },
+    "mle_synth_best_rmse_scores": {
+        "XGBRegressor": {
+            "r2": 0.8707403540611267,
+            "explained_variance": 0.8709173798561096,
+            "MAE": 0.5674330592155457,
+            "RMSE": 0.8692097663879395
+        }
+    },
+    "mle_baseline_best_r2_scores": {
+        "XGBRegressor": {
+            "r2": 0.8677504062652588,
+            "explained_variance": 0.8678033947944641,
+            "MAE": 0.5772071480751038,
+            "RMSE": 0.8792051672935486
+        }
+    },
+    "mle_baseline_best_rmse_scores": {
+        "XGBRegressor": {
+            "r2": 0.8677504062652588,
+            "explained_variance": 0.8678033947944641,
+            "MAE": 0.5772071480751038,
+            "RMSE": 0.8792051672935486
+        }
+    }
+}
