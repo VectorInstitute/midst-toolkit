@@ -1,27 +1,26 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler
+from sklearn.preprocessing import LabelEncoder
 
 from midst_toolkit.common.dataset import (
     Dataset,
     TableMetadata,
+    TargetInfo,
     Transformations,
     get_categorical_and_numerical_column_names,
-    transform_dataset,
 )
-from midst_toolkit.common.dataset_transformations import TargetInfo
+from midst_toolkit.common.dataset_transformations import transform_dataset
 from midst_toolkit.common.enumerations import DataSplit, IsTargetConditioned
 from midst_toolkit.models.clavaddpm.dataset_utils import encode_and_merge_features
 
 
 @dataclass
 class ClavaDDPMDataset(Dataset):
-    categorical_transform: OneHotEncoder | None = None
-    numerical_transform: StandardScaler | None = None
-
     @staticmethod
     def from_df(
         data: pd.DataFrame,
@@ -32,7 +31,7 @@ class ClavaDDPMDataset(Dataset):
         noise_scale: float = 0,
         # TODO: Find places in code that have this kind of hardcoded random default and remove (with TESTING)
         data_split_random_state: int = 42,
-    ) -> tuple[Dataset, dict[int, LabelEncoder], list[str]]:
+    ) -> tuple[ClavaDDPMDataset, dict[int, LabelEncoder], list[str]]:
         """
         Generate a dataset from a pandas DataFrame.
 
@@ -135,7 +134,7 @@ class ClavaDDPMDataset(Dataset):
 
         assert isinstance(table_metadata.n_classes, int)
 
-        dataset = Dataset(
+        dataset = ClavaDDPMDataset(
             numerical_features=features,
             categorical_features=None,
             target=target,

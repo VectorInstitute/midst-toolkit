@@ -13,17 +13,15 @@ import torch
 from torch import optim
 
 from midst_toolkit.common.config import ClavaDDPMClassifierConfig, ClavaDDPMDiffusionConfig
-from midst_toolkit.common.enumerations import DataSplit
+from midst_toolkit.common.dataset import TableMetadata, Transformations
+from midst_toolkit.common.enumerations import CategoricalEncoding, DataSplit, IsTargetConditioned, TargetType
 from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.data_loaders import NO_PARENT_COLUMN_NAME, Tables, prepare_fast_dataloader
-from midst_toolkit.models.clavaddpm.dataset import Dataset, TableMetadata, Transformations
+from midst_toolkit.models.clavaddpm.dataset import ClavaDDPMDataset
 from midst_toolkit.models.clavaddpm.enumerations import (
-    CategoricalEncoding,
-    IsTargetConditioned,
     Relation,
     RelationOrder,
-    TargetType,
 )
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
     GaussianLossType,
@@ -81,7 +79,7 @@ def fine_tune_model(
             - dataset: The dataset.
             - column_orders: The column orders.
     """
-    dataset, label_encoders, column_orders = Dataset.from_df(
+    dataset, label_encoders, column_orders = ClavaDDPMDataset.from_df(
         fine_tuning_data,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
@@ -175,7 +173,7 @@ def fine_tune_classifier(
     Returns:
         The fine-tuned classifier model.
     """
-    dataset, _, _ = Dataset.from_df(
+    dataset, _, _ = ClavaDDPMDataset.from_df(
         fine_tuning_data,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,

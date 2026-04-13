@@ -20,19 +20,18 @@ from midst_toolkit.attacks.tartan_federer.data_utils import (
     evaluate_attack_performance,
     load_multi_table_customized,
 )
-from midst_toolkit.common.enumerations import DataSplit
+from midst_toolkit.common.dataset import (
+    TableMetadata,
+    TargetInfo,
+    Transformations,
+    get_categorical_and_numerical_column_names,
+)
+from midst_toolkit.common.dataset_transformations import transform_dataset
+from midst_toolkit.common.enumerations import DataSplit, IsTargetConditioned, TargetType
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
-from midst_toolkit.models.clavaddpm.dataset import (
-    Dataset,
-    TableMetadata,
-    Transformations,
-    get_categorical_and_numerical_column_names,
-    transform_dataset,
-)
-from midst_toolkit.models.clavaddpm.dataset_transformations import TargetInfo
-from midst_toolkit.models.clavaddpm.enumerations import IsTargetConditioned, TargetType
+from midst_toolkit.models.clavaddpm.dataset import ClavaDDPMDataset
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
     GaussianMultinomialDiffusion,
 )
@@ -106,7 +105,7 @@ def make_dataset_from_df_with_loaded(
     label_encoders: dict[int, LabelEncoder],
     numerical_transform: StandardScaler | None = None,
     noise_scale: float = 0,
-) -> Dataset:
+) -> ClavaDDPMDataset:
     """
     Create a dataset using artifacts.
 
@@ -153,7 +152,7 @@ def make_dataset_from_df_with_loaded(
         numerical_features = categorical_features
 
     target_info = TargetInfo(policy=None, mean=None, std=None)
-    dataset = Dataset(
+    dataset = ClavaDDPMDataset(
         numerical_features=numerical_features,
         categorical_features=None,
         target=targets,
@@ -172,7 +171,7 @@ def get_dataset(
     train_name: str = "train_with_id.csv",
     batch_size: int = 32,
     meta_dir: Path = Path(""),
-) -> list[tuple[Generator[list[Tensor]], int, Dataset]]:
+) -> list[tuple[Generator[list[Tensor]], int, ClavaDDPMDataset]]:
     """
     Creates a data loader and dataset from loaded artifacts.
 

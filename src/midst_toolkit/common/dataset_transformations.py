@@ -17,8 +17,8 @@ from sklearn.preprocessing import (
 )
 
 from midst_toolkit.common.dataset import (
-    Dataset,
     TargetInfo,
+    TDataset,
     Transformations,
     get_cached_dataset,
     process_nans_in_numerical_features,
@@ -283,10 +283,10 @@ def transform_targets(
 
 
 def transform_dataset(
-    dataset: Dataset,
+    dataset: TDataset,
     transformations: Transformations,
     cache_dir: Path | None,
-) -> Dataset:
+) -> TDataset:
     """
     Fits and applies the given set of transformations to the contents of the provided dataset and returns the
     transformed dataset. If an appropriate cache is specified and exists, this function simply loads an already
@@ -357,9 +357,9 @@ def transform_dataset(
         categorical_features=categorical_features,
         target=target,
         target_info=target_info,
+        numerical_transform=numerical_transform,
+        categorical_transform=categorical_transform,
     )
-    dataset.numerical_transform = numerical_transform
-    dataset.categorical_transform = categorical_transform
 
     if cache_path is not None:
         dump_pickle((transformations, dataset), cache_path)

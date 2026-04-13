@@ -1,4 +1,4 @@
-from typing import Callable, Union
+from collections.abc import Callable
 
 import numpy as np
 import torch
@@ -8,7 +8,7 @@ from torch import Tensor, nn
 from midst_toolkit.models.tabsyn.model.utils import EDMLoss
 
 
-ModuleType = Union[str, Callable[..., nn.Module]]
+ModuleType = str | Callable[..., nn.Module]
 
 
 class SiLU(nn.Module):

@@ -6,6 +6,7 @@ import pytest
 import torch
 from torch.utils.data import DataLoader
 
+from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.models.tabsyn.config import load_config
 from midst_toolkit.models.tabsyn.dataset import TabularDataset, preprocess
 from midst_toolkit.models.tabsyn.pipeline import TabSyn
@@ -49,8 +50,10 @@ def test_train_load_and_synthesize(test_dirs):
     )
 
     # separate train and test data
-    X_train_num, X_test_num = X_num
-    X_train_cat, X_test_cat = X_cat
+    X_train_num = X_num[DataSplit.TRAIN.value]
+    X_test_num = X_num[DataSplit.TEST.value]
+    X_train_cat = X_cat[DataSplit.TRAIN.value]
+    X_test_cat = X_cat[DataSplit.TEST.value]
 
     # convert to float tensor
     X_train_num, X_test_num = (

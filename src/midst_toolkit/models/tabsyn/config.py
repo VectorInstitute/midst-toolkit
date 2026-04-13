@@ -1,6 +1,7 @@
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 
 RawConfig = dict[str, Any]

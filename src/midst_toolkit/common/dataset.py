@@ -8,10 +8,11 @@ from copy import deepcopy
 from dataclasses import astuple, dataclass
 from logging import INFO
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import numpy as np
 from sklearn.metrics import classification_report, r2_score, roc_auc_score, root_mean_squared_error
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from midst_toolkit.common.dataset_utils import (
     get_category_sizes,
@@ -101,6 +102,8 @@ class Dataset:
     target_info: TargetInfo
     task_type: TaskType
     n_classes: int | None
+    categorical_transform: OneHotEncoder | None = None
+    numerical_transform: StandardScaler | None = None
 
     @classmethod
     def from_dir(cls, directory: Path) -> Dataset:
@@ -289,6 +292,10 @@ class Dataset:
             part_metrics["score"] = score_sign * part_metrics[score_key]
 
         return metrics
+
+
+# Type generics to make the code flexible to any subclass of Dataset
+TDataset = TypeVar("TDataset", bound=Dataset)
 
 
 def drop_rows_according_to_mask(data_split: ArrayDict, valid_masks: dict[str, np.ndarray]) -> ArrayDict:

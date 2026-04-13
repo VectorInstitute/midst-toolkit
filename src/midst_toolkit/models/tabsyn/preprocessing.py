@@ -1,8 +1,11 @@
 import json
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
+
+from midst_toolkit.common.enumerations import TaskType
 
 
 def get_processed_data_dir(data_dir: Path) -> Path:
@@ -17,7 +20,7 @@ def get_processed_data_dir(data_dir: Path) -> Path:
     return data_dir / "processed_data"
 
 
-def preprocess_beijing(info_path: Path):
+def preprocess_beijing(info_path: Path) -> None:
     """Preprocess the Beijing dataset.
 
     Args:
@@ -41,7 +44,7 @@ def preprocess_beijing(info_path: Path):
     df_cleaned.to_csv(info["data_path"], index=False)
 
 
-def preprocess_news(info_path: Path, raw_data_dir: Path):
+def preprocess_news(info_path: Path, raw_data_dir: Path) -> None:
     """Preprocess the News dataset.
 
     Args:
@@ -108,7 +111,9 @@ def get_column_name_mapping(
         A tuple of the index mapping, the inverse index mapping and the name mapping.
     """
     if not column_names:
-        column_names = np.array(data_df.columns.tolist())
+        column_names = data_df.columns.tolist()
+
+    column_names_np = np.array(column_names)
 
     idx_mapping = {}
 
@@ -116,7 +121,7 @@ def get_column_name_mapping(
     curr_cat_idx = len(num_col_idx)
     curr_target_idx = curr_cat_idx + len(cat_col_idx)
 
-    for idx in range(len(column_names)):
+    for idx in range(len(column_names_np)):
         if idx in num_col_idx:
             idx_mapping[int(idx)] = curr_num_idx
             curr_num_idx += 1
@@ -133,8 +138,8 @@ def get_column_name_mapping(
 
     idx_name_mapping = {}
 
-    for i in range(len(column_names)):
-        idx_name_mapping[int(i)] = column_names[i]
+    for i in range(len(column_names_np)):
+        idx_name_mapping[int(i)] = column_names_np[i]
 
     return idx_mapping, inverse_idx_mapping, idx_name_mapping
 
@@ -253,7 +258,7 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
     train_df.columns = range(len(train_df.columns))
     test_df.columns = range(len(test_df.columns))
 
-    col_info = {}
+    col_info: dict[int | str, Any] = {}
 
     for col_idx in num_col_idx:
         col_info[col_idx] = {}
@@ -324,7 +329,7 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
     info["inverse_idx_mapping"] = inverse_idx_mapping
     info["idx_name_mapping"] = idx_name_mapping
 
-    metadata = {"columns": {}}
+    metadata: dict[str, Any] = {"columns": {}}
     task_type = info["task_type"]
     num_col_idx = info["num_col_idx"]
     cat_col_idx = info["cat_col_idx"]
@@ -339,7 +344,7 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
         metadata["columns"][i] = {}
         metadata["columns"][i]["sdtype"] = "categorical"
 
-    if task_type == "regression":
+    if task_type == TaskType.REGRESSION.value:
         for i in target_col_idx:
             metadata["columns"][i] = {}
             metadata["columns"][i]["sdtype"] = "numerical"
@@ -361,7 +366,7 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
     print("Total Size:", info["train_num"] + info["test_num"])
     print("Train Size:", info["train_num"])
     print("Test Size:", info["test_num"])
-    if info["task_type"] == "regression":
+    if info["task_type"] == TaskType.REGRESSION.value:
         num = len(info["num_col_idx"] + info["target_col_idx"])
         cat = len(info["cat_col_idx"])
     else:

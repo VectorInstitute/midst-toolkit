@@ -15,19 +15,20 @@ from sklearn.preprocessing import LabelEncoder
 from torch import Tensor, optim
 
 from midst_toolkit.common.config import ClavaDDPMClassifierConfig, ClavaDDPMDiffusionConfig
-from midst_toolkit.common.enumerations import DataSplit, DomainDataType, TaskType
+from midst_toolkit.common.dataset import TableMetadata, Transformations
+from midst_toolkit.common.enumerations import (
+    CategoricalEncoding,
+    DataSplit,
+    DomainDataType,
+    IsTargetConditioned,
+    TargetType,
+    TaskType,
+)
 from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.data_loaders import NO_PARENT_COLUMN_NAME, Tables, prepare_fast_dataloader
-from midst_toolkit.models.clavaddpm.dataset import Dataset, TableMetadata, Transformations
-from midst_toolkit.models.clavaddpm.enumerations import (
-    CategoricalEncoding,
-    IsTargetConditioned,
-    ReductionMethod,
-    Relation,
-    RelationOrder,
-    TargetType,
-)
+from midst_toolkit.models.clavaddpm.dataset import ClavaDDPMDataset
+from midst_toolkit.models.clavaddpm.enumerations import ReductionMethod, Relation, RelationOrder
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 from midst_toolkit.models.clavaddpm.model import (
     Classifier,
@@ -53,7 +54,7 @@ class CTGANModelArtifacts(ModelArtifacts):
 class ClavaDDPMModelArtifacts(ModelArtifacts):
     diffusion: GaussianMultinomialDiffusion
     label_encoders: dict[int, LabelEncoder]
-    dataset: Dataset
+    dataset: ClavaDDPMDataset
     column_orders: list[str]
     num_numerical_features: int
     category_sizes: np.ndarray
@@ -234,7 +235,7 @@ def train_model(
     Returns:
         ModelArtifacts containing the training results.
     """
-    dataset, label_encoders, column_orders = Dataset.from_df(
+    dataset, label_encoders, column_orders = ClavaDDPMDataset.from_df(
         data_frame,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
@@ -338,7 +339,7 @@ def train_classifier(
     Returns:
         The trained classifier model.
     """
-    dataset, _, _ = Dataset.from_df(
+    dataset, _, _ = ClavaDDPMDataset.from_df(
         data_frame,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
@@ -573,7 +574,7 @@ def _numerical_forward_backward_log(
     classifier: Classifier,
     optimizer: torch.optim.Optimizer,
     data_loader: Generator[list[Tensor]],
-    dataset: Dataset,
+    dataset: ClavaDDPMDataset,
     schedule_sampler: ScheduleSampler,
     diffusion: GaussianMultinomialDiffusion,
     prefix: str = DataSplit.TRAIN.value,

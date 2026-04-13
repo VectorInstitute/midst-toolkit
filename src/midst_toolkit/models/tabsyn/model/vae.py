@@ -1,6 +1,6 @@
 import math
+from collections.abc import Callable
 from enum import Enum
-from typing import Callable
 
 import torch
 import torch.nn.functional as F
@@ -487,7 +487,7 @@ class VAE(nn.Module):
 
 
 class Reconstructor(nn.Module):
-    def __init__(self, d_numerical: int, categories: list[int] | None, d_token: int) -> None:
+    def __init__(self, d_numerical: int, categories: int, d_token: int) -> None:
         """Initialize the reconstructor module for the VAE.
 
         Args:
@@ -625,7 +625,7 @@ class Encoder_model(nn.Module):
 
     def load_weights(self, pretrained_VAE: nn.Module) -> None:
         """Load the weights of the encoder model.
-        
+
         Args:
             pretrained_VAE: The pretrained VAE model.
         """
@@ -634,11 +634,11 @@ class Encoder_model(nn.Module):
 
     def forward(self, x_num: Tensor, x_cat: Tensor) -> Tensor:
         """Forward pass of the encoder model.
-        
+
         Args:
             x_num: The numerical features.
             x_cat: The categorical features.
-        
+
         Returns:
             The output tensor.
         """
@@ -653,7 +653,7 @@ class Decoder_model(nn.Module):
         self,
         num_layers: int,
         d_numerical: int,
-        categories: list[int] | None,
+        categories: list[int],
         d_token: int,
         n_head: int = 1,
         factor: int = 4,
