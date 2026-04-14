@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from torch import Tensor
 
 from midst_toolkit.common.dataset import Dataset, TargetInfo, Transformations
 from midst_toolkit.common.dataset_transformations import transform_dataset
@@ -11,20 +12,20 @@ from midst_toolkit.common.enumerations import ArrayDict, DataSplit, TaskType
 
 
 class TabularDataset(Dataset):
-    def __init__(self, X_num: ArrayDict, X_cat: ArrayDict):
-        self.X_num = X_num
-        self.X_cat = X_cat
+    def __init__(self, numerical_features: Tensor, categorical_features: Tensor):
+        self.numerical_features_tensor = numerical_features
+        self.categorical_features_tensor = categorical_features
 
-    def __getitem__(self, index: int) -> tuple[np.ndarray, np.ndarray]:
-        this_num = self.X_num[index]
-        this_cat = self.X_cat[index]
+    def __getitem__(self, index: int) -> tuple[Tensor, Tensor]:
+        this_num = self.numerical_features_tensor[index]
+        this_cat = self.categorical_features_tensor[index]
 
         sample = (this_num, this_cat)
 
         return sample
 
-    def __len__(self):
-        return self.X_num.shape[0]
+    def __len__(self) -> int:
+        return self.numerical_features_tensor.shape[0]
 
 
 def preprocess(

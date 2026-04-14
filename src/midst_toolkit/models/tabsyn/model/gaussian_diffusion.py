@@ -1,6 +1,7 @@
-import numpy as np
+from typing import Any
+
 import torch
-from torch import nn
+from torch import Tensor, nn
 
 from midst_toolkit.models.tabsyn.model.utils import EDMLoss
 
@@ -24,11 +25,11 @@ S_noise = 1
 class Precond(nn.Module):
     def __init__(
         self,
-        denoise_fn,
-        hid_dim,
-        sigma_min=0,  # Minimum supported noise level.
-        sigma_max=float("inf"),  # Maximum supported noise level.
-        sigma_data=0.5,  # Expected standard deviation of the training data.
+        denoise_fn: nn.Module,
+        hid_dim: int,
+        sigma_min: float = 0,  # Minimum supported noise level.
+        sigma_max: float = float("inf"),  # Maximum supported noise level.
+        sigma_data: float = 0.5,  # Expected standard deviation of the training data.
     ):
         super().__init__()
 
@@ -39,7 +40,7 @@ class Precond(nn.Module):
         ###########
         self.denoise_fn_F = denoise_fn
 
-    def forward(self, x, sigma):
+    def forward(self, x: Tensor, sigma: Tensor) -> Tensor:
         x = x.to(torch.float32)
 
         sigma = sigma.to(torch.float32).reshape(-1, 1)
@@ -57,68 +58,27 @@ class Precond(nn.Module):
         D_x = c_skip * x + c_out * F_x.to(torch.float32)
         return D_x
 
-    def round_sigma(self, sigma):
+    def round_sigma(self, sigma: Tensor) -> Tensor:
         return torch.as_tensor(sigma)
 
 
 class Model(nn.Module):
     def __init__(
         self,
-        denoise_fn,
-        hid_dim,
-        P_mean=-1.2,
-        P_std=1.2,
-        sigma_data=0.5,
-        gamma=5,
-        opts=None,
-        pfgmpp=False,
+        denoise_fn: nn.Module,
+        hid_dim: int,
+        P_mean: float = -1.2,
+        P_std: float = 1.2,
+        sigma_data: float = 0.5,
+        gamma: float = 5,
+        opts: dict[str, Any] | None = None,
+        pfgmpp: bool = False,
     ):
         super().__init__()
 
         self.denoise_fn_D = Precond(denoise_fn, hid_dim)
         self.loss_fn = EDMLoss(P_mean, P_std, sigma_data, hid_dim=hid_dim, gamma=5, opts=None)
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         loss = self.loss_fn(self.denoise_fn_D, x)
         return loss.mean(-1).mean()
-
-    def sample(self, num_samples, dim, num_steps=50, device="cuda:0"):
-        latents = torch.randn([num_samples, dim], device=device)
-
-        step_indices = torch.arange(num_steps, dtype=torch.float32, device=latents.device)
-
-        sigma_min = max(SIGMA_MIN, self.denoise_fn_D.sigma_min)
-        sigma_max = min(SIGMA_MAX, self.denoise_fn_D.sigma_max)
-
-        t_steps = (
-            sigma_max ** (1 / rho) + step_indices / (num_steps - 1) * (sigma_min ** (1 / rho) - sigma_max ** (1 / rho))
-        ) ** rho
-        t_steps = torch.cat([self.denoise_fn_D.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])
-
-        x_next = latents.to(torch.float32) * t_steps[0]
-
-        with torch.no_grad():
-            for i, (t_cur, t_next) in enumerate(zip(t_steps[:-1], t_steps[1:])):
-                x_next = self.sample_step(self.denoise_fn_D, num_steps, i, t_cur, t_next, x_next)
-
-        return x_next
-
-    def sample_step(self, num_steps, i, t_cur, t_next, x_next):
-        x_cur = x_next
-        # Increase noise temporarily.
-        gamma = min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
-        t_hat = self.denoise_fn_D.round_sigma(t_cur + gamma * t_cur)
-        x_hat = x_cur + (t_hat**2 - t_cur**2).sqrt() * S_noise * randn_like(x_cur)
-        # Euler step.
-
-        denoised = self.denoise_fn_D(x_hat, t_hat).to(torch.float32)
-        d_cur = (x_hat - denoised) / t_hat
-        x_next = x_hat + (t_next - t_hat) * d_cur
-
-        # Apply 2nd order correction.
-        if i < num_steps - 1:
-            denoised = self.denoise_fn_D(x_next, t_next).to(torch.float32)
-            d_prime = (x_next - denoised) / t_next
-            x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
-
-        return x_next

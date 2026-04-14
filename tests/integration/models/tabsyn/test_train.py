@@ -38,7 +38,7 @@ def test_train_load_and_synthesize(test_dirs):
     # 2. the full dataset, which is used to unsure it will get all the categories for the categorical features
     # Here we are mocking the dataset #2 (full dataset) by copying the dataset #1
     dataset_path = get_processed_data_dir(test_data_dir) / test_data_name
-    ref_dataset_path = f"{dataset_path}_all"
+    ref_dataset_path = Path(f"{dataset_path}_all")
     shutil.copytree(dataset_path, ref_dataset_path)
 
     # preprocess the data

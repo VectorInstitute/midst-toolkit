@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 import torch
@@ -12,18 +13,18 @@ ModuleType = str | Callable[..., nn.Module]
 
 
 class SiLU(nn.Module):
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         return x * torch.sigmoid(x)
 
 
 class PositionalEmbedding(torch.nn.Module):
-    def __init__(self, num_channels, max_positions=10000, endpoint=False):
+    def __init__(self, num_channels: int, max_positions: int = 10000, endpoint: bool = False):
         super().__init__()
         self.num_channels = num_channels
         self.max_positions = max_positions
         self.endpoint = endpoint
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         freqs = torch.arange(start=0, end=self.num_channels // 2, dtype=torch.float32, device=x.device)
         freqs = freqs / (self.num_channels // 2 - (1 if self.endpoint else 0))
         freqs = (1 / self.max_positions) ** freqs
@@ -91,18 +92,19 @@ class GEGLU(nn.Module):
 
 
 class FourierEmbedding(torch.nn.Module):
-    def __init__(self, num_channels, scale=16):
+    def __init__(self, num_channels: int, scale: float = 16):
         super().__init__()
+        self.freqs: Tensor
         self.register_buffer("freqs", torch.randn(num_channels // 2) * scale)
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         x = x.ger((2 * np.pi * self.freqs).to(x.dtype))
         x = torch.cat([x.cos(), x.sin()], dim=1)
         return x
 
 
 class MLPDiffusion(nn.Module):
-    def __init__(self, d_in, dim_t=512):
+    def __init__(self, d_in: int, dim_t: int = 512):
         super().__init__()
         self.dim_t = dim_t
 
@@ -121,7 +123,7 @@ class MLPDiffusion(nn.Module):
         self.map_noise = PositionalEmbedding(num_channels=dim_t)
         self.time_embed = nn.Sequential(nn.Linear(dim_t, dim_t), nn.SiLU(), nn.Linear(dim_t, dim_t))
 
-    def forward(self, x, noise_labels, class_labels=None):
+    def forward(self, x: Tensor, noise_labels: Tensor, class_labels: Tensor | None = None) -> Tensor:
         emb = self.map_noise(noise_labels)
         emb = emb.reshape(emb.shape[0], 2, -1).flip(1).reshape(*emb.shape)  # swap sin/cos
         emb = self.time_embed(emb)
@@ -133,11 +135,11 @@ class MLPDiffusion(nn.Module):
 class Precond(nn.Module):
     def __init__(
         self,
-        denoise_fn,
-        hid_dim,
-        sigma_min=0,  # Minimum supported noise level.
-        sigma_max=float("inf"),  # Maximum supported noise level.
-        sigma_data=0.5,  # Expected standard deviation of the training data.
+        denoise_fn: nn.Module,
+        hid_dim: int,
+        sigma_min: float = 0,  # Minimum supported noise level.
+        sigma_max: float = float("inf"),  # Maximum supported noise level.
+        sigma_data: float = 0.5,  # Expected standard deviation of the training data.
     ):
         super().__init__()
 
@@ -148,7 +150,7 @@ class Precond(nn.Module):
         ###########
         self.denoise_fn_F = denoise_fn
 
-    def forward(self, x, sigma):
+    def forward(self, x: Tensor, sigma: Tensor) -> Tensor:
         x = x.to(torch.float32)
 
         sigma = sigma.to(torch.float32).reshape(-1, 1)
@@ -166,27 +168,27 @@ class Precond(nn.Module):
         D_x = c_skip * x + c_out * F_x.to(torch.float32)
         return D_x
 
-    def round_sigma(self, sigma):
+    def round_sigma(self, sigma: Tensor) -> Tensor:
         return torch.as_tensor(sigma)
 
 
 class Model(nn.Module):
     def __init__(
         self,
-        denoise_fn,
-        hid_dim,
-        P_mean=-1.2,
-        P_std=1.2,
-        sigma_data=0.5,
-        gamma=5,
-        opts=None,
-        pfgmpp=False,
+        denoise_fn: nn.Module,
+        hid_dim: int,
+        P_mean: float = -1.2,
+        P_std: float = 1.2,
+        sigma_data: float = 0.5,
+        gamma: float = 5,
+        opts: dict[str, Any] | None = None,
+        pfgmpp: bool = False,
     ):
         super().__init__()
 
         self.denoise_fn_D = Precond(denoise_fn, hid_dim)
         self.loss_fn = EDMLoss(P_mean, P_std, sigma_data, hid_dim=hid_dim, gamma=5, opts=None)
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         loss = self.loss_fn(self.denoise_fn_D, x)
         return loss.mean(-1).mean()

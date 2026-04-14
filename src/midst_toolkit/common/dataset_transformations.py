@@ -2,7 +2,7 @@ from collections import Counter
 from dataclasses import replace
 from logging import INFO
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from category_encoders import LeaveOneOutEncoder
@@ -305,7 +305,7 @@ def transform_dataset(
     """
     cache_path = setup_cache_path(transformations, cache_dir)
     if cache_path is not None and cache_path.exists():
-        return get_cached_dataset(cache_path, transformations)
+        return cast(TDataset, get_cached_dataset(cache_path, transformations))
 
     if dataset.numerical_features is not None:
         dataset = process_nans_in_numerical_features(dataset, transformations.numerical_nan_policy)

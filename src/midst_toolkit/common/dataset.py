@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 import numpy as np
-from sklearn.metrics import classification_report, r2_score, roc_auc_score, root_mean_squared_error
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from midst_toolkit.common.dataset_utils import (
@@ -31,6 +30,7 @@ from midst_toolkit.common.enumerations import (
     TaskType,
 )
 from midst_toolkit.common.logger import log
+from midst_toolkit.common.metrics import calculate_metrics
 
 
 @dataclass(frozen=True)
@@ -49,13 +49,13 @@ class Transformations:
         return cls(seed=0, normalization=Normalization.QUANTILE, target_policy=TargetPolicy.DEFAULT)
 
     @classmethod
-    def from_dict(cls, transformations_dict: dict) -> Transformations:
+    def from_dict(cls, transformations_dict: dict[str, Any]) -> Transformations:
         parsed_dict = deepcopy(transformations_dict)
 
         if "seed" in parsed_dict:
             if parsed_dict["seed"] is None:
                 raise ValueError("Seed cannot be None")
-            parsed_dict.seed = int(parsed_dict["seed"])
+            parsed_dict["seed"] = int(parsed_dict["seed"])
 
         if "normalization" in parsed_dict and parsed_dict["normalization"] is not None:
             parsed_dict["normalization"] = Normalization(parsed_dict["normalization"])
@@ -277,7 +277,7 @@ class Dataset:
             The metrics of the predictions.
         """
         metrics = {
-            x: calculate_metrics(self.target[x], predictions[x], self.task_type, prediction_type, self.target_info)
+            x: calculate_metrics(self.target[x], predictions[x], self.task_type, prediction_type, self.target_info.std)
             for x in predictions
         }
 
@@ -410,7 +410,7 @@ def get_categorical_and_numerical_column_names(
     return categorical_columns, numerical_columns
 
 
-def process_nans_in_numerical_features(dataset: Dataset, policy: NumericalNaNPolicy | None) -> Dataset:
+def process_nans_in_numerical_features(dataset: TDataset, policy: NumericalNaNPolicy | None) -> TDataset:
     """
     Process the NaN values in the numerical features of the dataset. Note that the signature here is different from
     that of ``process_nans_in_categorical_features``, because, if we are dropping rows with NaN values, we need to
@@ -474,97 +474,3 @@ def process_nans_in_numerical_features(dataset: Dataset, policy: NumericalNaNPol
         raise ValueError(f"Unsupported policy: {policy.value}")
 
     return dataset
-
-
-def calculate_rmse(true_target: np.ndarray, predicted_target: np.ndarray, standard_deviation: float | None) -> float:
-    """
-    Calculate the root mean squared error (RMSE) of the predictions.
-
-    Args:
-        true_target: The true labels as a numpy array.
-        predicted_target: The predicted labels as a numpy array.
-        standard_deviation: The standard deviation of the labels. If provided, the RMSE is scaled by the standard
-            deviation. This is typically done if the original targets were scaled down by the standard deviation during
-            fitting/prediction. If None, the RMSE is calculated without this scaling.
-
-    Returns:
-        The RMSE of the predictions.
-    """
-    rmse = root_mean_squared_error(true_target, predicted_target)
-    if standard_deviation is not None:
-        return rmse * standard_deviation
-    return rmse
-
-
-def calculate_metrics(
-    true_target: np.ndarray,
-    predicted_target: np.ndarray,
-    task_type: TaskType,
-    prediction_type: PredictionType | None,
-    target_info: TargetInfo,
-) -> dict[str, Any]:
-    """
-    Calculate the metrics of the predictions.
-
-    Example Usage:
-        calculate_metrics(y_true, y_pred, TaskType.BINARY_CLASSIFICATION, PredictionType.LOGITS, TargetInfo())
-
-    Args:
-        true_target: The true labels as a numpy array.
-        predicted_target: The predicted labels as a numpy array.
-        task_type: The type of the task.
-        prediction_type: The type of the predictions.
-        target_info: TargetInfo object with metadata about the labels.
-
-    Returns:
-        The metrics of the predictions as a dictionary with the following keys:
-            If the task type is TaskType.REGRESSION:
-                {
-                    "rmse": The root mean squared error.
-                    "r2": The R^2 score.
-                }
-
-            If the task type is TaskType.MULTICLASS_CLASSIFICATION, it will have a key for each label
-            with the following metrics (result of sklearn.metrics.classification_report):
-                {
-                    "label-1": {
-                        "precision": The precision of the label.
-                        "recall": The recall of the label.
-                        "f1-score": The F1 score of the label.
-                        "support": The number of occurrences of this label in y_true.
-                    },
-                    "label-2": {...}
-                    ...
-                }
-
-            If the task type is TaskType.BINARY_CLASSIFICATION, it will have a key for each label
-            with the following metrics ((result of sklearn.metrics.classification_report),
-            and an additional ROC AUC metric:
-                {
-                    "label-1": {
-                        "precision": The precision of the label.
-                        "recall": The recall of the label.
-                        "f1-score": The F1 score of the label.
-                        "support": The number of occurrences of this label in y_true.
-                    },
-                    "label-2": {...}
-                    ...
-                    "roc_auc": The ROC AUC score.
-                }
-    """
-    if task_type == TaskType.REGRESSION:
-        assert prediction_type is None
-        assert target_info.std is not None
-        rmse = calculate_rmse(true_target, predicted_target, target_info.std)
-        r2 = r2_score(true_target, predicted_target)
-        return {"rmse": rmse, "r2": r2}
-
-    labels, probs = get_predicted_labels_and_probs(predicted_target, task_type, prediction_type)
-    result = classification_report(true_target, labels, output_dict=True)
-    assert isinstance(result, dict)
-
-    if task_type == TaskType.BINARY_CLASSIFICATION:
-        assert probs is not None, "Probabilities need to be defined to compute roc_acu"
-        result["roc_auc"] = roc_auc_score(true_target, probs)
-
-    return result
