@@ -9,9 +9,9 @@
 #SBATCH --job-name=10k_train_diabetes
 #SBATCH --output=%j_%x.out
 #SBATCH --error=%j_%x.err
-#SBATCH --time=24:00:00
+#SBATCH --time=14:00:00
 #SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=sara.kodeiri@vectorinstitute.ai
+#SBATCH --mail-user=fatemeh.tavakoli@vectorinstitute.ai
 
 echo "Total memory allocated: $(($SLURM_MEM_PER_NODE / 1024)) GB"
 # This script sets up the environment and runs the ensemble attack example.

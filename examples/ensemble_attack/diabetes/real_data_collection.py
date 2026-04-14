@@ -30,6 +30,8 @@ class AttackType(Enum):
     TABDDPM_20K = "tabddpm_trained_with_20k"
     TABDDPM_50K = "tabddpm_trained_with_50k"
     TABDDPM_100K = "tabddpm_trained_with_100k"
+    # Experiment attack types for diabetes directory structure
+    DIABETES_EXPERIMENTS = "diabetes_experiments"
 
 
 DatasetType = Literal["train", "challenge"]
@@ -95,7 +97,7 @@ def collect_midst_attack_data(
 
     # Get file name based on the kind of dataset to be collected (i.e. train vs challenge).
     # TODO: Make the below parsing a bit more robust and less brittle
-    generation_name = attack_type.value.split("_")[0]
+    generation_name = "tabddpm"
     if dataset == "challenge":
         file_name = data_processing_config.challenge_data_file_name
     else:
@@ -250,6 +252,22 @@ def collect_population_data_ensemble(
         data_processing_config=data_processing_config,
     )
     log(INFO, f"Collected challenge data length: {len(df_challenge)} from splits: {challenge_splits}")
+    # In some cases, the location of target models are totally different from train models, therefore
+    # to collect the test challenge points, we need to look into the attack folders directly.
+    # This offers flexibility to the data folder structure.
+    # This lets us load challenge points from any directory, even if it's not the same as train.
+    if "test_challenge_data_path_for_training" in data_processing_config:
+        test_challenge_data = collect_data_from_path_range(
+            data_path=Path(
+                data_processing_config.test_challenge_data_path_for_training),
+            data_range=data_processing_config.folder_ranges["final"],
+            generation_name="tabddpm",
+            file_name=data_processing_config.challenge_data_file_name,
+        )
+        df_challenge = pd.concat(
+            [df_challenge, test_challenge_data]).drop_duplicates()
+        log(INFO,
+            f"Added challenge data of length: {len(test_challenge_data)} from target models directory.")
     # Save the challenge points
     save_dataframe(df_challenge, save_dir, "challenge_points_all.csv")
 

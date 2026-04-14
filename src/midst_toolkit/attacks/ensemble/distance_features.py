@@ -3,16 +3,17 @@
 import gower
 import numpy as np
 import pandas as pd
+from typing import TypeAlias
 from scipy.stats import gaussian_kde
 from sklearn.preprocessing import MinMaxScaler
 from midst_toolkit.common.logger import log
 from logging import INFO
 
 
-
+FloatDType: TypeAlias = type[np.float32] | type[np.float64]
 
 def calculate_gower_features(
-    df_input: pd.DataFrame, df_synthetic: pd.DataFrame, categorical_column_names: list[str]
+    df_input: pd.DataFrame, df_synthetic: pd.DataFrame, categorical_column_names: list[str], dtype: FloatDType = np.float32,
 ) -> pd.DataFrame:
     """
     Computes Gower distance-based features for a target dataframe against a synthetic one.
@@ -22,7 +23,7 @@ def calculate_gower_features(
             from the challenge dataset and processed in process_split_data.py.
         df_synthetic: The synthetic dataframe to compare against.
         categorical_column_names: A list of categorical column names.
-
+        dtype: The data type to which numerical columns will be cast. Default is np.float32.
     Returns:
         A dataframe with shape (num_samples, 9) with the new distance-based features, indexed like df_input.
         The 9 features include:
@@ -32,7 +33,14 @@ def calculate_gower_features(
             - num_of_neighbor: Number of synthetic neighbors within a median-based radius.
     """
     categorical_features = [column in categorical_column_names for column in df_input.columns]
+    
+    numerical_columns = [
+        col for col in df_input.columns if col not in categorical_column_names]
 
+    df_input[numerical_columns] = df_input[numerical_columns].astype(dtype)
+    # Convert numerical columns to float (otherwise error in the numpy divide)
+    df_synthetic[numerical_columns] = df_synthetic[numerical_columns].astype(dtype)
+    
     gower_matrix = gower.gower_matrix(data_x=df_input, data_y=df_synthetic, cat_features=categorical_features)
 
     # Sort distances for each target record to find nearest neighbors
