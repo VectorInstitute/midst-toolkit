@@ -21,9 +21,9 @@ from midst_toolkit.models.tabsyn.model.modules import (
 )
 from midst_toolkit.models.tabsyn.model.utils import sample
 from midst_toolkit.models.tabsyn.model.vae import (
-    Decoder_model,
-    Encoder_model,
-    Model_VAE,
+    DecoderModel,
+    EncoderModel,
+    ModelVAE,
 )
 from midst_toolkit.models.tabsyn.utils import (
     recover_data,
@@ -35,16 +35,26 @@ class TabSyn:
     def __init__(
         self,
         train_loader: DataLoader,
-        X_test_num: Tensor,
-        X_test_cat: Tensor,
+        numerical_features_test: Tensor,
+        categorical_features_test: Tensor,
         num_numerical_features: int,
         num_classes: list[int],
         device: torch.device = DEVICE,
     ) -> None:
-        """Train, sample, load and save TabSyn model."""
+        """
+        Init the TabSyn pipeline for training and sampling.
+
+        Args:
+            train_loader: The loader for the training data.
+            numerical_features_test: The numerical features of the test data.
+            categorical_features_test: The categorical features of the test data.
+            num_numerical_features: The number of numerical features.
+            num_classes: The number of classes for each categorical feature.
+            device: The device to use for the model. Optional, defaults to midst_toolkit.common.variables.DEVICE.
+        """
         self.train_loader = train_loader
-        self.X_test_num = X_test_num
-        self.X_test_cat = X_test_cat
+        self.numerical_features_test = numerical_features_test
+        self.categorical_features_test = categorical_features_test
         self.d_numerical = num_numerical_features
         self.categories = num_classes
         self.device = device
@@ -75,8 +85,8 @@ class TabSyn:
         factor: int,
         num_layers: int,
         d_token: int,
-    ) -> tuple[Model_VAE, Encoder_model, Decoder_model]:
-        model = Model_VAE(
+    ) -> tuple[ModelVAE, EncoderModel, DecoderModel]:
+        model = ModelVAE(
             num_layers,
             self.d_numerical,
             self.categories,
@@ -87,7 +97,7 @@ class TabSyn:
         )
         model = model.to(self.device)
 
-        pre_encoder = Encoder_model(
+        pre_encoder = EncoderModel(
             num_layers,
             self.d_numerical,
             self.categories,
@@ -95,7 +105,7 @@ class TabSyn:
             n_head=n_head,
             factor=factor,
         ).to(self.device)
-        pre_decoder = Decoder_model(
+        pre_decoder = DecoderModel(
             num_layers,
             self.d_numerical,
             self.categories,
@@ -116,8 +126,7 @@ class TabSyn:
         num_params = sum(p.numel() for p in denoise_fn.parameters())
         log(INFO, f"The number of parameters: {num_params}")
 
-        model = Model(denoise_fn=denoise_fn, hid_dim=hid_dim).to(self.device)
-        return model
+        return Model(denoise_fn=denoise_fn, hid_dim=hid_dim).to(self.device)
 
     def __load_optim(
         self, model: nn.Module, lr: float, weight_decay: float, factor: float, patience: int
@@ -126,11 +135,22 @@ class TabSyn:
         scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=factor, patience=patience)
         return optimizer, scheduler
 
+    # TODO: Refactor this to get rid of the "too many statements" Ruff error
     def train_vae(self, max_beta: float, min_beta: float, lambd: float, num_epochs: int, save_path: Path) -> None:
+        # ruff: noqa: PLR0915
+        """Train the VAE model.
+
+        Args:
+            max_beta: The maximum beta.
+            min_beta: The minimum beta.
+            lambd: The lambda for the beta.
+            num_epochs: The number of epochs to train the model.
+            save_path: The path to save the model.
+        """
         # determine model save paths
-        model_save_path = os.path.join(save_path, "model.pt")
-        encoder_save_path = os.path.join(save_path, "encoder.pt")
-        decoder_save_path = os.path.join(save_path, "decoder.pt")
+        model_save_path = save_path / "model.pt"
+        encoder_save_path = save_path / "encoder.pt"
+        decoder_save_path = save_path / "decoder.pt"
 
         # set initial state
         current_lr = self.vae_optimizer.param_groups[0]["lr"]
@@ -157,10 +177,17 @@ class TabSyn:
                 batch_num = batch_num.to(self.device)
                 batch_cat = batch_cat.to(self.device)
 
-                Recon_X_num, Recon_X_cat, mu_z, std_z = self.vae_model(batch_num, batch_cat)
+                reconstructed_numerical_features, reconstructed_categorical_features, mu_z, std_z = self.vae_model(
+                    batch_num, batch_cat
+                )
 
                 loss_mse, loss_ce, loss_kld, train_acc = self.compute_loss(
-                    batch_num, batch_cat, Recon_X_num, Recon_X_cat, mu_z, std_z
+                    batch_num,
+                    batch_cat,
+                    reconstructed_numerical_features,
+                    reconstructed_categorical_features,
+                    mu_z,
+                    std_z,
                 )
 
                 loss = loss_mse + loss_ce + beta * loss_kld
@@ -182,13 +209,15 @@ class TabSyn:
             """
             self.vae_model.eval()
             with torch.no_grad():
-                Recon_X_num, Recon_X_cat, mu_z, std_z = self.vae_model(self.X_test_num, self.X_test_cat)
+                reconstructed_numerical_features, reconstructed_categorical_features, mu_z, std_z = self.vae_model(
+                    self.numerical_features_test, self.categorical_features_test
+                )
 
                 val_mse_loss, val_ce_loss, _, val_acc = self.compute_loss(
-                    self.X_test_num,
-                    self.X_test_cat,
-                    Recon_X_num,
-                    Recon_X_cat,
+                    self.numerical_features_test,
+                    self.categorical_features_test,
+                    reconstructed_numerical_features,
+                    reconstructed_categorical_features,
                     mu_z,
                     std_z,
                 )
@@ -208,9 +237,8 @@ class TabSyn:
                     torch.save(self.vae_model.state_dict(), model_save_path)
                 else:
                     patience += 1
-                    if patience == 10:
-                        if beta > min_beta:
-                            beta = beta * lambd
+                    if patience == 10 and beta > min_beta:
+                        beta = beta * lambd
 
             log(
                 INFO,
@@ -241,24 +269,41 @@ class TabSyn:
 
     def compute_loss(
         self,
-        X_num: Tensor,
-        X_cat: Tensor,
-        Recon_X_num: Tensor,
-        Recon_X_cat: Tensor,
+        numerical_features: Tensor,
+        categorical_features: Tensor,
+        reconstructed_numerical_features: Tensor,
+        reconstructed_categorical_features: Tensor,
         mu_z: Tensor,
         logvar_z: Tensor,
     ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+        """Compute the loss for the VAE.
+
+        Args:
+            numerical_features: The numerical features.
+            categorical_features: The categorical features.
+            reconstructed_numerical_features: The reconstructed numerical features.
+            reconstructed_categorical_features: The reconstructed categorical features.
+            mu_z: The mean of the latent variables.
+            logvar_z: The log variance of the latent variables.
+
+        Returns:
+            A tuple containing:
+            - The MSE loss.
+            - The CE loss.
+            - The KL divergence loss.
+            - The accuracy.
+        """
         ce_loss_fn = nn.CrossEntropyLoss()
-        mse_loss = (X_num - Recon_X_num).pow(2).mean()
+        mse_loss = (numerical_features - reconstructed_numerical_features).pow(2).mean()
         ce_loss = torch.tensor(0.0)
         acc = torch.tensor(0.0)
         total_num = torch.tensor(0.0)
 
-        for idx, x_cat in enumerate(Recon_X_cat):
+        for idx, x_cat in enumerate(reconstructed_categorical_features):
             if x_cat is not None:
-                ce_loss += ce_loss_fn(x_cat, X_cat[:, idx])
+                ce_loss += ce_loss_fn(x_cat, categorical_features[:, idx])
                 x_hat = x_cat.argmax(dim=-1)
-            acc += (x_hat == X_cat[:, idx]).float().sum()
+            acc += (x_hat == categorical_features[:, idx]).float().sum()
             total_num += x_hat.shape[0]
 
         ce_loss /= idx + 1
@@ -270,32 +315,57 @@ class TabSyn:
         loss_kld = -0.5 * torch.mean(temp.mean(-1).mean())
         return mse_loss, ce_loss, loss_kld, acc
 
-    def save_vae_embeddings(self, X_train_num: Tensor, X_train_cat: Tensor, vae_ckpt_dir: Path) -> None:
+    def save_vae_embeddings(
+        self,
+        numerical_features_train: Tensor,
+        categorical_features_train: Tensor,
+        vae_ckpt_dir: Path,
+    ) -> None:
+        """Save the latent embeddings to the checkpoint directory.
+
+        Args:
+            numerical_features_train: The numerical features of the training data.
+            categorical_features_train: The categorical features of the training data.
+            vae_ckpt_dir: The path to the checkpoint directory.
+        """
         # Saving latent embeddings
         with torch.no_grad():
-            X_train_num = X_train_num.to(self.device)
-            X_train_cat = X_train_cat.to(self.device)
+            numerical_features_train = numerical_features_train.to(self.device)
+            categorical_features_train = categorical_features_train.to(self.device)
 
-            train_z = self.pre_encoder(X_train_num, X_train_cat).detach().cpu().numpy()
+            train_z = self.pre_encoder(numerical_features_train, categorical_features_train).detach().cpu().numpy()
 
-            np.save(os.path.join(vae_ckpt_dir, "train_z.npy"), train_z)
+            np.save(vae_ckpt_dir / "train_z.npy", train_z)
 
             log(INFO, "Successfully saved pretrained embeddings on disk!")
 
     def load_latent_embeddings(self, vae_ckpt_dir: Path) -> tuple[Tensor, int]:
-        embedding_save_path = os.path.join(vae_ckpt_dir, "train_z.npy")
+        """Load the latent embeddings from the checkpoint directory.
+
+        Args:
+            vae_ckpt_dir: The path to the checkpoint directory.
+
+        Returns:
+            A tuple containing the latent embeddings and the token dimension.
+        """
+        embedding_save_path = vae_ckpt_dir / "train_z.npy"
         train_z = torch.tensor(np.load(embedding_save_path)).float()
 
         # flatten embeddings
         train_z = train_z[:, 1:, :]
-        B, num_tokens, token_dim = train_z.size()
+        num_samples, num_tokens, token_dim = train_z.size()
         in_dim = num_tokens * token_dim
 
-        train_z = train_z.view(B, in_dim)
+        train_z = train_z.view(num_samples, in_dim)
 
         return train_z, token_dim
 
     def save_embeddings_attributes(self, vae_ckpt_dir: Path) -> None:
+        """Save the embeddings attributes to the checkpoint directory.
+
+        Args:
+            vae_ckpt_dir: The path to the checkpoint directory.
+        """
         train_z, token_dim = self.load_latent_embeddings(vae_ckpt_dir)
         embedding_att = {
             "token_dim": token_dim,
@@ -305,13 +375,28 @@ class TabSyn:
             "mean_input_emb": train_z.mean(0),
             "std_input_emb": train_z.std(0),
         }
-        pickle.dump(embedding_att, open(os.path.join(vae_ckpt_dir, "train_z_attributes.pkl"), "wb"))
+        with open(vae_ckpt_dir / "train_z_attributes.pkl", "wb") as file:
+            pickle.dump(embedding_att, file)
 
     def load_embeddings_attributes(self, vae_ckpt_dir: Path) -> dict[str, Any]:
-        embedding_att = pickle.load(open(os.path.join(vae_ckpt_dir, "train_z_attributes.pkl"), "rb"))
-        return embedding_att
+        """Load the embeddings attributes from the checkpoint directory.
+
+        Args:
+            vae_ckpt_dir: The path to the checkpoint directory.
+
+        Returns:
+            The embeddings attributes as a dictionary.
+        """
+        return pickle.load(open(os.path.join(vae_ckpt_dir, "train_z_attributes.pkl"), "rb"))
 
     def train_diffusion(self, train_loader: DataLoader, num_epochs: int, ckpt_path: Path) -> None:
+        """Train the diffusion model.
+
+        Args:
+            train_loader: The loader for the training data.
+            num_epochs: The number of epochs to train the model.
+            ckpt_path: The path to save the checkpoint.
+        """
         self.dif_model.train()
 
         best_loss = float("inf")
@@ -344,7 +429,7 @@ class TabSyn:
             if curr_loss < best_loss:
                 best_loss = curr_loss
                 patience = 0
-                torch.save(self.dif_model.state_dict(), os.path.join(ckpt_path, "model.pt"))
+                torch.save(self.dif_model.state_dict(), ckpt_path / "model.pt")
             else:
                 patience += 1
                 if patience == 500:
@@ -354,17 +439,23 @@ class TabSyn:
             if epoch % 1000 == 0:
                 torch.save(
                     self.dif_model.state_dict(),
-                    os.path.join(ckpt_path, f"model_{epoch}.pt"),
+                    ckpt_path / f"model_{epoch}.pt",
                 )
 
         end_time = time.time()
         log(INFO, f"Time: {end_time - start_time}")
 
     def load_model_state(self, ckpt_dir: Path, dif_ckpt_name: str = "model.pt") -> None:
-        dif_model_save_path = os.path.join(ckpt_dir, dif_ckpt_name)
-        vae_model_save_path = os.path.join(ckpt_dir, "vae", "model.pt")
-        encoder_save_path = os.path.join(ckpt_dir, "vae", "encoder.pt")
-        decoder_save_path = os.path.join(ckpt_dir, "vae", "decoder.pt")
+        """Load the model state from the checkpoint directory.
+
+        Args:
+            ckpt_dir: The path to the checkpoint directory.
+            dif_ckpt_name: The name of the diffusion model checkpoint.
+        """
+        dif_model_save_path = ckpt_dir / dif_ckpt_name
+        vae_model_save_path = ckpt_dir / "vae" / "model.pt"
+        encoder_save_path = ckpt_dir / "vae" / "encoder.pt"
+        decoder_save_path = ckpt_dir / "vae" / "decoder.pt"
 
         self.dif_model.load_state_dict(torch.load(dif_model_save_path))
         self.vae_model.load_state_dict(torch.load(vae_model_save_path))
@@ -385,11 +476,24 @@ class TabSyn:
         num_layers: int,
         d_token: int,
     ) -> None:
+        """Load the model for sampling.
+
+        Args:
+            in_dim: The dimension of the input.
+            hid_dim: The dimension of the hidden layer.
+            d_numerical: The number of numerical features.
+            categories: The number of categories for each categorical feature.
+            ckpt_dir: The path to the checkpoint directory.
+            n_head: The number of heads.
+            factor: The factor for the dimension of the hidden layer.
+            num_layers: The number of layers.
+            d_token: The dimension of the token.
+        """
         denoise_fn = MLPDiffusion(in_dim, 1024).to(self.device)
         model = Model(denoise_fn=denoise_fn, hid_dim=hid_dim).to(self.device)
         model.load_state_dict(torch.load(ckpt_dir / "model.pt"))
 
-        pre_decoder = Decoder_model(num_layers, d_numerical, categories, d_token, n_head=n_head, factor=factor)
+        pre_decoder = DecoderModel(num_layers, d_numerical, categories, d_token, n_head=n_head, factor=factor)
         decoder_save_path = ckpt_dir / "vae" / "decoder.pt"
         pre_decoder.load_state_dict(torch.load(decoder_save_path))
 
@@ -407,7 +511,16 @@ class TabSyn:
         save_path: Path,
     ) -> None:
         """
-        Generating samples
+        Generate samples from the diffusion model.
+
+        Args:
+            num_samples: The number of samples to generate.
+            in_dim: The dimension of the input.
+            mean_input_emb: The mean of the input.
+            info: The information dictionary about the columns.
+            num_inverse: The inverse function for the numerical features.
+            cat_inverse: The inverse function for the categorical features.
+            save_path: The path to save the generated samples.
         """
         self.pre_decoder.cpu()
         info["pre_decoder"] = self.pre_decoder
@@ -418,7 +531,7 @@ class TabSyn:
 
         sample_dim = in_dim
 
-        x_next = sample(self.dif_model.denoise_fn_D, num_samples, sample_dim)
+        x_next = sample(self.dif_model.denoise_fn_d, num_samples, sample_dim)
         x_next = x_next * 2 + mean.to(self.device)
 
         syn_data = x_next.float().cpu().numpy()

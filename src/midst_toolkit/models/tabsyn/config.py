@@ -39,8 +39,7 @@ def unpack_config(config: RawConfig) -> RawConfig:
     Returns:
         The unpacked config.
     """
-    config = cast(RawConfig, _replace(config, lambda x: x == CONFIG_NONE, None))
-    return config
+    return cast(RawConfig, _replace(config, lambda x: x == CONFIG_NONE, None))
 
 
 def load_config(path: Path | str) -> Any:

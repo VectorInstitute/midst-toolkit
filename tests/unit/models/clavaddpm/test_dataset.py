@@ -10,6 +10,7 @@ from midst_toolkit.common.dataset import (
     process_nans_in_numerical_features,
     setup_cache_path,
 )
+from midst_toolkit.common.dataset_utils import dump_pickle
 from midst_toolkit.common.enumerations import (
     CategoricalEncoding,
     IsTargetConditioned,

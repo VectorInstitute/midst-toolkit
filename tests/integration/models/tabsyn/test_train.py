@@ -26,6 +26,8 @@ def test_dirs():
 
 
 def test_train_load_and_synthesize(test_dirs):
+    # Ignoring "too many statements" error from Ruff
+    # ruff: noqa: PLR0915
     test_data_dir, results_dir = test_dirs
     test_data_name = "trans"
     process_data(test_data_name, test_data_dir, test_data_dir)
@@ -42,7 +44,7 @@ def test_train_load_and_synthesize(test_dirs):
     shutil.copytree(dataset_path, ref_dataset_path)
 
     # preprocess the data
-    X_num, X_cat, categories, d_numerical = preprocess(
+    numerical_features, categorical_features, categories, d_numerical = preprocess(
         dataset_path=dataset_path,
         ref_dataset_path=ref_dataset_path,
         transforms=config["transforms"],
@@ -50,25 +52,24 @@ def test_train_load_and_synthesize(test_dirs):
     )
 
     # separate train and test data
-    X_train_num = X_num[DataSplit.TRAIN.value]
-    X_test_num = X_num[DataSplit.TEST.value]
-    X_train_cat = X_cat[DataSplit.TRAIN.value]
-    X_test_cat = X_cat[DataSplit.TEST.value]
+    numerical_features_train = numerical_features[DataSplit.TRAIN.value]
+    numerical_features_test = numerical_features[DataSplit.TEST.value]
+    categorical_features_train = categorical_features[DataSplit.TRAIN.value]
+    categorical_features_test = categorical_features[DataSplit.TEST.value]
 
     # convert to float tensor
-    X_train_num, X_test_num = (
-        torch.tensor(X_train_num).float(),
-        torch.tensor(X_test_num).float(),
-    )
-    X_train_cat, X_test_cat = torch.tensor(X_train_cat), torch.tensor(X_test_cat)
+    numerical_features_train = torch.tensor(numerical_features_train).float()
+    numerical_features_test = torch.tensor(numerical_features_test).float()
+    categorical_features_train = torch.tensor(categorical_features_train)
+    categorical_features_test = torch.tensor(categorical_features_test)
 
     # create dataset module
-    train_data = TabularDataset(X_train_num.float(), X_train_cat)
+    train_data = TabularDataset(numerical_features_train.float(), categorical_features_train)
 
     # move test data to gpu if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    X_test_num = X_test_num.float().to(device)
-    X_test_cat = X_test_cat.to(device)
+    numerical_features_test = numerical_features_test.float().to(device)
+    categorical_features_test = categorical_features_test.to(device)
 
     # create train dataloader
     train_loader = DataLoader(
@@ -81,8 +82,8 @@ def test_train_load_and_synthesize(test_dirs):
     # Instantiate the model
     tabsyn = TabSyn(
         train_loader,
-        X_test_num,
-        X_test_cat,
+        numerical_features_test,
+        categorical_features_test,
         num_numerical_features=d_numerical,
         num_classes=categories,
         device=device,
@@ -108,8 +109,8 @@ def test_train_load_and_synthesize(test_dirs):
 
     # embed all inputs in the latent space
     tabsyn.save_vae_embeddings(
-        X_train_num,
-        X_train_cat,
+        numerical_features_train,
+        categorical_features_train,
         vae_ckpt_dir=vae_save_dir,
     )
     tabsyn.save_embeddings_attributes(vae_ckpt_dir=vae_save_dir)

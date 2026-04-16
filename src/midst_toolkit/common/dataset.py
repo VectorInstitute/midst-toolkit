@@ -50,6 +50,14 @@ class Transformations:
 
     @classmethod
     def from_dict(cls, transformations_dict: dict[str, Any]) -> Transformations:
+        """Create a Transformations object from a dictionary.
+
+        Args:
+            transformations_dict: The dictionary to create the Transformations object from.
+
+        Returns:
+            The Transformations object.
+        """
         parsed_dict = deepcopy(transformations_dict)
 
         if "seed" in parsed_dict:

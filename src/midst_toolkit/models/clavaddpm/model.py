@@ -11,8 +11,9 @@ import torch
 from torch import Tensor, nn
 from torch.nn import functional
 
+from midst_toolkit.common.enumerations import IsTargetConditioned
 from midst_toolkit.common.logger import log
-from midst_toolkit.models.clavaddpm.enumerations import IsTargetConditioned, ModuleType
+from midst_toolkit.models.clavaddpm.enumerations import ModuleType
 
 
 @dataclass

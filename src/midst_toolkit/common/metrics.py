@@ -2,10 +2,9 @@ from typing import Any
 
 import numpy as np
 from scipy.special import expit, softmax
-from sklearn.metrics import classification_report, root_mean_squared_error, r2_score, roc_auc_score
+from sklearn.metrics import classification_report, r2_score, roc_auc_score, root_mean_squared_error
 
 from midst_toolkit.common.enumerations import PredictionType, TaskType
-
 
 
 def calculate_rmse(true_target: np.ndarray, predicted_target: np.ndarray, standard_deviation: float | None) -> float:
@@ -46,7 +45,7 @@ def calculate_metrics(
         predicted_target: The predicted labels as a numpy array.
         task_type: The type of the task.
         prediction_type: The type of the predictions.
-        target_info: The standard deviation of the labels. Required if the task type is TaskType.REGRESSION.
+        std: The standard deviation of the labels. Required if the task type is TaskType.REGRESSION.
 
     Returns:
         The metrics of the predictions as a dictionary with the following keys:

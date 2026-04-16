@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from logging import INFO
 from typing import Any
 
 import numpy as np
@@ -6,6 +7,7 @@ import pandas as pd
 import torch
 
 from midst_toolkit.common.enumerations import TaskType
+from midst_toolkit.common.logger import log
 
 
 @torch.no_grad()
@@ -15,6 +17,20 @@ def split_num_cat_target(
     num_inverse: Callable,
     cat_inverse: Callable,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Split the synthetic data into numerical, categorical and target features.
+
+    Args:
+        syn_data: The synthetic data.
+        info: The information dictionary about the columns.
+        num_inverse: The inverse function for the numerical features.
+        cat_inverse: The inverse function for the categorical features.
+
+    Returns:
+        A tuple containing:
+        - The synthetic numerical features.
+        - The synthetic categorical features.
+        - The synthetic target features.
+    """
     task_type = info["task_type"]
 
     num_col_idx = info["num_col_idx"]
@@ -48,7 +64,7 @@ def split_num_cat_target(
         syn_num = syn_num[:, len(target_col_idx) :]
 
     else:
-        print(syn_cat.shape)
+        log(INFO, syn_cat.shape)
         syn_target = syn_cat[:, : len(target_col_idx)]
         syn_cat = syn_cat[:, len(target_col_idx) :]
 
@@ -56,6 +72,14 @@ def split_num_cat_target(
 
 
 def get_synthetic_categorical_features(x_hat_cat: torch.Tensor) -> np.ndarray:
+    """Get the synthetic categorical features from the predicted categorical features.
+
+    Args:
+        x_hat_cat: The predicted categorical features.
+
+    Returns:
+        The synthetic categorical features.
+    """
     syn_cat = []
     for pred in x_hat_cat:
         syn_cat.append(pred.argmax(dim=-1))
@@ -69,6 +93,17 @@ def recover_data(
     syn_target: np.ndarray,
     info: dict[str, Any],
 ) -> pd.DataFrame:
+    """Recover the synthetic data from the numerical and categorical features.
+
+    Args:
+        syn_num: The synthetic numerical features.
+        syn_cat: The synthetic categorical features.
+        syn_target: The synthetic target features.
+        info: The information dictionary about the columns.
+
+    Returns:
+        The synthetic data as a pandas dataframe.
+    """
     num_col_idx = info["num_col_idx"]
     cat_col_idx = info["cat_col_idx"]
     target_col_idx = info["target_col_idx"]

@@ -4,9 +4,10 @@
 
 import numpy as np
 import torch
-from torch import Tensor, nn
+from torch import Tensor
 
 from midst_toolkit.common.variables import DEVICE
+from midst_toolkit.models.tabsyn.model.modules import Precond
 
 
 # ----------------------------------------------------------------------------
@@ -25,7 +26,19 @@ S_max = float("inf")
 S_noise = 1
 
 
-def sample(net: nn.Module, num_samples: int, dim: int, num_steps: int = 50, device: torch.device = DEVICE) -> Tensor:
+def sample(net: Precond, num_samples: int, dim: int, num_steps: int = 50, device: torch.device = DEVICE) -> Tensor:
+    """Sample from the diffusion process.
+
+    Args:
+        net: The network.
+        num_samples: The number of samples.
+        dim: The dimension of the samples.
+        num_steps: The number of steps.
+        device: The device to use. Optional, defaults to midst_toolkit.common.variables.DEVICE.
+
+    Returns:
+        The sampled data.
+    """
     latents = torch.randn([num_samples, dim], device=device)
 
     step_indices = torch.arange(num_steps, dtype=torch.float32, device=latents.device)
@@ -47,7 +60,20 @@ def sample(net: nn.Module, num_samples: int, dim: int, num_steps: int = 50, devi
     return x_next
 
 
-def sample_step(net: nn.Module, num_steps: int, i: int, t_cur: Tensor, t_next: Tensor, x_next: Tensor) -> Tensor:
+def sample_step(net: Precond, num_steps: int, i: int, t_cur: Tensor, t_next: Tensor, x_next: Tensor) -> Tensor:
+    """Sample a step of the diffusion process.
+
+    Args:
+        net: The network.
+        num_steps: The number of steps.
+        i: The current step.
+        t_cur: The current timestep.
+        t_next: The next timestep.
+        x_next: The next sample.
+
+    Returns:
+        The next sample.
+    """
     x_cur = x_next
     # Increase noise temporarily.
     gamma = min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
@@ -66,28 +92,3 @@ def sample_step(net: nn.Module, num_steps: int, i: int, t_cur: Tensor, t_next: T
         x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
 
     return x_next
-
-
-class EDMLoss:
-    def __init__(self, P_mean=-1.2, P_std=1.2, sigma_data=0.5, hid_dim=100, gamma=5, opts=None):
-        self.P_mean = P_mean
-        self.P_std = P_std
-        self.sigma_data = sigma_data
-        self.hid_dim = hid_dim
-        self.gamma = gamma
-        self.opts = opts
-
-    def __call__(self, denoise_fn, data):
-        rnd_normal = torch.randn(data.shape[0], device=data.device)
-        sigma = (rnd_normal * self.P_std + self.P_mean).exp()
-
-        weight = (sigma**2 + self.sigma_data**2) / (sigma * self.sigma_data) ** 2
-
-        y = data
-        n = torch.randn_like(y) * sigma.unsqueeze(1)
-        D_yn = denoise_fn(y + n, sigma)
-
-        target = y
-        loss = weight.unsqueeze(1) * ((D_yn - target) ** 2)
-
-        return loss

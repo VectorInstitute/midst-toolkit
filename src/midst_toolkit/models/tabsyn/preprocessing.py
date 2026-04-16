@@ -1,4 +1,5 @@
 import json
+from logging import INFO
 from pathlib import Path
 from typing import Any
 
@@ -6,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from midst_toolkit.common.enumerations import TaskType
+from midst_toolkit.common.logger import log
 
 
 def get_processed_data_dir(data_dir: Path) -> Path:
@@ -158,6 +160,7 @@ def train_val_test_split(
         cat_columns: The names of the categorical columns.
         num_train: The number of samples to be used for training.
         num_test: The number of samples to be used for testing.
+        random_seed: The random seed to be used for the split.
 
     Returns:
         A tuple of the train dataframe and the test dataframe.
@@ -189,7 +192,9 @@ def train_val_test_split(
     return train_df, test_df
 
 
+# TODO: Refactor this function to get rid of the "too many statements" and "too many branches" errors from Ruff
 def process_data(name: str, info_path: Path, data_dir: Path) -> None:
+    # ruff: noqa: PLR0915, PLR0912
     """Process the data for the given dataset name.
 
     It will save the processed data to the processed data directory.
@@ -239,15 +244,6 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
         test_path = info["test_path"]
         test_df = pd.read_csv(test_path)
         train_df = data_df
-
-        # with open(test_path, "r") as f:
-        #     lines = f.readlines()[1:]
-        #     test_save_path = f"{raw_data_dir}/{name}/test.data"
-        #     if not os.path.exists(test_save_path):
-        #         with open(test_save_path, "a") as f1:
-        #             for line in lines:
-        #                 save_line = line.strip("\n").strip(".")
-        #                 f1.write(f"{save_line}\n")
     else:
         # Train/ Test Split, 90% Training, 10% Testing (Validation set will be selected from Training set)
         num_train = int(num_data * 0.99)
@@ -255,8 +251,8 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
 
         train_df, test_df = train_val_test_split(data_df, cat_columns, num_train, num_test)
 
-    train_df.columns = range(len(train_df.columns))
-    test_df.columns = range(len(test_df.columns))
+    train_df.columns = list(range(len(train_df.columns)))
+    test_df.columns = list(range(len(test_df.columns)))
 
     col_info: dict[int | str, Any] = {}
 
@@ -296,24 +292,24 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
     for col in cat_columns:
         test_df.loc[test_df[col] == "?", col] = "nan"
 
-    X_num_train = train_df[num_columns].to_numpy().astype(np.float32)
-    X_cat_train = train_df[cat_columns].to_numpy().astype(np.int64)
-    y_train = train_df[target_columns].to_numpy()
+    numerical_features_train = train_df[num_columns].to_numpy().astype(np.float32)
+    categorical_features_train = train_df[cat_columns].to_numpy().astype(np.int64)
+    target_train = train_df[target_columns].to_numpy()
 
-    X_num_test = test_df[num_columns].to_numpy().astype(np.float32)
-    X_cat_test = test_df[cat_columns].to_numpy().astype(np.int32)
-    y_test = test_df[target_columns].to_numpy()
+    numerical_features_test = test_df[num_columns].to_numpy().astype(np.float32)
+    categorical_features_test = test_df[cat_columns].to_numpy().astype(np.int32)
+    target_test = test_df[target_columns].to_numpy()
 
     if not (processed_data_dir / name).exists():
         (processed_data_dir / name).mkdir(parents=True)
 
-    np.save(processed_data_dir / name / "X_num_train.npy", X_num_train)
-    np.save(processed_data_dir / name / "X_cat_train.npy", X_cat_train)
-    np.save(processed_data_dir / name / "y_train.npy", y_train)
+    np.save(processed_data_dir / name / "X_num_train.npy", numerical_features_train)
+    np.save(processed_data_dir / name / "X_cat_train.npy", categorical_features_train)
+    np.save(processed_data_dir / name / "y_train.npy", target_train)
 
-    np.save(processed_data_dir / name / "X_num_test.npy", X_num_test)
-    np.save(processed_data_dir / name / "X_cat_test.npy", X_cat_test)
-    np.save(processed_data_dir / name / "y_test.npy", y_test)
+    np.save(processed_data_dir / name / "X_num_test.npy", numerical_features_test)
+    np.save(processed_data_dir / name / "X_cat_test.npy", categorical_features_test)
+    np.save(processed_data_dir / name / "y_test.npy", target_test)
 
     train_df[num_columns] = train_df[num_columns].astype(np.float32)
     test_df[num_columns] = test_df[num_columns].astype(np.float32)
@@ -360,17 +356,17 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
     with open(processed_data_dir / name / "info.json", "w") as file:
         json.dump(info, file, indent=4)
 
-    print(f"Processing and Saving {name} Successfully!")
+    log(INFO, f"Processing and Saving {name} Successfully!")
 
-    print("Dataset Name:", name)
-    print("Total Size:", info["train_num"] + info["test_num"])
-    print("Train Size:", info["train_num"])
-    print("Test Size:", info["test_num"])
+    log(INFO, f"Dataset Name: {name}")
+    log(INFO, f"Total Size: {info['train_num'] + info['test_num']}")
+    log(INFO, f"Train Size: {info['train_num']}")
+    log(INFO, f"Test Size: {info['test_num']}")
     if info["task_type"] == TaskType.REGRESSION.value:
         num = len(info["num_col_idx"] + info["target_col_idx"])
         cat = len(info["cat_col_idx"])
     else:
         cat = len(info["cat_col_idx"] + info["target_col_idx"])
         num = len(info["num_col_idx"])
-    print("Number of Numerical Columns:", num)
-    print("Number of Categorical Columns:", cat)
+    log(INFO, f"Number of Numerical Columns: {num}")
+    log(INFO, f"Number of Categorical Columns: {cat}")
