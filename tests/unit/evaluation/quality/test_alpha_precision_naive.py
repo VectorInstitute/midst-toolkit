@@ -1,0 +1,61 @@
+import pytest
+
+from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
+from midst_toolkit.data_processing.midst_data_processing import (
+    load_midst_data,
+    process_midst_data_for_alpha_precision_evaluation,
+)
+from midst_toolkit.evaluation.quality.alpha_precision import AlphaPrecision
+from midst_toolkit.evaluation.utils import (
+    extract_columns_based_on_meta_info,
+    one_hot_encode_categoricals_and_merge_with_numerical,
+)
+from tests.utils.architecture import is_apple_silicon
+
+
+SYNTHETIC_DATA_PATH = "tests/assets/synthetic_data.csv"
+REAL_DATA_PATH = "tests/assets/real_data.csv"
+META_INFO_PATH = "tests/assets/meta_info.json"
+
+
+def test_alpha_precision_evaluation() -> None:
+    # Setting the paramters to True helps get consistent output on the same architecture for the _OC metrics
+    # that use an embedding by training a 1-layer NN. We do not run this on the cluster for the same
+    # reason and just let it run on GitHub since the architecture on the cluster is different from
+    # that of GitHub.
+    set_all_random_seeds(1, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
+
+    real_data, synthetic_data, meta_info = load_midst_data(REAL_DATA_PATH, SYNTHETIC_DATA_PATH, META_INFO_PATH)
+
+    numerical_real_data, categorical_real_data = extract_columns_based_on_meta_info(real_data, meta_info)
+    numerical_synthetic_data, categorical_synthetic_data = extract_columns_based_on_meta_info(
+        synthetic_data, meta_info
+    )
+
+    numerical_real_numpy, categorical_real_numpy, numerical_synthetic_numpy, categorical_synthetic_numpy = (
+        process_midst_data_for_alpha_precision_evaluation(
+            numerical_real_data,
+            categorical_real_data,
+            numerical_synthetic_data,
+            categorical_synthetic_data,
+            "default",
+            "tabddpm",
+        )
+    )
+
+    real_dataframe, synthetic_dataframe = one_hot_encode_categoricals_and_merge_with_numerical(
+        categorical_real_numpy, categorical_synthetic_numpy, numerical_real_numpy, numerical_synthetic_numpy
+    )
+
+    alpha_precision_metric = AlphaPrecision(naive_only=False)
+
+    quality_results = alpha_precision_metric.compute(real_dataframe, synthetic_dataframe)
+    if is_apple_silicon():
+        assert pytest.approx(0.05994074074074074, abs=1e-8) == quality_results["delta_precision_alpha_naive"]
+        assert pytest.approx(0.005229629629629584, abs=1e-8) == quality_results["delta_coverage_beta_naive"]
+    else:
+        assert pytest.approx(0.05994074074074074, abs=1e-8) == quality_results["delta_precision_alpha_naive"]
+        assert pytest.approx(0.005229629629629584, abs=1e-8) == quality_results["delta_coverage_beta_naive"]
+
+    # Unset seed for safety
+    unset_all_random_seeds()

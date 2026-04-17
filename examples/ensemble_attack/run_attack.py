@@ -3,15 +3,18 @@ This file is an uncompleted example script for running the Ensemble Attack on MI
 provided resources and data.
 """
 
-import importlib
 from logging import INFO
 from pathlib import Path
 
 import hydra
 from omegaconf import DictConfig
 
-from examples.ensemble_attack.real_data_collection import collect_population_data_ensemble
-from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
+import examples.ensemble_attack.run_metaclassifier_training as meta_pipeline
+import examples.ensemble_attack.run_shadow_model_training as shadow_pipeline
+from examples.ensemble_attack.real_data_collection import COLLECTED_DATA_FILE_NAME, collect_population_data_ensemble
+from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
+from midst_toolkit.attacks.ensemble.models import EnsembleAttackClavaDDPMModelRunner
+from midst_toolkit.attacks.ensemble.process_split_data import PROCESSED_TRAIN_DATA_FILE_NAME, process_split_data
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds
 
@@ -23,15 +26,27 @@ def run_data_processing(config: DictConfig) -> None:
     Args:
         config: Configuration object set in config.yaml.
     """
+    # Load original repo's population to be concatenated to the experiment's population data.
+    # Original population refers to the population data collected by the attacker team, and can
+    # be downloaded from: https://github.com/CRCHUM-CITADEL/ensemble-mia/blob/main/input/population/population_all_with_challenge.csv
+    # This concatenation is done to align the experiments with the original attack code because
+    # this attack needs a large population dataset, and only using the experiment's collected population
+    # is not enough.
+    original_population_data = load_dataframe(
+        Path(config.data_processing_config.original_population_data_path),
+        COLLECTED_DATA_FILE_NAME,
+    )
     log(INFO, "Running data processing pipeline...")
     # Collect the real data from the MIDST challenge resources.
     population_data = collect_population_data_ensemble(
-        midst_data_input_dir=Path(config.data_paths.midst_data_path),
+        midst_data_input_dir=Path(config.data_processing_config.midst_data_path),
         data_processing_config=config.data_processing_config,
         save_dir=Path(config.data_paths.population_path),
+        base_population=original_population_data,
         population_splits=config.data_processing_config.population_splits,
         challenge_splits=config.data_processing_config.challenge_splits,
     )
+
     # The following function saves the required dataframe splits in the specified processed_attack_data_path path.
     process_split_data(
         all_population_data=population_data,
@@ -62,15 +77,18 @@ def main(config: DictConfig) -> None:
     if config.pipeline.run_data_processing:
         run_data_processing(config)
 
-    # Note: Importing the following two modules causes a segmentation fault error if imported together in this file.
-    # A quick solution is to load modules dynamically if any of the pipelines is called.
-    # TODO: Investigate the source of error.
     if config.pipeline.run_shadow_model_training:
-        shadow_pipeline = importlib.import_module("examples.ensemble_attack.run_shadow_model_training")
-        shadow_data_paths = shadow_pipeline.run_shadow_model_training(config)
+        df_master_challenge_train = load_dataframe(
+            Path(config.data_paths.processed_attack_data_path),
+            PROCESSED_TRAIN_DATA_FILE_NAME,
+        )
+
+        model_runner = EnsembleAttackClavaDDPMModelRunner(config)
+
+        shadow_data_paths = shadow_pipeline.run_shadow_model_training(model_runner, config, df_master_challenge_train)
         shadow_data_paths = [Path(path) for path in shadow_data_paths]
 
-        target_model_synthetic_path = shadow_pipeline.run_target_model_training(config)
+        target_model_synthetic_path = shadow_pipeline.run_target_model_training(model_runner, config)
 
     if config.pipeline.run_metaclassifier_training:
         if not config.pipeline.run_shadow_model_training:
@@ -83,7 +101,6 @@ def main(config: DictConfig) -> None:
             "The target_data_path must be provided for metaclassifier training."
         )
 
-        meta_pipeline = importlib.import_module("examples.ensemble_attack.run_metaclassifier_training")
         meta_pipeline.run_metaclassifier_training(config, shadow_data_paths, target_model_synthetic_path)
 
 

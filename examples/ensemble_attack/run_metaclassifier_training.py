@@ -6,8 +6,15 @@ import numpy as np
 import pandas as pd
 from omegaconf import DictConfig
 
+from examples.ensemble_attack.real_data_collection import COLLECTED_DATA_FILE_NAME
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
+from midst_toolkit.attacks.ensemble.process_split_data import (
+    PROCESSED_TEST_DATA_FILE_NAME,
+    PROCESSED_TEST_LABELS_FILE_NAME,
+    PROCESSED_TRAIN_DATA_FILE_NAME,
+    PROCESSED_TRAIN_LABELS_FILE_NAME,
+)
 from midst_toolkit.common.logger import log
 
 
@@ -31,20 +38,20 @@ def run_metaclassifier_training(
     # Load the processed data splits.
     df_meta_train = load_dataframe(
         Path(config.data_paths.processed_attack_data_path),
-        "master_challenge_train.csv",
+        PROCESSED_TRAIN_DATA_FILE_NAME,
     )
 
     # y_meta_train consists of binary labels (0s and 1s) indicating whether each row in df_meta_train
     # belongs to the target model's training set.
     y_meta_train = np.load(
-        Path(config.data_paths.processed_attack_data_path) / "master_challenge_train_labels.npy",
+        Path(config.data_paths.processed_attack_data_path) / PROCESSED_TRAIN_LABELS_FILE_NAME,
     )
     df_meta_test = load_dataframe(
         Path(config.data_paths.processed_attack_data_path),
-        "master_challenge_test.csv",
+        PROCESSED_TEST_DATA_FILE_NAME,
     )
     y_meta_test = np.load(
-        Path(config.data_paths.processed_attack_data_path) / "master_challenge_test_labels.npy",
+        Path(config.data_paths.processed_attack_data_path) / PROCESSED_TEST_LABELS_FILE_NAME,
     )
 
     # Three sets of shadow models are trained separately and their paths are provided here.
@@ -63,6 +70,7 @@ def run_metaclassifier_training(
         with open(model_path, "rb") as f:
             shadow_data_and_result = pickle.load(f)
             shadow_data_collection.append(shadow_data_and_result)
+            log(INFO, f"Shadow model data loaded from {model_path}.")
 
     assert Path(target_model_synthetic_path).exists(), (
         f"No file found at {target_model_synthetic_path}. "
@@ -71,13 +79,22 @@ def run_metaclassifier_training(
 
     # Load the target model's synthetic data
     target_synthetic_data = pd.read_csv(target_model_synthetic_path)
+    log(
+        INFO,
+        f"Target model's synthetic data loaded from {target_model_synthetic_path} with size {len(target_synthetic_data)}.",
+    )
 
     assert target_synthetic_data is not None, "Target model's synthetic data is missing."
     target_synthetic_data = target_synthetic_data.copy()
 
+    data_file_name = config.data_file_name if "data_file_name" in config else COLLECTED_DATA_FILE_NAME
     df_reference = load_dataframe(
         Path(config.data_paths.population_path),
-        "population_all_with_challenge_no_id.csv",
+        f"{Path(data_file_name).stem}_no_id.csv",
+    )
+    log(
+        INFO,
+        f"Reference population data loaded from {config.data_paths.population_path} with size {len(df_reference)}.",
     )
 
     # Extract trans_id from both train and test dataframes
@@ -116,7 +133,7 @@ def run_metaclassifier_training(
     )
 
     model_filename = config.metaclassifier.meta_classifier_model_name
-    model_path = Path(config.model_paths.metaclassifier_model_path) / f"{model_filename}.pkl"
+    model_path = Path(config.metaclassifier.metaclassifier_model_path) / f"{model_filename}.pkl"
     model_path.parent.mkdir(parents=True, exist_ok=True)
     with open(model_path, "wb") as f:
         pickle.dump(blending_attacker.trained_model, f)

@@ -3,7 +3,7 @@ from enum import Enum
 import numpy as np
 
 
-Relation = tuple[str, str]
+Relation = tuple[str | None, str]
 RelationOrder = list[Relation]
 GroupLengthProbDict = dict[int, dict[int, float]]
 GroupLengthsProbDicts = dict[Relation, GroupLengthProbDict]

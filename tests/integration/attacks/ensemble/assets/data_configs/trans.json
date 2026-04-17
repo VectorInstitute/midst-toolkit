@@ -1,6 +1,6 @@
 {
     "general": {
-        "data_dir": "tests/integration/attacks/ensemble/assets/shadow_models_data",
+        "data_dir": "tests/integration/attacks/ensemble/assets/data_configs",
         "exp_name": "ensemble_attack",
         "workspace_dir": "tests/integration/attacks/ensemble/assets/workspace",
         "sample_prefix": "",

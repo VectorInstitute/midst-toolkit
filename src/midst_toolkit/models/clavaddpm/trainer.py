@@ -2,12 +2,14 @@
 
 from collections.abc import Generator, Iterator
 from copy import deepcopy
+from logging import INFO
 
 import numpy as np
 import pandas as pd
 import torch
 from torch import Tensor, nn
 
+from midst_toolkit.common.logger import log
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 
@@ -115,7 +117,7 @@ class ClavaDDPMTrainer:
                 mloss = np.around(curr_loss_multi / curr_count, 4)
                 gloss = np.around(curr_loss_gauss / curr_count, 4)
                 if (step + 1) % self.print_every == 0:
-                    print(f"Step {(step + 1)}/{self.steps} MLoss: {mloss} GLoss: {gloss} Sum: {mloss + gloss}")
+                    log(INFO, f"Step {(step + 1)}/{self.steps} MLoss: {mloss} GLoss: {gloss} Sum: {mloss + gloss}")
 
                 # TODO: switch this for a concat for better code readability
                 self.loss_history.loc[len(self.loss_history)] = [

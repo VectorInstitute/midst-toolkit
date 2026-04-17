@@ -171,7 +171,7 @@ def log_add_exp(a: Tensor, b: Tensor) -> Tensor:
 
 def extract(input_tensor: Tensor, index: Tensor, output_shape: tuple[int, ...]) -> Tensor:
     """
-    Extract the value at ``index`` from a the ``input_tensor``.
+    Extract the value at ``index`` from the ``input_tensor``.
 
     Will return the extracted value as a tensor of shape ``output_shape``
     with the value at ``index`` repeated to fit the shape.

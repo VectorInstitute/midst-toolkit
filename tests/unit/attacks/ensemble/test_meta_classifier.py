@@ -8,6 +8,7 @@ from hydra import compose, initialize
 from omegaconf import DictConfig
 
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
+from midst_toolkit.evaluation.privacy.mia_metrics import TprAtFpr
 
 
 MOCK_COLUMN_TYPES_CONTENT = {
@@ -321,7 +322,7 @@ class TestBlendingPlusPlus:
 
     @patch("builtins.open", new_callable=mock_open)
     @patch("midst_toolkit.attacks.ensemble.blending.BlendingPlusPlus._prepare_meta_features")
-    @patch("midst_toolkit.attacks.ensemble.blending.get_tpr_at_fpr")
+    @patch.object(TprAtFpr, "get_tpr_at_fpr")
     def test_predict_flow(
         self, mock_get_tpr, mock_prepare_features, mock_file, mock_config_with_json_path, sample_dataframes
     ):
@@ -358,7 +359,7 @@ class TestBlendingPlusPlus:
         call_args = mock_get_tpr.call_args
 
         np.testing.assert_array_equal(call_args.kwargs["true_membership"], sample_dataframes["y_test"])
-        np.testing.assert_array_almost_equal(call_args.kwargs["predictions"], expected_probabilities)
-        np.testing.assert_equal(call_args.kwargs["max_fpr"], 0.1)
+        np.testing.assert_array_almost_equal(call_args.kwargs["predicted_membership"], expected_probabilities)
+        np.testing.assert_equal(call_args.kwargs["fpr_threshold"], 0.1)
 
         assert score == 0.99

@@ -10,10 +10,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import torch
+from sdv.single_table import CTGANSynthesizer
 from sklearn.preprocessing import LabelEncoder
 from torch import Tensor, optim
 
-from midst_toolkit.common.config import ClassifierConfig, DiffusionConfig
+from midst_toolkit.common.config import ClavaDDPMClassifierConfig, ClavaDDPMDiffusionConfig
 from midst_toolkit.common.enumerations import DataSplit, DomainDataType, TaskType
 from midst_toolkit.common.logger import KeyValueLogger, log
 from midst_toolkit.common.variables import DEVICE
@@ -39,6 +40,17 @@ from midst_toolkit.models.clavaddpm.trainer import ClavaDDPMTrainer
 
 @dataclass
 class ModelArtifacts:
+    pass
+
+
+@dataclass
+class CTGANModelArtifacts(ModelArtifacts):
+    model: CTGANSynthesizer
+    model_file_path: Path
+
+
+@dataclass
+class ClavaDDPMModelArtifacts(ModelArtifacts):
     diffusion: GaussianMultinomialDiffusion
     label_encoders: dict[int, LabelEncoder]
     dataset: Dataset
@@ -58,10 +70,10 @@ def clava_training(
     tables: Tables,
     relation_order: RelationOrder,
     save_dir: Path,
-    diffusion_config: DiffusionConfig,
-    classifier_config: ClassifierConfig | None = None,
+    diffusion_config: ClavaDDPMDiffusionConfig,
+    classifier_config: ClavaDDPMClassifierConfig | None = None,
     device: torch.device = DEVICE,
-) -> tuple[Tables, dict[Relation, ModelArtifacts]]:
+) -> tuple[Tables, dict[Relation, ClavaDDPMModelArtifacts]]:
     """
     Training function for the ClavaDDPM model.
 
@@ -82,7 +94,7 @@ def clava_training(
     """
     models = {}
     for parent, child in relation_order:
-        print(f"Training {parent} -> {child} model from scratch")
+        log(INFO, f"Training {parent} -> {child} model from scratch")
         df_with_cluster = tables[child].data
         id_cols = [col for col in df_with_cluster.columns if "_id" in col]
         df_without_id = df_with_cluster.drop(columns=id_cols)
@@ -123,10 +135,10 @@ def child_training(
     child_domain: dict[str, Any],
     parent_name: str | None,
     child_name: str,
-    diffusion_config: DiffusionConfig,
-    classifier_config: ClassifierConfig | None = None,
+    diffusion_config: ClavaDDPMDiffusionConfig,
+    classifier_config: ClavaDDPMClassifierConfig | None = None,
     device: torch.device = DEVICE,
-) -> ModelArtifacts:
+) -> ClavaDDPMModelArtifacts:
     """
     Training function for a single child table.
 
@@ -205,9 +217,9 @@ def train_model(
     table_metadata: TableMetadata,
     model_params: ModelParameters,
     transformations: Transformations,
-    diffusion_config: DiffusionConfig,
+    diffusion_config: ClavaDDPMDiffusionConfig,
     device: torch.device = DEVICE,
-) -> ModelArtifacts:
+) -> ClavaDDPMModelArtifacts:
     """
     Training function for the diffusion model.
 
@@ -244,7 +256,7 @@ def train_model(
     input_dimension = np.sum(category_sizes) + num_numerical_features
     model_params.input_dimension = input_dimension
 
-    print("Model params: {}".format(model_params))
+    log(INFO, "Model params: {}".format(model_params))
     model = diffusion_config.model_type.get_model(model_params)
     model.to(device)
 
@@ -281,7 +293,7 @@ def train_model(
     if dataset.numerical_transform is not None:
         inverse_transform_function = dataset.numerical_transform.inverse_transform
 
-    return ModelArtifacts(
+    return ClavaDDPMModelArtifacts(
         diffusion=diffusion,
         label_encoders=label_encoders,
         dataset=dataset,
@@ -299,8 +311,8 @@ def train_classifier(
     table_metadata: TableMetadata,
     model_params: ModelParameters,
     transformations: Transformations,
-    diffusion_config: DiffusionConfig,
-    classifier_config: ClassifierConfig,
+    diffusion_config: ClavaDDPMDiffusionConfig,
+    classifier_config: ClavaDDPMClassifierConfig,
     device: torch.device = DEVICE,
     cluster_col: str = "cluster",
     classifier_evaluation_interval: int = 5,
@@ -334,7 +346,7 @@ def train_classifier(
         table_metadata=table_metadata,
         noise_scale=0,
     )
-    print(dataset.n_features)
+    log(INFO, f"Number of dataset features: {dataset.n_features}")
     train_loader = prepare_fast_dataloader(
         dataset,
         split=DataSplit.TRAIN,
@@ -357,7 +369,7 @@ def train_classifier(
     category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
     if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
         category_sizes = np.array([0])
-    print(category_sizes)
+    log(INFO, f"Size of categories: {category_sizes}")
 
     # TODO: understand what's going on here
     if dataset.numerical_features is None:
@@ -486,7 +498,7 @@ def get_table_metadata(df: pd.DataFrame, table_domain: dict[str, Any], target_co
 def save_table_info(
     tables: Tables,
     relation_order: RelationOrder,
-    models: dict[Relation, ModelArtifacts],
+    models: dict[Relation, ClavaDDPMModelArtifacts],
     save_dir: Path,
 ) -> None:
     """

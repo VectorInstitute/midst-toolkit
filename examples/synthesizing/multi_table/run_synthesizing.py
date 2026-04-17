@@ -7,7 +7,7 @@ import hydra
 from omegaconf import DictConfig
 
 from examples.training.multi_table import run_training
-from midst_toolkit.common.config import GeneralConfig, MatchingConfig, SamplingConfig
+from midst_toolkit.common.config import ClavaDDPMMatchingConfig, ClavaDDPMSamplingConfig, GeneralConfig
 from midst_toolkit.common.logger import TOOLKIT_LOGGER, log
 from midst_toolkit.models.clavaddpm.data_loaders import load_tables
 from midst_toolkit.models.clavaddpm.enumerations import Relation
@@ -76,8 +76,8 @@ def main(config: DictConfig) -> None:
         Path(config.results_dir),
         models,
         GeneralConfig(**config.general_config),
-        SamplingConfig(**config.sampling_config),
-        MatchingConfig(**config.matching_config),
+        ClavaDDPMSamplingConfig(**config.sampling_config),
+        ClavaDDPMMatchingConfig(**config.matching_config),
         all_group_lengths_prob_dicts,
     )
 

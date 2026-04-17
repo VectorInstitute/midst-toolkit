@@ -9,8 +9,8 @@ from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from midst_toolkit.attacks.ensemble.metric_utils import get_tpr_at_fpr
 from midst_toolkit.common.variables import DEVICE
+from midst_toolkit.evaluation.privacy.mia_scoring import TprAtFpr
 
 
 # Setting the logging level to WARNING, suppressing INFO and DEBUG messages from Optuna
@@ -103,7 +103,7 @@ class XgBoostHyperparameterTuner:
             Mean TPR at FPR=0.1 across all folds.
         """
         pipeline = self._create_xgb_pipeline(trial)
-        tpr_scorer = make_scorer(get_tpr_at_fpr)
+        tpr_scorer = make_scorer(TprAtFpr.get_tpr_at_fpr)
 
         cv_scores = cross_val_score(
             pipeline,

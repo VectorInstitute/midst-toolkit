@@ -29,17 +29,17 @@ jobs:
   run-code-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.0
+      - uses: actions/checkout@v6.0.2
 
       - name: Install uv
-        uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57
         with:
           # Install a specific version of uv.
           version: "0.5.21"
           enable-cache: true
 
       - name: "Set up Python"
-        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version-file: ".python-version"
 
@@ -55,6 +55,6 @@ jobs:
         uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
         with:
           virtual-environment: .venv/
-          # GHSA-4xh5-x5gv-qwph: This is a vulnerability in pip 25.2 that has no fix version yet
+          # CVE-2026-4539: This is a vulnerability in pygments that can't be upgraded
           ignore-vulns: |
-            GHSA-4xh5-x5gv-qwph
+            CVE-2026-4539

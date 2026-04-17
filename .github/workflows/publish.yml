@@ -16,17 +16,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install libcurl4-openssl-dev libssl-dev
-      - uses: actions/checkout@v6.0.0
+      - uses: actions/checkout@v6.0.2
 
       - name: Install uv
-        uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57
         with:
           # Install a specific version of uv.
           version: "0.5.21"
           enable-cache: true
 
       - name: "Set up Python"
-        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version-file: ".python-version"
 
@@ -37,14 +37,14 @@ jobs:
         run: uv build
 
       - name: Publish package
-        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b
         with:
           user: __token__
           password: ${{ secrets.PYPI_API_TOKEN }}
 
       - name: Create GitHub Release
         id: create_release
-        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # v1.20.0
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
         with:
           artifacts: "dist/*"
           generateReleaseNotes: true

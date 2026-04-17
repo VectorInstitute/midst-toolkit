@@ -13,7 +13,7 @@ from sklearn.cluster import KMeans
 from sklearn.mixture import BayesianGaussianMixture, GaussianMixture
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler, OneHotEncoder, QuantileTransformer
 
-from midst_toolkit.common.config import ClusteringConfig
+from midst_toolkit.common.config import ClavaDDPMClusteringConfig
 from midst_toolkit.common.enumerations import DomainDataType
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.data_loaders import NO_PARENT_COLUMN_NAME, Tables
@@ -29,7 +29,7 @@ def clava_clustering(
     tables: Tables,
     relation_order: RelationOrder,
     save_dir: Path,
-    configs: ClusteringConfig,
+    configs: ClavaDDPMClusteringConfig,
 ) -> tuple[dict[str, Any], GroupLengthsProbDicts]:
     """
     Clustering function for the multi-table function of the ClavaDDPM model.
@@ -96,7 +96,7 @@ def _load_clustering_info_from_checkpoint(save_dir: Path) -> dict[str, Any] | No
 def _run_clustering(
     tables: Tables,
     relation_order: RelationOrder,
-    configs: ClusteringConfig,
+    configs: ClavaDDPMClusteringConfig,
 ) -> tuple[Tables, GroupLengthsProbDicts]:
     """
     Run the clustering process.
@@ -112,7 +112,7 @@ def _run_clustering(
             - The tables dictionary.
             - The dictionary with the group lengths probability for all the parent-child pairs.
     """
-    all_group_lengths_prob_dicts = {}
+    all_group_lengths_prob_dicts: GroupLengthsProbDicts = {}
     relation_order_reversed = relation_order[::-1]
     for parent, child in relation_order_reversed:
         if parent is not None:

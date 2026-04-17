@@ -14,7 +14,7 @@ from sklearn.preprocessing import LabelEncoder
 from torch.nn import functional
 from tqdm import tqdm
 
-from midst_toolkit.common.config import GeneralConfig, MatchingConfig, SamplingConfig
+from midst_toolkit.common.config import ClavaDDPMMatchingConfig, ClavaDDPMSamplingConfig, GeneralConfig
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.data_loaders import NO_PARENT_COLUMN_NAME, Tables
@@ -32,7 +32,7 @@ from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
     GaussianMultinomialDiffusion,
 )
 from midst_toolkit.models.clavaddpm.model import Classifier, ModelParameters
-from midst_toolkit.models.clavaddpm.train import ModelArtifacts, get_df_without_id
+from midst_toolkit.models.clavaddpm.train import ClavaDDPMModelArtifacts, get_df_without_id
 
 
 def sample_from_diffusion(
@@ -675,7 +675,7 @@ def clava_synthesizing_matching_process(
     synthetic_tables: dict[Relation, dict[str, Any]],
     tables: Tables,
     relation_order: RelationOrder,
-    matching_config: MatchingConfig,
+    matching_config: ClavaDDPMMatchingConfig,
 ) -> dict[str, pd.DataFrame]:
     """
     Matches synthetic child tables to synthetic parent tables based on clustering information.
@@ -711,10 +711,10 @@ def clava_synthesizing(
     tables: Tables,
     relation_order: RelationOrder,
     save_dir: Path,
-    models: dict[Relation, ModelArtifacts],
+    models: dict[Relation, ClavaDDPMModelArtifacts],
     general_config: GeneralConfig,
-    sampling_config: SamplingConfig,
-    matching_config: MatchingConfig,
+    sampling_config: ClavaDDPMSamplingConfig,
+    matching_config: ClavaDDPMMatchingConfig,
     all_group_lengths_prob_dicts: GroupLengthsProbDicts | None = None,
     sample_scale: float = 1.0,
 ) -> tuple[dict[str, pd.DataFrame], float, float]:
@@ -827,7 +827,7 @@ def clava_synthesizing(
 def _synthesize_single_table(
     table_name: str,
     data: pd.DataFrame,
-    training_results: ModelArtifacts,
+    training_results: ClavaDDPMModelArtifacts,
     sample_scale: float,
     sample_batch_size: int,
 ) -> tuple[pd.DataFrame, list[int]]:
@@ -883,8 +883,8 @@ def _synthesize_single_table(
 def _synthesize_multi_table(
     parent_name: str,
     child_name: str,
-    parent_training_results: ModelArtifacts,
-    child_training_results: ModelArtifacts,
+    parent_training_results: ClavaDDPMModelArtifacts,
+    child_training_results: ClavaDDPMModelArtifacts,
     parent_synthetic_data: dict[str, Any],
     data: pd.DataFrame,
     group_length_prob_dict: GroupLengthProbDict,
