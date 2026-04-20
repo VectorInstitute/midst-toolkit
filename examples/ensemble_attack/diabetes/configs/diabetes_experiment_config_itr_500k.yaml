@@ -1,22 +1,23 @@
 # Ensemble experiment configuration for diabetes dataset, 20k
 # This config can be used to run both the Ensemble attack training (``run_attack.py``) and testing phases (``test_attack_model.py``).
-base_experiment_dir: /projects/midst-experiments/ensemble_attack/diabetes/5k # Processed data, and experiment artifacts will be stored under this directory.
+base_experiment_dir: /projects/midst-experiments/ensemble_attack/diabetes_experiments/training_iterations/500k_itr # Processed data, and experiment artifacts will be stored under this directory.
 base_data_config_dir: examples/ensemble_attack/diabetes/data_configs # Training and data type configs are saved under this directory.
 
 # Training Pipeline Control
 pipeline:
-  run_data_processing: true # Set this to false if you have already saved the processed data
-  run_shadow_model_training: true # Set this to false if shadow models are already trained and saved
-  run_metaclassifier_training: true
+  run_data_processing: True # Set this to false if you have already saved the processed data
+  run_shadow_model_training: True # Set this to false if shadow models are already trained and saved
+  run_metaclassifier_training: True
 
 target_model: # This is only used for testing the attack on a real target model.
-  target_model_directory: /projects/midst-experiments/ensemble_attack/diabetes_ver2/diabetes_data/tabddpm_black_box/final
+  target_model_directory: /projects/midst-experiments/diabetes_experiments/whitebox_single_table_DI_1/
   target_model_id: 8  # Will be overridden per SLURM array task
   target_model_name: tabddpm_${target_model.target_model_id}
-  # target_synthetic_data_path: /projects/midst-experiments/ensemble_attack/tabddpm_20k_experiment_data/20k/shadow_target_model_and_data/target_synthetic_data.csv
-  target_synthetic_data_path: ${base_experiment_dir}/shadow_target_model_and_data/target_synthetic_data.csv # VERIFY
-  challenge_data_path: ${target_model.target_model_directory}/${target_model.target_model_name}/challenge_with_id.csv
-  challenge_label_path: ${target_model.target_model_directory}/${target_model.target_model_name}/challenge_label.csv
+  target_synthetic_data_path: ${target_model.target_model_directory}/${target_model.target_model_name}/models_500K/${target_model.target_model_name}_synthesizing_500K/trans/_final/trans_synthetic_clean.csv
+
+  challenge_directory: /projects/midst-experiments/ensemble_attack/diabetes_experiments/10k_default/1k_challange_points_dir # Contains 1k challenge points
+  challenge_data_path: ${target_model.challenge_directory}/${target_model.target_model_name}/challenge_with_id.csv
+  challenge_label_path: ${target_model.challenge_directory}/${target_model.target_model_name}/challenge_label.csv
 
   target_shadow_models_output_path: ${base_experiment_dir}/test_all_targets # Sub-directory to store test shadows and results
   attack_probabilities_result_path: ${target_model.target_shadow_models_output_path}/test_probabilities/attack_model_${target_model.target_model_id}_proba
@@ -38,33 +39,33 @@ model_paths:
 
 # Dataset specific information used for processing in this example
 data_processing_config:
-  dataset_path: /projects/midst-experiments/ensemble_attack/diabetes_ver2/diabetes_data # Used to collect the data (input)
+  dataset_path: /projects/midst-experiments/ # Used to collect the data (input)
   # The following directories should exist and contain `tabddpm_{i} for i in folder_ranges`:
   # population data: midst_data_path/population_attack_data_types_to_collect/population_splits
   # challenge data: midst_data_path/challenge_attack_data_types_to_collect/challenge_splits
   population_attack_data_types_to_collect:
         [
-          "tabddpm_black_box",
+          "diabetes_experiments", # These mean nothing, just for the sake of pointing to the correct directory.
         ]
-  challenge_attack_data_types_to_collect:
+  challenge_attack_data_types_to_collect: 
         [
-          "tabddpm_black_box",
+          "diabetes_experiments",
         ]
-  population_splits: ["train"]  # Data splits to be collected for population data
-  challenge_splits: ["train" , "final"]  # Data splits to be collected for challenge points
-  test_challenge_data_path_for_training: ${target_model.target_model_directory} # We should also provide challenge points (test data points) during training of RMIA shadow models. 
+  population_splits: ["whitebox_single_table_DI_1"]  # Data splits to be collected for population data
+  challenge_splits: ["whitebox_single_table_DI_1"]  # Data splits to be collected for challenge points
+  test_challenge_data_path_for_training: ${target_model.challenge_directory} # We should also provide challenge points (test data points) during training of RMIA shadow models. 
   original_population_data_path: null
 
   # The column name in the data to be used for stratified splitting.
   column_to_stratify: "race_categorical"  # Attention: This value is not documented in the original codebase.
   folder_ranges: # Specify folder ranges for any of the mentioned splits.
-    train: [[1, 8]] # Folders to be used for train data collection in the experiments
-    final: [[8, 10]]
+    whitebox_single_table_DI_1: [[1, 8]] # Folders to be used for train data collection in the experiments
+    final: [[8, 11]]
   # File names in MIDST data directories.
   single_table_train_data_file_name: "train_with_id.csv"
   multi_table_train_data_file_name: "trans.csv"
   challenge_data_file_name: "challenge_with_id.csv"
-  population_sample_size: 10000 # Population size is the total data that your attack has access to.
+  population_sample_size: 20000 # Population size is the total data that your attack has access to.
   # In experiments, this is sampled out of all the collected training data in case the available data
   # is more than this number. Note that, half of this data is actually used for training, the other half
   # is used for evaluation. For example, with 40k population size, only 20k is used for training the attack model.
@@ -76,7 +77,7 @@ shadow_training:
   training_json_config_paths: # Config json files used for tabddpm training on the trans table
     table_domain_file_path: ${base_data_config_dir}/trans_domain.json
     dataset_meta_file_path: ${base_data_config_dir}/dataset_meta.json
-    tabddpm_training_config_path: ${base_data_config_dir}/trans.json
+    tabddpm_training_config_path: ${base_data_config_dir}/trans_itr_500k.json
   # Model training artifacts are saved under shadow_models_data_path/workspace_name/exp_name
   # Also, training configs for each shadow model are created under shadow_models_data_path.
   shadow_models_output_path: ${base_experiment_dir}/shadow_models_and_data
@@ -93,10 +94,10 @@ shadow_training:
   target_synthetic_data_path: ${shadow_training.target_model_output_path}/target_synthetic_data.csv
   # Path to final shadow target's synthetic data (relative to target_model_output_path)
   fine_tuning_config:
-    fine_tune_diffusion_iterations: 200000 # Original code: 200000
+    fine_tune_diffusion_iterations: 500000 # Original code: 200000
     fine_tune_classifier_iterations: 20000 # Original code: 20000
-    pre_train_data_size: 50000 # Original code: 60000
-  number_of_points_to_synthesize: 5000 # Number of synthetic data samples to be generated by shadow models.
+    pre_train_data_size: 50000 # Default: 50000
+  number_of_points_to_synthesize: 10000 # Number of synthetic data samples to be generated by shadow models.
   # Original code: 20000
 
 
