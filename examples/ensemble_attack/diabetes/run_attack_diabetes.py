@@ -83,7 +83,7 @@ def main(config: DictConfig) -> None:
         shadow_data_paths = shadow_pipeline.run_shadow_model_training(config, df_master_challenge_train)
         shadow_data_paths = [Path(path) for path in shadow_data_paths]
 
-    target_model_synthetic_path = shadow_pipeline.run_target_model_training(config)
+        target_model_synthetic_path = shadow_pipeline.run_target_model_training(config)
 
     if config.pipeline.run_metaclassifier_training:
         if not config.pipeline.run_shadow_model_training:

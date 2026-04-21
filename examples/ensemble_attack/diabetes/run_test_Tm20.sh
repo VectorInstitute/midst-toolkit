@@ -33,7 +33,7 @@ echo "Running test for target_model_id: $TARGET_ID using all target models' chal
 
 echo "Experiments Launched"
 
-python -m examples.ensemble_attack.diabetes.test_attack_model --config-name=diabetes_experiment_config_Tm10 target_model.target_model_id=$TARGET_ID
+python -m examples.ensemble_attack.diabetes.test_attack_model --config-name=diabetes_experiment_config_Tm20 target_model.target_model_id=$TARGET_ID
 
 
 echo "Experiments Completed"

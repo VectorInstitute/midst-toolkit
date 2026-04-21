@@ -6,13 +6,13 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:a100:1
 #SBATCH --exclude=bn083
-#SBATCH --mem=32G
-#SBATCH --job-name=test_Tm20
+#SBATCH --mem=64G
+#SBATCH --job-name=test_Tm80
 #SBATCH --output=%j_%x_%a.out
 #SBATCH --error=%j_%x_%a.err
 #SBATCH --time=16:00:00
 #SBATCH --array=0
-#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=sara.kodeiri@vectorinstitute.ai
 
 source .venv/bin/activate
@@ -33,7 +33,7 @@ echo "Running test for target_model_id: $TARGET_ID using all target models' chal
 
 echo "Experiments Launched"
 
-python -m examples.ensemble_attack.diabetes.test_attack_model --config-name=diabetes_experiment_config_Tm10 target_model.target_model_id=$TARGET_ID
+python -m examples.ensemble_attack.diabetes.test_attack_model --config-name=diabetes_experiment_config_Tm80 target_model.target_model_id=$TARGET_ID
 
 
 echo "Experiments Completed"

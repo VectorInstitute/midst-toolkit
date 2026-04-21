@@ -5,6 +5,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:a40:1
+#SBATCH --exclude=bn083
 #SBATCH --mem=128G
 #SBATCH --job-name=5k_train_diabetes
 #SBATCH --output=%j_%x.out

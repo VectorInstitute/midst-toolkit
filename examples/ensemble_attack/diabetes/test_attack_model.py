@@ -301,15 +301,7 @@ def run_metaclassifier_testing(
     meta_classifier_type = MetaClassifierType(config.metaclassifier.model_type)
 
     metaclassifier_model_name = config.metaclassifier.meta_classifier_model_name
-    mataclassifier_path = Path(config.model_paths.metaclassifier_model_path) / f"{metaclassifier_model_name}.pkl"
-    assert mataclassifier_path.exists(), (
-        f"No metaclassifier model found at {mataclassifier_path}. Make sure to run the training script first."
-    )
-
-    with open(mataclassifier_path, "rb") as f:
-        trained_mataclassifier_model = pickle.load(f)
-
-    log(INFO, f"Metaclassifier model loaded from {mataclassifier_path}, starting the test...")
+    
 
     # 2) Read target model's challenge data and synthetic data.
     # Back-box attacker has only access to the target model's synthetic data and challenge points.
@@ -362,6 +354,16 @@ def run_metaclassifier_testing(
     # Drop id columns from the test data. Berka has two id columns: "trans_id" and "account_id".
     test_data = get_df_without_id(test_data)
 
+    mataclassifier_path = Path(config.model_paths.metaclassifier_model_path) / f"{metaclassifier_model_name}.pkl"
+    assert mataclassifier_path.exists(), (
+        f"No metaclassifier model found at {mataclassifier_path}. Make sure to run the training script first."
+    )
+
+    with open(mataclassifier_path, "rb") as f:
+        trained_mataclassifier_model = pickle.load(f)
+
+    log(INFO, f"Metaclassifier model loaded from {mataclassifier_path}, starting the test...")
+    
     # 4) Initialize the attacker object, and assign the loaded metaclassifier to it.
     blending_attacker = BlendingPlusPlus(
         config=config,
@@ -390,6 +392,8 @@ def run_metaclassifier_testing(
         y_test=test_target,
     )
 
+    
+    
     # Save the validation prediction probabilities
     attack_results_path = Path(config.target_model.attack_probabilities_result_path)
     attack_results_path.mkdir(parents=True, exist_ok=True)
