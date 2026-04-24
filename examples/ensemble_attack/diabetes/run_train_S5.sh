@@ -7,10 +7,10 @@
 #SBATCH --gres=gpu:a100:1
 #SBATCH --exclude=bn083
 #SBATCH --mem=128G
-#SBATCH --job-name=train_S5
+#SBATCH --job-name=train_S5_meta
 #SBATCH --output=%j_%x.out
 #SBATCH --error=%j_%x.err
-#SBATCH --time=24:00:00
+#SBATCH --time=3:00:00
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=sara.kodeiri@vectorinstitute.ai
 
