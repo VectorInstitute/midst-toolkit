@@ -115,24 +115,43 @@ def run_metaclassifier_training(
 
     log(INFO, f"{meta_classifier_type} created with random seed {config.random_seed}.")
 
-    # 2. Train the attacker on the meta-train set
-    blending_attacker.fit(
-        df_train=df_meta_train,
-        y_train=y_meta_train,
-        df_target_synthetic=target_synthetic_data,
-        df_reference=df_reference,
-        id_column_data=train_trans_ids,
-        use_gpu=config.metaclassifier.use_gpu,
-        epochs=config.metaclassifier.epochs,
-    )
+    # Extract and save the meta features for the meta train set
 
-    model_filename = config.metaclassifier.meta_classifier_model_name
-    model_path = Path(config.model_paths.metaclassifier_model_path) / f"{model_filename}.pkl"
-    model_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(model_path, "wb") as f:
-        pickle.dump(blending_attacker.trained_model, f)
+    meta_features = blending_attacker.prepare_meta_features(
+            df_input=df_meta_train,
+            df_synthetic=target_synthetic_data,
+            df_reference=df_reference,
+            id_column_data=train_trans_ids,
+            categorical_cols=blending_attacker.column_types["categorical"],
+            numerical_cols=blending_attacker.column_types["numerical"],
+            id_column_name=blending_attacker.column_types["id_column_name"],
+        )
+    
+    # Create a directory to save the extracted features
+    features_dir = Path(config.data_paths.extracted_features_path)
+    features_dir.mkdir(parents=True, exist_ok=True)
+    file_name = "meta_train_features_" + str(config.random_seed) + ".csv"
+    meta_features.to_csv(features_dir / file_name, index=False)
+    log(INFO, f"Meta features for meta train set extracted and saved at {features_dir / file_name}.")
 
-    log(INFO, "Metaclassifier model saved, starting evaluation...")
+    # # 2. Train the attacker on the meta-train set
+    # blending_attacker.fit(
+    #     df_train=df_meta_train,
+    #     y_train=y_meta_train,
+    #     df_target_synthetic=target_synthetic_data,
+    #     df_reference=df_reference,
+    #     id_column_data=train_trans_ids,
+    #     use_gpu=config.metaclassifier.use_gpu,
+    #     epochs=config.metaclassifier.epochs,
+    # )
+
+    # model_filename = config.metaclassifier.meta_classifier_model_name
+    # model_path = Path(config.model_paths.metaclassifier_model_path) / f"{model_filename}.pkl"
+    # model_path.parent.mkdir(parents=True, exist_ok=True)
+    # with open(model_path, "wb") as f:
+    #     pickle.dump(blending_attacker.trained_model, f)
+
+    # log(INFO, "Metaclassifier model saved, starting evaluation...")
 
     # # 3. Get predictions on the meta test set (evaluation of the trained metaclassifier)
     # # For evaluation, we test the meta classifier on the meta test set provided the target's synthetic data.
@@ -152,4 +171,4 @@ def run_metaclassifier_training(
     # log(INFO, f"Evaluation prediction probabilities saved at {file_name}.")
 
     # if pred_score is not None:
-        # log(INFO, f"TPR at FPR=0.1: {pred_score:.4f}")
+    #     log(INFO, f"TPR at FPR=0.1: {pred_score:.4f}")
