@@ -1,9 +1,7 @@
 import numpy as np
 import pytest
 
-from midst_toolkit.common.enumerations import TaskType
-from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
-from midst_toolkit.models.clavaddpm.dataset_transformations import (
+from midst_toolkit.common.dataset_transformations import (
     CAT_MISSING_VALUE,
     CAT_RARE_VALUE,
     collapse_rare_categories,
@@ -11,7 +9,8 @@ from midst_toolkit.models.clavaddpm.dataset_transformations import (
     process_nans_in_categorical_features,
     transform_targets,
 )
-from midst_toolkit.models.clavaddpm.enumerations import CategoricalEncoding, CategoricalNaNPolicy, TargetPolicy
+from midst_toolkit.common.enumerations import CategoricalEncoding, CategoricalNaNPolicy, TargetPolicy, TaskType
+from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 
 
 def test_process_nans_in_categorical_features() -> None:

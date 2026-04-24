@@ -1,12 +1,10 @@
 import numpy as np
 import torch
 
+from midst_toolkit.common.dataset_utils import get_category_sizes
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
-from midst_toolkit.models.clavaddpm.dataset_utils import (
-    encode_and_merge_features,
-    get_category_sizes,
-)
+from midst_toolkit.models.clavaddpm.dataset_utils import encode_and_merge_features
 
 
 def test_get_category_sizes() -> None:

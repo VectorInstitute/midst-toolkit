@@ -32,9 +32,7 @@ from midst_toolkit.common.logger import log
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.data_loaders import prepare_fast_dataloader
 from midst_toolkit.models.clavaddpm.dataset import ClavaDDPMDataset
-from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import (
-    GaussianMultinomialDiffusion,
-)
+from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianMultinomialDiffusion
 
 
 # TODO: remove additional_timestep from here and other places since not needed for single table attack
