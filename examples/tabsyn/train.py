@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader
 
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import log
+from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.tabsyn.config import load_config
 from midst_toolkit.models.tabsyn.dataset import TabularDataset, preprocess
 from midst_toolkit.models.tabsyn.pipeline import TabSyn
@@ -71,9 +72,8 @@ def train_tabsyn(config: DictConfig) -> None:
     train_data = TabularDataset(numerical_features_train.float(), categorical_features_train)
 
     # move test data to gpu if available
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    numerical_features_test = numerical_features_test.float().to(device)
-    categorical_features_test = categorical_features_test.to(device)
+    numerical_features_test = numerical_features_test.float().to(DEVICE)
+    categorical_features_test = categorical_features_test.to(DEVICE)
 
     # create train dataloader
     train_loader: DataLoader[TabularDataset] = DataLoader[TabularDataset](
@@ -93,7 +93,7 @@ def train_tabsyn(config: DictConfig) -> None:
         categorical_features_test,
         num_numerical_features=d_numerical,
         num_classes=categories,
-        device=device,
+        device=DEVICE,
     )
 
     model_save_dir = results_dir / config.table_name
