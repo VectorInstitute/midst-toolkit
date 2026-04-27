@@ -1,0 +1,4 @@
+data_dir: examples/tabsyn/data
+results_dir: examples/tabsyn/results
+tabsyn_config: examples/tabsyn/tabsyn_config.toml
+table_name: trans

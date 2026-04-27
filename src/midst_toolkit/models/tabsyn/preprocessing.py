@@ -215,11 +215,28 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
     with open(info_path / f"{name}.json", "r") as f:
         info = json.load(f)
 
-    data_path = info["data_path"]
-    if info["file_type"] == "csv":
+    data_path: Path
+    test_path: Path | None = None
+    if (raw_data_dir / "train.csv").exists():
+        data_path = raw_data_dir / "train.csv"
+        test_path = raw_data_dir / "test.csv"
+    elif (raw_data_dir / "train.xls").exists():
+        data_path = raw_data_dir / "train.xls"
+        test_path = raw_data_dir / "test.xls"
+    else:
+        data_path = data_dir / f"{name}.csv"
+
+    assert data_path.exists(), (
+        f"Train data not found in the expected paths. Expected paths are: {data_dir}/{name}.csv, {raw_data_dir}/train.csv, {raw_data_dir}/train.xls."
+    )
+    assert test_path is None or test_path.exists(), (
+        f"Test data path not found in the expected paths. Expected paths are: {raw_data_dir}/test.csv, {raw_data_dir}/test.xls."
+    )
+
+    if data_path.suffix == ".csv":
         data_df = pd.read_csv(data_path, header=info["header"])
 
-    elif info["file_type"] == "xls":
+    elif data_path.suffix == ".xls":
         data_df = pd.read_excel(data_path, sheet_name="Data", header=1)
         data_df = data_df.drop("ID", axis=1)
 
@@ -239,9 +256,8 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
     cat_columns = [column_names[i] for i in cat_col_idx]
     target_columns = [column_names[i] for i in target_col_idx]
 
-    if info["test_path"]:
+    if test_path:
         # if testing data is given
-        test_path = info["test_path"]
         test_df = pd.read_csv(test_path)
         train_df = data_df
     else:
