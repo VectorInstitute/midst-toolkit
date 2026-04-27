@@ -295,9 +295,9 @@ class TabSyn:
         """
         ce_loss_fn = nn.CrossEntropyLoss()
         mse_loss = (numerical_features - reconstructed_numerical_features).pow(2).mean()
-        ce_loss = torch.tensor(0.0)
-        acc = torch.tensor(0.0)
-        total_num = torch.tensor(0.0)
+        ce_loss = torch.tensor(0.0, device=self.device)
+        acc = torch.tensor(0.0, device=self.device)
+        total_num = torch.tensor(0.0, device=self.device)
 
         for idx, x_cat in enumerate(reconstructed_categorical_features):
             if x_cat is not None:
