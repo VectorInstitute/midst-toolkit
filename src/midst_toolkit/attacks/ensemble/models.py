@@ -17,7 +17,7 @@ from sdv.single_table import CTGANSynthesizer
 from torch.utils.data import DataLoader
 
 from midst_toolkit.attacks.ensemble.clavaddpm_fine_tuning import clava_fine_tuning
-from midst_toolkit.common.config import ClavaDDPMTrainingConfig, CTGANTrainingConfig, TrainingConfig
+from midst_toolkit.common.config import ClavaDDPMTrainingConfig, CTGANTrainingConfig, GeneralConfig, TrainingConfig
 from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.variables import DEVICE
@@ -26,6 +26,7 @@ from midst_toolkit.models.clavaddpm.data_loaders import Tables, load_tables
 from midst_toolkit.models.clavaddpm.enumerations import GroupLengthsProbDicts, Relation, RelationOrder
 from midst_toolkit.models.clavaddpm.synthesizer import clava_synthesizing
 from midst_toolkit.models.clavaddpm.train import ClavaDDPMModelArtifacts, CTGANModelArtifacts, clava_training
+from midst_toolkit.models.tabsyn.config import load_config
 from midst_toolkit.models.tabsyn.dataset import TabularDataset, preprocess
 from midst_toolkit.models.tabsyn.pipeline import TabSyn
 from midst_toolkit.models.tabsyn.preprocessing import get_processed_data_dir, process_data
@@ -352,15 +353,7 @@ def get_single_table_svd_metadata(
     return metadata, data_without_ids
 
 
-class TabSynTrainingResult(EnsembleAttackTrainingResult):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    tabsyn_config: dict[str, Any]
-
-
 class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
-    tabsyn_config: dict[str, Any]
-
     def __init__(self, config: DictConfig):
         """
         Initialize the ensemble attack model runner for the TabSyn model with a config dictionary.
@@ -373,19 +366,28 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
                 - results_dir: The results directory for the TabSyn model.
                 - table_name: The name of the table the TabSyn model is being trained on.
         """
-        self.tabsyn_config = config.tabsyn_config
-        self.data_dir = Path(config.data_dir)
-        self.results_dir = Path(config.results_dir)
+        self.tabsyn_config = load_config(config.tabsyn_config)
         self.table_name = config.table_name
-        self.model_save_dir = self.results_dir / self.table_name
-        self.vae_save_dir = self.model_save_dir / "vae"
+        self.data_dir = Path(config.data_dir)
+        self.training_config = TrainingConfig(
+            general=GeneralConfig(
+                data_dir=self.data_dir,
+                test_data_dir=Path(f"{self.data_dir}-test"),
+                exp_name=f"{config.table_name}-ensemble-attack",
+                workspace_dir=Path(config.results_dir),
+                sample_prefix=f"{config.table_name}-ea",
+            ),
+            save_dir=Path(config.results_dir) / self.table_name,
+        )
+        assert self.training_config.save_dir is not None, "Save dir is not set"
+        self.vae_save_dir = self.training_config.save_dir / "vae"
 
     def train_or_fine_tune_and_synthesize(
         self,
         dataset: pd.DataFrame,
         synthesize: bool = True,
         trained_model: EnsembleAttackTrainingResult | None = None,
-    ) -> TabSynTrainingResult:
+    ) -> EnsembleAttackTrainingResult:
         """
         Train or fine tune a TabSyn model on the provided dataset and optionally synthesize data.
 
@@ -398,7 +400,7 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
             trained_model: The trained model to fine tune. If None, a new model will be trained.
         """
         log(INFO, "Training TabSyn model...")
-        self.results_dir.mkdir(parents=True, exist_ok=True)
+        self.training_config.general.workspace_dir.mkdir(parents=True, exist_ok=True)
 
         tabsyn: TabSyn
         synthetic_data: pd.DataFrame | None = None
@@ -411,10 +413,9 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
         if synthesize:
             synthetic_data = self._synthesize(tabsyn)
 
-        return TabSynTrainingResult(
-            save_dir=self.results_dir,
+        return EnsembleAttackTrainingResult(
+            save_dir=self.training_config.general.workspace_dir,
             configs=None,
-            tabsyn_config=self.tabsyn_config,
             models=tabsyn,
             synthetic_data=synthetic_data,
         )
@@ -433,6 +434,8 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
 
     def _train(self) -> TabSyn:
         log(INFO, "Training new TabSyn model...")
+
+        assert self.training_config.save_dir is not None, "Save dir is not set"
 
         process_data(self.table_name, self.data_dir, self.data_dir)
 
@@ -547,7 +550,7 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
         tabsyn.train_diffusion(
             latent_train_loader,
             num_epochs=self.tabsyn_config["train"]["diffusion"]["num_epochs"],
-            ckpt_path=self.model_save_dir,
+            ckpt_path=self.training_config.save_dir,
         )
 
         log(INFO, "Training Done!")
@@ -556,6 +559,8 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
 
     def _synthesize(self, tabsyn: TabSyn) -> pd.DataFrame:
         ###### Load the model ######
+
+        assert self.training_config.save_dir is not None, "Save dir is not set"
 
         # instantiate VAE model
         tabsyn.instantiate_vae(**self.tabsyn_config["model_params"], optim_params=None)
@@ -570,7 +575,7 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
         tabsyn.instantiate_diffusion(in_dim=in_dim, hid_dim=hid_dim, optim_params=None)
 
         # load state from checkpoint
-        tabsyn.load_model_state(ckpt_dir=self.model_save_dir, dif_ckpt_name="model.pt")
+        tabsyn.load_model_state(ckpt_dir=self.training_config.save_dir, dif_ckpt_name="model.pt")
 
         ###### Synthesize data ######
 
@@ -586,7 +591,7 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
             inverse=True,
         )
 
-        synthetic_data_dir = self.results_dir / self.table_name / "synthetic_data"
+        synthetic_data_dir = self.training_config.save_dir / "synthetic_data"
         synthetic_data_dir.mkdir(parents=True, exist_ok=True)
 
         # load data info file
