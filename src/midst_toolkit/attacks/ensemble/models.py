@@ -379,8 +379,16 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
             ),
             save_dir=Path(config.results_dir) / self.table_name,
         )
+
+    @property
+    def vae_save_dir(self) -> Path:
+        """
+        Get the directory to save the VAE model.
+
+        Will return the save directory relative to the current self.training_config.save_dir.
+        """
         assert self.training_config.save_dir is not None, "Save dir is not set"
-        self.vae_save_dir = self.training_config.save_dir / "vae"
+        return self.training_config.save_dir / "vae"
 
     def train_or_fine_tune_and_synthesize(
         self,
