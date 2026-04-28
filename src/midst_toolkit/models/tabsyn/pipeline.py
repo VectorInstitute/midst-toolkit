@@ -60,9 +60,22 @@ class TabSyn:
         self.device = device
 
     def instantiate_vae(
-        self, n_head: int, factor: int, num_layers: int, d_token: int, optim_params: dict[str, Any]
+        self,
+        n_head: int,
+        factor: int,
+        num_layers: int,
+        d_token: int,
+        optim_params: dict[str, Any] | None = None,
     ) -> None:
-        """Construct VAE model and its optimizer and lr scheduler."""
+        """Construct VAE model and its optimizer and lr scheduler.
+
+        Args:
+            n_head: The number of heads.
+            factor: The factor for the dimension of the hidden layer.
+            num_layers: The number of layers.
+            d_token: The dimension of the token.
+            optim_params: The optimizer parameters. Optional, defaults to None.
+        """
         # construct vae model
         self.vae_model, self.pre_encoder, self.pre_decoder = self.__get_vae_model(n_head, factor, num_layers, d_token)
         # construct vae optimizer and scheduler
@@ -70,8 +83,14 @@ class TabSyn:
             self.vae_optimizer, self.vae_scheduler = self.__load_optim(self.vae_model, **optim_params)
         log(INFO, "Successfully instantiated VAE model.")
 
-    def instantiate_diffusion(self, in_dim: int, hid_dim: int, optim_params: dict[str, Any]) -> None:
-        """Construct Diffusion model and its optimizer and lr scheduler."""
+    def instantiate_diffusion(self, in_dim: int, hid_dim: int, optim_params: dict[str, Any] | None) -> None:
+        """Construct Diffusion model and its optimizer and lr scheduler.
+
+        Args:
+            in_dim: The dimension of the input.
+            hid_dim: The dimension of the hidden layer.
+            optim_params: The optimizer parameters. Optional, defaults to None.
+        """
         # load diffusion model
         self.dif_model = self.__get_diffusion_model(in_dim=in_dim, hid_dim=hid_dim)
         # load optimizer and scheduler
