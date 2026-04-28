@@ -29,7 +29,7 @@ def tabsyn_synthesize(config: DictConfig) -> None:
     vae_save_dir = model_save_dir / "vae"
 
     if not (model_save_dir / "model.pt").exists() or not (vae_save_dir / "model.pt").exists():
-        log(INFO, "Model not found. Training the model...")
+        log(INFO, "Trained model not found. Training the model...")
         train_tabsyn(config)
 
     else:
@@ -42,8 +42,7 @@ def tabsyn_synthesize(config: DictConfig) -> None:
     dataset_path = get_processed_data_dir(Path(config.data_dir)) / config.table_name
     ref_dataset_path = Path(f"{dataset_path}_all")
 
-    current_dir = Path(__file__).resolve().parent
-    tabsyn_config = load_config(current_dir / "tabsyn_config.toml")
+    tabsyn_config = load_config(Path(config.tabsyn_config))
 
     log(INFO, "Instantiating the TabSyn model...")
 
@@ -110,7 +109,7 @@ def tabsyn_synthesize(config: DictConfig) -> None:
         save_path=synthetic_data_dir / f"{config.table_name}_synthetic.csv",
     )
 
-    log(INFO, "Done!")
+    log(INFO, "Synthesizing Done!")
 
 
 if __name__ == "__main__":

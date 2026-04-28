@@ -31,8 +31,7 @@ def train_tabsyn(config: DictConfig) -> None:
 
     process_data(config.table_name, Path(config.data_dir), Path(config.data_dir))
 
-    current_dir = Path(__file__).resolve().parent
-    tabsyn_config = load_config(current_dir / "tabsyn_config.toml")
+    tabsyn_config = load_config(Path(config.tabsyn_config))
 
     # The preprocess function below expects 2 folders of preprocessed data:
     # 1. the dataset to be processed, which can be a subset of the full dataset
@@ -158,7 +157,7 @@ def train_tabsyn(config: DictConfig) -> None:
         ckpt_path=model_save_dir,
     )
 
-    log(INFO, "Done!")
+    log(INFO, "Training Done!")
 
 
 if __name__ == "__main__":
