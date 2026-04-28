@@ -4,3 +4,5 @@ https://drive.google.com/file/d/1HTgfgeL5GXc8uAGfeQirJrUynK7vFeyb/view?usp=shari
 
 
 python -m examples.tabsyn.train
+
+python -m examples.tabsyn.synthesize
