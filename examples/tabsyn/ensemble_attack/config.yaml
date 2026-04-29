@@ -6,6 +6,9 @@ tabsyn_config: examples/tabsyn/tabsyn_config.toml
 table_name: trans
 data_file_name: ${table_name}.csv
 
+training:
+  sample_size: 20000  # number of rows to sample from the real data for training
+
 ensemble_attack:
   random_seed: null  # Set this to a value if you want to set a random seed for reproducibility
   table_id_column_name: "trans_id"

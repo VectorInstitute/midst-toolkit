@@ -3,6 +3,7 @@ from logging import INFO
 from pathlib import Path
 
 import hydra
+import pandas as pd
 import torch
 from omegaconf import DictConfig
 from torch import Tensor
@@ -29,7 +30,13 @@ def train_tabsyn(config: DictConfig) -> None:
     results_dir = Path(config.results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    process_data(config.table_name, Path(config.data_dir), Path(config.data_dir))
+    data_name = _sample_data_if_needed(
+        config.table_name,
+        Path(config.data_dir),
+        Path(config.results_dir),
+        config.get("training", {}).get("sample_size", None),
+    )
+    process_data(config.table_name, Path(config.data_dir), Path(config.data_dir), data_name=data_name)
 
     tabsyn_config = load_config(Path(config.tabsyn_config))
 
@@ -158,6 +165,21 @@ def train_tabsyn(config: DictConfig) -> None:
     )
 
     log(INFO, "Training Done!")
+
+
+def _sample_data_if_needed(table_name: str, data_dir: Path, results_dir: Path, sample_size: int | None) -> str:
+    data_name = table_name
+    if sample_size:
+        log(INFO, f"Sampling {sample_size} rows from data...")
+        all_data = pd.read_csv(data_dir / f"{table_name}.csv")
+        sampled_data = all_data.sample(n=sample_size)
+        results_dir.mkdir(parents=True, exist_ok=True)
+
+        data_name = f"{table_name}_sampled"
+        sampled_data.to_csv(results_dir / f"{data_name}.csv", index=False)
+        sampled_data.to_csv(data_dir / f"{data_name}.csv", index=False)
+
+    return data_name
 
 
 if __name__ == "__main__":
