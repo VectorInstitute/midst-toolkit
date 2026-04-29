@@ -7,4 +7,6 @@ python -m examples.tabsyn.train
 
 python -m examples.tabsyn.synthesize
 
+python -m examples.gan.ensemble_attack.make_challenge_dataset
+
 python -m examples.tabsyn.ensemble_attack.train_attack_model
