@@ -216,7 +216,7 @@ def process_data(name: str, info_path: Path, data_dir: Path, data_name: str | No
     elif name == "beijing":
         preprocess_beijing(info_path)
 
-    with open(info_path / f"{name}.json", "r") as f:
+    with open(info_path / f"{name}_info.json", "r") as f:
         info = json.load(f)
 
     data_path: Path
