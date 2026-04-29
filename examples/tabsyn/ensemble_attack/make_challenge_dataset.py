@@ -33,6 +33,8 @@ def make_challenge_dataset(config: DictConfig) -> None:
     log(INFO, f"Saving challenge labels to {challenge_label_path}")
     np.save(challenge_label_path, challenge_data_labels)
 
+    log(INFO, "Done!")
+
 
 if __name__ == "__main__":
     make_challenge_dataset()
