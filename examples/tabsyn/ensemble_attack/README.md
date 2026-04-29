@@ -1,6 +1,6 @@
 Dataset:
 
-https://drive.google.com/file/d/16XCa63eD2dZ1bddhgRbGFuzAuuMlto9P/view?usp=drive_link
+https://drive.google.com/file/d/16XCa63eD2dZ1bddhgRbGFuzAuuMlto9P/view?usp=sharing
 
 
 python -m examples.tabsyn.train --config-path=./ensemble_attack
