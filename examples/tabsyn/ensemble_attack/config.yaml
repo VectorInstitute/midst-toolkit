@@ -71,7 +71,7 @@ ensemble_attack:
     metaclassifier_model_path: ${results_dir}/trained_models # Path where the trained metaclassifier model will be saved
 
   target_model: # This is only used for testing the attack on a real target model.
-    target_synthetic_data_path: ${results_dir}/${table_name}_synthetic.csv
+    target_synthetic_data_path: ${results_dir}/${table_name}/synthetic_data/${table_name}_synthetic.csv
     challenge_data_path: ${ensemble_attack.data_paths.processed_attack_data_path}/${table_name}_challenge_data.csv
     challenge_label_path: ${ensemble_attack.data_paths.processed_attack_data_path}/${table_name}_challenge_labels.npy
 

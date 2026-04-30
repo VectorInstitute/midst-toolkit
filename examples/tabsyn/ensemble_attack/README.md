@@ -12,3 +12,5 @@ python -m examples.tabsyn.ensemble_attack.make_challenge_dataset
 python -m examples.tabsyn.ensemble_attack.train_attack_model
 
 python -m examples.tabsyn.ensemble_attack.test_attack_model
+
+python -m examples.gan.ensemble_attack.compute_attack_success
