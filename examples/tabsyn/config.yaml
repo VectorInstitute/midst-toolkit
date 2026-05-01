@@ -2,3 +2,6 @@ data_dir: examples/tabsyn/data
 results_dir: examples/tabsyn/results
 tabsyn_config: examples/tabsyn/tabsyn_config.toml
 table_name: trans
+
+# training:
+#   sample_size: 20000  # Optional:number of rows to sample from the real data for training

@@ -3,6 +3,7 @@
 import copy
 import json
 import shutil
+import tempfile
 from abc import ABC, abstractmethod
 from logging import INFO
 from pathlib import Path
@@ -368,17 +369,20 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
         """
         self.tabsyn_config = load_config(config.tabsyn_config)
         self.table_name = config.table_name
-        self.data_dir = Path(config.data_dir)
+        self.full_data_dir = Path(config.data_dir)
         self.training_config = TrainingConfig(
             general=GeneralConfig(
-                data_dir=self.data_dir,
-                test_data_dir=Path(f"{self.data_dir}-test"),
+                data_dir=self.full_data_dir,
+                test_data_dir=Path(f"{self.full_data_dir}-test"),
                 exp_name=f"{config.table_name}-ensemble-attack",
                 workspace_dir=Path(config.results_dir),
                 sample_prefix=f"{config.table_name}-ea",
             ),
             save_dir=Path(config.results_dir) / self.table_name,
         )
+
+        log(INFO, "Processing TabSyn full dataset...")
+        process_data(self.table_name, self.full_data_dir, self.full_data_dir)
 
     @property
     def vae_save_dir(self) -> Path:
@@ -407,17 +411,16 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
                 config. Optional, default is True.
             trained_model: The trained model to fine tune. If None, a new model will be trained.
         """
-        log(INFO, "Training TabSyn model...")
+        log(INFO, "Training or Fine Tuning TabSyn model...")
         self.training_config.general.workspace_dir.mkdir(parents=True, exist_ok=True)
 
-        tabsyn: TabSyn
-        synthetic_data: pd.DataFrame | None = None
-        if trained_model is None:
-            tabsyn = self._train()
-        else:
-            log(INFO, "Instantiating the TabSyn model...")
-            tabsyn = copy.deepcopy(trained_model.models)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tabsyn = copy.deepcopy(trained_model.models) if trained_model is not None else None
 
+            temp_path = self._populate_temp_dataset_dir(temp_dir, dataset)
+            tabsyn = self._train_or_fine_tune(temp_path, tabsyn)
+
+        synthetic_data: pd.DataFrame | None = None
         if synthesize:
             synthetic_data = self._synthesize(tabsyn)
 
@@ -428,28 +431,42 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
             synthetic_data=synthetic_data,
         )
 
-    def _dataset_and_ref_dataset_paths(self) -> tuple[Path, Path]:
+    def _populate_temp_dataset_dir(self, temp_dir: str, dataset: pd.DataFrame) -> Path:
+        temp_path = Path(temp_dir)
+
+        dataset.to_csv(temp_path / f"{self.table_name}.csv", index=False)
+        files_to_copy = [
+            f"{self.table_name}.json",
+            f"{self.table_name}_info.json",
+        ]
+        for filename in files_to_copy:
+            shutil.copy(self.full_data_dir / filename, temp_path / filename)
+
+        return temp_path
+
+    def _dataset_and_ref_dataset_paths(self, data_dir: Path) -> tuple[Path, Path]:
         # The preprocess function below expects 2 folders of preprocessed data:
         # 1. the dataset to be processed, which can be a subset of the full dataset
         # 2. the full dataset, which is used to unsure it will get all the categories for the categorical features
-        # Here we are making the dataset #2 (full dataset) by copying the dataset #1
-        dataset_path = get_processed_data_dir(self.data_dir) / self.table_name
+        dataset_path = get_processed_data_dir(data_dir) / self.table_name
+        full_dataset_path = get_processed_data_dir(self.full_data_dir) / self.table_name
         ref_dataset_path = Path(f"{dataset_path}_all")
         shutil.rmtree(ref_dataset_path, ignore_errors=True)
-        shutil.copytree(dataset_path, ref_dataset_path)
+        shutil.copytree(full_dataset_path, ref_dataset_path)
 
         return dataset_path, ref_dataset_path
 
-    def _train(self) -> TabSyn:
-        log(INFO, "Training new TabSyn model...")
+    def _train_or_fine_tune(self, data_dir: Path, tabsyn: TabSyn | None) -> TabSyn:
+        fine_tune = tabsyn is not None
+        log(INFO, f"{'Fine Tuning' if fine_tune else 'Training'} new TabSyn model...")
 
         assert self.training_config.save_dir is not None, "Save dir is not set"
 
-        process_data(self.table_name, self.data_dir, self.data_dir)
+        process_data(self.table_name, data_dir, data_dir)
 
         log(INFO, "Preprocessing data...")
 
-        dataset_path, ref_dataset_path = self._dataset_and_ref_dataset_paths()
+        dataset_path, ref_dataset_path = self._dataset_and_ref_dataset_paths(data_dir)
 
         # preprocess the data
         # TODO: refactor the return of the preprocess function so we don't need to ignore mypy here
@@ -465,6 +482,8 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
         numerical_features_test = numerical_features[DataSplit.TEST.value]
         categorical_features_train = categorical_features[DataSplit.TRAIN.value]
         categorical_features_test = categorical_features[DataSplit.TEST.value]
+
+        log(INFO, f"Dataset size: {numerical_features_train.shape[0]}")
 
         # convert to float tensor
         numerical_features_train = torch.tensor(numerical_features_train).float()
@@ -490,28 +509,36 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
             num_workers=self.tabsyn_config["train"]["vae"]["num_dataset_workers"],
         )
 
-        log(INFO, "Instantiating the TabSyn model...")
-
-        # Instantiate the model
-        tabsyn = TabSyn(
-            train_loader,
-            numerical_features_test,
-            categorical_features_test,
-            num_numerical_features=d_numerical,
-            num_classes=categories,
-            device=DEVICE,
-        )
-        self.vae_save_dir.mkdir(parents=True, exist_ok=True)
+        if fine_tune:
+            # Load the data into the existing model
+            log(INFO, "Loading data into existing TabSyn model...")
+            assert tabsyn is not None, "TabSyn model is not set"
+            tabsyn.train_loader = train_loader
+            tabsyn.numerical_features_test = numerical_features_test
+            tabsyn.categorical_features_test = categorical_features_test
+        else:
+            # Instantiate the model
+            log(INFO, "Instantiating the TabSyn model...")
+            tabsyn = TabSyn(
+                train_loader,
+                numerical_features_test,
+                categorical_features_test,
+                num_numerical_features=d_numerical,
+                num_classes=categories,
+                device=DEVICE,
+            )
 
         ###### A. Train the VAE model ######
 
-        log(INFO, "Training the TabSyn VAE model...")
+        log(INFO, f"{'Fine tuning' if fine_tune else 'Training'} the TabSyn VAE model...")
 
-        # instantiate VAE model for training
-        tabsyn.instantiate_vae(
-            **self.tabsyn_config["model_params"],
-            optim_params=self.tabsyn_config["train"]["optim"]["vae"],
-        )
+        self.vae_save_dir.mkdir(parents=True, exist_ok=True)
+        if not fine_tune:
+            # instantiate VAE model for training
+            tabsyn.instantiate_vae(
+                **self.tabsyn_config["model_params"],
+                optim_params=self.tabsyn_config["train"]["optim"]["vae"],
+            )
 
         tabsyn.train_vae(
             **self.tabsyn_config["loss_params"],
@@ -529,7 +556,7 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
 
         ###### B. Train the Diffusion model ######
 
-        log(INFO, "Training the TabSyn Diffusion model...")
+        log(INFO, f"{'Fine tuning' if fine_tune else 'Training'} the TabSyn Diffusion model...")
 
         # load latent space embeddings
         train_z, _ = tabsyn.load_latent_embeddings(self.vae_save_dir)  # train_z dim: B x in_dim
@@ -547,12 +574,13 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
             num_workers=self.tabsyn_config["train"]["diffusion"]["num_dataset_workers"],
         )
 
-        # instantiate diffusion model for training
-        tabsyn.instantiate_diffusion(
-            in_dim=train_z.shape[1],
-            hid_dim=train_z.shape[1],
-            optim_params=self.tabsyn_config["train"]["optim"]["diffusion"],
-        )
+        if not fine_tune:
+            # instantiate diffusion model for training
+            tabsyn.instantiate_diffusion(
+                in_dim=train_z.shape[1],
+                hid_dim=train_z.shape[1],
+                optim_params=self.tabsyn_config["train"]["optim"]["diffusion"],
+            )
 
         # train diffusion model
         tabsyn.train_diffusion(
@@ -561,7 +589,7 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
             ckpt_path=self.training_config.save_dir,
         )
 
-        log(INFO, "Training Done!")
+        log(INFO, f"{'Fine tuning' if fine_tune else 'Training'} Done!")
 
         return tabsyn
 
@@ -587,7 +615,7 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
 
         ###### Synthesize data ######
 
-        dataset_path, ref_dataset_path = self._dataset_and_ref_dataset_paths()
+        dataset_path, ref_dataset_path = self._dataset_and_ref_dataset_paths(self.full_data_dir)
 
         # get inverse tokenizers
         # TODO: refactor the return of the preprocess function so we don't need to ignore mypy here
