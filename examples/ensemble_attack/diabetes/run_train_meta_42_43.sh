@@ -7,10 +7,10 @@
 #SBATCH --gres=gpu:a100:1
 #SBATCH --exclude=bn083
 #SBATCH --mem=128G
-#SBATCH --job-name=extract_rs_45
+#SBATCH --job-name=meta_42_43_44_45_46
 #SBATCH --output=%j_%x.out
 #SBATCH --error=%j_%x.err
-#SBATCH --time=14:00:00
+#SBATCH --time=1:00:00
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=sara.kodeiri@vectorinstitute.ai
 
@@ -23,6 +23,6 @@ which python
 
 echo "Experiments Launched"
 
-python -m examples.ensemble_attack.diabetes.run_attack_diabetes --config-name=diabetes_experiment_config_45.yaml
+python -m examples.ensemble_attack.diabetes.run_attack_diabetes --config-name=diabetes_experiment_config_target_2.yaml
 
 echo "Experiments Completed"

@@ -9,8 +9,8 @@ base_data_config_dir: examples/ensemble_attack/diabetes/data_configs # Training 
 
 # Training Pipeline Control
 pipeline:
-  run_data_processing: True # Set this to false if you have already saved the processed data
-  run_shadow_model_training: True # Set this to false if shadow models are already trained and saved
+  run_data_processing: False # Set this to false if you have already saved the processed data
+  run_shadow_model_training: False # Set this to false if shadow models are already trained and saved
   run_metaclassifier_training: True
 
 target_model: # This is only used for testing the attack on a real target model.

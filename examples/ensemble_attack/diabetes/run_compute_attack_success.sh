@@ -5,7 +5,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=32G
-#SBATCH --job-name=success_Tm100
+#SBATCH --job-name=success_S6
 #SBATCH --output=%j_%x.out
 #SBATCH --error=%j_%x.err
 #SBATCH --time=00:20:00
@@ -21,4 +21,4 @@ TARGET_IDS=(8 9 10)  # List of target IDs
 
 
 
-PYTHONPATH=./src /h/skodeiri/second/midst-toolkit/.venv/bin/python -m examples.ensemble_attack.diabetes.compute_attack_success --config-name=diabetes_experiment_config_Tm100
+PYTHONPATH=./src /h/skodeiri/second/midst-toolkit/.venv/bin/python -m examples.ensemble_attack.diabetes.compute_attack_success --config-name=diabetes_experiment_config_S6

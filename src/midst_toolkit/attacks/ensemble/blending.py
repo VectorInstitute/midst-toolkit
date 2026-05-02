@@ -27,7 +27,7 @@ class BlendingPlusPlus:
     def __init__(
         self,
         config: DictConfig,
-        shadow_data_collection: list[dict[str, list[Any]]],
+        # shadow_data_collection: list[dict[str, list[Any]]],
         data_types_file_path: Path,
         meta_classifier_type: MetaClassifierType = MetaClassifierType.XGB,
         random_seed: int | None = None,
@@ -59,13 +59,13 @@ class BlendingPlusPlus:
         with open(data_types_file_path, "r") as f:
             self.column_types = json.load(f)
 
-        self.shadow_data_collection = shadow_data_collection
+        # self.shadow_data_collection = shadow_data_collection
         self.meta_classifier_type = meta_classifier_type
         self.trained_model = None
         self.random_seed = random_seed
         self.training_config = config.metaclassifier
 
-    def _prepare_meta_features(
+    def prepare_meta_features(
         self,
         df_input: pd.DataFrame,
         df_synthetic: pd.DataFrame,
@@ -95,19 +95,13 @@ class BlendingPlusPlus:
         """
         df_synthetic = df_synthetic.reset_index(drop=True)[df_input.columns]
 
-        common_numeric = [
-        c
-        for c in numerical_cols
-        if c in df_reference.columns and c in df_synthetic.columns and c in df_input.columns
-        ]
-
         # 1. Get RMIA signals
 
         log(INFO, "Calculating RMIA signals...")
 
         rmia_signals = calculate_rmia_signals(
             df_input=df_input,
-            shadow_data_collection=self.shadow_data_collection,
+            # shadow_data_collection=self.shadow_data_collection,
             target_synthetic_data=df_synthetic,
             categorical_column_names=categorical_cols,
             id_column_name=id_column_name,
@@ -123,16 +117,15 @@ class BlendingPlusPlus:
             df_input=df_input, df_synthetic=df_synthetic, categorical_column_names=categorical_cols
         )
 
-            
-        # 3. Get DOMIAS scores
-       
+        # 3. Get DOMIAS predictions
+
         log(INFO, "Calculating DOMIAS scores...")
 
         domias_features = calculate_domias_score(
-            df_input=df_input, df_synthetic=df_synthetic, df_reference=df_reference, numeric_column_names=common_numeric
+            df_input=df_input, df_synthetic=df_synthetic, df_reference=df_reference
         )
 
-        original_numerical_features = df_input[common_numeric]  # Numerical features from original data
+        original_numerical_features = df_input[numerical_cols]  # Numerical features from original data
 
         return pd.concat(
             [
@@ -149,9 +142,9 @@ class BlendingPlusPlus:
         self,
         df_train: pd.DataFrame,
         y_train: np.ndarray,
-        df_target_synthetic: pd.DataFrame,
-        df_reference: pd.DataFrame,
-        id_column_data: pd.Series,
+        # df_target_synthetic: pd.DataFrame,
+        # df_reference: pd.DataFrame,
+        # id_column_data: pd.Series,
         use_gpu: bool = True,
         epochs: int | None = None,
     ) -> None:
@@ -175,19 +168,19 @@ class BlendingPlusPlus:
         if epochs is None:
             epochs = self.training_config.epochs
 
-        meta_features = self._prepare_meta_features(
-            df_input=df_train,
-            df_synthetic=df_target_synthetic,
-            df_reference=df_reference,
-            id_column_data=id_column_data,
-            categorical_cols=self.column_types["categorical"],
-            numerical_cols=self.column_types["numerical"],
-            id_column_name=self.column_types["id_column_name"],
-        )
+        # meta_features = self.prepare_meta_features(
+        #     df_input=df_train,
+        #     df_synthetic=df_target_synthetic,
+        #     df_reference=df_reference,
+        #     id_column_data=id_column_data,
+        #     categorical_cols=self.column_types["categorical"],
+        #     numerical_cols=self.column_types["numerical"],
+        #     id_column_name=self.column_types["id_column_name"],
+        # )
 
         if self.meta_classifier_type == MetaClassifierType.XGB:
             tuner = XgBoostHyperparameterTuner(
-                input_features=meta_features,
+                input_features=df_train,
                 labels=y_train,
                 use_gpu=use_gpu,
                 random_seed=self.random_seed,
@@ -243,7 +236,7 @@ class BlendingPlusPlus:
             "or assign the trained model to the BlengingPlusPlus object."
         )
 
-        df_test_features = self._prepare_meta_features(
+        df_test_features = self.prepare_meta_features(
             df_input=df_test,
             df_synthetic=df_original_synthetic,
             df_reference=df_reference,
