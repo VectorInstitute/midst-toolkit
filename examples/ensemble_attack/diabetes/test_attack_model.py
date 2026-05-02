@@ -354,7 +354,7 @@ def run_metaclassifier_testing(
     # Drop id columns from the test data. Berka has two id columns: "trans_id" and "account_id".
     test_data = get_df_without_id(test_data)
 
-    mataclassifier_path = Path(config.model_paths.metaclassifier_model_path) / f"{metaclassifier_model_name}.pkl"
+    mataclassifier_path = Path(config.model_paths.metaclassifier_model_path) / config.model_paths.name
     assert mataclassifier_path.exists(), (
         f"No metaclassifier model found at {mataclassifier_path}. Make sure to run the training script first."
     )

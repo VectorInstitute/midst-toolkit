@@ -4,7 +4,7 @@
 # General settings
 random_seed: 42 # Set to null for no seed, or an integer for a fixed seed
 
-base_experiment_dir: /projects/midst-experiments/ensemble_attack/diabetes_experiments/number_of_targets/${random_seed} # Processed data, and experiment artifacts will be stored under this directory.
+base_experiment_dir: /projects/midst-experiments/ensemble_attack/diabetes_experiments/number_of_targets/3_test # Processed data, and experiment artifacts will be stored under this directory.
 base_data_config_dir: examples/ensemble_attack/diabetes/data_configs # Training and data type configs are saved under this directory.
 
 # Training Pipeline Control
@@ -14,7 +14,7 @@ pipeline:
   run_metaclassifier_training: True
 
 target_model: # This is only used for testing the attack on a real target model.
-  target_model_directory: /projects/midst-experiments/diabetes_experiments/whitebox_single_table_DI_1/
+  target_model_directory: /projects/midst-experiments/diabetes_experiments_newer/whitebox_single_table_DI_1/
   target_model_id: 8  # Will be overridden per SLURM array task
   target_model_name: tabddpm_${target_model.target_model_id}
   target_synthetic_data_path: ${target_model.target_model_directory}/${target_model.target_model_name}/models_B4096/${target_model.target_model_name}_synthesizing_B4096/trans/_final/trans_synthetic_clean.csv
@@ -40,6 +40,8 @@ data_paths:
 
 model_paths:
   metaclassifier_model_path: /projects/midst-experiments/ensemble_attack/diabetes_experiments/number_of_targets/metaclassifiers/ # Path where the trained metaclassifier model will be saved
+  name: "42_43_44_metaclassifier.pkl"
+
 
 
 # Dataset specific information used for processing in this example
