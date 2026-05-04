@@ -412,6 +412,8 @@ def main(cfg: DictConfig) -> None:
     synthetic_data_path = Path(cfg.results_dir) / cfg.table_name / "synthetic_data" / f"{cfg.table_name}_synthetic.csv"
     meta_data_path = Path(cfg.data_dir) / f"{cfg.table_name}_info.json"
 
+    log(INFO, "Making the test dataset...")
+
     full_dataset = pd.read_csv(full_data_path)
     sampled_dataset = pd.read_csv(train_data_path)
     merged_dataset = full_dataset.merge(sampled_dataset, how="left", indicator=True)
@@ -420,6 +422,8 @@ def main(cfg: DictConfig) -> None:
 
     test_data_path = Path(cfg.data_dir) / f"{cfg.table_name}_test.csv"
     test_dataset.to_csv(test_data_path, index=False)
+
+    log(INFO, "Loading the data...")
 
     real_data_train, synthetic_data, real_data_test, meta_info = load_midst_data_with_test(
         train_data_path,
