@@ -271,7 +271,16 @@ def run_quality_evaluations(
             do_preprocess=True,
             measure_metrics_in_original_label_space=cfg.regression_score_diff.measure_metrics_in_original_label_space,
         )
-        results = metric.compute(real_data_train, synthetic_data, real_data_test)
+
+        real_data_train_copy = real_data_train.copy()
+        synthetic_data_copy = synthetic_data.copy()
+        real_data_test_copy = real_data_test.copy()
+        if cfg.regression_score_diff.convert_label_to_float:
+            real_data_train_copy[label_column] = real_data_train_copy[label_column].astype(float)
+            synthetic_data_copy[label_column] = synthetic_data_copy[label_column].astype(float)
+            real_data_test_copy[label_column] = real_data_test_copy[label_column].astype(float)
+
+        results = metric.compute(real_data_train_copy, synthetic_data_copy, real_data_test_copy)
         report_metrics(cfg, "REGRESSION SCORE DIFFERENCE", results)
 
     if cfg.hellinger.run:

@@ -116,7 +116,7 @@ evaluation:
     permutations: 1000
 
   alpha_precision:
-    run: False
+    run: True
     naive_only: False
 
   ci_overlap:
@@ -131,17 +131,18 @@ evaluation:
     run: True
 
   f1_score_diff:
-    run: False
-    label_column: "balance"
+    run: True
+    label_column: "trans_type"
     folds: 5
     f1_type: "macro"
 
   regression_score_diff:
     run: True
-    label_column: "balance"
+    label_column: "trans_type"
     preprocess_labels: True
     measure_metrics_in_original_label_space: False
     verbose: True
+    convert_label_to_float: True
 
   hellinger:
     run: True
