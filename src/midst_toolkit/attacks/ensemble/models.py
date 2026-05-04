@@ -435,11 +435,7 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
         temp_path = Path(temp_dir)
 
         dataset.to_csv(temp_path / f"{self.table_name}.csv", index=False)
-        files_to_copy = [
-            f"{self.table_name}.json",
-            f"{self.table_name}_info.json",
-        ]
-        for filename in files_to_copy:
+        for filename in [f"{self.table_name}.json", f"{self.table_name}_info.json"]:
             shutil.copy(self.full_data_dir / filename, temp_path / filename)
 
         return temp_path
@@ -517,7 +513,7 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
             tabsyn.numerical_features_test = numerical_features_test
             tabsyn.categorical_features_test = categorical_features_test
         else:
-            # Instantiate the model
+            # Instantiate a new model
             log(INFO, "Instantiating the TabSyn model...")
             tabsyn = TabSyn(
                 train_loader,
