@@ -1,8 +1,30 @@
 """Collect train_with_id.csv from each subfolder under a base directory and concatenate.
 
 Example usage:
-python -m examples.ensemble_attack.diabetes.collect_train_with_id --base-directory /projects/midst-experiments/diabetes_experiments/whitebox_single_table_DI_1/ --output-directory /projects/midst-experiments/ensemble_attack/diabetes_experiments/10k_default/
+# 10 k experiments:
+python -m examples.ensemble_attack.diabetes.collect_train_with_id \
+    --base-directory /projects/midst-experiments/diabetes_experiments/whitebox_single_table_DI_1/ \
+    --output-directory /projects/midst-experiments/ensemble_attack/diabetes_experiments/10k_default/
 
+# For 1k experiments:
+python -m examples.ensemble_attack.diabetes.collect_train_with_id \
+    --base-directory /projects/midst-experiments/white_box_single_table_DI_1k/ \
+    --output-directory /projects/midst-experiments/ensemble_attack/diabetes_experiments/1k_data_exp/1k_challange_points_dir/
+
+# For 5k experiments:
+python -m examples.ensemble_attack.diabetes.collect_train_with_id \
+    --base-directory /projects/midst-experiments/white_box_single_table_DI_5k/ \
+    --output-directory /projects/midst-experiments/ensemble_attack/diabetes_experiments/5k_data_exp/1k_challange_points_dir/
+
+# For 15k experiments:
+python -m examples.ensemble_attack.diabetes.collect_train_with_id \
+    --base-directory /projects/midst-experiments/white_box_single_table_DI_15k/ \
+    --output-directory /projects/midst-experiments/ensemble_attack/diabetes_experiments/15k_data_exp/1k_challange_points_dir/
+
+For 20k experiments
+python -m examples.ensemble_attack.diabetes.collect_train_with_id \
+    --base-directory /projects/midst-experiments/white_box_single_table_DI_20k/ \
+    --output-directory /projects/midst-experiments/ensemble_attack/diabetes_experiments/20k_data_exp/1k_challange_points_dir/    
 """
 
 from __future__ import annotations
@@ -58,7 +80,8 @@ def parse_args() -> argparse.Namespace:
 
 def discover_csv_paths(base: Path, csv_name: str, recursive: bool) -> list[Path]:
     if not base.is_dir():
-        raise FileNotFoundError(f"Base directory does not exist or is not a directory: {base}")
+        raise FileNotFoundError(
+            f"Base directory does not exist or is not a directory: {base}")
 
     paths: list[Path] = []
     if recursive:

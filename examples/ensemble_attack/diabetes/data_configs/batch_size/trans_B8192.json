@@ -1,10 +1,10 @@
 {
     "general": {
-        "data_dir": "examples/ensemble_attack/berka/data/shadow_models_data",
-        "exp_name": "ensemble_attack",
-        "workspace_dir": "examples/ensemble_attack/berka/data/shadow_models_data/workspace",
+        "data_dir": "examples/ensemble_attack/diabetes/data/shadow_models_data",
+        "exp_name": "ensemble_attack_diabetes",
+        "workspace_dir": "examples/ensemble_attack/diabetes/data/shadow_models_data/workspace",
         "sample_prefix": "",
-        "test_data_dir": "examples/ensemble_attack/berka/data/shadow_models_data/test"
+        "test_data_dir": "examples/ensemble_attack/diabetes/data/shadow_models_data/test"
     },
     "clustering": {
         "parent_scale": 1.0,
@@ -24,7 +24,7 @@
         "num_timesteps": 2000,
         "model_type": "mlp",
         "iterations": 200000,
-        "batch_size": 4096,
+        "batch_size": 8192,
         "lr": 0.0006,
         "gaussian_loss_type": "mse",
         "weight_decay": 1e-05,

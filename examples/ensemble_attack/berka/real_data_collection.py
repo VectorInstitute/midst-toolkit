@@ -52,6 +52,19 @@ def expand_ranges(ranges: list[tuple[int, int]]) -> list[int]:
     return expanded
 
 
+def collect_data_from_path_range(data_path: Path, data_range: list[tuple[int, int]], generation_name: str, file_name: str) -> pd.DataFrame:
+    collected_data = pd.DataFrame()
+    data_id = expand_ranges(data_range)
+    for i in data_id:
+        data_path_ith = data_path / f"{generation_name}_{i}"
+        # Will raise FileNotFoundError if the file does not exist or if it is not a CSV file.
+        collected_data_ith = load_dataframe(data_path_ith, file_name)
+        collected_data = collected_data_ith if collected_data.empty else pd.concat(
+            [collected_data, collected_data_ith])
+    return collected_data.drop_duplicates()
+
+
+
 def collect_midst_attack_data(
     attack_type: AttackType,
     data_dir: Path,
@@ -209,7 +222,22 @@ def collect_population_data_ensemble(
     )
 
     log(INFO, f"Collected experiment population data length before concatenation: {len(df_population_experiment)}")
-
+    # In some cases, the location of target models are totally different from train models, therefore
+    # to collect the test challenge points, we need to look into the attack folders directly.
+    # This offers flexibility to the data folder structure.
+    # This lets us load challenge points from any directory, even if it's not the same as train.
+    if "test_challenge_data_path_for_training" in data_processing_config:
+        test_challenge_data = collect_data_from_path_range(
+            data_path=Path(
+                data_processing_config.test_challenge_data_path_for_training),
+            data_range=data_processing_config.folder_ranges["final"],
+            generation_name="tabddpm",
+            file_name=data_processing_config.challenge_data_file_name,
+        )
+        df_challenge = pd.concat(
+            [df_challenge, test_challenge_data]).drop_duplicates()
+        log(INFO,
+            f"Added challenge data of length: {len(test_challenge_data)} from target models directory.")
     if base_population is not None:
         df_population = pd.concat([df_population_experiment, base_population]).drop_duplicates()
         log(INFO, f"Concatenated population data length: {len(df_population)}")

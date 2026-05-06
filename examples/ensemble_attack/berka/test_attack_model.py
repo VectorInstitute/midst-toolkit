@@ -12,8 +12,8 @@ import numpy as np
 import pandas as pd
 from omegaconf import DictConfig
 
-from examples.ensemble_attack.real_data_collection import AttackType, collect_midst_data
-from examples.ensemble_attack.run_shadow_model_training import run_shadow_model_training
+from examples.ensemble_attack.berka.real_data_collection import AttackType, collect_data_from_path_range
+from examples.ensemble_attack.berka.run_shadow_model_training import run_shadow_model_training
 from midst_toolkit.attacks.ensemble.blending import BlendingPlusPlus, MetaClassifierType
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.common.logger import log
@@ -39,7 +39,8 @@ def save_results(
         probabilities: Prediction probabilities from the metaclassifier.
         pred_score: Prediction score to be saved.
     """
-    file_name = attack_results_path / f"{metaclassifier_model_name}_test_pred_proba.npy"
+    file_name = attack_results_path / \
+        f"{metaclassifier_model_name}_test_pred_proba.npy"
     np.save(file_name, probabilities)
     log(INFO, f"Test prediction probabilities saved at {file_name}.")
 
@@ -47,7 +48,8 @@ def save_results(
         log(INFO, f"TPR at FPR=0.1: {pred_score:.4f}")
 
         # Save the metric results into a text file.
-        metric_save_path = attack_results_path / f"prediction_score_{metaclassifier_model_name}.txt"
+        metric_save_path = attack_results_path / \
+            f"prediction_score_{metaclassifier_model_name}.txt"
         with open(metric_save_path, "w") as f:
             f.write(f"TPR at FPR=0.1: {pred_score:.4f}\n")
 
@@ -76,7 +78,8 @@ def extract_primary_id_column(
     assert "id_column_name" in column_types, f"{data_types_file_path} must contain 'id_column_name' key."
     id_column_name = column_types["id_column_name"]
     # Make sure we have one main id column
-    assert isinstance(id_column_name, str), "Only one main id column should be identified."
+    assert isinstance(
+        id_column_name, str), "Only one main id column should be identified."
     assert id_column_name in data_frame.columns, f"Dataframe must have {id_column_name} column"
 
     return data_frame[id_column_name]
@@ -98,9 +101,12 @@ def run_rmia_shadow_training(config: DictConfig, df_challenge: pd.DataFrame) -> 
         A list containing three dictionaries, each representing a collection of shadow
             models with their training data and generated synthetic outputs.
     """
-    shadow_model_paths = run_shadow_model_training(config, df_challenge_train=df_challenge)
+    _ = run_shadow_model_training(config, df_challenge_train=df_challenge)
+    shadow_model_paths = [
+        Path(path) for path in config.shadow_training.final_shadow_models_path]
 
-    assert len(shadow_model_paths) == 3, "For testing, meta classifier needs the path to three sets of shadow models."
+    assert len(
+        shadow_model_paths) == 3, "For testing, meta classifier needs the path to three sets of shadow models."
 
     # Initialize an empty list to store the data and results of shadow models after loading.
     shadow_data_collection = []
@@ -145,7 +151,8 @@ def load_trained_rmia_shadows_for_test_phase(
             models_exists.append(True)
         else:
             models_exists.append(False)
-            log(INFO, f"No shadow model found at {model_path}. Need to train RMIA shadow models for testing phase.")
+            log(INFO,
+                f"No shadow model found at {model_path}. Need to train RMIA shadow models for testing phase.")
     if not all(models_exists):
         # If even one of the models does not exist, return empty collection and False to indicate training is needed.
         shadow_data_collection = []
@@ -176,14 +183,12 @@ def collect_challenge_and_train_data(
     """
     # Collect all repo's challenge points
     challenge_attack_names = data_processing_config.challenge_attack_data_types_to_collect
-    challenge_attack_types = [AttackType(attack_name) for attack_name in challenge_attack_names]
-    df_challenge_experiment = collect_midst_data(
-        midst_data_input_dir=targets_data_path,
-        attack_types=challenge_attack_types,
-        # For ensemble experiments, change to ``test`` for 10k, and change to ``final`` for 20k
-        split_folders=["final"],
-        dataset="challenge",
-        data_processing_config=data_processing_config,
+
+    df_challenge_experiment = collect_data_from_path_range(
+        data_path=targets_data_path,
+        data_range=data_processing_config.folder_ranges["final"],
+        generation_name="tabddpm",
+        file_name=data_processing_config.challenge_data_file_name,
     )
     log(
         INFO,
@@ -233,8 +238,10 @@ def select_challenge_data_for_training(
     """
     if attack_rmia_shadow_training_data_choice == RmiaTrainingDataChoice.COMBINED:
         # Run RMIA shadow model training on experiments challenge points + master challenge train data
-        df_challenge = pd.concat([df_challenge_experiment, df_master_train]).drop_duplicates()
-        log(INFO, f"Combined challenge data length for RMIA shadow training: {len(df_challenge)}.")
+        df_challenge = pd.concat(
+            [df_challenge_experiment, df_master_train]).drop_duplicates()
+        log(INFO,
+            f"Combined challenge data length for RMIA shadow training: {len(df_challenge)}.")
     elif attack_rmia_shadow_training_data_choice == RmiaTrainingDataChoice.ONLY_CHALLENGE:
         df_challenge = df_challenge_experiment
         log(INFO, "Using only challenge data points for RMIA shadow training.")
@@ -263,12 +270,16 @@ def train_rmia_shadows_for_test_phase(config: DictConfig) -> list[dict[str, list
     """
     df_challenge_experiment, df_master_train = collect_challenge_and_train_data(
         config.data_processing_config,
-        processed_attack_data_path=Path(config.data_paths.processed_attack_data_path),
-        targets_data_path=Path(config.data_processing_config.midst_data_path),
+        processed_attack_data_path=Path(
+            config.data_paths.processed_attack_data_path),
+        targets_data_path=Path(
+            config.data_processing_config.test_challenge_data_path_for_training),
     )
     # Load the challenge dataframe for training RMIA shadow models.
-    rmia_training_choice = RmiaTrainingDataChoice(config.target_model.attack_rmia_shadow_training_data_choice)
-    df_challenge = select_challenge_data_for_training(rmia_training_choice, df_challenge_experiment, df_master_train)
+    rmia_training_choice = RmiaTrainingDataChoice(
+        config.target_model.attack_rmia_shadow_training_data_choice)
+    df_challenge = select_challenge_data_for_training(
+        rmia_training_choice, df_challenge_experiment, df_master_train)
     return run_rmia_shadow_training(config, df_challenge=df_challenge)
 
 
@@ -292,7 +303,8 @@ def run_metaclassifier_testing(
     Args:
         config: Configuration object set in ``experiments_config.yaml``.
     """
-    log(INFO, f"Running metaclassifier testing on target model {config.target_model.target_model_id}...")
+    log(INFO,
+        f"Running metaclassifier testing on target model {config.target_model.target_model_id}...")
 
     if config.random_seed is not None:
         set_all_random_seeds(seed=config.random_seed)
@@ -302,7 +314,8 @@ def run_metaclassifier_testing(
     meta_classifier_type = MetaClassifierType(config.metaclassifier.model_type)
 
     metaclassifier_model_name = config.metaclassifier.meta_classifier_model_name
-    mataclassifier_path = Path(config.model_paths.metaclassifier_model_path) / f"{metaclassifier_model_name}.pkl"
+    mataclassifier_path = Path(
+        config.model_paths.metaclassifier_model_path) / f"{metaclassifier_model_name}.pkl"
     assert mataclassifier_path.exists(), (
         f"No metaclassifier model found at {mataclassifier_path}. Make sure to run the training script first."
     )
@@ -310,7 +323,8 @@ def run_metaclassifier_testing(
     with open(mataclassifier_path, "rb") as f:
         trained_mataclassifier_model = pickle.load(f)
 
-    log(INFO, f"Metaclassifier model loaded from {mataclassifier_path}, starting the test...")
+    log(INFO,
+        f"Metaclassifier model loaded from {mataclassifier_path}, starting the test...")
 
     # 2) Read target model's challenge data and synthetic data.
     # Back-box attacker has only access to the target model's synthetic data and challenge points.
@@ -319,12 +333,15 @@ def run_metaclassifier_testing(
     challenge_label_path = Path(config.target_model.challenge_label_path)
 
     test_data = pd.read_csv(challenge_data_path)
-    log(INFO, f"Challenge data loaded from {challenge_data_path} with a size of {len(test_data)}.")
+    log(INFO,
+        f"Challenge data loaded from {challenge_data_path} with a size of {len(test_data)}.")
 
     test_target = pd.read_csv(challenge_label_path).to_numpy().squeeze()
-    assert len(test_data) == len(test_target), "Number of challenge labels must match number of challenge data points."
+    assert len(test_data) == len(
+        test_target), "Number of challenge labels must match number of challenge data points."
 
-    target_synthetic_path = Path(config.target_model.target_synthetic_data_path)
+    target_synthetic_path = Path(
+        config.target_model.target_synthetic_data_path)
     target_synthetic_data = pd.read_csv(target_synthetic_path)
     log(
         INFO, f"Target synthetic data loaded from {target_synthetic_path} with a size of {len(target_synthetic_data)}."
@@ -333,20 +350,25 @@ def run_metaclassifier_testing(
     # If the synthetic data has more points than specified in the config, take only the required number.
     if len(target_synthetic_data) > config.shadow_training.number_of_points_to_synthesize:
         # Take only the required number of synthetic data points
-        target_synthetic_data = target_synthetic_data.head(config.shadow_training.number_of_points_to_synthesize)
-        log(INFO, f"Target synthetic data size adjusted to {len(target_synthetic_data)} based on the config setting.")
+        target_synthetic_data = target_synthetic_data.head(
+            config.shadow_training.number_of_points_to_synthesize)
+        log(INFO,
+            f"Target synthetic data size adjusted to {len(target_synthetic_data)} based on the config setting.")
 
     # 3) Shadow Model Training Step.
     # Make sure to assign a new path for shadow models trained for target's challenge points to
     # avoid overriding train's shadow models.
     # TODO: Assign specific shadow collection path for test phase.
     config.shadow_training.shadow_models_output_path = config.target_model.target_shadow_models_output_path
-    shadow_data_paths = [Path(path) for path in config.shadow_training.final_shadow_models_path]
-    assert len(shadow_data_paths) == 3, "The attack_data_paths list must contain exactly three elements."
+    shadow_data_paths = [
+        Path(path) for path in config.shadow_training.final_shadow_models_path]
+    assert len(
+        shadow_data_paths) == 3, "The attack_data_paths list must contain exactly three elements."
 
     # If shadows are already trained for test (``models_exists`` is True), don't need to train again.
     # Load shadow training collection from previously trained shadow models.
-    shadow_data_collection, models_exists = load_trained_rmia_shadows_for_test_phase(shadow_data_paths)
+    shadow_data_collection, models_exists = load_trained_rmia_shadows_for_test_phase(
+        shadow_data_paths)
 
     if not models_exists:
         log(INFO, "Shadow models for testing phase do not exist. Training RMIA shadow models...")
@@ -392,9 +414,11 @@ def run_metaclassifier_testing(
     )
 
     # Save the validation prediction probabilities
-    attack_results_path = Path(config.target_model.attack_probabilities_result_path)
+    attack_results_path = Path(
+        config.target_model.attack_probabilities_result_path)
     attack_results_path.mkdir(parents=True, exist_ok=True)
-    save_results(attack_results_path, metaclassifier_model_name, probabilities, pred_score)
+    save_results(attack_results_path, metaclassifier_model_name,
+                 probabilities, pred_score)
 
 
 if __name__ == "__main__":

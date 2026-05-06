@@ -11,12 +11,61 @@ python examples/ensemble_attack/diabetes/create_challenge_data.py \
   --num-per-split 500 \
   --random-seed 42
 
-
+# 10k run command:
 python -m examples.ensemble_attack.diabetes.create_challenge_data \
   --output-model-directory  /projects/midst-experiments/ensemble_attack/diabetes_experiments/10k_default/1k_challange_points_dir/tabddpm_10 \
   --train-path /projects/midst-experiments/diabetes_experiments/whitebox_single_table_DI_1/tabddpm_10/train_with_id.csv \
   --population-path /projects/midst-experiments/ensemble_attack/diabetes_experiments/10k_default/all_train_with_id.csv \
   --num-per-split 500 \
+  --random-seed 42
+
+# 10k challenges for non-iid experiments (only for tabddpm_8, 9, 10):
+python -m examples.ensemble_attack.diabetes.create_challenge_data \
+  --output-model-directory  /projects/midst-experiments/ensemble_attack/diabetes_experiments/10k_permute/1k_challange_points_dir/tabddpm_10 \
+  --train-path /projects/midst-experiments/diabetes_experiments_newer/whitebox_single_table_DI_1/50_percent_noise_permute/try_again_12/tabddpm_10/train_with_id.csv \
+  --population-path /projects/midst-experiments/ensemble_attack/diabetes_experiments/10k_default/all_train_with_id.csv \
+  --num-per-split 500 \
+  --random-seed 42
+
+python -m examples.ensemble_attack.diabetes.create_challenge_data \
+  --output-model-directory  /projects/midst-experiments/ensemble_attack/diabetes_experiments/10k_uniform/1k_challange_points_dir/tabddpm_8 \
+  --train-path /projects/midst-experiments/diabetes_experiments_newer/whitebox_single_table_DI_1/50_percent_noise_uniform/try_again_8/tabddpm_8/train_with_id.csv \
+  --population-path /projects/midst-experiments/ensemble_attack/diabetes_experiments/10k_default/all_train_with_id.csv \
+  --num-per-split 500 \
+  --random-seed 42
+
+# 1k run command: 
+python -m examples.ensemble_attack.diabetes.create_challenge_data \
+  --output-model-directory  /projects/midst-experiments/ensemble_attack/diabetes_experiments/1k_data_exp/1k_challange_points_dir/tabddpm_10 \
+  --train-path /projects/midst-experiments/white_box_single_table_DI_1k/tabddpm_10/train_with_id.csv \
+  --population-path /projects/midst-experiments/ensemble_attack/diabetes_experiments/1k_data_exp/1k_challange_points_dir/all_train_with_id.csv \
+  --num-per-split 500 \
+  --random-seed 42
+
+# 5k run command: 
+python -m examples.ensemble_attack.diabetes.create_challenge_data \
+  --output-model-directory  /projects/midst-experiments/ensemble_attack/diabetes_experiments/5k_data_exp/1k_challange_points_dir/tabddpm_10 \
+  --train-path /projects/midst-experiments/white_box_single_table_DI_5k/tabddpm_10/train_with_id.csv \
+  --population-path /projects/midst-experiments/ensemble_attack/diabetes_experiments/5k_data_exp/1k_challange_points_dir/all_train_with_id.csv \
+  --num-per-split 500 \
+  --random-seed 42
+
+# For 15k experiments:
+# Tabddpms 1 to 4 have 1000 challenges while tabddpm 5 and 6 have 1500 each.
+python -m examples.ensemble_attack.diabetes.create_challenge_data \
+  --output-model-directory  /projects/midst-experiments/ensemble_attack/diabetes_experiments/15k_data_exp/1k_challange_points_dir/tabddpm_6 \
+  --train-path /projects/midst-experiments/white_box_single_table_DI_15k/tabddpm_6/train_with_id.csv \
+  --population-path /projects/midst-experiments/ensemble_attack/diabetes_experiments/15k_data_exp/1k_challange_points_dir/all_train_with_id.csv \
+  --num-per-split 750 \
+  --random-seed 42
+
+# For 20k experiments:
+# Tabddpms 1 to 3 have 1000 challenges while tabddpm 4 and 5 have 1500 each.
+python -m examples.ensemble_attack.diabetes.create_challenge_data \
+  --output-model-directory  /projects/midst-experiments/ensemble_attack/diabetes_experiments/20k_data_exp/1k_challange_points_dir/tabddpm_5 \
+  --train-path /projects/midst-experiments/white_box_single_table_DI_20k/tabddpm_5/train_with_id.csv \
+  --population-path /projects/midst-experiments/ensemble_attack/diabetes_experiments/20k_data_exp/1k_challange_points_dir/all_train_with_id.csv \
+  --num-per-split 750 \
   --random-seed 42
 """
 
@@ -93,7 +142,6 @@ def main() -> None:
     output_model_dir = args.output_model_directory.expanduser().resolve()
     output_model_dir.mkdir(parents=True, exist_ok=True)
 
-
     id_col = args.id_column
     n = args.num_per_split
 
@@ -102,7 +150,8 @@ def main() -> None:
 
     for name, df in ("train", df_train), ("population", df_pop):
         if id_col not in df.columns:
-            raise ValueError(f"{name} data is missing id column {id_col!r}. Columns: {list(df.columns)}")
+            raise ValueError(
+                f"{name} data is missing id column {id_col!r}. Columns: {list(df.columns)}")
 
     train_ids = df_train[id_col].unique()
     non_train_mask = ~df_pop[id_col].isin(set(train_ids))
@@ -121,7 +170,8 @@ def main() -> None:
     sample_train = df_train.sample(n=n, random_state=args.random_seed).copy()
     sample_non = df_non_train.sample(n=n, random_state=args.random_seed).copy()
 
-    challenge_df = pd.concat([sample_train, sample_non], axis=0, ignore_index=True)
+    challenge_df = pd.concat(
+        [sample_train, sample_non], axis=0, ignore_index=True)
     labels = pd.DataFrame({"label": [1] * n + [0] * n})
 
     out_data = output_model_dir / args.challenge_data_filename
@@ -132,7 +182,6 @@ def main() -> None:
 
     print(f"Wrote {len(challenge_df)} rows to {out_data}")
     print(f"Wrote labels ({n} train=1, {n} non-train=0) to {out_label}")
-
 
     # Now remove these two files if they exist
     # challenge_label_predictions.csv  data_for_validating_MIA.csv

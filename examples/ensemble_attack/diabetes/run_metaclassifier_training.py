@@ -132,24 +132,24 @@ def run_metaclassifier_training(
     with open(model_path, "wb") as f:
         pickle.dump(blending_attacker.trained_model, f)
 
-    log(INFO, "Metaclassifier model saved, starting evaluation...")
+    log(INFO, "Metaclassifier model saved, skipping evaluation to save time...")
 
     # 3. Get predictions on the meta test set (evaluation of the trained metaclassifier)
     # For evaluation, we test the meta classifier on the meta test set provided the target's synthetic data.
-    probabilities, pred_score = blending_attacker.predict(
-        df_test=df_meta_test,
-        df_original_synthetic=target_synthetic_data,  # For evaluation only
-        df_reference=df_reference,
-        id_column_data=test_trans_ids,
-        y_test=y_meta_test,
-    )
+    # probabilities, pred_score = blending_attacker.predict(
+    #     df_test=df_meta_test,
+    #     df_original_synthetic=target_synthetic_data,  # For evaluation only
+    #     df_reference=df_reference,
+    #     id_column_data=test_trans_ids,
+    #     y_test=y_meta_test,
+    # )
 
-    # Save the evaluation prediction probabilities
-    attack_evaluation_result_path = Path(config.data_paths.attack_evaluation_result_path)
-    attack_evaluation_result_path.mkdir(parents=True, exist_ok=True)
-    file_name = attack_evaluation_result_path / f"{model_filename}_val_pred_proba.npy"
-    np.save(file_name, probabilities)
-    log(INFO, f"Evaluation prediction probabilities saved at {file_name}.")
+    # # Save the evaluation prediction probabilities
+    # attack_evaluation_result_path = Path(config.data_paths.attack_evaluation_result_path)
+    # attack_evaluation_result_path.mkdir(parents=True, exist_ok=True)
+    # file_name = attack_evaluation_result_path / f"{model_filename}_val_pred_proba.npy"
+    # np.save(file_name, probabilities)
+    # log(INFO, f"Evaluation prediction probabilities saved at {file_name}.")
 
-    if pred_score is not None:
-        log(INFO, f"TPR at FPR=0.1: {pred_score:.4f}")
+    # if pred_score is not None:
+    #     log(INFO, f"TPR at FPR=0.1: {pred_score:.4f}")

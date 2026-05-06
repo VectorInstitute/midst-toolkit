@@ -9,9 +9,9 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig
 
-import examples.ensemble_attack.run_metaclassifier_training as meta_pipeline
-import examples.ensemble_attack.run_shadow_model_training as shadow_pipeline
-from examples.ensemble_attack.real_data_collection import collect_population_data_ensemble
+import examples.ensemble_attack.berka.run_metaclassifier_training as meta_pipeline
+import examples.ensemble_attack.berka.run_shadow_model_training as shadow_pipeline
+from examples.ensemble_attack.berka.real_data_collection import collect_population_data_ensemble
 from midst_toolkit.attacks.ensemble.data_utils import load_dataframe
 from midst_toolkit.attacks.ensemble.process_split_data import process_split_data
 from midst_toolkit.common.logger import log

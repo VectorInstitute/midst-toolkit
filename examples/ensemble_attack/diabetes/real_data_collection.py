@@ -31,7 +31,10 @@ class AttackType(Enum):
     TABDDPM_50K = "tabddpm_trained_with_50k"
     TABDDPM_100K = "tabddpm_trained_with_100k"
     # Experiment attack types for diabetes directory structure
-    DIABETES_EXPERIMENTS = "diabetes_experiments"
+    diabetes_experiments_newer = "diabetes_experiments_newer"
+    MIDST_EXPERIMENTS = "midst-experiments"
+    noise_permute = "50_percent_noise_permute"
+    noise_uniform = "50_percent_noise_uniform"
 
 
 DatasetType = Literal["train", "challenge"]
@@ -53,6 +56,7 @@ def expand_ranges(ranges: list[tuple[int, int]]) -> list[int]:
         expanded.extend(range(start, end))
     return expanded
 
+
 def collect_data_from_path_range(data_path: Path, data_range: list[tuple[int, int]], generation_name: str, file_name: str) -> pd.DataFrame:
     collected_data = pd.DataFrame()
     data_id = expand_ranges(data_range)
@@ -60,9 +64,9 @@ def collect_data_from_path_range(data_path: Path, data_range: list[tuple[int, in
         data_path_ith = data_path / f"{generation_name}_{i}"
         # Will raise FileNotFoundError if the file does not exist or if it is not a CSV file.
         collected_data_ith = load_dataframe(data_path_ith, file_name)
-        collected_data = collected_data_ith if collected_data.empty else pd.concat([collected_data, collected_data_ith])
+        collected_data = collected_data_ith if collected_data.empty else pd.concat(
+            [collected_data, collected_data_ith])
     return collected_data.drop_duplicates()
-
 
 
 def collect_midst_attack_data(
@@ -110,10 +114,12 @@ def collect_midst_attack_data(
 
     df_real = pd.DataFrame()
     for i in data_id:
-        data_path_ith = data_dir / attack_type.value / split_folder / f"{generation_name}_{i}"
+        data_path_ith = data_dir / attack_type.value / \
+            split_folder / f"{generation_name}_{i}"
         # Will raise FileNotFoundError if the file does not exist or if it is not a CSV file.
         df_real_ith = load_dataframe(data_path_ith, file_name)
-        df_real = df_real_ith if df_real.empty else pd.concat([df_real, df_real_ith])
+        df_real = df_real_ith if df_real.empty else pd.concat(
+            [df_real, df_real_ith])
 
     return df_real.drop_duplicates()
 
@@ -146,14 +152,15 @@ def collect_midst_data(
     Returns:
         Collected train or challenge data as a dataframe.
     """
-    assert dataset in {"train", "challenge"}, "Only 'train' and 'challenge' collection is supported."
+    assert dataset in {
+        "train", "challenge"}, "Only 'train' and 'challenge' collection is supported."
     population = []
     for attack_type in attack_types:
         for split_folder in split_folders:
             df_real = collect_midst_attack_data(
                 attack_type=attack_type,
                 data_dir=dataset_input_dir,
-                split_folder=split_folder, #train, dev final
+                split_folder=split_folder,  # train, dev final
                 dataset=dataset,
                 data_processing_config=data_processing_config,
             )
@@ -211,7 +218,8 @@ def collect_population_data_ensemble(
     # Ensemble Attack collects train data of all the attack types (black box and white box)
     population_attack_names = data_processing_config.population_attack_data_types_to_collect
     # Provided attack name are valid based on AttackType enum
-    population_attack_types = [AttackType(attack_name) for attack_name in population_attack_names]
+    population_attack_types = [AttackType(
+        attack_name) for attack_name in population_attack_names]
 
     df_population_experiment = collect_midst_data(
         dataset_input_dir,
@@ -221,10 +229,12 @@ def collect_population_data_ensemble(
         data_processing_config=data_processing_config,
     )
 
-    log(INFO, f"Collected experiment population data length before concatenation: {len(df_population_experiment)}")
+    log(INFO,
+        f"Collected experiment population data length before concatenation: {len(df_population_experiment)}")
 
     if base_population is not None:
-        df_population = pd.concat([df_population_experiment, base_population]).drop_duplicates()
+        df_population = pd.concat(
+            [df_population_experiment, base_population]).drop_duplicates()
         log(INFO, f"Concatenated population data length: {len(df_population)}")
     else:
         df_population = df_population_experiment
@@ -242,7 +252,8 @@ def collect_population_data_ensemble(
     save_dataframe(df_population_no_id, save_dir, "population_all_no_id.csv")
 
     challenge_attack_names = data_processing_config.challenge_attack_data_types_to_collect
-    challenge_attack_types = [AttackType(attack_name) for attack_name in challenge_attack_names]
+    challenge_attack_types = [AttackType(
+        attack_name) for attack_name in challenge_attack_names]
 
     df_challenge = collect_midst_data(
         dataset_input_dir,
@@ -251,7 +262,8 @@ def collect_population_data_ensemble(
         dataset="challenge",
         data_processing_config=data_processing_config,
     )
-    log(INFO, f"Collected challenge data length: {len(df_challenge)} from splits: {challenge_splits}")
+    log(INFO,
+        f"Collected challenge data length: {len(df_challenge)} from splits: {challenge_splits}")
     # In some cases, the location of target models are totally different from train models, therefore
     # to collect the test challenge points, we need to look into the attack folders directly.
     # This offers flexibility to the data folder structure.
@@ -272,10 +284,13 @@ def collect_population_data_ensemble(
     save_dataframe(df_challenge, save_dir, "challenge_points_all.csv")
 
     # Population data without the challenge points
-    df_population_no_challenge = df_population[~df_population["encounter_id"].isin(df_challenge["encounter_id"])]
-    save_dataframe(df_population_no_challenge, save_dir, "population_all_no_challenge.csv")
+    df_population_no_challenge = df_population[~df_population["encounter_id"].isin(
+        df_challenge["encounter_id"])]
+    save_dataframe(df_population_no_challenge, save_dir,
+                   "population_all_no_challenge.csv")
     # Remove ids
-    df_population_no_challenge_no_id = df_population_no_challenge.drop(columns=id_cols, errors="ignore")
+    df_population_no_challenge_no_id = df_population_no_challenge.drop(
+        columns=id_cols, errors="ignore")
     save_dataframe(
         df_population_no_challenge_no_id,
         save_dir,
@@ -283,10 +298,13 @@ def collect_population_data_ensemble(
     )
 
     # Population data with all the challenge points
-    df_population_with_challenge = pd.concat([df_population_no_challenge, df_challenge])
-    save_dataframe(df_population_with_challenge, save_dir, "population_all_with_challenge.csv")
+    df_population_with_challenge = pd.concat(
+        [df_population_no_challenge, df_challenge])
+    save_dataframe(df_population_with_challenge, save_dir,
+                   "population_all_with_challenge.csv")
     # Remove ids
-    df_population_with_challenge_no_id = df_population_with_challenge.drop(columns=id_cols, errors="ignore")
+    df_population_with_challenge_no_id = df_population_with_challenge.drop(
+        columns=id_cols, errors="ignore")
     save_dataframe(
         df_population_with_challenge_no_id,
         save_dir,

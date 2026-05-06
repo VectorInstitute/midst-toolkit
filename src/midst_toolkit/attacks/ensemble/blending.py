@@ -104,7 +104,7 @@ class BlendingPlusPlus:
         # 1. Get RMIA signals
 
         log(INFO, "Calculating RMIA signals...")
-
+        # Calculated 10 features
         rmia_signals = calculate_rmia_signals(
             df_input=df_input,
             shadow_data_collection=self.shadow_data_collection,
@@ -119,6 +119,7 @@ class BlendingPlusPlus:
 
         log(INFO, "Calculating Gower features...")
 
+        # Calculated 9 features
         gower_features = calculate_gower_features(
             df_input=df_input, df_synthetic=df_synthetic, categorical_column_names=categorical_cols
         )
@@ -128,6 +129,7 @@ class BlendingPlusPlus:
        
         log(INFO, "Calculating DOMIAS scores...")
 
+        # Calculated 1 feature
         domias_features = calculate_domias_score(
             df_input=df_input, df_synthetic=df_synthetic, df_reference=df_reference, numeric_column_names=common_numeric
         )

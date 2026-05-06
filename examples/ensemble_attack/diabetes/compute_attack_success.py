@@ -32,7 +32,8 @@ def load_target_challenge_labels_and_probabilities(
             - test_prediction_probabilities: Numpy array of prediction probabilities
               outputted by the metaclassifier for the challenge points.
     """
-    attack_result_file_path = attack_results_path / f"{metaclassifier_model_name}_test_pred_proba.npy"
+    attack_result_file_path = attack_results_path / \
+        f"{metaclassifier_model_name}_test_pred_proba.npy"
     assert attack_result_file_path.exists(), (
         f"No file found at {attack_result_file_path}. Make sure the path is correct, or run the attack on the target model first."
     )
@@ -75,11 +76,14 @@ def compute_attack_success_for_given_targets(
         # ``challenge_label_path`` are dependent on it and change in runtime.
         target_model_config.target_model_id = target_id
         # Load challenge labels and prediction probabilities
-        log(INFO, f"Loading challenge labels and prediction probabilities for target model ID {target_id}...")
+        log(INFO,
+            f"Loading challenge labels and prediction probabilities for target model ID {target_id}...")
         test_target, test_prediction_probabilities = load_target_challenge_labels_and_probabilities(
             metaclassifier_model_name=metaclassifier_model_name,
-            attack_results_path=Path(target_model_config.attack_probabilities_result_path),
-            challenge_label_path=Path(target_model_config.challenge_label_path),
+            attack_results_path=Path(
+                target_model_config.attack_probabilities_result_path),
+            challenge_label_path=Path(
+                target_model_config.challenge_label_path),
         )
         predictions.append(test_prediction_probabilities)
         targets.append(test_target)
@@ -88,20 +92,24 @@ def compute_attack_success_for_given_targets(
     predictions = np.concatenate(predictions)
     targets = np.concatenate(targets)
 
-    assert len(predictions) == len(targets), "Number of predictions must match number of targets."
+    assert len(predictions) == len(
+        targets), "Number of predictions must match number of targets."
 
     # Compute TPR@FPR for all the target models
-    tpr_at_fpr = TprAtFpr.get_tpr_at_fpr(targets, predictions, fpr_threshold=0.1)
+    tpr_at_fpr = TprAtFpr.get_tpr_at_fpr(
+        targets, predictions, fpr_threshold=0.1)
 
     # Save the final attack success rate into a text file.
-    metric_save_path = experiment_directory / f"attack_success_for_{metaclassifier_model_name}.txt"
+    metric_save_path = experiment_directory / \
+        f"attack_success_for_{metaclassifier_model_name}.txt"
 
-    log(INFO, f"Saving attack success value of {tpr_at_fpr} TPR at FPR=0.1 to {metric_save_path}")
+    log(INFO,
+        f"Saving attack success value of {tpr_at_fpr} TPR at FPR=0.1 to {metric_save_path}")
     with open(metric_save_path, "w") as f:
         f.write(f"Final TPR at FPR=0.1: {tpr_at_fpr:.4f}\n")
 
 
-@hydra.main(config_path="configs", config_name="diabetes_experiment_config_itr_100k", version_base=None)
+@hydra.main(config_path="configs", config_name="diabetes_experiment_config_10k_permute", version_base=None)
 def main(
     config: DictConfig,
 ) -> None:
@@ -117,7 +125,8 @@ def main(
         "by specifying `attack_success_computation.target_ids_to_test`."
     )
     target_ids = list(config.attack_success_computation.target_ids_to_test)
-    log(INFO, f"Computing attack success for target model IDs: {target_ids}...")
+    log(INFO,
+        f"Computing attack success for target model IDs: {target_ids}...")
     compute_attack_success_for_given_targets(
         target_model_config=config.target_model,
         target_ids=target_ids,
