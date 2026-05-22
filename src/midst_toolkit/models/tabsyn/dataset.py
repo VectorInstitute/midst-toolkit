@@ -153,8 +153,8 @@ def make_dataset(
     Returns:
         The dataset.
     """
-    categorical_features: ArrayDict | None = {} if (data_path / "X_cat_train.npy").exists() else None
-    numerical_features: ArrayDict | None = {} if (data_path / "X_num_train.npy").exists() else None
+    categorical_features: ArrayDict | None = {} if (data_path / "x_cat_train.npy").exists() else None
+    numerical_features: ArrayDict | None = {} if (data_path / "x_num_train.npy").exists() else None
     assert (data_path / "y_train.npy").exists(), "y_train.npy does not exist"
     target: ArrayDict = {}
 
@@ -223,12 +223,12 @@ def read_pure_data(path: Path, split: DataSplit) -> tuple[np.ndarray | None, np.
     target = np.load(path / f"y_{split.value}.npy", allow_pickle=True)
 
     numerical_features = None
-    if (path / f"X_num_{split.value}.npy").exists():
-        numerical_features = np.load(path / f"X_num_{split.value}.npy", allow_pickle=True)
+    if (path / f"x_num_{split.value}.npy").exists():
+        numerical_features = np.load(path / f"x_num_{split.value}.npy", allow_pickle=True)
 
     categorical_features = None
-    if (path / f"X_cat_{split.value}.npy").exists():
-        categorical_features = np.load(path / f"X_cat_{split.value}.npy", allow_pickle=True)
+    if (path / f"x_cat_{split.value}.npy").exists():
+        categorical_features = np.load(path / f"x_cat_{split.value}.npy", allow_pickle=True)
 
     return numerical_features, categorical_features, target
 

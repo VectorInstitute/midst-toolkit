@@ -295,18 +295,23 @@ class TabSyn:
         """
         ce_loss_fn = nn.CrossEntropyLoss()
         mse_loss = (numerical_features - reconstructed_numerical_features).pow(2).mean()
-        ce_loss = torch.tensor(0.0)
-        acc = torch.tensor(0.0)
-        total_num = torch.tensor(0.0)
+        ce_loss = torch.tensor(0.0, device=self.device)
+        acc = torch.tensor(0.0, device=self.device)
+        total_num = torch.tensor(0.0, device=self.device)
 
-        for idx, x_cat in enumerate(reconstructed_categorical_features):
+        index = 0
+        for x_cat in reconstructed_categorical_features:
             if x_cat is not None:
-                ce_loss += ce_loss_fn(x_cat, categorical_features[:, idx])
+                ce_loss += ce_loss_fn(x_cat, categorical_features[:, index])
                 x_hat = x_cat.argmax(dim=-1)
-            acc += (x_hat == categorical_features[:, idx]).float().sum()
-            total_num += x_hat.shape[0]
+                total_num += x_hat.shape[0]
 
-        ce_loss /= idx + 1
+            acc += (x_hat == categorical_features[:, index]).float().sum()
+            index += 1
+
+        if index > 0:
+            ce_loss /= index
+
         acc /= total_num
         # loss = mse_loss + ce_loss
 
@@ -457,10 +462,10 @@ class TabSyn:
         encoder_save_path = ckpt_dir / "vae" / "encoder.pt"
         decoder_save_path = ckpt_dir / "vae" / "decoder.pt"
 
-        self.dif_model.load_state_dict(torch.load(dif_model_save_path))
-        self.vae_model.load_state_dict(torch.load(vae_model_save_path))
-        self.pre_encoder.load_state_dict(torch.load(encoder_save_path))
-        self.pre_decoder.load_state_dict(torch.load(decoder_save_path))
+        self.dif_model.load_state_dict(torch.load(dif_model_save_path, map_location=self.device))
+        self.vae_model.load_state_dict(torch.load(vae_model_save_path, map_location=self.device))
+        self.pre_encoder.load_state_dict(torch.load(encoder_save_path, map_location=self.device))
+        self.pre_decoder.load_state_dict(torch.load(decoder_save_path, map_location=self.device))
 
         log(INFO, f"Loaded model state from {ckpt_dir}")
 
@@ -491,11 +496,11 @@ class TabSyn:
         """
         denoise_fn = MLPDiffusion(in_dim, 1024).to(self.device)
         model = Model(denoise_fn=denoise_fn, hid_dim=hid_dim).to(self.device)
-        model.load_state_dict(torch.load(ckpt_dir / "model.pt"))
+        model.load_state_dict(torch.load(ckpt_dir / "model.pt", map_location=self.device))
 
         pre_decoder = DecoderModel(num_layers, d_numerical, categories, d_token, n_head=n_head, factor=factor)
         decoder_save_path = ckpt_dir / "vae" / "decoder.pt"
-        pre_decoder.load_state_dict(torch.load(decoder_save_path))
+        pre_decoder.load_state_dict(torch.load(decoder_save_path, map_location=self.device))
 
         self.dif_model = model
         self.pre_decoder = pre_decoder

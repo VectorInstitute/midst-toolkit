@@ -124,8 +124,10 @@ class Dataset:
         Returns:
             The loaded dataset.
         """
-        if Path(directory / "info.json").exists():
-            info = json.loads(Path(directory / "info.json").read_text())
+        json_path = Path(directory / "info.json")
+        assert json_path.exists(), f"Info.json file not found at {json_path}"
+
+        info = json.loads(json_path.read_text())
 
         return cls(
             cls._load_datasets(directory, "x_num") if directory.joinpath("x_num_train.npy").exists() else None,

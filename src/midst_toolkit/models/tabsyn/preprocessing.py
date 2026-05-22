@@ -85,7 +85,7 @@ def preprocess_news(info_path: Path, raw_data_dir: Path) -> None:
     info["num_col_idx"] = list(range(45))
     info["cat_col_idx"] = [46, 47]
     info["target_col_idx"] = [45]
-    info["data_path"] = data_save_path
+    info["data_path"] = str(data_save_path)
 
     name = "news"
     with open(info_path / f"{name}.json", "w") as file:
@@ -146,6 +146,8 @@ def get_column_name_mapping(
     return idx_mapping, inverse_idx_mapping, idx_name_mapping
 
 
+# TODO: refactor this function, possibly re-use the one we refactored before that looked very similar:
+# midst_toolkit/models/clavaddpm/data_loaders.py::train_test_split
 def train_val_test_split(
     data_df: pd.DataFrame,
     cat_columns: list[str],
@@ -254,6 +256,7 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
     train_df.columns = list(range(len(train_df.columns)))
     test_df.columns = list(range(len(test_df.columns)))
 
+    # TODO: this is never used. Remove this block of code to avoid confusion.
     col_info: dict[int | str, Any] = {}
 
     for col_idx in num_col_idx:
@@ -297,18 +300,18 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
     target_train = train_df[target_columns].to_numpy()
 
     numerical_features_test = test_df[num_columns].to_numpy().astype(np.float32)
-    categorical_features_test = test_df[cat_columns].to_numpy().astype(np.int32)
+    categorical_features_test = test_df[cat_columns].to_numpy().astype(np.int64)
     target_test = test_df[target_columns].to_numpy()
 
     if not (processed_data_dir / name).exists():
         (processed_data_dir / name).mkdir(parents=True)
 
-    np.save(processed_data_dir / name / "X_num_train.npy", numerical_features_train)
-    np.save(processed_data_dir / name / "X_cat_train.npy", categorical_features_train)
+    np.save(processed_data_dir / name / "x_num_train.npy", numerical_features_train)
+    np.save(processed_data_dir / name / "x_cat_train.npy", categorical_features_train)
     np.save(processed_data_dir / name / "y_train.npy", target_train)
 
-    np.save(processed_data_dir / name / "X_num_test.npy", numerical_features_test)
-    np.save(processed_data_dir / name / "X_cat_test.npy", categorical_features_test)
+    np.save(processed_data_dir / name / "x_num_test.npy", numerical_features_test)
+    np.save(processed_data_dir / name / "x_cat_test.npy", categorical_features_test)
     np.save(processed_data_dir / name / "y_test.npy", target_test)
 
     train_df[num_columns] = train_df[num_columns].astype(np.float32)

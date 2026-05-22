@@ -220,8 +220,7 @@ class Precond(nn.Module):
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         self.sigma_data = sigma_data
-        ###########
-        self.denoise_fn_f = denoise_fn
+        self.denoise_fn = denoise_fn
 
     def forward(self, x: Tensor, sigma: Tensor) -> Tensor:
         """Forward pass of the Precond.
@@ -244,7 +243,7 @@ class Precond(nn.Module):
         c_noise = sigma.log() / 4
 
         x_in = c_in * x
-        f_x = self.denoise_fn_f((x_in).to(dtype), c_noise.flatten())
+        f_x = self.denoise_fn((x_in).to(dtype), c_noise.flatten())
 
         assert f_x.dtype == dtype
         return c_skip * x + c_out * f_x.to(torch.float32)
