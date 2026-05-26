@@ -360,7 +360,9 @@ def setup_cache_path(transformations: Transformations, cache_dir: Path | None) -
     return cache_dir / f"cache__{transformations_str}__{transformations_md5}.pickle"
 
 
-def get_cached_dataset(cache_path: Path, transformations: Transformations) -> Dataset:
+# Ignoring the type -var error because mypy does not like when type var is
+# returned bu not present in the arguments list.
+def get_cached_dataset(cache_path: Path, transformations: Transformations) -> TDataset:  # type: ignore[type-var]
     """
     Provided a ``cache_path`` that exists, we load the contents of the pickle, which should be a tuple of
     Transformations followed by a transformed dataset object. We check if the cached transformations match the

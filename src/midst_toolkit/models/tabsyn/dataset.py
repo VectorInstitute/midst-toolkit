@@ -64,7 +64,8 @@ def preprocess(
         ref_dataset_path: The path to the reference dataset.
         transforms: The transformations to apply to the data.
         task_type: The task type.
-        inverse: Whether to inverse the transformations.
+        inverse: If True, will also return the inverse of the numerical and
+            categorical transformations.
         concat: Whether to concatenate the target to the data.
 
     Returns:
@@ -197,13 +198,13 @@ def make_dataset(
 
 
 def get_categories(categorical_features_train: np.ndarray | None) -> list[int] | None:
-    """Get the categories from the categorical features.
+    """Get the length of the unique categories from the categorical features.
 
     Args:
         categorical_features_train: The categorical features for the train split.
 
     Returns:
-        The categories.
+        The length of the unique categories for each feature.
     """
     if categorical_features_train is None:
         return None

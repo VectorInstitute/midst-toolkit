@@ -1,7 +1,5 @@
 from collections.abc import Callable
-from typing import Any
 
-import numpy as np
 import torch
 from torch import Tensor, nn
 
@@ -52,105 +50,6 @@ class PositionalEmbedding(torch.nn.Module):
         return torch.cat([x.cos(), x.sin()], dim=1)
 
 
-def reglu(x: Tensor) -> Tensor:
-    """The ReGLU activation function from [1].
-
-    References:
-        [1] Noam Shazeer, "GLU Variants Improve Transformer", 2020
-    """
-    assert x.shape[-1] % 2 == 0
-    a, b = x.chunk(2, dim=-1)
-    return a * nn.functional.relu(b)
-
-
-def geglu(x: Tensor) -> Tensor:
-    """The GEGLU activation function from [1].
-
-    References:
-        [1] Noam Shazeer, "GLU Variants Improve Transformer", 2020
-    """
-    assert x.shape[-1] % 2 == 0
-    a, b = x.chunk(2, dim=-1)
-    return a * nn.functional.gelu(b)
-
-
-class ReGLU(nn.Module):
-    """The ReGLU activation function from [shazeer2020glu].
-
-    Examples:
-        .. testcode::
-
-            module = ReGLU()
-            x = torch.randn(3, 4)
-            assert module(x).shape == (3, 2)
-
-    References:
-        * [shazeer2020glu] Noam Shazeer, "GLU Variants Improve Transformer", 2020
-    """
-
-    def forward(self, x: Tensor) -> Tensor:
-        """Forward pass of the ReGLU.
-
-        Args:
-            x: The input data.
-
-        Returns:
-            The output data.
-        """
-        return reglu(x)
-
-
-class GEGLU(nn.Module):
-    """The GEGLU activation function from [shazeer2020glu].
-
-    Examples:
-        .. testcode::
-
-            module = GEGLU()
-            x = torch.randn(3, 4)
-            assert module(x).shape == (3, 2)
-
-    References:
-        * [shazeer2020glu] Noam Shazeer, "GLU Variants Improve Transformer", 2020
-    """
-
-    def forward(self, x: Tensor) -> Tensor:
-        """Forward pass of the GEGLU.
-
-        Args:
-            x: The input data.
-
-        Returns:
-            The output data.
-        """
-        return geglu(x)
-
-
-class FourierEmbedding(torch.nn.Module):
-    def __init__(self, num_channels: int, scale: float = 16):
-        """Initialize the FourierEmbedding.
-
-        Args:
-            num_channels: The number of channels.
-            scale: The scale of the frequency. Optional, defaults to 16.
-        """
-        super().__init__()
-        self.freqs: Tensor
-        self.register_buffer("freqs", torch.randn(num_channels // 2) * scale)
-
-    def forward(self, x: Tensor) -> Tensor:
-        """Forward pass of the FourierEmbedding.
-
-        Args:
-            x: The input data.
-
-        Returns:
-            The output data.
-        """
-        x = x.ger((2 * np.pi * self.freqs).to(x.dtype))
-        return torch.cat([x.cos(), x.sin()], dim=1)
-
-
 class MLPDiffusion(nn.Module):
     def __init__(self, d_in: int, dim_t: int = 512):
         """Initialize the MLPDiffusion.
@@ -196,11 +95,11 @@ class MLPDiffusion(nn.Module):
         return self.mlp(x)
 
 
-class Precond(nn.Module):
+class Preconditioner(nn.Module):
     def __init__(
         self,
-        denoise_fn: nn.Module,
-        hid_dim: int,
+        denoise_model: nn.Module,
+        hidden_dimension: int,
         sigma_min: float = 0,
         sigma_max: float = float("inf"),
         sigma_data: float = 0.5,
@@ -208,19 +107,19 @@ class Precond(nn.Module):
         """Initialize the Precond.
 
         Args:
-            denoise_fn: The denoising function.
-            hid_dim: The hidden dimension.
+            denoise_model: The denoising model.
+            hidden_dimension: The hidden dimension.
             sigma_min: The minimum supported noise level. Optional, defaults to 0.
             sigma_max: The maximum supported noise level. Optional, defaults to `float("inf")`.
             sigma_data: The expected standard deviation of the training data. Optional, defaults to 0.5.
         """
         super().__init__()
 
-        self.hid_dim = hid_dim
+        self.hidden_dimension = hidden_dimension
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         self.sigma_data = sigma_data
-        self.denoise_fn = denoise_fn
+        self.denoise_model = denoise_model
 
     def forward(self, x: Tensor, sigma: Tensor) -> Tensor:
         """Forward pass of the Precond.
@@ -235,7 +134,6 @@ class Precond(nn.Module):
         x = x.to(torch.float32)
 
         sigma = sigma.to(torch.float32).reshape(-1, 1)
-        dtype = torch.float32
 
         c_skip = self.sigma_data**2 / (sigma**2 + self.sigma_data**2)
         c_out = sigma * self.sigma_data / (sigma**2 + self.sigma_data**2).sqrt()
@@ -243,21 +141,10 @@ class Precond(nn.Module):
         c_noise = sigma.log() / 4
 
         x_in = c_in * x
-        f_x = self.denoise_fn((x_in).to(dtype), c_noise.flatten())
+        f_x = self.denoise_model((x_in).to(torch.float32), c_noise.flatten())
 
-        assert f_x.dtype == dtype
+        assert f_x.dtype == torch.float32
         return c_skip * x + c_out * f_x.to(torch.float32)
-
-    def round_sigma(self, sigma: Tensor) -> Tensor:
-        """Round the sigma.
-
-        Args:
-            sigma: The sigma.
-
-        Returns:
-            The rounded sigma.
-        """
-        return torch.as_tensor(sigma)
 
 
 class EDMLoss:
@@ -266,9 +153,7 @@ class EDMLoss:
         p_mean: float = -1.2,
         p_std: float = 1.2,
         sigma_data: float = 0.5,
-        hid_dim: int = 100,
-        gamma: float = 5,
-        opts: dict[str, Any] | None = None,
+        hidden_dimension: int = 100,
     ) -> None:
         """Initialize the EDMLoss.
 
@@ -276,16 +161,12 @@ class EDMLoss:
             p_mean: The mean of the noise. Optional, defaults to -1.2.
             p_std: The standard deviation of the noise. Optional, defaults to 1.2.
             sigma_data: The standard deviation of the data. Optional, defaults to 0.5.
-            hid_dim: The hidden dimension. Optional, defaults to 100.
-            gamma: The gamma parameter. Optional, defaults to 5.
-            opts: The options. Optional, defaults to None.
+            hidden_dimension: The hidden dimension. Optional, defaults to 100.
         """
         self.p_mean = p_mean
         self.p_std = p_std
         self.sigma_data = sigma_data
-        self.hid_dim = hid_dim
-        self.gamma = gamma
-        self.opts = opts
+        self.hidden_dimension = hidden_dimension
 
     def __call__(self, denoise_fn: nn.Module, data: Tensor) -> Tensor:
         """Calculate the loss.
@@ -313,31 +194,25 @@ class EDMLoss:
 class Model(nn.Module):
     def __init__(
         self,
-        denoise_fn: nn.Module,
-        hid_dim: int,
+        denoise_model: nn.Module,
+        hidden_dimension: int,
         p_mean: float = -1.2,
         p_std: float = 1.2,
         sigma_data: float = 0.5,
-        gamma: float = 5,
-        opts: dict[str, Any] | None = None,
-        pfgmpp: bool = False,
     ):
         """Initialize the model.
 
         Args:
-            denoise_fn: The denoising function.
-            hid_dim: The hidden dimension.
+            denoise_model: The denoising model.
+            hidden_dimension: The hidden dimension.
             p_mean: The mean of the noise. Optional, defaults to -1.2.
             p_std: The standard deviation of the noise. Optional, defaults to 1.2.
             sigma_data: The standard deviation of the data. Optional, defaults to 0.5.
-            gamma: The gamma parameter. Optional, defaults to 5.
-            opts: The options. Optional, defaults to None.
-            pfgmpp: Whether to use the PFGMPP model. Optional, defaults to False.
         """
         super().__init__()
 
-        self.denoise_fn_d = Precond(denoise_fn, hid_dim)
-        self.loss_fn = EDMLoss(p_mean, p_std, sigma_data, hid_dim=hid_dim, gamma=5, opts=None)
+        self.preconditioner = Preconditioner(denoise_model, hidden_dimension)
+        self.loss_fn = EDMLoss(p_mean, p_std, sigma_data, hidden_dimension=hidden_dimension)
 
     def forward(self, x: Tensor) -> Tensor:
         """Forward pass of the model.
@@ -348,5 +223,5 @@ class Model(nn.Module):
         Returns:
             The mean loss.
         """
-        loss = self.loss_fn(self.denoise_fn_d, x)
+        loss = self.loss_fn(self.preconditioner, x)
         return loss.mean(-1).mean()

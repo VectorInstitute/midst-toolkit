@@ -1,21 +1,12 @@
-"""Loss functions used in the paper
-"Elucidating the Design Space of Diffusion-Based Generative Models".
-"""
+"""Utility functions and constants for the TabSyn model."""
 
 import numpy as np
 import torch
-from torch import Tensor
+from torch import Tensor, randn_like
 
 from midst_toolkit.common.variables import DEVICE
-from midst_toolkit.models.tabsyn.model.modules import Precond
+from midst_toolkit.models.tabsyn.model.modules import Preconditioner
 
-
-# ----------------------------------------------------------------------------
-# Loss function corresponding to the variance preserving (VP) formulation
-# from the paper "Score-Based Generative Modeling through Stochastic
-# Differential Equations".
-
-randn_like = torch.randn_like
 
 SIGMA_MIN = 0.002
 SIGMA_MAX = 80
@@ -26,7 +17,9 @@ S_max = float("inf")
 S_noise = 1
 
 
-def sample(net: Precond, num_samples: int, dim: int, num_steps: int = 50, device: torch.device = DEVICE) -> Tensor:
+def sample(
+    net: Preconditioner, num_samples: int, dim: int, num_steps: int = 50, device: torch.device = DEVICE
+) -> Tensor:
     """Sample from the diffusion process.
 
     Args:
@@ -49,7 +42,7 @@ def sample(net: Precond, num_samples: int, dim: int, num_steps: int = 50, device
     t_steps = (
         sigma_max ** (1 / rho) + step_indices / (num_steps - 1) * (sigma_min ** (1 / rho) - sigma_max ** (1 / rho))
     ) ** rho
-    t_steps = torch.cat([net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])])
+    t_steps = torch.cat([t_steps, torch.zeros_like(t_steps[:1])])
 
     x_next = latents.to(torch.float32) * t_steps[0]
 
@@ -60,7 +53,7 @@ def sample(net: Precond, num_samples: int, dim: int, num_steps: int = 50, device
     return x_next
 
 
-def sample_step(net: Precond, num_steps: int, i: int, t_cur: Tensor, t_next: Tensor, x_next: Tensor) -> Tensor:
+def sample_step(net: Preconditioner, num_steps: int, i: int, t_cur: Tensor, t_next: Tensor, x_next: Tensor) -> Tensor:
     """Sample a step of the diffusion process.
 
     Args:
@@ -77,7 +70,7 @@ def sample_step(net: Precond, num_steps: int, i: int, t_cur: Tensor, t_next: Ten
     x_cur = x_next
     # Increase noise temporarily.
     gamma = min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
-    t_hat = net.round_sigma(t_cur + gamma * t_cur)
+    t_hat = t_cur + gamma * t_cur
     x_hat = x_cur + (t_hat**2 - t_cur**2).sqrt() * S_noise * randn_like(x_cur)
     # Euler step.
 

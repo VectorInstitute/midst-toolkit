@@ -22,76 +22,6 @@ def get_processed_data_dir(data_dir: Path) -> Path:
     return data_dir / "processed_data"
 
 
-def preprocess_beijing(info_path: Path) -> None:
-    """Preprocess the Beijing dataset.
-
-    Args:
-        info_path: The directory where the beijing.json info file is located.
-             The info file should also contain the data path.
-
-    Returns:
-        The preprocessed data.
-    """
-    with open(info_path / "beijing.json", "r") as f:
-        info = json.load(f)
-
-    data_path = info["raw_data_path"]
-
-    data_df = pd.read_csv(data_path)
-    columns = data_df.columns
-
-    data_df = data_df[columns[1:]]
-
-    df_cleaned = data_df.dropna()
-    df_cleaned.to_csv(info["data_path"], index=False)
-
-
-def preprocess_news(info_path: Path, raw_data_dir: Path) -> None:
-    """Preprocess the News dataset.
-
-    Args:
-        info_path: The directory where the news.json info file is located.
-        raw_data_dir: The directory where the raw data is located.
-
-    Returns:
-        The preprocessed data.
-    """
-    with open(info_path / "news.json", "r") as f:
-        info = json.load(f)
-
-    data_path = info["raw_data_path"]
-    data_df = pd.read_csv(data_path)
-    data_df = data_df.drop("url", axis=1)
-
-    columns = np.array(data_df.columns.tolist())
-
-    cat_columns1 = columns[list(range(12, 18))]
-    cat_columns2 = columns[list(range(30, 38))]
-
-    cat_col1 = data_df[cat_columns1].astype(int).to_numpy().argmax(axis=1)
-    cat_col2 = data_df[cat_columns2].astype(int).to_numpy().argmax(axis=1)
-
-    data_df = data_df.drop(cat_columns2, axis=1)
-    data_df = data_df.drop(cat_columns1, axis=1)
-
-    data_df["data_channel"] = cat_col1
-    data_df["weekday"] = cat_col2
-
-    data_save_path = raw_data_dir / "news" / "news.csv"
-    data_df.to_csv(data_save_path, index=False)
-
-    columns = np.array(data_df.columns.tolist())
-
-    info["num_col_idx"] = list(range(45))
-    info["cat_col_idx"] = [46, 47]
-    info["target_col_idx"] = [45]
-    info["data_path"] = str(data_save_path)
-
-    name = "news"
-    with open(info_path / f"{name}.json", "w") as file:
-        json.dump(info, file, indent=4)
-
-
 def get_column_name_mapping(
     data_df: pd.DataFrame,
     num_col_idx: list[int],
@@ -206,13 +136,7 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
         info_path: The directory where the info file is located.
         data_dir: The directory where the raw data is located.
     """
-    raw_data_dir = data_dir / "raw_data"
     processed_data_dir = get_processed_data_dir(data_dir)
-
-    if name == "news":
-        preprocess_news(info_path, raw_data_dir)
-    elif name == "beijing":
-        preprocess_beijing(info_path)
 
     with open(info_path / f"{name}.json", "r") as f:
         info = json.load(f)
@@ -225,7 +149,10 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
         data_df = pd.read_excel(data_path, sheet_name="Data", header=1)
         data_df = data_df.drop("ID", axis=1)
 
-    num_data = data_df.shape[0]
+    else:
+        raise ValueError(f"Unsupported file type: {info['file_type']}. Supported file types are: ['csv', 'xls'].")
+
+    num_rows = data_df.shape[0]
 
     column_names = info["column_names"] if info["column_names"] else data_df.columns.tolist()
 
@@ -247,9 +174,9 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
         test_df = pd.read_csv(test_path)
         train_df = data_df
     else:
-        # Train/ Test Split, 90% Training, 10% Testing (Validation set will be selected from Training set)
-        num_train = int(num_data * 0.99)
-        num_test = num_data - num_train
+        # Train/ Test Split, 99% Training, 1% Testing (Validation set will be selected from Training set)
+        num_train = int(num_rows * 0.99)
+        num_test = num_rows - num_train
 
         train_df, test_df = train_val_test_split(data_df, cat_columns, num_train, num_test)
 

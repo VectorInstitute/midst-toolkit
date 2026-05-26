@@ -2,7 +2,7 @@ from collections import Counter
 from dataclasses import replace
 from logging import INFO
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 from category_encoders import LeaveOneOutEncoder
@@ -305,9 +305,11 @@ def transform_dataset(
     """
     cache_path = setup_cache_path(transformations, cache_dir)
     if cache_path is not None and cache_path.exists():
-        return cast(TDataset, get_cached_dataset(cache_path, transformations))
+        return get_cached_dataset(cache_path, transformations)
 
     if dataset.numerical_features is not None:
+        # Processing NaNs in numerical features here because we need to
+        # drop rows with NaNs in case the policy is DROP_ROWS.
         dataset = process_nans_in_numerical_features(dataset, transformations.numerical_nan_policy)
 
     numerical_transform = None
@@ -341,6 +343,7 @@ def transform_dataset(
             return_encoder=True,
         )
         if is_numerical:
+            # Will be true if the categorical encoding type is ONE_HOT or COUNTER.
             if numerical_features is None:
                 numerical_features = categorical_features
             else:
