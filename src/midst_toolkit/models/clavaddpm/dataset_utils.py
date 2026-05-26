@@ -57,6 +57,8 @@ def encode_and_merge_features(
     categorical_features: ArrayDict | None,
     numerical_features: ArrayDict | None,
     noise_scale: float,
+    categorical_column_names: list[str] | None = None,
+    label_encoders_path: str | None = None,
 ) -> tuple[ArrayDict, dict[int, LabelEncoder]]:
     """
     Merge the categorical with the numerical features for train, validation, and test datasets. Numerical features
@@ -75,6 +77,9 @@ def encode_and_merge_features(
             keys are "train", "val", "test" from the DataSplit enumeration
         noise_scale: The scale of the noise to add to the categorical features. Noise is drawn from a normal
             distribution with standard deviation of ``noise_scale``.
+        categorical_column_names: The names of the categorical columns.
+        label_encoders_path: The path to the label encoders pkl file. If provided, already fitted label encoder
+         will be loaded from the pkl file, otherwise they will be fitted on the current data.
 
     Returns:
         The merged features for train, validation, and test datasets and the label encoders used to do so. The label
@@ -95,11 +100,26 @@ def encode_and_merge_features(
         )
     )
 
+    # Load pre-fitted label encoders from pkl if provided, otherwise fit on current data
+    preloaded_encoders: dict[str, LabelEncoder] | None = None
+    if label_encoders_path is not None:
+        _pkl_path = Path(label_encoders_path)
+        if _pkl_path.exists():
+            with open(_pkl_path, "rb") as _f:
+                preloaded_encoders = pickle.load(_f)
+
     categorical_data_encoded = []
     label_encoders = {}
     for column in range(all_categorical_data.shape[1]):
-        label_encoder = LabelEncoder()
-        encoded_labels = label_encoder.fit_transform(all_categorical_data[:, column]).astype(float)
+        col_name = categorical_column_names[column] if categorical_column_names is not None else None
+        if preloaded_encoders is not None and col_name is not None and col_name in preloaded_encoders:
+            # Use pre-fitted encoder from full dataset (e.g. 101K rows)
+            label_encoder = preloaded_encoders[col_name]
+            encoded_labels = label_encoder.transform(all_categorical_data[:, column]).astype(float)
+        else:
+            # Fallback: fit on current data
+            label_encoder = LabelEncoder()
+            encoded_labels = label_encoder.fit_transform(all_categorical_data[:, column]).astype(float)
         if noise_scale > 0:
             # add noise
             encoded_labels += np.random.normal(0, noise_scale, encoded_labels.shape)

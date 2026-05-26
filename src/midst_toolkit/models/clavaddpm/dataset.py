@@ -377,10 +377,23 @@ class Dataset:
         column_orders = numerical_column_names + categorical_column_names
 
         # Encode the categorical features and merge them with the numerical features
+        # Look for pre-fitted label encoders in the parent directories of the data
+        import os as _os
+
+        _le_path = None
+        for _parent in [
+            _os.path.join("whitebox_single_table_DI", "label_encoders.pkl"),
+            _os.path.join("whitebox_single_table_70", "label_encoders.pkl"),
+        ]:
+            if _os.path.exists(_parent):
+                _le_path = _parent
+                break
         features, label_encoders = encode_and_merge_features(
             categorical_features,
             numerical_features,
             noise_scale,
+            categorical_column_names=categorical_column_names if len(categorical_column_names) > 0 else None,
+            label_encoders_path=_le_path,
         )
 
         assert isinstance(table_metadata.n_classes, int)

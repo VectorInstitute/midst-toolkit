@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import os
 from collections.abc import Generator
+from dataclasses import replace as dc_replace
 from logging import INFO
 from pathlib import Path
 from typing import Any
@@ -98,6 +99,7 @@ def mixed_loss(
 
 
 # TODO: Unify this with the Dataset.from_df function.
+# TODO: Noise scale is always called with a value of 0 for the attack.
 def make_dataset_from_df_with_loaded(
     data: pd.DataFrame,
     transformation: Transformations,
@@ -107,7 +109,21 @@ def make_dataset_from_df_with_loaded(
     numerical_transform: StandardScaler | None = None,
     noise_scale: float = 0,
 ) -> Dataset:
+    """
+    Makes a dataset from a dataframe with loaded transformations.
 
+    Args:
+        data: The dataframe to make the dataset from.
+        transformation: The transformations to apply to the data.
+        is_target_conditioned: Whether the target is conditioned on the data.
+        table_metadata: The metadata for the table.
+        label_encoders: The label encoders for the categorical columns.
+        numerical_transform: The numerical transform to apply to the data.
+        noise_scale: The scale of the noise to add to the data.
+
+    Returns:
+        A dataset object.
+    """
     categorical_column_names, numerical_column_names = get_categorical_and_numerical_column_names(
         table_metadata,
         is_target_conditioned,
@@ -139,7 +155,6 @@ def make_dataset_from_df_with_loaded(
 
     target_info = TargetInfo(policy=None, mean=None, std=None)
 
-
     # Apply the model's pre-fitted numerical transform directly instead of re-fitting a new one.
     # Calling transform_dataset() would fit a brand new QuantileTransformer on the MIA data,
     # which produces a different normalization than the model saw during training, destroying signal.
@@ -157,7 +172,6 @@ def make_dataset_from_df_with_loaded(
         numerical_transform=numerical_transform,
     )
     # Use a no-normalization transformation since we've already applied the model's scaler above.
-    from dataclasses import replace as dc_replace
     transformation_no_norm = dc_replace(transformation, normalization=None)
     return transform_dataset(dataset, transformation_no_norm, None)
 
@@ -390,7 +404,7 @@ def prepare_dataframe(
     return filter_dataframe(merged_data, df_data, columns_for_deduplication)
 
 
-def train_tartan_federer_attack_classifier(
+def train_tartan_federer_attack_classifier(  # noqa: PLR0915
     train_indices: list[int],
     val_indices: list[int] | None,
     timesteps: list[int],
