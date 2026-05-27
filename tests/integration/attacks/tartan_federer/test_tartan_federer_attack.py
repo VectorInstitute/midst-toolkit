@@ -107,7 +107,6 @@ def test_tf_attack_whitebox_tiny_config_midst_toolkit_single_model():
     roc_auc_test = mia_performance_test["roc_auc"]
     tpr_at_fpr_test = mia_performance_test["max_tpr"]
 
-
     assert roc_auc_train == pytest.approx(0.6985000000000001, abs=1e-8)
     assert tpr_at_fpr_train == pytest.approx(0.33, abs=1e-8)
 
