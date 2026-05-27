@@ -111,8 +111,7 @@ def encode_and_merge_features(
             preloaded_encoders = pickle.load(_f)
 
     if preloaded_encoders is not None:
-        if categorical_column_names is None:
-            raise ValueError("categorical_column_names must be provided when using label_encoders_path.")
+        assert categorical_column_names is not None, "categorical_column_names must be provided when using label_encoders_path."
 
         expected_cols = set(categorical_column_names)
         available_cols = set(preloaded_encoders.keys())
@@ -126,13 +125,14 @@ def encode_and_merge_features(
                 "Refusing to mix preloaded encoders with freshly fit encoders."
             )
 
+
+    
     categorical_data_encoded = []
     label_encoders = {}
     for column in range(all_categorical_data.shape[1]):
-        col_name = categorical_column_names[column] if categorical_column_names is not None else None
-
         if preloaded_encoders is not None:
-            label_encoder = preloaded_encoders[col_name]
+            assert categorical_column_names is not None
+            label_encoder =  preloaded_encoders[categorical_column_names[column]]
             encoded_labels = label_encoder.transform(all_categorical_data[:, column]).astype(float)
         else:
             label_encoder = LabelEncoder()
