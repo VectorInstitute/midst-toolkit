@@ -404,7 +404,7 @@ def prepare_dataframe(
     return filter_dataframe(merged_data, df_data, columns_for_deduplication)
 
 
-def train_tartan_federer_attack_classifier(  # noqa: PLR0915
+def train_tartan_federer_attack_classifier(  # noqa: PLR0915, PLR0912
     train_indices: list[int],
     val_indices: list[int] | None,
     timesteps: list[int],
@@ -465,7 +465,13 @@ def train_tartan_federer_attack_classifier(  # noqa: PLR0915
     first_model_number = (train_indices + (val_indices or []))[0]
     first_model_dir = model_data_dir / f"{model_type}_{first_model_number}"
     first_model_path = first_model_dir / target_model_subdir
-    _relation_order = [("None", "trans")] if model_type == "tabddpm" else []
+
+    if model_type != "tabddpm":
+        raise ValueError(
+            f"Unsupported model_type {model_type}. Tartan Federer Attack is only supported for ClavaDDPM-single-table models."
+        )
+    # TODO: We should read this from the metadata instead.
+    _relation_order = [("None", "trans")]
     for _parent, _child in _relation_order:
         _ckpt_path = first_model_path / f"{_parent}_{_child}_ckpt.pkl"
         with open(_ckpt_path, "rb") as _f:

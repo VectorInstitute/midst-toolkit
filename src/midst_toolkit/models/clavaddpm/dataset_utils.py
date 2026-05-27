@@ -104,25 +104,43 @@ def encode_and_merge_features(
     preloaded_encoders: dict[str, LabelEncoder] | None = None
     if label_encoders_path is not None:
         _pkl_path = Path(label_encoders_path)
-        if _pkl_path.exists():
-            with open(_pkl_path, "rb") as _f:
-                preloaded_encoders = pickle.load(_f)
+
+        if not _pkl_path.exists():
+            raise FileNotFoundError(f"label_encoders_path does not exist: {_pkl_path}")
+        with open(_pkl_path, "rb") as _f:
+            preloaded_encoders = pickle.load(_f)
+
+    if preloaded_encoders is not None:
+        if categorical_column_names is None:
+            raise ValueError("categorical_column_names must be provided when using label_encoders_path.")
+
+        expected_cols = set(categorical_column_names)
+        available_cols = set(preloaded_encoders.keys())
+
+        missing_cols = expected_cols - available_cols
+
+        if missing_cols:
+            raise ValueError(
+                "label_encoders_path is missing encoders for categorical columns: "
+                f"{sorted(missing_cols)}. "
+                "Refusing to mix preloaded encoders with freshly fit encoders."
+            )
 
     categorical_data_encoded = []
     label_encoders = {}
     for column in range(all_categorical_data.shape[1]):
         col_name = categorical_column_names[column] if categorical_column_names is not None else None
-        if preloaded_encoders is not None and col_name is not None and col_name in preloaded_encoders:
-            # Use pre-fitted encoder from full dataset (e.g. 101K rows)
+
+        if preloaded_encoders is not None:
             label_encoder = preloaded_encoders[col_name]
             encoded_labels = label_encoder.transform(all_categorical_data[:, column]).astype(float)
         else:
-            # Fallback: fit on current data
             label_encoder = LabelEncoder()
             encoded_labels = label_encoder.fit_transform(all_categorical_data[:, column]).astype(float)
+
         if noise_scale > 0:
-            # add noise
             encoded_labels += np.random.normal(0, noise_scale, encoded_labels.shape)
+
         categorical_data_encoded.append(encoded_labels)
         label_encoders[column] = label_encoder
 
