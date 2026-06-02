@@ -154,13 +154,6 @@ class MLP(nn.Module):
           MLP: (in) -> Block -> ... -> Block -> Linear -> (out)
         Block: (in) -> Linear -> Activation -> Dropout -> (out)
 
-    Examples:
-        .. testcode::
-
-            x = torch.randn(4, 2)
-            module = MLP.make_baseline(x.shape[1], [3, 5], 0.1, 1)
-            assert module(x).shape == (len(x), 1)
-
     References:
         * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov,
         Artem Babenko, "Revisiting Deep Learning Models for Tabular Data", 2021
@@ -321,20 +314,6 @@ class ResNet(nn.Module):
                  |                                                                  |
          Block: (in) ------------------------------------------------------------> Add -> (out)
           Head: (in) -> Norm -> Activation -> Linear -> (out)
-
-    Examples:
-        .. testcode::
-            x = torch.randn(4, 2)
-            module = ResNet.make_baseline(
-                input_dimension=x.shape[1],
-                n_blocks=2,
-                block_dimension=3,
-                hidden_dimension=4,
-                dropout_first=0.25,
-                dropout_second=0.0,
-                output_dimension=1
-            )
-            assert module(x).shape == (len(x), 1)
 
     References:
         * [gorishniy2021revisiting] Yury Gorishniy, Ivan Rubachev, Valentin Khrulkov,

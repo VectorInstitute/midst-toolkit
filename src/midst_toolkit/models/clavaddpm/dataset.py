@@ -35,10 +35,8 @@ class ClavaDDPMDataset(Dataset):
         """
         Generate a dataset from a pandas DataFrame.
 
-        NOTE: For now, n_classes (which is part of the info dictionary) has to be set to 0. This is because our
-        matrix is the concatenation of (x_num, x_cat). In this case, if we have
-        is_target_conditioned == IsTargetConditioned.CONCAT, we can guarantee that y is the first column of the
-        matrix.  However, if we have n_classes > 0, then y is not the first column of the matrix.
+        NOTE: For now, table_metadata.n_classes has to be 0. This is because all categorical
+        features are encoded and merged with the numerical features for ClavaDDPM datasets.
 
         Args:
             data: The pandas DataFrame from which to generate the dataset.
@@ -74,6 +72,8 @@ class ClavaDDPMDataset(Dataset):
             - The column names, with numerical columns first, then categorical columns. Within these two categories,
               column names are in the order they appear in the dataset.
         """
+        assert table_metadata.n_classes == 0, "table_metadata.n_classes is not 0."
+
         if data_split_percentages is None:
             data_split_percentages = [0.7, 0.2, 0.1]
 
@@ -131,8 +131,6 @@ class ClavaDDPMDataset(Dataset):
             numerical_features,
             noise_scale,
         )
-
-        assert isinstance(table_metadata.n_classes, int)
 
         dataset = ClavaDDPMDataset(
             numerical_features=features,

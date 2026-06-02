@@ -305,7 +305,7 @@ def transform_dataset(
     """
     cache_path = setup_cache_path(transformations, cache_dir)
     if cache_path is not None and cache_path.exists():
-        return get_cached_dataset(cache_path, transformations)
+        return get_cached_dataset(type(dataset), cache_path, transformations)
 
     if dataset.numerical_features is not None:
         # Processing NaNs in numerical features here because we need to
