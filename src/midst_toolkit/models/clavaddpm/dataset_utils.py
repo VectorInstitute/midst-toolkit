@@ -115,11 +115,11 @@ def encode_and_merge_features(
             raise FileNotFoundError(f"label_encoders_path does not exist: {_pkl_path}")
         with open(_pkl_path, "rb") as _f:
             preloaded_encoders = pickle.load(_f)
-
+    else:
+        preloaded_encoders = None
     if preloaded_encoders is not None:
-        assert categorical_column_names is not None, (
-            "categorical_column_names must be provided when using label_encoders_path."
-        )
+        if categorical_column_names is None:
+            raise ValueError("categorical_column_names must be provided when using label_encoders_path.")
 
         expected_cols = set(categorical_column_names)
         available_cols = set(preloaded_encoders.keys())
