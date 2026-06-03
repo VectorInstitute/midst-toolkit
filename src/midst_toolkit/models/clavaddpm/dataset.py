@@ -29,6 +29,7 @@ class ClavaDDPMDataset(Dataset):
         table_metadata: TableMetadata,
         data_split_percentages: list[float] | None = None,
         noise_scale: float = 0,
+        label_encoders_path: str | None = None,
         # TODO: Find places in code that have this kind of hardcoded random default and remove (with TESTING)
         data_split_random_state: int = 42,
     ) -> tuple[ClavaDDPMDataset, dict[int, LabelEncoder], list[str]]:
@@ -61,6 +62,8 @@ class ClavaDDPMDataset(Dataset):
             data_split_percentages: The percentages of the dataset to go into train, val, and test splits. The sum of
                 the percentages must amount to 1 (within a tolerance of 0.01). Optional, default is [0.7, 0.2, 0.1].
             noise_scale: The scale of the noise to add to the categorical features. Optional, default is 0.
+            label_encoders_path: The path to the label encoders pkl file. If provided, already fitted label encoder
+                will be loaded from the pkl file, otherwise they will be fitted on the current data.
             data_split_random_state: The random state to use for the data split. Will be passed down to the
                 ``train_test_split`` function from sklearn. Optional, default is 42.
 
@@ -126,10 +129,14 @@ class ClavaDDPMDataset(Dataset):
         column_orders = numerical_column_names + categorical_column_names
 
         # Encode the categorical features and merge them with the numerical features
+        # Look for pre-fitted label encoders in the parent directories of the data
+
         features, label_encoders = encode_and_merge_features(
             categorical_features,
             numerical_features,
             noise_scale,
+            categorical_column_names=categorical_column_names,
+            label_encoders_path=label_encoders_path,
         )
 
         dataset = ClavaDDPMDataset(
