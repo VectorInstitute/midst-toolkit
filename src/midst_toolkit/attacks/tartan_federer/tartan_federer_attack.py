@@ -99,7 +99,7 @@ def mixed_loss(
 
 
 # TODO: Unify this with the Dataset.from_df function.
-# TODO: Noise scale is always called with a value of 0 for the attack. So we should remove it from the f
+# TODO: Noise scale is always called with a value of 0 for the attack. So we should remove it from the
 #      function signature and the function calls.
 def make_dataset_from_df_with_loaded(
     data: pd.DataFrame,
@@ -473,12 +473,12 @@ def train_tartan_federer_attack_classifier(  # noqa: PLR0915, PLR0912
             f"Unsupported model_type {model_type}. Tartan Federer Attack is only supported for ClavaDDPM-single-table models."
         )
     # TODO: We should read this from the metadata instead.
-    _relation_order = [("None", "trans")]
-    _parent, _child = _relation_order[0]
-    _ckpt_path = first_model_path / f"{_parent}_{_child}_ckpt.pkl"
-    with open(_ckpt_path, "rb") as _f:
-        _probe_model = CustomUnpickler(_f).load()
-    noise_dimension = _probe_model.diffusion.num_numerical_features
+    relation_order = [("None", "trans")]
+    parent, child = relation_order[0]
+    ckpt_path = first_model_path / f"{parent}_{child}_ckpt.pkl"
+    with open(ckpt_path, "rb") as _f:
+        probe_model = CustomUnpickler(_f).load()
+    noise_dimension = probe_model.diffusion.num_numerical_features
     log(INFO, f"Noise dimension read from diffusion model: {noise_dimension}")
 
     input_noise = [np.random.normal(size=noise_dimension).tolist() for _ in range(num_noise_per_time_step)]
