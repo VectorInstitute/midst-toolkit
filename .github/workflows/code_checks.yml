@@ -55,8 +55,6 @@ jobs:
         uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
         with:
           virtual-environment: .venv/
-          # CVE-2026-4539: This is a vulnerability in pygments 2.19.2 that can't be upgraded
-          # CVE-2026-3219: This is a vulnerability in pip 26.0.1 with no fix version
+          # PYSEC-2026-139: This is a vulnerability in torch 2.9.1 that can't be upgraded
           ignore-vulns: |
-            CVE-2026-4539
-            CVE-2026-3219
+            PYSEC-2026-139

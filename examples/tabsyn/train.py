@@ -153,7 +153,6 @@ def train_tabsyn(config: DictConfig) -> None:
     # instantiate diffusion model for training
     tabsyn.instantiate_diffusion(
         in_dim=train_z.shape[1],
-        hid_dim=train_z.shape[1],
         optim_params=tabsyn_config["train"]["optim"]["diffusion"],
     )
 

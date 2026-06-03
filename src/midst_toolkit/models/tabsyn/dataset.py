@@ -60,7 +60,8 @@ def preprocess(
         ref_dataset_path: The path to the reference dataset.
         transforms: The transformations to apply to the data.
         task_type: The task type.
-        inverse: Whether to inverse the transformations.
+        inverse: If True, will also return the inverse of the numerical and
+            categorical transformations.
         concat: Whether to concatenate the target to the data.
 
     Returns:
@@ -149,8 +150,8 @@ def make_dataset(
     Returns:
         The dataset.
     """
-    categorical_features: ArrayDict | None = {} if (data_path / "X_cat_train.npy").exists() else None
-    numerical_features: ArrayDict | None = {} if (data_path / "X_num_train.npy").exists() else None
+    categorical_features: ArrayDict | None = {} if (data_path / "x_cat_train.npy").exists() else None
+    numerical_features: ArrayDict | None = {} if (data_path / "x_num_train.npy").exists() else None
     assert (data_path / "y_train.npy").exists(), "y_train.npy does not exist"
     target: ArrayDict = {}
 
@@ -193,13 +194,13 @@ def make_dataset(
 
 
 def get_categories(categorical_features_train: np.ndarray | None) -> list[int]:
-    """Get the categories from the categorical features.
+    """Get the length of the unique categories from the categorical features.
 
     Args:
         categorical_features_train: The categorical features for the train split.
 
     Returns:
-        The categories.
+        The length of the unique categories for each feature.
     """
     if categorical_features_train is None:
         return []
@@ -219,12 +220,12 @@ def read_pure_data(path: Path, split: DataSplit) -> tuple[np.ndarray | None, np.
     target = np.load(path / f"y_{split.value}.npy", allow_pickle=True)
 
     numerical_features = None
-    if (path / f"X_num_{split.value}.npy").exists():
-        numerical_features = np.load(path / f"X_num_{split.value}.npy", allow_pickle=True)
+    if (path / f"x_num_{split.value}.npy").exists():
+        numerical_features = np.load(path / f"x_num_{split.value}.npy", allow_pickle=True)
 
     categorical_features = None
-    if (path / f"X_cat_{split.value}.npy").exists():
-        categorical_features = np.load(path / f"X_cat_{split.value}.npy", allow_pickle=True)
+    if (path / f"x_cat_{split.value}.npy").exists():
+        categorical_features = np.load(path / f"x_cat_{split.value}.npy", allow_pickle=True)
 
     return numerical_features, categorical_features, target
 

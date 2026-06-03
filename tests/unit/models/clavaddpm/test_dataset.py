@@ -187,7 +187,7 @@ def test_get_cached_dataset(tmp_path: Path) -> None:
     cache_path = setup_cache_path(transformations_1, tmp_path)
     dump_pickle((transformations_1, dataset), cache_path)
 
-    dataset_cache = get_cached_dataset(cache_path, transformations_1)
+    dataset_cache = get_cached_dataset(type(dataset), cache_path, transformations_1)
 
     assert np.allclose(dataset_cache.numerical_features["train"], dataset.numerical_features["train"], atol=1e-8)
 

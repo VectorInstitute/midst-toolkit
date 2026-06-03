@@ -66,10 +66,9 @@ def tabsyn_synthesize(config: DictConfig) -> None:
     train_z_att = tabsyn.load_embeddings_attributes(vae_save_dir)
     token_dim = train_z_att["token_dim"]
     in_dim = train_z_att["in_dim"]
-    hid_dim = train_z_att["hid_dim"]
 
     # instantiate diffusion model
-    tabsyn.instantiate_diffusion(in_dim=in_dim, hid_dim=hid_dim, optim_params=None)
+    tabsyn.instantiate_diffusion(in_dim=in_dim, optim_params=None)
 
     # load state from checkpoint
     tabsyn.load_model_state(ckpt_dir=model_save_dir, dif_ckpt_name="model.pt")

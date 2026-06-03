@@ -124,8 +124,10 @@ class Dataset:
         Returns:
             The loaded dataset.
         """
-        if Path(directory / "info.json").exists():
-            info = json.loads(Path(directory / "info.json").read_text())
+        json_path = Path(directory / "info.json")
+        assert json_path.exists(), f"Info.json file not found at {json_path}"
+
+        info = json.loads(json_path.read_text())
 
         return cls(
             cls._load_datasets(directory, "x_num") if directory.joinpath("x_num_train.npy").exists() else None,
@@ -358,7 +360,11 @@ def setup_cache_path(transformations: Transformations, cache_dir: Path | None) -
     return cache_dir / f"cache__{transformations_str}__{transformations_md5}.pickle"
 
 
-def get_cached_dataset(cache_path: Path, transformations: Transformations) -> Dataset:
+def get_cached_dataset(
+    dataset_type: type[TDataset],
+    cache_path: Path,
+    transformations: Transformations,
+) -> TDataset:
     """
     Provided a ``cache_path`` that exists, we load the contents of the pickle, which should be a tuple of
     Transformations followed by a transformed dataset object. We check if the cached transformations match the
@@ -366,6 +372,7 @@ def get_cached_dataset(cache_path: Path, transformations: Transformations) -> Da
     throw an error.
 
     Args:
+        dataset_type: The type of the dataset to return.
         cache_path: A Path that has already been verified to exist.
         transformations: A set of desired transformations to have been applied to the cached dataset.
 

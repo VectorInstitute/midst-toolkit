@@ -145,10 +145,11 @@ def get_predicted_labels_and_probs(
         raise ValueError(f"Unsupported prediction_type: {prediction_type.value}")
 
     assert prediction_probabilities is not None
-    assert prediction_probabilities.ndim == 1 or prediction_probabilities.shape[1] == 1
-    predicted_labels = (
-        np.round(prediction_probabilities)
-        if task_type == TaskType.BINARY_CLASSIFICATION
-        else prediction_probabilities.argmax(axis=1)
-    )
+    if task_type == TaskType.BINARY_CLASSIFICATION:
+        assert prediction_probabilities.ndim == 1 or prediction_probabilities.shape[1] == 1
+        predicted_labels = np.round(prediction_probabilities)
+    else:
+        assert prediction_probabilities.ndim == 2 and prediction_probabilities.shape[1] > 1
+        predicted_labels = prediction_probabilities.argmax(axis=1)
+
     return predicted_labels.astype("int64"), prediction_probabilities

@@ -11,7 +11,6 @@ from midst_toolkit.common.random import (
 
 
 @pytest.mark.integration_test()
-@pytest.mark.skip(reason="Need to retrain the test models.")  # TODO fix this before merging
 def test_tf_attack_whitebox_tiny_config_midst_toolkit():
     set_all_random_seeds(
         seed=133742,
@@ -67,7 +66,6 @@ def test_tf_attack_whitebox_tiny_config_midst_toolkit():
 
 
 @pytest.mark.integration_test()
-@pytest.mark.skip(reason="Need to retrain the test models.")  # TODO fix this before merging
 def test_tf_attack_whitebox_tiny_config_midst_toolkit_single_model():
     set_all_random_seeds(
         seed=133742,
@@ -123,7 +121,6 @@ def test_tf_attack_whitebox_tiny_config_midst_toolkit_single_model():
 
 
 @pytest.mark.integration_test()
-@pytest.mark.skip(reason="Need to retrain the test models.")  # TODO fix this before merging
 def test_tf_attack_whitebox_tiny_config_midst_toolkit_no_validation():
     set_all_random_seeds(
         seed=133742,
