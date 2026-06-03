@@ -60,10 +60,6 @@ python -m examples.gan.ensemble_attack.make_challenge_dataset
 
 ## 4. Training the attack model
 
-> [!NOTE]
-> In the [`config.yaml`](config.yaml) file, the attribute `ensemble_attack.shadow_training.model_name`
-> is what determines this attack will be run with the CTGAN model.
-
 To train the attack models, execute the following command:
 
 ```bash

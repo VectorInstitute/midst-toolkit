@@ -36,7 +36,6 @@ ensemble_attack:
     run_metaclassifier_training: true
 
   shadow_training:
-    model_name: ctgan
     model_config:  # Configurations specific for the CTGAN model
       training:
         epochs: 300
