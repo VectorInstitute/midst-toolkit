@@ -15,15 +15,14 @@ from torch.nn import functional
 from tqdm import tqdm
 
 from midst_toolkit.common.config import ClavaDDPMMatchingConfig, ClavaDDPMSamplingConfig, GeneralConfig
-from midst_toolkit.common.enumerations import DataSplit
+from midst_toolkit.common.dataset import TableMetadata, Transformations
+from midst_toolkit.common.enumerations import CategoricalEncoding, DataSplit, IsTargetConditioned
 from midst_toolkit.common.logger import log
 from midst_toolkit.models.clavaddpm.data_loaders import NO_PARENT_COLUMN_NAME, Tables
-from midst_toolkit.models.clavaddpm.dataset import Dataset, TableMetadata, Transformations
+from midst_toolkit.models.clavaddpm.dataset import ClavaDDPMDataset
 from midst_toolkit.models.clavaddpm.enumerations import (
-    CategoricalEncoding,
     GroupLengthProbDict,
     GroupLengthsProbDicts,
-    IsTargetConditioned,
     Relation,
     RelationOrder,
 )
@@ -39,7 +38,7 @@ def sample_from_diffusion(
     df: pd.DataFrame,
     table_metadata: TableMetadata,
     diffusion: GaussianMultinomialDiffusion,
-    dataset: Dataset,
+    dataset: ClavaDDPMDataset,
     label_encoders: dict[int, LabelEncoder],
     sample_size: int,
     model_params: ModelParameters,
@@ -103,7 +102,7 @@ def sample_from_diffusion(
 def conditional_sample_from_diffusion(
     df: pd.DataFrame,
     table_metadata: TableMetadata,
-    dataset: Dataset,
+    dataset: ClavaDDPMDataset,
     label_encoders: dict[int, LabelEncoder],
     classifier: Classifier,
     diffusion: GaussianMultinomialDiffusion,
@@ -171,7 +170,7 @@ def _post_process_synthetic_data(
     table_metadata: TableMetadata,
     num_features: int,
     is_target_conditioned: IsTargetConditioned,
-    dataset: Dataset,
+    dataset: ClavaDDPMDataset,
     label_encoders: dict[int, LabelEncoder],
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -251,7 +250,7 @@ def _post_process_synthetic_data(
 
 def _get_all_features_from_synthetic_features(
     synthetic_features: np.ndarray,
-    dataset: Dataset,
+    dataset: ClavaDDPMDataset,
     is_target_conditioned: IsTargetConditioned,
 ) -> np.ndarray:
     """

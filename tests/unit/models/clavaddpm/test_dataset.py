@@ -4,24 +4,26 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from midst_toolkit.common.enumerations import TaskType
+from midst_toolkit.common.dataset import (
+    TargetInfo,
+    get_cached_dataset,
+    process_nans_in_numerical_features,
+    setup_cache_path,
+)
+from midst_toolkit.common.dataset_utils import dump_pickle
+from midst_toolkit.common.enumerations import (
+    CategoricalEncoding,
+    IsTargetConditioned,
+    Normalization,
+    NumericalNaNPolicy,
+    TaskType,
+)
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.models.clavaddpm.dataset import (
     Dataset,
     TableMetadata,
     Transformations,
-    get_cached_dataset,
     get_categorical_and_numerical_column_names,
-    process_nans_in_numerical_features,
-    setup_cache_path,
-)
-from midst_toolkit.models.clavaddpm.dataset_transformations import TargetInfo
-from midst_toolkit.models.clavaddpm.dataset_utils import dump_pickle
-from midst_toolkit.models.clavaddpm.enumerations import (
-    CategoricalEncoding,
-    IsTargetConditioned,
-    Normalization,
-    NumericalNaNPolicy,
 )
 
 
@@ -185,7 +187,7 @@ def test_get_cached_dataset(tmp_path: Path) -> None:
     cache_path = setup_cache_path(transformations_1, tmp_path)
     dump_pickle((transformations_1, dataset), cache_path)
 
-    dataset_cache = get_cached_dataset(cache_path, transformations_1)
+    dataset_cache = get_cached_dataset(type(dataset), cache_path, transformations_1)
 
     assert np.allclose(dataset_cache.numerical_features["train"], dataset.numerical_features["train"], atol=1e-8)
 

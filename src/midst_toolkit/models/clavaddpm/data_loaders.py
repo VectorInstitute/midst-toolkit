@@ -10,10 +10,17 @@ import pandas as pd
 import torch
 from torch import Tensor
 
-from midst_toolkit.common.enumerations import ColumnType, ComputerRepresentation, DataSplit, DomainDataType, TaskType
+from midst_toolkit.common.enumerations import (
+    ColumnType,
+    ComputerRepresentation,
+    DataSplit,
+    DomainDataType,
+    TargetType,
+    TaskType,
+)
 from midst_toolkit.common.logger import log
-from midst_toolkit.models.clavaddpm.dataset import Dataset
-from midst_toolkit.models.clavaddpm.enumerations import RelationOrder, TargetType
+from midst_toolkit.models.clavaddpm.dataset import ClavaDDPMDataset
+from midst_toolkit.models.clavaddpm.enumerations import RelationOrder
 
 
 @dataclass
@@ -538,7 +545,7 @@ class FastTensorDataLoader:
 
 
 def prepare_fast_dataloader(
-    dataset: Dataset,
+    dataset: ClavaDDPMDataset,
     split: DataSplit,
     batch_size: int,
     target_type: TargetType = TargetType.FLOAT,
