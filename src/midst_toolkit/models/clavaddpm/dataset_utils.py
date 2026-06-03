@@ -78,8 +78,10 @@ def encode_and_merge_features(
         noise_scale: The scale of the noise to add to the categorical features. Noise is drawn from a normal
             distribution with standard deviation of ``noise_scale``.
         categorical_column_names: The names of the categorical columns.
-        label_encoders_path: The path to the label encoders pkl file. If provided, already fitted label encoder
-         will be loaded from the pkl file, otherwise they will be fitted on the current data.
+        label_encoders_path: The path to the label encoders pkl file fitted on the entire dataset. If provided,
+                             an already fitted label encoder dictionary will be loaded from the pkl file, otherwise
+                             they will be fitted on the current data. This helps handle categories that may appear in
+                             challenge data but not in the training set, preventing unseen-category errors.
 
     Returns:
         The merged features for train, validation, and test datasets and the label encoders used to do so. The label
@@ -101,7 +103,11 @@ def encode_and_merge_features(
     )
 
     # Load pre-fitted label encoders from pkl if provided, otherwise fit on current data
-    preloaded_encoders: dict[str, LabelEncoder] | None = None
+    # It is expected that the label encoder that is fitted externally on the entire dataset is a dictionary
+    # mapping column INDEX within the categorical columns to a label encoder for that column.
+    # This is unlike the label encoders that are fitted on the current data if a preloaded label encoder is not
+    # provided which is a dictionary mapping column column index within the categorical columns to a label encoder
+    # for that column.
     if label_encoders_path is not None:
         _pkl_path = Path(label_encoders_path)
 
@@ -122,9 +128,7 @@ def encode_and_merge_features(
 
         if missing_cols:
             raise ValueError(
-                "label_encoders_path is missing encoders for categorical columns: "
-                f"{sorted(missing_cols)}. "
-                "Refusing to mix preloaded encoders with freshly fit encoders."
+                f"label_encoders_path is missing encoders for categorical columns: {sorted(missing_cols)}. "
             )
 
     categorical_data_encoded = []

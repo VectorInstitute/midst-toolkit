@@ -386,7 +386,7 @@ class Dataset:
             categorical_features,
             numerical_features,
             noise_scale,
-            categorical_column_names=categorical_column_names if len(categorical_column_names) > 0 else None,
+            categorical_column_names=categorical_column_names,
             label_encoders_path=label_encoders_path,
         )
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import os
 from collections.abc import Generator
-from dataclasses import replace as dc_replace
+from dataclasses import replace
 from logging import INFO
 from pathlib import Path
 from typing import Any
@@ -99,7 +99,8 @@ def mixed_loss(
 
 
 # TODO: Unify this with the Dataset.from_df function.
-# TODO: Noise scale is always called with a value of 0 for the attack.
+# TODO: Noise scale is always called with a value of 0 for the attack. So we should remove it from the f
+#      function signature and the function calls.
 def make_dataset_from_df_with_loaded(
     data: pd.DataFrame,
     transformation: Transformations,
@@ -113,16 +114,17 @@ def make_dataset_from_df_with_loaded(
     Makes a dataset from a dataframe with loaded transformations.
 
     Args:
-        data: The dataframe to make the dataset from.
-        transformation: The transformations to apply to the data.
-        is_target_conditioned: Whether the target is conditioned on the data.
-        table_metadata: The metadata for the table.
-        label_encoders: The label encoders for the categorical columns.
-        numerical_transform: The numerical transform to apply to the data.
-        noise_scale: The scale of the noise to add to the data.
+        data: Raw data to be used for creating the dataset.
+        transformation: Transformations that one might apply to the dataset, including NaN policies etc.
+        is_target_conditioned: Enum indicating how, if at all, the model uses a target for generation conditioning.
+        table_metadata: Meta data about the table or tables.
+        label_encoders: Encoders that were used to encode the categorical data.
+        numerical_transform: Transformations that should be applied to the numerical data. Defaults to None.
+        noise_scale: The scale of the noise to add to the categorical features. Noise is drawn from a normal
+        distribution with standard deviation of ``noise_scale``. Defaults to 0.
 
     Returns:
-        A dataset object.
+        A full dataset constructed of the various pieces.
     """
     categorical_column_names, numerical_column_names = get_categorical_and_numerical_column_names(
         table_metadata,
@@ -172,7 +174,7 @@ def make_dataset_from_df_with_loaded(
         numerical_transform=numerical_transform,
     )
     # Use a no-normalization transformation since we've already applied the model's scaler above.
-    transformation_no_norm = dc_replace(transformation, normalization=None)
+    transformation_no_norm = replace(transformation, normalization=None)
     return transform_dataset(dataset, transformation_no_norm, None)
 
 
@@ -458,11 +460,11 @@ def train_tartan_federer_attack_classifier(  # noqa: PLR0915, PLR0912
     population_df_for_validation = pd.read_csv(population_data_dir / "population_dataset_for_validating_attack.csv")
     log(INFO, "Population datasets for validating loaded.")
 
-    # Fix 1: derive noise dimension from the actual diffusion model's num_numerical_features rather
+    # Derive noise dimension from the actual diffusion model's num_numerical_features rather
     # than from the population dataframe column count.  The mixed_loss function slices
     # x[:, :diffusion.num_numerical_features], so the noise vectors must have exactly that length.
     # We load the first available model to read this value, then discard it.
-    first_model_number = (train_indices + (val_indices or []))[0]
+    first_model_number = train_indices[0]
     first_model_dir = model_data_dir / f"{model_type}_{first_model_number}"
     first_model_path = first_model_dir / target_model_subdir
 
@@ -472,13 +474,12 @@ def train_tartan_federer_attack_classifier(  # noqa: PLR0915, PLR0912
         )
     # TODO: We should read this from the metadata instead.
     _relation_order = [("None", "trans")]
-    for _parent, _child in _relation_order:
-        _ckpt_path = first_model_path / f"{_parent}_{_child}_ckpt.pkl"
-        with open(_ckpt_path, "rb") as _f:
-            _probe_model = CustomUnpickler(_f).load()
-        noise_dimension = _probe_model.diffusion.num_numerical_features
-        log(INFO, f"Noise dimension read from diffusion model: {noise_dimension}")
-        break
+    _parent, _child = _relation_order[0]
+    _ckpt_path = first_model_path / f"{_parent}_{_child}_ckpt.pkl"
+    with open(_ckpt_path, "rb") as _f:
+        _probe_model = CustomUnpickler(_f).load()
+    noise_dimension = _probe_model.diffusion.num_numerical_features
+    log(INFO, f"Noise dimension read from diffusion model: {noise_dimension}")
 
     input_noise = [np.random.normal(size=noise_dimension).tolist() for _ in range(num_noise_per_time_step)]
     input_dimension = len(input_noise) * len(timesteps) * len(additional_timesteps)
