@@ -37,7 +37,7 @@ class EnsembleAttackTrainingResult(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     save_dir: Path
-    configs: TrainingConfig | None
+    configs: TrainingConfig
     models: Any
     synthetic_data: pd.DataFrame | None = None
 
@@ -426,7 +426,7 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
 
         return EnsembleAttackTrainingResult(
             save_dir=self.training_config.general.workspace_dir,
-            configs=None,
+            configs=self.training_config,
             models=tabsyn,
             synthetic_data=synthetic_data,
         )

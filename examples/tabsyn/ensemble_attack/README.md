@@ -79,7 +79,7 @@ To test the attack model against the target model and synthetic data produced on
 [step 2](#2-generating-target-synthetic-data-to-be-tested), please run:
 
 ```bash
-python -m examples.tabsyn.ensemble_attack.test_attack_model
+python -m examples.tabsyn.ensemble_attack.run_test_attack_model
 ```
 
 ## 6. Compute the attack success
