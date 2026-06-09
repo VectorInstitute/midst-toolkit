@@ -43,7 +43,7 @@ def make_training_config(config: DictConfig) -> dict[Any, Any]:
     base_data_dir = str
     if "base_data_dir" in config:
         base_data_dir = config.base_data_dir
-    if "data_dir" in config:
+    elif "data_dir" in config:
         base_data_dir = config.data_dir
     else:
         raise ValueError("Either base_data_dir or data_dir must be provided in the config.")
