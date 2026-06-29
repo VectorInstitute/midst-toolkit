@@ -25,6 +25,7 @@ def test_dirs():
     shutil.rmtree(results_dir, ignore_errors=True)
 
 
+@pytest.mark.integration_test()
 def test_train_load_and_synthesize(test_dirs):
     # Ignoring "too many statements" error from Ruff
     # ruff: noqa: PLR0915

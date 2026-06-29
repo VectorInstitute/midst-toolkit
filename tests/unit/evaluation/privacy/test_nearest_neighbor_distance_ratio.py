@@ -83,9 +83,9 @@ def test_nndr_score_small_data_l1() -> None:
 
 
 def test_nndr_score_small_data_with_categoricals_ordinal() -> None:
-    mapped_real_data = REAL_DATA.replace({"cat": 0, "horse": 1, "dog": 2})
-    mapped_synthetic_data = SYNTHETIC_DATA.replace({"cat": 0, "horse": 1, "dog": 2})
-    mapped_holdout_data = HOLDOUT_DATA.replace({"cat": 0, "horse": 1, "dog": 2})
+    mapped_real_data = REAL_DATA.replace({"cat": 0, "horse": 1, "dog": 2}).astype(int)
+    mapped_synthetic_data = SYNTHETIC_DATA.replace({"cat": 0, "horse": 1, "dog": 2}).astype(int)
+    mapped_holdout_data = HOLDOUT_DATA.replace({"cat": 0, "horse": 1, "dog": 2}).astype(int)
 
     nndr_metric = NearestNeighborDistanceRatio()
     results = nndr_metric.compute(mapped_real_data, mapped_synthetic_data)

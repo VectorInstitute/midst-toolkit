@@ -98,8 +98,8 @@ def test_process_nans_in_numerical_features_drop() -> None:
     assert _compare_data_splits(dataset.target, label_splits)
 
     # Now add some NaNs to the train and validation splits
-    dataset.numerical_features["train"][0, 1] = np.NaN
-    dataset.numerical_features["val"][1, 1] = np.NaN
+    dataset.numerical_features["train"][0, 1] = np.nan
+    dataset.numerical_features["val"][1, 1] = np.nan
     dataset = process_nans_in_numerical_features(dataset=dataset, policy=NumericalNaNPolicy.DROP_ROWS)
     # Make sure first row of train in all dataset components is dropped
     assert len(dataset.numerical_features["train"]) == 2
@@ -124,7 +124,7 @@ def test_process_nans_in_numerical_features_drop() -> None:
     assert np.all(dataset.target["test"] == label_splits["test"])
 
     # Now add NaN to test and make sure we throw.
-    dataset.numerical_features["test"][1, 1] = np.NaN
+    dataset.numerical_features["test"][1, 1] = np.nan
 
     with pytest.raises(AssertionError):
         dataset = process_nans_in_numerical_features(dataset=dataset, policy=NumericalNaNPolicy.DROP_ROWS)
@@ -142,10 +142,10 @@ def test_process_nans_in_numerical_features_mean() -> None:
     assert _compare_data_splits(dataset.target, label_splits)
 
     # Now add some NaNs to the train and validation splits
-    dataset.numerical_features["train"][0, 1] = np.NaN
-    dataset.numerical_features["val"][1, 1] = np.NaN
+    dataset.numerical_features["train"][0, 1] = np.nan
+    dataset.numerical_features["val"][1, 1] = np.nan
     # Adding a NaN to a column that doesn't have a NaN in train
-    dataset.numerical_features["val"][1, 2] = np.NaN
+    dataset.numerical_features["val"][1, 2] = np.nan
     dataset = process_nans_in_numerical_features(dataset=dataset, policy=NumericalNaNPolicy.MEAN)
     # Nothing should change in the label and cat rows now
     assert _compare_data_splits(dataset.categorical_features, categorical_data_splits)
@@ -156,7 +156,7 @@ def test_process_nans_in_numerical_features_mean() -> None:
 
     # Make sure an error is raised if an entire column is NaN in Train
     with pytest.raises(ValueError):
-        dataset.numerical_features["train"][:, 1] = np.NaN
+        dataset.numerical_features["train"][:, 1] = np.nan
         dataset = process_nans_in_numerical_features(dataset=dataset, policy=NumericalNaNPolicy.MEAN)
 
     unset_all_random_seeds()

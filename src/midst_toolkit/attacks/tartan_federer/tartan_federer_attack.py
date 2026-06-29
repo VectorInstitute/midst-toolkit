@@ -124,9 +124,15 @@ def make_dataset_from_df_with_loaded(
         table_metadata,
         is_target_conditioned,
     )
-    numerical_features = {DataSplit.TRAIN.value: data[numerical_column_names].values.astype(np.float32)}
-    categorical_features = {DataSplit.TRAIN.value: data[categorical_column_names].to_numpy(dtype=np.str_)}
-    targets = {DataSplit.TRAIN.value: data[[table_metadata.target_column_name]].values.astype(np.float32)}
+    numerical_features: dict[str, np.ndarray] = {
+        DataSplit.TRAIN.value: data[numerical_column_names].values.astype(np.float32)
+    }
+    categorical_features: dict[str, np.ndarray] = {
+        DataSplit.TRAIN.value: data[categorical_column_names].to_numpy(dtype=np.str_)
+    }
+    targets: dict[str, np.ndarray] = {
+        DataSplit.TRAIN.value: data[[table_metadata.target_column_name]].values.astype(np.float32)
+    }
 
     if len(categorical_column_names) > 0:
         all_categorical_features = categorical_features[DataSplit.TRAIN.value]

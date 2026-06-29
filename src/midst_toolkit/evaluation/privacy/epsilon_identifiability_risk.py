@@ -125,6 +125,12 @@ class EpsilonIdentifiabilityRisk(SynthEvalMetric):
         else:
             raise ValueError(f"Unrecognized EpsilonIdentifiabilityNorm Option: {self.norm}")
 
+        # Make sure the categorical columns are preprocessed and encoded before calling compute
+        self.validate_dataframe_dtypes(filtered_real_data)
+        self.validate_dataframe_dtypes(filtered_synthetic_data)
+        if filtered_holdout_data is not None:
+            self.validate_dataframe_dtypes(filtered_holdout_data)
+
         self.syntheval_metric = EpsilonIdentifiability(
             real_data=filtered_real_data,
             synt_data=filtered_synthetic_data,
@@ -134,6 +140,7 @@ class EpsilonIdentifiabilityRisk(SynthEvalMetric):
             do_preprocessing=False,
             verbose=False,
             nn_dist=self.norm.value,
+            plot_figures=False,
         )
         result = self.syntheval_metric.evaluate()
         result["epsilon_identifiability_risk"] = result.pop("eps_risk")

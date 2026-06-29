@@ -51,6 +51,9 @@ tests/integration/attacks/ensemble/assets/workspace
 tests/integration/assets/tabsyn/processed_data
 tests/integration/assets/tabsyn/results
 
+# Emitted SynthEval analysis config file during metric creation. Unfortunately cannot be turned off...
+SE_analysis_config.json
+
 # Training Logs
 *.err
 *.out

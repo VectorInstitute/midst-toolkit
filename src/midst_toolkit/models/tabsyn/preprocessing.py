@@ -216,11 +216,13 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
     for col in num_columns:
         train_df.loc[train_df[col] == "?", col] = np.nan
     for col in cat_columns:
-        train_df.loc[train_df[col] == "?", col] = "nan"
+        if pd.api.types.is_string_dtype(train_df[col]) or pd.api.types.is_object_dtype(train_df[col]):
+            train_df.loc[train_df[col] == "?", col] = "nan"
     for col in num_columns:
         test_df.loc[test_df[col] == "?", col] = np.nan
     for col in cat_columns:
-        test_df.loc[test_df[col] == "?", col] = "nan"
+        if pd.api.types.is_string_dtype(test_df[col]) or pd.api.types.is_object_dtype(test_df[col]):
+            test_df.loc[test_df[col] == "?", col] = "nan"
 
     numerical_features_train = train_df[num_columns].to_numpy().astype(np.float32)
     categorical_features_train = train_df[cat_columns].to_numpy().astype(np.int64)

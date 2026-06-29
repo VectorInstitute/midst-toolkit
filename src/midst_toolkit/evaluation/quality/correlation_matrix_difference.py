@@ -72,6 +72,7 @@ class CorrelationMatrixDifference(SynthEvalMetric):
             num_cols=self.numerical_columns,
             do_preprocessing=False,
             verbose=False,
+            plot_figures=False,
         )
 
         return self.syntheval_metric.evaluate(mixed_corr=self.compute_mixed_correlations, return_mats=False)

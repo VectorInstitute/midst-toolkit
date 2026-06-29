@@ -10,9 +10,10 @@ from midst_toolkit.evaluation.metrics_base import SynthEvalMetric
 
 
 def _extract_from_dictionary(
-    result: dict[str, float | dict[str, float]],
+    result: dict[str, float | pd.DataFrame],
     upper_key: str,
-    lower_key: str | None = None,
+    model_key: str | None = None,
+    metric_key: str | None = None,
 ) -> float:
     """
     This function is mostly to appease mypy. This extracts values from the result dictionary in a strongly typed way.
@@ -21,28 +22,30 @@ def _extract_from_dictionary(
 
     - An upper key along is provided. If so, we assume the target value is NOT nested and enforce that the value
       extracted at the first level is, indeed, a float.
-    - Both an upper and lower key are provided. We assume that we are reaching into a nested dictionary and extract
-      a float value accordingly.
+    - Both an upper and lower key are provided. We assume that we are reaching into a dataframe at the lower level and
+      extract a float value accordingly.
 
     Args:
-        result: Set of single- and two-level dictionaries we're grabbing a result from.
-        upper_key: First level key.
-        lower_key: Second level key if the value we're reaching for is part of a nested dictionary. Defaults to None.
+        result: Set of results either str -> float or str -> pd.DataFrame that contains the value for which we're
+            reaching.
+        upper_key: First level key. This will index to either a float or a pandas dataframe in the provided result.
+        model_key: model key if the value we're reaching for is part of a pandas dataframe. Will specify the row of
+            the dataframe to be extracted. Defaults to None.
+        metric_key: Key of the metric to be extracted from the dataframe. Will specify the column of the dataframe to
+            be extracted. Defaults to None.
 
     Returns:
         Float value associated with the upper (and possible lower keys) key.
     """
     value = result[upper_key]
-    if lower_key is not None:
-        assert isinstance(value, dict)
-        return value[lower_key]
+    if model_key is not None and metric_key is not None:
+        assert isinstance(value, pd.DataFrame)
+        return value.loc[value["model"] == model_key, metric_key].values[0]
     assert isinstance(value, float)
     return value
 
 
-def _post_process_results(
-    result: dict[str, float | dict[str, float]], process_holdout: bool = False
-) -> dict[str, float]:
+def _post_process_results(result: dict[str, float | pd.DataFrame], process_holdout: bool = False) -> dict[str, float]:
     """
     This function is meant to flatten the results dictionaries returned by SynthEval. SynthEval returns nested
     dictionaries to summarize the performance of the individual models. This is useful to know for someone evaluated
@@ -58,28 +61,40 @@ def _post_process_results(
         of individual classifier performances.
     """
     flat_result = {
-        "random_forest_real_train_f1": _extract_from_dictionary(result, "rf", "rr_val_acc"),
-        "random_forest_synthetic_train_f1": _extract_from_dictionary(result, "rf", "fr_val_acc"),
-        "adaboost_real_train_f1": _extract_from_dictionary(result, "adaboost", "rr_val_acc"),
-        "adaboost_synthetic_train_f1": _extract_from_dictionary(result, "adaboost", "fr_val_acc"),
-        "svm_real_train_f1": _extract_from_dictionary(result, "svm", "rr_val_acc"),
-        "svm_synthetic_train_f1": _extract_from_dictionary(result, "svm", "fr_val_acc"),
-        "logreg_real_train_f1": _extract_from_dictionary(result, "logreg", "rr_val_acc"),
-        "logreg_synthetic_train_f1": _extract_from_dictionary(result, "logreg", "fr_val_acc"),
+        "random_forest_real_train_f1": _extract_from_dictionary(result, "train results", "rf", "TRTR_acc"),
+        "random_forest_synthetic_train_f1": _extract_from_dictionary(result, "train results", "rf", "TSTR_acc"),
+        "adaboost_real_train_f1": _extract_from_dictionary(result, "train results", "adaboost", "TRTR_acc"),
+        "adaboost_synthetic_train_f1": _extract_from_dictionary(result, "train results", "adaboost", "TSTR_acc"),
+        "svm_real_train_f1": _extract_from_dictionary(result, "train results", "svm", "TRTR_acc"),
+        "svm_synthetic_train_f1": _extract_from_dictionary(result, "train results", "svm", "TSTR_acc"),
+        "logreg_real_train_f1": _extract_from_dictionary(result, "train results", "logreg", "TRTR_acc"),
+        "logreg_synthetic_train_f1": _extract_from_dictionary(result, "train results", "logreg", "TSTR_acc"),
         "mean_f1_difference": _extract_from_dictionary(result, "avg diff"),
         "f1_difference_standard_error": _extract_from_dictionary(result, "avg diff err"),
     }
     if process_holdout:
-        flat_result["random_forest_real_train_f1_holdout"] = _extract_from_dictionary(result, "rf", "rr_test_acc")
-        flat_result["random_forest_synthetic_train_f1_holdout"] = _extract_from_dictionary(result, "rf", "fr_test_acc")
-        flat_result["adaboost_real_train_f1_holdout"] = _extract_from_dictionary(result, "adaboost", "rr_test_acc")
-        flat_result["adaboost_synthetic_train_f1_holdout"] = _extract_from_dictionary(
-            result, "adaboost", "fr_test_acc"
+        flat_result["random_forest_real_train_f1_holdout"] = _extract_from_dictionary(
+            result, "test results", "rf", "TRTR_acc"
         )
-        flat_result["svm_real_train_f1_holdout"] = _extract_from_dictionary(result, "svm", "rr_test_acc")
-        flat_result["svm_synthetic_train_f1_holdout"] = _extract_from_dictionary(result, "svm", "fr_test_acc")
-        flat_result["logreg_real_train_f1_holdout"] = _extract_from_dictionary(result, "logreg", "rr_test_acc")
-        flat_result["logreg_synthetic_train_f1_holdout"] = _extract_from_dictionary(result, "logreg", "fr_test_acc")
+        flat_result["random_forest_synthetic_train_f1_holdout"] = _extract_from_dictionary(
+            result, "test results", "rf", "TSTR_acc"
+        )
+        flat_result["adaboost_real_train_f1_holdout"] = _extract_from_dictionary(
+            result, "test results", "adaboost", "TRTR_acc"
+        )
+        flat_result["adaboost_synthetic_train_f1_holdout"] = _extract_from_dictionary(
+            result, "test results", "adaboost", "TSTR_acc"
+        )
+        flat_result["svm_real_train_f1_holdout"] = _extract_from_dictionary(result, "test results", "svm", "TRTR_acc")
+        flat_result["svm_synthetic_train_f1_holdout"] = _extract_from_dictionary(
+            result, "test results", "svm", "TSTR_acc"
+        )
+        flat_result["logreg_real_train_f1_holdout"] = _extract_from_dictionary(
+            result, "test results", "logreg", "TRTR_acc"
+        )
+        flat_result["logreg_synthetic_train_f1_holdout"] = _extract_from_dictionary(
+            result, "test results", "logreg", "TSTR_acc"
+        )
         flat_result["mean_f1_difference_holdout"] = _extract_from_dictionary(result, "avg diff hout")
         flat_result["f1_difference_standard_error_holdout"] = _extract_from_dictionary(result, "avg diff err hout")
     return flat_result
@@ -122,7 +137,7 @@ class MeanF1ScoreDifference(SynthEvalMetric):
             label_column: Name of the column in the provided datasets that corresponds to the classification label to
                 test dataset utility. This column MUST be present in both the real and synthetic data provided.
             do_preprocess: Whether or not to preprocess the dataframes with the default pipeline used by SynthEval.
-                Defaults to False.
+                NOTE: This will also preprocess the label column if True. Defaults to False.
             folds: Number of cross-validation folds for training/evaluating the set of classifiers used to
                 establish a stable estimate of the classification difference. Defaults to 5.
             f1_type: The type of F1-score to be reported as the metric. The admissible values correspond to those of
@@ -132,11 +147,11 @@ class MeanF1ScoreDifference(SynthEvalMetric):
         assert label_column not in numerical_columns, (
             "Label column should not be included in the set of numerical columns provided"
         )
-        assert label_column not in categorical_columns, (
-            "Label column should not be included in the set of numerical columns provided"
+        assert label_column in categorical_columns, (
+            "Label column should be included in the set of categorical columns provided"
         )
         self.label_column = label_column
-        self.all_columns = categorical_columns + numerical_columns + [label_column]
+        self.all_columns = categorical_columns + numerical_columns
         self.folds = folds
         self.f1_type = f1_type
 
@@ -198,16 +213,22 @@ class MeanF1ScoreDifference(SynthEvalMetric):
             f"Label column: {self.label_column} must be in synthetic_data"
         )
 
+        # Make sure the categorical columns are preprocessed and encoded before calling compute
+        self.validate_dataframe_dtypes(filtered_real_data)
+        self.validate_dataframe_dtypes(filtered_synthetic_data)
+        if filtered_holdout_data is not None:
+            self.validate_dataframe_dtypes(filtered_holdout_data)
+
         self.syntheval_metric = SynthEvalF1ScoreDifference(
             real_data=filtered_real_data,
             synt_data=filtered_synthetic_data,
             hout_data=filtered_holdout_data,
-            # SynthEval wants cat_cols to have the analysis target (label) included so we jam it in.
-            cat_cols=self.categorical_columns + [self.label_column],
+            cat_cols=self.categorical_columns,
             num_cols=self.numerical_columns,
             do_preprocessing=False,
             verbose=False,
             analysis_target=self.label_column,
+            plot_figures=False,
         )
         result = self.syntheval_metric.evaluate(F1_type=self.f1_type, k_folds=self.folds, full_output=False)
         return _post_process_results(result, process_holdout=(holdout_data is not None))

@@ -93,12 +93,12 @@ def test_multi_target_modeling_difference_single_regression_target() -> None:
 
     score = metric.compute(real_data, synthetic_data, holdout_data)
 
-    assert pytest.approx(-0.034541865204139155, abs=1e-8) == score["avg_r2_difference"]
-    assert pytest.approx(0.9958604761438379, abs=1e-8) == score["avg_mean_squared_error_difference"]
+    assert pytest.approx(-0.03636544944282716, abs=1e-8) == score["avg_r2_difference"]
+    assert pytest.approx(1.0483998595155113, abs=1e-8) == score["avg_mean_squared_error_difference"]
 
     # Since we're just regressing on one label, the combined regression and f1 metrics should stay the same
-    assert pytest.approx(-0.034541865204139155, abs=1e-8) == score["avg_r2_difference_and_f1_difference"]
-    assert pytest.approx(0.9958604761438379, abs=1e-8) == score["avg_mean_squared_error_difference_and_f1_difference"]
+    assert pytest.approx(-0.03636544944282716, abs=1e-8) == score["avg_r2_difference_and_f1_difference"]
+    assert pytest.approx(1.0483998595155113, abs=1e-8) == score["avg_mean_squared_error_difference_and_f1_difference"]
 
     unset_all_random_seeds()
 
@@ -163,9 +163,9 @@ def test_multi_target_modeling_difference_with_two_targets() -> None:
     score = metric.compute(real_data, synthetic_data, holdout_data)
 
     assert pytest.approx(-0.20674835173603345, abs=1e-8) == score["avg_f1_difference"]
-    assert pytest.approx(-0.2652757334540877, abs=1e-8) == score["avg_r2_difference"]
+    assert pytest.approx(-0.3128558762699956, abs=1e-8) == score["avg_r2_difference"]
     # average of the f1 and r2 difference values for the two columns of interest.
-    assert pytest.approx(-0.23601204259506061, abs=1e-8) == score["avg_r2_difference_and_f1_difference"]
+    assert pytest.approx(-0.25980211400301456, abs=1e-8) == score["avg_r2_difference_and_f1_difference"]
 
     assert pytest.approx(-0.18302644311709276, abs=1e-8) == score["MLPRegressor_r2_difference_and_f1_difference"]
 
@@ -291,10 +291,10 @@ def test_multi_target_modeling_difference_with_two_parallel_targets() -> None:
     score = metric.compute(real_data, synthetic_data, holdout_data)
 
     assert pytest.approx(-0.20674835173603345, abs=1e-8) == score["avg_f1_difference"]
-    assert pytest.approx(-0.3210234643327887, abs=1e-8) == score["avg_r2_difference"]
+    assert pytest.approx(-0.337196886669367, abs=1e-8) == score["avg_r2_difference"]
     # average of the f1 and r2 difference values for the two columns of interest.
-    assert pytest.approx(-0.2638859080344111, abs=1e-8) == score["avg_r2_difference_and_f1_difference"]
+    assert pytest.approx(-0.2719726192027002, abs=1e-8) == score["avg_r2_difference_and_f1_difference"]
 
-    assert pytest.approx(0.12331561250109607, abs=1e-8) == score["avg_mean_squared_error_difference_and_f1_difference"]
+    assert pytest.approx(0.13455939295509595, abs=1e-8) == score["avg_mean_squared_error_difference_and_f1_difference"]
 
     unset_all_random_seeds()
