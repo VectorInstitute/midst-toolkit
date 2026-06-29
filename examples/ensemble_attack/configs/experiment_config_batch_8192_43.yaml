@@ -1,6 +1,6 @@
 # Ensemble experiment configuration
 # This config can be used to run both the Ensemble attack training (``run_attack.py``) and testing phases (``test_attack_model.py``).
-base_experiment_dir: /projects/midst-experiments/ensemble_attack/berka_new_seed_43/batch_size # Processed data, and experiment artifacts will be stored under this directory.
+base_experiment_dir: /projects/midst-experiments/ensemble_attack/berka_new_seed_43/batch_size_8192 # Processed data, and experiment artifacts will be stored under this directory.
 base_data_config_dir: examples/ensemble_attack/data_configs # Training and data type configs are saved under this directory.
 
 # Training Pipeline Control
@@ -76,7 +76,7 @@ shadow_training:
   training_json_config_paths: # Config json files used for tabddpm training on the trans table
     table_domain_file_path: ${base_data_config_dir}/trans_domain.json
     dataset_meta_file_path: ${base_data_config_dir}/dataset_meta.json
-    tabddpm_training_config_path: ${base_data_config_dir}/trans.json
+    training_config_path: ${base_data_config_dir}/trans_batch_8192.json
   # Model training artifacts are saved under shadow_models_data_path/workspace_name/exp_name
   # Also, training configs for each shadow model are created under shadow_models_data_path.
   shadow_models_output_path: ${base_experiment_dir}/shadow_models_and_data
@@ -117,4 +117,4 @@ attack_success_computation:
   target_ids_to_test: [61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110] # List of target model IDs to compute the attack success for.
 
 # General settings
-random_seed: 42 # Set to null for no seed, or an integer for a fixed seed
+random_seed: 43 # Set to null for no seed, or an integer for a fixed seed

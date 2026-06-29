@@ -339,7 +339,7 @@ def run_metaclassifier_testing(model_runner: EnsembleAttackModelRunner, config: 
     meta_classifier_type = MetaClassifierType(config.metaclassifier.model_type)
 
     metaclassifier_model_name = config.metaclassifier.meta_classifier_model_name
-    mataclassifier_path = Path(config.metaclassifier.metaclassifier_model_path) / f"{metaclassifier_model_name}.pkl"
+    mataclassifier_path = Path(config.model_paths.metaclassifier_model_path) / f"{metaclassifier_model_name}.pkl"
     assert mataclassifier_path.exists(), (
         f"No metaclassifier model found at {mataclassifier_path}. Make sure to run the training script first."
     )

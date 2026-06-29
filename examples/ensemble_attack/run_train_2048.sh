@@ -6,10 +6,13 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:a100:1
 #SBATCH --mem=210G
-#SBATCH --job-name=train_43_8192
+#SBATCH --job-name=train_2048_44
 #SBATCH --output=%j_%x.out
 #SBATCH --error=%j_%x.err
-#SBATCH --time=24:00:00
+#SBATCH --time=14:00:00
+
+#SBATCH --mail-user=sara.kodeiri@vectorinstitute.ai
+#SBATCH --mail-type=ALL
 
 
 echo "Total memory allocated: $(($SLURM_MEM_PER_NODE / 1024)) GB"
@@ -21,6 +24,6 @@ which python
 
 echo "Experiments Launched"
 
-python -m examples.ensemble_attack.run_attack  --config-name=experiment_config_batch_8192_43.yaml
+python -m examples.ensemble_attack.run_attack  --config-name=experiment_config_batch_2048_44
 
 echo "Experiments Completed"
