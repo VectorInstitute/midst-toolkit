@@ -29,16 +29,15 @@ class ClavaDDPMDataset(Dataset):
         table_metadata: TableMetadata,
         data_split_percentages: list[float] | None = None,
         noise_scale: float = 0,
+        label_encoders_path: str | None = None,
         # TODO: Find places in code that have this kind of hardcoded random default and remove (with TESTING)
         data_split_random_state: int = 42,
     ) -> tuple[ClavaDDPMDataset, dict[int, LabelEncoder], list[str]]:
         """
         Generate a dataset from a pandas DataFrame.
 
-        NOTE: For now, n_classes (which is part of the info dictionary) has to be set to 0. This is because our
-        matrix is the concatenation of (x_num, x_cat). In this case, if we have
-        is_target_conditioned == IsTargetConditioned.CONCAT, we can guarantee that y is the first column of the
-        matrix.  However, if we have n_classes > 0, then y is not the first column of the matrix.
+        NOTE: For now, table_metadata.n_classes has to be 0. This is because all categorical
+        features are encoded and merged with the numerical features for ClavaDDPM datasets.
 
         Args:
             data: The pandas DataFrame from which to generate the dataset.
@@ -63,6 +62,8 @@ class ClavaDDPMDataset(Dataset):
             data_split_percentages: The percentages of the dataset to go into train, val, and test splits. The sum of
                 the percentages must amount to 1 (within a tolerance of 0.01). Optional, default is [0.7, 0.2, 0.1].
             noise_scale: The scale of the noise to add to the categorical features. Optional, default is 0.
+            label_encoders_path: The path to the label encoders pkl file. If provided, already fitted label encoder
+                will be loaded from the pkl file, otherwise they will be fitted on the current data.
             data_split_random_state: The random state to use for the data split. Will be passed down to the
                 ``train_test_split`` function from sklearn. Optional, default is 42.
 
@@ -74,6 +75,8 @@ class ClavaDDPMDataset(Dataset):
             - The column names, with numerical columns first, then categorical columns. Within these two categories,
               column names are in the order they appear in the dataset.
         """
+        assert table_metadata.n_classes == 0, "table_metadata.n_classes is not 0."
+
         if data_split_percentages is None:
             data_split_percentages = [0.7, 0.2, 0.1]
 
@@ -126,13 +129,15 @@ class ClavaDDPMDataset(Dataset):
         column_orders = numerical_column_names + categorical_column_names
 
         # Encode the categorical features and merge them with the numerical features
+        # Look for pre-fitted label encoders in the parent directories of the data
+
         features, label_encoders = encode_and_merge_features(
             categorical_features,
             numerical_features,
             noise_scale,
+            categorical_column_names=categorical_column_names,
+            label_encoders_path=label_encoders_path,
         )
-
-        assert isinstance(table_metadata.n_classes, int)
 
         dataset = ClavaDDPMDataset(
             numerical_features=features,

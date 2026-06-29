@@ -305,7 +305,7 @@ def transform_dataset(
     """
     cache_path = setup_cache_path(transformations, cache_dir)
     if cache_path is not None and cache_path.exists():
-        return get_cached_dataset(cache_path, transformations)
+        return get_cached_dataset(type(dataset), cache_path, transformations)
 
     if dataset.numerical_features is not None:
         # Processing NaNs in numerical features here because we need to
@@ -342,8 +342,12 @@ def transform_dataset(
             transformations.seed,
             return_encoder=True,
         )
+        # is_numerical will be True if the categorical values have been encoded into
+        # continuous numerical values, which is the case for CategoricalEncoding.ONE_HOT and
+        # CategoricalEncoding.COUNTER. is_numerical will be False if the encoding is set
+        # to None or CategoricalEncoding.ORDINAL, in which case the encoding will be
+        # handled by the model code itself.
         if is_numerical:
-            # Will be true if the categorical encoding type is ONE_HOT or COUNTER.
             if numerical_features is None:
                 numerical_features = categorical_features
             else:

@@ -1,0 +1,85 @@
+data_dir: examples/tabsyn/data
+results_dir: examples/tabsyn/results
+tabsyn_config: examples/tabsyn/tabsyn_config.toml
+table_name: trans
+
+training:
+  sample_size: 20000
+
+evaluation:
+  # Reporting Configuration
+  write_report: True
+  metric_report_path: ${results_dir}/evaluation_results.txt
+
+  # Privacy Evaluation Configurations
+  dcr:
+    run: True
+    norm: "l2"
+    batch_size: 1000
+
+  median_dcr:
+    run: True
+    norm: "l2"
+    batch_size: 1000
+
+  hitting_rate:
+    run: True
+    hitting_threshold: 0.03
+
+  eir:
+    run: True
+    norm: "gower"
+
+  nndr:
+    run: True
+    norm: "l2"
+    batch_size: 1000
+
+  # Quality Evaluation Configurations
+  ks_tv:
+    run: True
+    significance_level: 0.05
+    permutations: 1000
+
+  alpha_precision:
+    run: True
+    naive_only: False
+
+  ci_overlap:
+    run: True
+    confidence_level: 95
+
+  correlation_diff:
+    run: True
+    compute_mixed_correlations: True
+
+  mean_diff:
+    run: True
+
+  f1_score_diff:
+    run: True
+    label_column: "trans_type"
+    folds: 5
+    f1_type: "macro"
+
+  regression_score_diff:
+    run: True
+    label_column: "trans_type"
+    preprocess_labels: True
+    measure_metrics_in_original_label_space: False
+    verbose: True
+    convert_label_to_float: True
+
+  hellinger:
+    run: True
+    include_numerical_columns: True
+
+  propensity_mse:
+    run: True
+    folds: 5
+    max_iterations: 50
+    solver: "liblinear"
+
+  mutual_information:
+    run: True
+    include_numerical_columns: False

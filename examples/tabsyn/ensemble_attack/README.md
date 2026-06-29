@@ -1,14 +1,14 @@
-# CTGAN Ensemble Attack Example
+# TabSyn Ensemble Attack Example
 
 On this example, we demonstrate how to run the [Ensemble Attack](../../ensemble_attack/README.md)
-using the [CTGAN](https://arxiv.org/pdf/1907.00503) model.
+using the [TabSyn](https://arxiv.org/abs/2310.09656) model.
 
 ## 1. Downloading data
 
 First, we need the data. Download it from this
-[Google Drive link](https://drive.google.com/file/d/1B9z4vh51mH6ZMj5E0pJitqR8lid3EJKM/view?usp=drive_link),
+[Google Drive link](https://drive.google.com/file/d/16XCa63eD2dZ1bddhgRbGFuzAuuMlto9P/view?usp=sharing),
 extract the files and place them in a `/data/ensemble_attack` folder within this folder
-(`examples/gan`).
+(`examples/tabsyn`).
 
 > [!NOTE]
 > If you wish to change the data folder, you can do so by editing the `base_data_dir` attribute
@@ -20,6 +20,8 @@ Here is a description of the files that have been extracted:
 single table dataset, it will only contain information about the transaction (`trans`) table.
 - `trans_domain.json`: Metadata about the columns of the transaction table, such as their size
 and type (`continuous` or `discrete`).
+- `trans_info.json` and `meta_info.json`: Metadata about the `trans.csv` data, with information
+such as which columns are numerical and which are categorical, what is the task type, etc.
 - `data_types.json`: Additional metadata about the columns, splitting them into 4 types:
     - `numerical`: a list of the columns that contain numerical information
     - `categorical`: a list of the columns that contain categorical information
@@ -42,7 +44,7 @@ If you wish to train a new target model and produce the synthetic data that will
 target of the attack, you can run:
 
 ```bash
-python -m examples.gan.synthesize --config-path=./ensemble_attack
+python -m examples.tabsyn.synthesize --config-path=./ensemble_attack
 ```
 
 ## 3. Producing the challenge points dataset
@@ -55,7 +57,7 @@ the points used in training and the ones not used in training.
 To produce such dataset, run the following script:
 
 ```bash
-python -m examples.gan.ensemble_attack.make_challenge_dataset
+python -m examples.tabsyn.ensemble_attack.make_challenge_dataset
 ```
 
 ## 4. Training the attack model
@@ -63,7 +65,7 @@ python -m examples.gan.ensemble_attack.make_challenge_dataset
 To train the attack models, execute the following command:
 
 ```bash
-python -m examples.gan.ensemble_attack.train_attack_model
+python -m examples.tabsyn.ensemble_attack.train_attack_model
 ```
 
 This will take a long time to run, so it might be a good idea to execute it as a
@@ -77,7 +79,7 @@ To test the attack model against the target model and synthetic data produced on
 [step 2](#2-generating-target-synthetic-data-to-be-tested), please run:
 
 ```bash
-python -m examples.gan.ensemble_attack.run_test_attack_model
+python -m examples.tabsyn.ensemble_attack.run_test_attack_model
 ```
 
 ## 6. Compute the attack success
@@ -86,8 +88,8 @@ To compute the metrics about the success of the attack against the target
 synthetic data, you can run the following command:
 
 ```bash
-python -m examples.gan.ensemble_attack.compute_attack_success
+python -m examples.tabsyn.ensemble_attack.compute_attack_success
 ```
 
 The results will both printed on the console and saved in the file
-`examples/gan/results/attack_success_for_xgb_metaclassifier_model.txt`
+`examples/tabsyn/results/attack_success_for_xgb_metaclassifier_model.txt`

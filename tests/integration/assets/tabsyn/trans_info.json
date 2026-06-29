@@ -25,8 +25,5 @@
     ],
     "target_col_idx": [
         3
-    ],
-    "file_type": "csv",
-    "data_path": "tests/integration/assets/tabsyn/raw_data/train.csv",
-    "test_path": "tests/integration/assets/tabsyn/raw_data/test.csv"
+    ]
 }

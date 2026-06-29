@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import os
 from collections.abc import Generator
+from dataclasses import replace
 from logging import INFO
 from pathlib import Path
 from typing import Any
@@ -95,6 +96,8 @@ def mixed_loss(
 
 
 # TODO: Unify this with the Dataset.from_df function.
+# TODO: Noise scale is always called with a value of 0 for the attack. So we should remove it from the
+#      function signature and the function calls.
 def make_dataset_from_df_with_loaded(
     data: pd.DataFrame,
     transformation: Transformations,
@@ -105,7 +108,7 @@ def make_dataset_from_df_with_loaded(
     noise_scale: float = 0,
 ) -> ClavaDDPMDataset:
     """
-    Create a dataset using artifacts.
+    Makes a dataset from a dataframe with loaded transformations.
 
     Args:
         data: Raw data to be used for creating the dataset.
@@ -114,8 +117,8 @@ def make_dataset_from_df_with_loaded(
         table_metadata: Meta data about the table or tables.
         label_encoders: Encoders that were used to encode the categorical data.
         numerical_transform: Transformations that should be applied to the numerical data. Defaults to None.
-        noise_scale: he scale of the noise to add to the categorical features. Noise is drawn from a normal
-            distribution with standard deviation of ``noise_scale``. Defaults to 0.
+        noise_scale: The scale of the noise to add to the categorical features. Noise is drawn from a normal
+        distribution with standard deviation of ``noise_scale``. Defaults to 0.
 
     Returns:
         A full dataset constructed of the various pieces.
@@ -156,6 +159,13 @@ def make_dataset_from_df_with_loaded(
         numerical_features = categorical_features
 
     target_info = TargetInfo(policy=None, mean=None, std=None)
+
+    # Apply the model's pre-fitted numerical transform directly instead of re-fitting a new one.
+    # Calling transform_dataset() would fit a brand new QuantileTransformer on the MIA data,
+    # which produces a different normalization than the model saw during training, destroying signal.
+    if numerical_transform is not None:
+        numerical_features = {k: numerical_transform.transform(v) for k, v in numerical_features.items()}
+
     dataset = ClavaDDPMDataset(
         numerical_features=numerical_features,
         categorical_features=None,
@@ -166,7 +176,9 @@ def make_dataset_from_df_with_loaded(
         categorical_transform=None,
         numerical_transform=numerical_transform,
     )
-    return transform_dataset(dataset, transformation, None)
+    # Use a no-normalization transformation since we've already applied the model's scaler above.
+    transformation_no_norm = replace(transformation, normalization=None)
+    return transform_dataset(dataset, transformation_no_norm, None)
 
 
 def get_dataset(
@@ -397,7 +409,7 @@ def prepare_dataframe(
     return filter_dataframe(merged_data, df_data, columns_for_deduplication)
 
 
-def train_tartan_federer_attack_classifier(
+def train_tartan_federer_attack_classifier(  # noqa: PLR0915, PLR0912
     train_indices: list[int],
     val_indices: list[int] | None,
     timesteps: list[int],
@@ -451,7 +463,27 @@ def train_tartan_federer_attack_classifier(
     population_df_for_validation = pd.read_csv(population_data_dir / "population_dataset_for_validating_attack.csv")
     log(INFO, "Population datasets for validating loaded.")
 
-    noise_dimension = len([col for col in population_df_for_training.columns if "_id" not in col])
+    # Derive noise dimension from the actual diffusion model's num_numerical_features rather
+    # than from the population dataframe column count.  The mixed_loss function slices
+    # x[:, :diffusion.num_numerical_features], so the noise vectors must have exactly that length.
+    # We load the first available model to read this value, then discard it.
+    first_model_number = train_indices[0]
+    first_model_dir = model_data_dir / f"{model_type}_{first_model_number}"
+    first_model_path = first_model_dir / target_model_subdir
+
+    if model_type != "tabddpm":
+        raise ValueError(
+            f"Unsupported model_type {model_type}. Tartan Federer Attack is only supported for ClavaDDPM-single-table models."
+        )
+    # TODO: We should read this from the metadata instead.
+    relation_order = [("None", "trans")]
+    parent, child = relation_order[0]
+    ckpt_path = first_model_path / f"{parent}_{child}_ckpt.pkl"
+    with open(ckpt_path, "rb") as _f:
+        probe_model = CustomUnpickler(_f).load()
+    noise_dimension = probe_model.diffusion.num_numerical_features
+    log(INFO, f"Noise dimension read from diffusion model: {noise_dimension}")
+
     input_noise = [np.random.normal(size=noise_dimension).tolist() for _ in range(num_noise_per_time_step)]
     input_dimension = len(input_noise) * len(timesteps) * len(additional_timesteps)
 

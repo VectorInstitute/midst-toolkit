@@ -123,6 +123,9 @@ def compute_gower_for_model(
     if len(df_synthetic) > min_length:
         df_synthetic = df_synthetic.sample(n=min_length, random_state=random_seed)
 
+    # Drop id columns
+    id_columns_names = [col for col in df_synthetic.columns if "_id" in col]
+    df_synthetic = df_synthetic.drop(columns=id_columns_names)
     if id_column_name in df_synthetic.columns:
         df_synthetic = df_synthetic.drop(columns=[id_column_name])
 

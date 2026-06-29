@@ -7,6 +7,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from midst_toolkit.common.enumerations import DataSplit
+from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.tabsyn.config import load_config
 from midst_toolkit.models.tabsyn.dataset import TabularDataset, preprocess
 from midst_toolkit.models.tabsyn.pipeline import TabSyn
@@ -68,9 +69,8 @@ def test_train_load_and_synthesize(test_dirs):
     train_data = TabularDataset(numerical_features_train.float(), categorical_features_train)
 
     # move test data to gpu if available
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    numerical_features_test = numerical_features_test.float().to(device)
-    categorical_features_test = categorical_features_test.to(device)
+    numerical_features_test = numerical_features_test.float().to(DEVICE)
+    categorical_features_test = categorical_features_test.to(DEVICE)
 
     # create train dataloader
     train_loader = DataLoader(
@@ -87,7 +87,7 @@ def test_train_load_and_synthesize(test_dirs):
         categorical_features_test,
         num_numerical_features=d_numerical,
         num_classes=categories,
-        device=device,
+        device=DEVICE,
     )
 
     model_save_dir = results_dir / test_data_name
@@ -135,7 +135,6 @@ def test_train_load_and_synthesize(test_dirs):
     # instantiate diffusion model for training
     tabsyn.instantiate_diffusion(
         in_dim=train_z.shape[1],
-        hid_dim=train_z.shape[1],
         optim_params=config["train"]["optim"]["diffusion"],
     )
 
@@ -155,10 +154,9 @@ def test_train_load_and_synthesize(test_dirs):
     train_z_att = tabsyn.load_embeddings_attributes(vae_save_dir)
     token_dim = train_z_att["token_dim"]
     in_dim = train_z_att["in_dim"]
-    hid_dim = train_z_att["hid_dim"]
 
     # instantiate diffusion model
-    tabsyn.instantiate_diffusion(in_dim=in_dim, hid_dim=hid_dim, optim_params=None)
+    tabsyn.instantiate_diffusion(in_dim=in_dim, optim_params=None)
 
     # load state from checkpoint
     tabsyn.load_model_state(ckpt_dir=model_save_dir, dif_ckpt_name="model.pt")

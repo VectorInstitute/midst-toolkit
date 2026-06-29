@@ -2,19 +2,24 @@
 
 import copy
 import json
+import shutil
+import tempfile
 from abc import ABC, abstractmethod
 from logging import INFO
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import torch
 from omegaconf import DictConfig
 from pydantic import BaseModel, ConfigDict
 from sdv.metadata import SingleTableMetadata
 from sdv.single_table import CTGANSynthesizer
+from torch.utils.data import DataLoader
 
 from midst_toolkit.attacks.ensemble.clavaddpm_fine_tuning import clava_fine_tuning
-from midst_toolkit.common.config import ClavaDDPMTrainingConfig, CTGANTrainingConfig, TrainingConfig
+from midst_toolkit.common.config import ClavaDDPMTrainingConfig, CTGANTrainingConfig, GeneralConfig, TrainingConfig
+from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.variables import DEVICE
 from midst_toolkit.models.clavaddpm.clustering import clava_clustering
@@ -22,6 +27,10 @@ from midst_toolkit.models.clavaddpm.data_loaders import Tables, load_tables
 from midst_toolkit.models.clavaddpm.enumerations import GroupLengthsProbDicts, Relation, RelationOrder
 from midst_toolkit.models.clavaddpm.synthesizer import clava_synthesizing
 from midst_toolkit.models.clavaddpm.train import ClavaDDPMModelArtifacts, CTGANModelArtifacts, clava_training
+from midst_toolkit.models.tabsyn.config import load_config
+from midst_toolkit.models.tabsyn.dataset import TabularDataset, preprocess
+from midst_toolkit.models.tabsyn.pipeline import TabSyn
+from midst_toolkit.models.tabsyn.preprocessing import get_processed_data_dir, process_data
 
 
 class EnsembleAttackTrainingResult(BaseModel):
@@ -343,3 +352,298 @@ def get_single_table_svd_metadata(
     metadata.remove_primary_key()
 
     return metadata, data_without_ids
+
+
+class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
+    def __init__(self, config: DictConfig):
+        """
+        Initialize the ensemble attack model runner for the TabSyn model with a config dictionary.
+
+        Args:
+            config: The config from the config.yaml file for the ensemble attack model.
+                Must contain the following keys:
+                - tabsyn_config: The tabsyn config path for the TabSyn model.
+                - data_dir: The data directory for the TabSyn model.
+                - results_dir: The results directory for the TabSyn model.
+                - table_name: The name of the table the TabSyn model is being trained on.
+        """
+        self.tabsyn_config = load_config(config.tabsyn_config)
+        self.table_name = config.table_name
+        self.full_data_dir = Path(config.data_dir)
+        self.training_config = TrainingConfig(
+            general=GeneralConfig(
+                data_dir=self.full_data_dir,
+                test_data_dir=Path(f"{self.full_data_dir}-test"),
+                exp_name=f"{config.table_name}-ensemble-attack",
+                workspace_dir=Path(config.results_dir),
+                sample_prefix=f"{config.table_name}-ea",
+            ),
+            save_dir=Path(config.results_dir) / self.table_name,
+        )
+
+        log(INFO, "Processing TabSyn full dataset...")
+        process_data(self.table_name, self.full_data_dir, self.full_data_dir)
+
+    @property
+    def vae_save_dir(self) -> Path:
+        """
+        Get the directory to save the VAE model.
+
+        Will return the save directory relative to the current self.training_config.save_dir.
+        """
+        assert self.training_config.save_dir is not None, "Save dir is not set"
+        return self.training_config.save_dir / "vae"
+
+    def train_or_fine_tune_and_synthesize(
+        self,
+        dataset: pd.DataFrame,
+        synthesize: bool = True,
+        trained_model: EnsembleAttackTrainingResult | None = None,
+    ) -> EnsembleAttackTrainingResult:
+        """
+        Train or fine tune a TabSyn model on the provided dataset and optionally synthesize data.
+
+        Args:
+            dataset: The dataset as a pandas DataFrame.
+            synthesize: Flag indicating whether to generate synthetic data after training.
+                The number of points to synthesize and the save directory is controlled by
+                the `number_of_points_to_synthesize` and `save_dir` attributes of the training
+                config. Optional, default is True.
+            trained_model: The trained model to fine tune. If None, a new model will be trained.
+        """
+        log(INFO, "Training or Fine Tuning TabSyn model...")
+        self.training_config.general.workspace_dir.mkdir(parents=True, exist_ok=True)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tabsyn = copy.deepcopy(trained_model.models) if trained_model is not None else None
+
+            temp_path = self._populate_temp_dataset_dir(temp_dir, dataset)
+            tabsyn = self._train_or_fine_tune(temp_path, tabsyn)
+
+        synthetic_data: pd.DataFrame | None = None
+        if synthesize:
+            synthetic_data = self._synthesize(tabsyn)
+
+        return EnsembleAttackTrainingResult(
+            save_dir=self.training_config.general.workspace_dir,
+            configs=self.training_config,
+            models=tabsyn,
+            synthetic_data=synthetic_data,
+        )
+
+    def _populate_temp_dataset_dir(self, temp_dir: str, dataset: pd.DataFrame) -> Path:
+        temp_path = Path(temp_dir)
+
+        dataset.to_csv(temp_path / f"{self.table_name}.csv", index=False)
+        for filename in [f"{self.table_name}.json", f"{self.table_name}_info.json"]:
+            shutil.copy(self.full_data_dir / filename, temp_path / filename)
+
+        return temp_path
+
+    def _dataset_and_ref_dataset_paths(self, data_dir: Path) -> tuple[Path, Path]:
+        # The preprocess function below expects 2 folders of preprocessed data:
+        # 1. the dataset to be processed, which can be a subset of the full dataset
+        # 2. the full dataset, which is used to unsure it will get all the categories for the categorical features
+        dataset_path = get_processed_data_dir(data_dir) / self.table_name
+        full_dataset_path = get_processed_data_dir(self.full_data_dir) / self.table_name
+        ref_dataset_path = Path(f"{dataset_path}_all")
+        shutil.rmtree(ref_dataset_path, ignore_errors=True)
+        shutil.copytree(full_dataset_path, ref_dataset_path)
+
+        return dataset_path, ref_dataset_path
+
+    def _train_or_fine_tune(self, data_dir: Path, tabsyn: TabSyn | None) -> TabSyn:
+        fine_tune = tabsyn is not None
+        log(INFO, f"{'Fine Tuning' if fine_tune else 'Training'} new TabSyn model...")
+
+        assert self.training_config.save_dir is not None, "Save dir is not set"
+
+        process_data(self.table_name, data_dir, data_dir)
+
+        log(INFO, "Preprocessing data...")
+
+        dataset_path, ref_dataset_path = self._dataset_and_ref_dataset_paths(data_dir)
+
+        # preprocess the data
+        # TODO: refactor the return of the preprocess function so we don't need to ignore mypy here
+        numerical_features, categorical_features, categories, d_numerical = preprocess(  # type: ignore[misc]
+            dataset_path=dataset_path,
+            ref_dataset_path=ref_dataset_path,
+            transforms=self.tabsyn_config["transforms"],
+            task_type=self.tabsyn_config["task_type"],
+        )
+
+        # separate train and test data
+        numerical_features_train = numerical_features[DataSplit.TRAIN.value]
+        numerical_features_test = numerical_features[DataSplit.TEST.value]
+        categorical_features_train = categorical_features[DataSplit.TRAIN.value]
+        categorical_features_test = categorical_features[DataSplit.TEST.value]
+
+        log(INFO, f"Dataset size: {numerical_features_train.shape[0]}")
+
+        # convert to float tensor
+        numerical_features_train = torch.tensor(numerical_features_train).float()
+        numerical_features_test = torch.tensor(numerical_features_test).float()
+        categorical_features_train = torch.tensor(categorical_features_train)
+        categorical_features_test = torch.tensor(categorical_features_test)
+
+        log(INFO, "Loading the dataset...")
+
+        # create dataset module
+        train_data = TabularDataset(numerical_features_train.float(), categorical_features_train)
+
+        # move test data to gpu if available
+        numerical_features_test = numerical_features_test.float().to(DEVICE)
+        categorical_features_test = categorical_features_test.to(DEVICE)
+
+        # create train dataloader
+        train_loader: DataLoader[TabularDataset] = DataLoader[TabularDataset](
+            # Ignoring here because this is expecting the dataset to be subclass of torch's Dataset but it isn't
+            train_data,  # type: ignore[arg-type]
+            batch_size=self.tabsyn_config["train"]["vae"]["batch_size"],
+            shuffle=True,
+            num_workers=self.tabsyn_config["train"]["vae"]["num_dataset_workers"],
+        )
+
+        if fine_tune:
+            # Load the data into the existing model
+            log(INFO, "Loading data into existing TabSyn model...")
+            assert tabsyn is not None, "TabSyn model is not set"
+            tabsyn.train_loader = train_loader
+            tabsyn.numerical_features_test = numerical_features_test
+            tabsyn.categorical_features_test = categorical_features_test
+        else:
+            # Instantiate a new model
+            log(INFO, "Instantiating the TabSyn model...")
+            tabsyn = TabSyn(
+                train_loader,
+                numerical_features_test,
+                categorical_features_test,
+                num_numerical_features=d_numerical,
+                num_classes=categories,
+                device=DEVICE,
+            )
+
+        ###### A. Train the VAE model ######
+
+        log(INFO, f"{'Fine tuning' if fine_tune else 'Training'} the TabSyn VAE model...")
+
+        self.vae_save_dir.mkdir(parents=True, exist_ok=True)
+        if not fine_tune:
+            # instantiate VAE model for training
+            tabsyn.instantiate_vae(
+                **self.tabsyn_config["model_params"],
+                optim_params=self.tabsyn_config["train"]["optim"]["vae"],
+            )
+
+        tabsyn.train_vae(
+            **self.tabsyn_config["loss_params"],
+            num_epochs=self.tabsyn_config["train"]["vae"]["num_epochs"],
+            save_path=self.vae_save_dir,
+        )
+
+        # embed all inputs in the latent space
+        tabsyn.save_vae_embeddings(
+            numerical_features_train,
+            categorical_features_train,
+            vae_ckpt_dir=self.vae_save_dir,
+        )
+        tabsyn.save_embeddings_attributes(vae_ckpt_dir=self.vae_save_dir)
+
+        ###### B. Train the Diffusion model ######
+
+        log(INFO, f"{'Fine tuning' if fine_tune else 'Training'} the TabSyn Diffusion model...")
+
+        # load latent space embeddings
+        train_z, _ = tabsyn.load_latent_embeddings(self.vae_save_dir)  # train_z dim: B x in_dim
+
+        # normalize embeddings
+        latent_train_data = (train_z - train_z.mean(0)) / 2
+
+        # create data loader
+        latent_train_loader: DataLoader[torch.Tensor] = DataLoader[torch.Tensor](
+            # Ignoring the type checker here because our code in tabsyn.train_diffusion
+            # works with plain Tensor and not with TensorDataset
+            latent_train_data,  # type: ignore[arg-type]
+            batch_size=self.tabsyn_config["train"]["diffusion"]["batch_size"],
+            shuffle=True,
+            num_workers=self.tabsyn_config["train"]["diffusion"]["num_dataset_workers"],
+        )
+
+        if not fine_tune:
+            # instantiate diffusion model for training
+            tabsyn.instantiate_diffusion(
+                in_dim=train_z.shape[1],
+                optim_params=self.tabsyn_config["train"]["optim"]["diffusion"],
+            )
+
+        # train diffusion model
+        tabsyn.train_diffusion(
+            latent_train_loader,
+            num_epochs=self.tabsyn_config["train"]["diffusion"]["num_epochs"],
+            ckpt_path=self.training_config.save_dir,
+        )
+
+        log(INFO, f"{'Fine tuning' if fine_tune else 'Training'} Done!")
+
+        return tabsyn
+
+    def _synthesize(self, tabsyn: TabSyn) -> pd.DataFrame:
+        ###### Load the model ######
+
+        assert self.training_config.save_dir is not None, "Save dir is not set"
+
+        # instantiate VAE model
+        tabsyn.instantiate_vae(**self.tabsyn_config["model_params"], optim_params=None)
+
+        # load latent embeddings attributes of input data
+        train_z_att = tabsyn.load_embeddings_attributes(self.vae_save_dir)
+        token_dim = train_z_att["token_dim"]
+        in_dim = train_z_att["in_dim"]
+
+        # instantiate diffusion model
+        tabsyn.instantiate_diffusion(in_dim=in_dim, optim_params=None)
+
+        # load state from checkpoint
+        tabsyn.load_model_state(ckpt_dir=self.training_config.save_dir, dif_ckpt_name="model.pt")
+
+        ###### Synthesize data ######
+
+        dataset_path, ref_dataset_path = self._dataset_and_ref_dataset_paths(self.full_data_dir)
+
+        # get inverse tokenizers
+        # TODO: refactor the return of the preprocess function so we don't need to ignore mypy here
+        _, _, _, _, num_inverse, cat_inverse = preprocess(  # type: ignore[misc]
+            dataset_path=dataset_path,
+            ref_dataset_path=ref_dataset_path,
+            transforms=self.tabsyn_config["transforms"],
+            task_type=self.tabsyn_config["task_type"],
+            inverse=True,
+        )
+
+        synthetic_data_dir = self.training_config.save_dir / "synthetic_data"
+        synthetic_data_dir.mkdir(parents=True, exist_ok=True)
+
+        # load data info file
+        with open(dataset_path / "info.json", "r") as file:
+            data_info = json.load(file)
+
+        data_info["token_dim"] = token_dim
+
+        # sample data
+        num_samples = train_z_att["num_samples"]
+        in_dim = train_z_att["in_dim"]
+        mean_input_emb = train_z_att["mean_input_emb"]
+        tabsyn.sample(
+            num_samples,
+            in_dim,
+            mean_input_emb,
+            info=data_info,
+            num_inverse=num_inverse,
+            cat_inverse=cat_inverse,
+            save_path=synthetic_data_dir / f"{self.table_name}_synthetic.csv",
+        )
+
+        log(INFO, "Synthesizing Done!")
+
+        return pd.read_csv(synthetic_data_dir / f"{self.table_name}_synthetic.csv")

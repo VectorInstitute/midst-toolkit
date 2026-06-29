@@ -25,12 +25,12 @@ def test_tf_attack_whitebox_tiny_config_midst_toolkit():
         "model_data_dir": base_path,
         "target_model_subdir": Path("."),
         "model_type": "tabddpm",
-        "classifier_hidden_dim": 20,
-        "classifier_num_epochs": 200,
+        "classifier_hidden_dim": 100,
+        "classifier_num_epochs": 20,
         "samples_per_train_model": 3000,
         "samples_per_val_model": 10,
         "num_noise_per_time_step": 30,
-        "timesteps": [5, 10, 15],
+        "timesteps": [5, 7, 9],
         "additional_timesteps": [0],
         "predictions_file_name": "challenge_label_predictions",
         # TODO: Make results path a temp directory
@@ -52,14 +52,14 @@ def test_tf_attack_whitebox_tiny_config_midst_toolkit():
     roc_auc_test = mia_performance_test["roc_auc"]
     tpr_at_fpr_test = mia_performance_test["max_tpr"]
 
-    assert roc_auc_train == pytest.approx(0.4469875, abs=1e-8)
-    assert tpr_at_fpr_train == pytest.approx(0.08, abs=1e-8)
+    assert roc_auc_train == pytest.approx(0.6315875, abs=1e-8)
+    assert tpr_at_fpr_train == pytest.approx(0.165, abs=1e-8)
 
-    assert roc_auc_val == pytest.approx(0.5054624999999999, abs=1e-8)
-    assert tpr_at_fpr_val == pytest.approx(0.125, abs=1e-8)
+    assert roc_auc_val == pytest.approx(0.6732, abs=1e-8)
+    assert tpr_at_fpr_val == pytest.approx(0.28, abs=1e-8)
 
-    assert roc_auc_test == pytest.approx(0.4937875, abs=1e-8)
-    assert tpr_at_fpr_test == pytest.approx(0.115, abs=1e-8)
+    assert roc_auc_test == pytest.approx(0.6607, abs=1e-8)
+    assert tpr_at_fpr_test == pytest.approx(0.19, abs=1e-8)
 
     unset_all_random_seeds()
     os.environ.pop("CUBLAS_WORKSPACE_CONFIG", None)
@@ -107,14 +107,14 @@ def test_tf_attack_whitebox_tiny_config_midst_toolkit_single_model():
     roc_auc_test = mia_performance_test["roc_auc"]
     tpr_at_fpr_test = mia_performance_test["max_tpr"]
 
-    assert roc_auc_train == pytest.approx(0.5046999999999999, abs=1e-8)
-    assert tpr_at_fpr_train == pytest.approx(0.09, abs=1e-8)
+    assert roc_auc_train == pytest.approx(0.6985000000000001, abs=1e-8)
+    assert tpr_at_fpr_train == pytest.approx(0.33, abs=1e-8)
 
-    assert roc_auc_val == pytest.approx(0.47159999999999996, abs=1e-8)
-    assert tpr_at_fpr_val == pytest.approx(0.12, abs=1e-8)
+    assert roc_auc_val == pytest.approx(0.7075, abs=1e-8)
+    assert tpr_at_fpr_val == pytest.approx(0.32, abs=1e-8)
 
-    assert roc_auc_test == pytest.approx(0.46390000000000003, abs=1e-8)
-    assert tpr_at_fpr_test == pytest.approx(0.16, abs=1e-8)
+    assert roc_auc_test == pytest.approx(0.8042, abs=1e-8)
+    assert tpr_at_fpr_test == pytest.approx(0.56, abs=1e-8)
 
     unset_all_random_seeds()
     os.environ.pop("CUBLAS_WORKSPACE_CONFIG", None)
@@ -162,11 +162,11 @@ def test_tf_attack_whitebox_tiny_config_midst_toolkit_no_validation():
 
     assert mia_performance_val is None
 
-    assert roc_auc_train == pytest.approx(0.4996999999999999, abs=1e-8)
-    assert tpr_at_fpr_train == pytest.approx(0.07, abs=1e-8)
+    assert roc_auc_train == pytest.approx(0.6980999999999999, abs=1e-8)
+    assert tpr_at_fpr_train == pytest.approx(0.33, abs=1e-8)
 
-    assert roc_auc_test == pytest.approx(0.5174, abs=1e-8)
-    assert tpr_at_fpr_test == pytest.approx(0.13, abs=1e-8)
+    assert roc_auc_test == pytest.approx(0.7075000000000001, abs=1e-8)
+    assert tpr_at_fpr_test == pytest.approx(0.32, abs=1e-8)
 
     unset_all_random_seeds()
     os.environ.pop("CUBLAS_WORKSPACE_CONFIG", None)

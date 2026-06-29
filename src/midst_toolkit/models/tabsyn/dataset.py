@@ -52,11 +52,7 @@ def preprocess(
     task_type: TaskType = TaskType.BINARY_CLASSIFICATION,
     inverse: bool = False,
     concat: bool = True,
-) -> (
-    Dataset
-    | tuple[ArrayDict, ArrayDict, list[int] | None, int]
-    | tuple[ArrayDict, ArrayDict, list[int] | None, int, Any, Any]
-):
+) -> Dataset | tuple[ArrayDict, ArrayDict, list[int], int] | tuple[ArrayDict, ArrayDict, list[int], int, Any, Any]:
     """Preprocess the dataset.
 
     Args:
@@ -197,7 +193,7 @@ def make_dataset(
     return transform_dataset(dataset, transformations, None)
 
 
-def get_categories(categorical_features_train: np.ndarray | None) -> list[int] | None:
+def get_categories(categorical_features_train: np.ndarray | None) -> list[int]:
     """Get the length of the unique categories from the categorical features.
 
     Args:
@@ -207,7 +203,7 @@ def get_categories(categorical_features_train: np.ndarray | None) -> list[int] |
         The length of the unique categories for each feature.
     """
     if categorical_features_train is None:
-        return None
+        return []
     return [len(set(categorical_features_train[:, i])) for i in range(categorical_features_train.shape[1])]
 
 

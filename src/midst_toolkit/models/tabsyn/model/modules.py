@@ -99,7 +99,6 @@ class Preconditioner(nn.Module):
     def __init__(
         self,
         denoise_model: nn.Module,
-        hidden_dimension: int,
         sigma_min: float = 0,
         sigma_max: float = float("inf"),
         sigma_data: float = 0.5,
@@ -108,14 +107,12 @@ class Preconditioner(nn.Module):
 
         Args:
             denoise_model: The denoising model.
-            hidden_dimension: The hidden dimension.
             sigma_min: The minimum supported noise level. Optional, defaults to 0.
             sigma_max: The maximum supported noise level. Optional, defaults to `float("inf")`.
             sigma_data: The expected standard deviation of the training data. Optional, defaults to 0.5.
         """
         super().__init__()
 
-        self.hidden_dimension = hidden_dimension
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         self.sigma_data = sigma_data
@@ -153,7 +150,6 @@ class EDMLoss:
         p_mean: float = -1.2,
         p_std: float = 1.2,
         sigma_data: float = 0.5,
-        hidden_dimension: int = 100,
     ) -> None:
         """Initialize the EDMLoss.
 
@@ -161,12 +157,10 @@ class EDMLoss:
             p_mean: The mean of the noise. Optional, defaults to -1.2.
             p_std: The standard deviation of the noise. Optional, defaults to 1.2.
             sigma_data: The standard deviation of the data. Optional, defaults to 0.5.
-            hidden_dimension: The hidden dimension. Optional, defaults to 100.
         """
         self.p_mean = p_mean
         self.p_std = p_std
         self.sigma_data = sigma_data
-        self.hidden_dimension = hidden_dimension
 
     def __call__(self, denoise_fn: nn.Module, data: Tensor) -> Tensor:
         """Calculate the loss.
@@ -195,7 +189,6 @@ class Model(nn.Module):
     def __init__(
         self,
         denoise_model: nn.Module,
-        hidden_dimension: int,
         p_mean: float = -1.2,
         p_std: float = 1.2,
         sigma_data: float = 0.5,
@@ -204,15 +197,14 @@ class Model(nn.Module):
 
         Args:
             denoise_model: The denoising model.
-            hidden_dimension: The hidden dimension.
             p_mean: The mean of the noise. Optional, defaults to -1.2.
             p_std: The standard deviation of the noise. Optional, defaults to 1.2.
             sigma_data: The standard deviation of the data. Optional, defaults to 0.5.
         """
         super().__init__()
 
-        self.preconditioner = Preconditioner(denoise_model, hidden_dimension)
-        self.loss_fn = EDMLoss(p_mean, p_std, sigma_data, hidden_dimension=hidden_dimension)
+        self.preconditioner = Preconditioner(denoise_model, sigma_data=sigma_data)
+        self.loss_fn = EDMLoss(p_mean, p_std, sigma_data)
 
     def forward(self, x: Tensor) -> Tensor:
         """Forward pass of the model.
