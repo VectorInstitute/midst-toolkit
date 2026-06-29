@@ -126,13 +126,14 @@ class MeanF1ScoreDifference(SynthEvalMetric):
         A value close to zero for this metric is better. A negative value implies that they synthetic data is worse
         on average at training the classifiers. A positive value (while likely rare) means it is better.
 
-        NOTE: Categorical variables need to be encoded before training the classifier. This can be accomplished by
-        preprocessing before calling ``compute`` or by setting ``do_preprocess`` to True. Note that if
-        ``do_preprocess`` is True, the default Syntheval pipeline is used, which performs ``OrdinalEncoding`` for
-        categorical columns and ``MinMaxScaling`` for numerical columns.
+        NOTE: Categorical variables, including the label column, need to be encoded before training the classifier.
+        This can be accomplished by preprocessing before calling ``compute`` or by setting ``do_preprocess`` to True.
+        Note that if ``do_preprocess`` is True, the default Syntheval pipeline is used, which performs
+        ``OrdinalEncoding`` for categorical columns and ``MinMaxScaling`` for numerical columns.
 
         Args:
             categorical_columns: Column names corresponding to the categorical variables of any provided dataframe.
+                NOTE: The label column must NOT be included in this list.
             numerical_columns: Column names corresponding to the numerical variables of any provided dataframe.
             label_column: Name of the column in the provided datasets that corresponds to the classification label to
                 test dataset utility. This column MUST be present in both the real and synthetic data provided.
@@ -143,13 +144,14 @@ class MeanF1ScoreDifference(SynthEvalMetric):
             f1_type: The type of F1-score to be reported as the metric. The admissible values correspond to those of
                 the sklearn implementation of ``f1_score``. Defaults to 'micro'.
         """
-        super().__init__(categorical_columns, numerical_columns, do_preprocess)
         assert label_column not in numerical_columns, (
             "Label column should not be included in the set of numerical columns provided"
         )
-        assert label_column in categorical_columns, (
-            "Label column should be included in the set of categorical columns provided"
+        assert label_column not in categorical_columns, (
+            "Label column should not be included in the set of categorical columns provided"
         )
+        categorical_columns = categorical_columns + [label_column]
+        super().__init__(categorical_columns, numerical_columns, do_preprocess)
         self.label_column = label_column
         self.all_columns = categorical_columns + numerical_columns
         self.folds = folds

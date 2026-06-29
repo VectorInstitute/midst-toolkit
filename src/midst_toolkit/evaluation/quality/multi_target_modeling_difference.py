@@ -189,9 +189,7 @@ class MultiTargetModelingDifference(SynthEvalMetric):
                 )
             elif column_type == ColumnType.CATEGORICAL:
                 metric = MeanF1ScoreDifference(
-                    # NOTE: We include the label column in the categorical columns as required by
-                    # MeanF1ScoreDifference
-                    categorical_columns=filtered_categorical_columns + [label_column],
+                    categorical_columns=filtered_categorical_columns,
                     numerical_columns=filtered_numerical_columns,
                     label_column=label_column,
                     do_preprocess=do_preprocess,

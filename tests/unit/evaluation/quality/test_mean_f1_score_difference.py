@@ -37,7 +37,7 @@ def test_mean_f1_score_diff_with_preprocess() -> None:
     real_data, synthetic_data = get_data()
 
     metric = MeanF1ScoreDifference(
-        categorical_columns=["column_c", "column_e"],
+        categorical_columns=["column_c"],
         numerical_columns=["column_a", "column_b", "column_d"],
         do_preprocess=True,
         label_column="column_e",
@@ -67,7 +67,7 @@ def test_mean_f1_score_diff_with_no_categorical() -> None:
     real_data, synthetic_data = get_data()
 
     metric = MeanF1ScoreDifference(
-        categorical_columns=["column_e"],
+        categorical_columns=[],
         numerical_columns=["column_a", "column_b", "column_d"],
         do_preprocess=True,
         label_column="column_e",
@@ -89,7 +89,7 @@ def test_mean_f1_score_diff_with_holdout_difference_f1() -> None:
     holdout_data = real_data.copy()
 
     metric = MeanF1ScoreDifference(
-        categorical_columns=["column_c", "column_e"],
+        categorical_columns=["column_c"],
         numerical_columns=["column_a", "column_b", "column_d"],
         do_preprocess=True,
         label_column="column_e",
