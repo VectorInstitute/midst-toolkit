@@ -11,7 +11,7 @@ extract the files and place them in a `/data/ensemble_attack` folder within this
 (`examples/tabsyn`).
 
 > [!NOTE]
-> If you wish to change the data folder, you can do so by editing the `base_data_dir` attribute
+> If you wish to change the data folder, you can do so by editing the `data_dir` attribute
 > of the [`config.yaml`](config.yaml) file.
 
 Here is a description of the files that have been extracted:
@@ -62,6 +62,11 @@ python -m examples.tabsyn.ensemble_attack.make_challenge_dataset
 
 ## 4. Training the attack model
 
+> [!NOTE]
+> The `results_dir` attribute in the [`config.yaml`](config.yaml) file controls where all
+> output files from this example are saved. In this example it is set to
+> `examples/tabsyn/ensemble_attack/results`.
+
 To train the attack models, execute the following command:
 
 ```bash
@@ -92,4 +97,4 @@ python -m examples.tabsyn.ensemble_attack.compute_attack_success
 ```
 
 The results will both printed on the console and saved in the file
-`examples/tabsyn/results/attack_success_for_xgb_metaclassifier_model.txt`
+`examples/tabsyn/ensemble_attack/results/attack_success_for_xgb_metaclassifier_model.txt`
