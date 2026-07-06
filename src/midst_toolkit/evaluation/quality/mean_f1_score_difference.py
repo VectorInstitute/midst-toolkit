@@ -22,7 +22,7 @@ def _extract_from_dictionary(
 
     - An upper key along is provided. If so, we assume the target value is NOT nested and enforce that the value
       extracted at the first level is, indeed, a float.
-    - Both an upper and lower key are provided. We assume that we are reaching into a dataframe at the lower level and
+    - Both an upper and model key are provided. We assume that we are reaching into a dataframe at the lower level and
       extract a float value accordingly.
 
     Args:
