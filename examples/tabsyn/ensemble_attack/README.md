@@ -7,11 +7,11 @@ using the [TabSyn](https://arxiv.org/abs/2310.09656) model.
 
 First, we need the data. Download it from this
 [Google Drive link](https://drive.google.com/file/d/16XCa63eD2dZ1bddhgRbGFuzAuuMlto9P/view?usp=sharing),
-extract the files and place them in a `/data/ensemble_attack` folder within this folder
-(`examples/tabsyn`).
+extract the files and place them in a `/data` folder within this folder
+(`examples/tabsyn/ensemble_attack`).
 
 > [!NOTE]
-> If you wish to change the data folder, you can do so by editing the `base_data_dir` attribute
+> If you wish to change the data folder, you can do so by editing the `data_dir` attribute
 > of the [`config.yaml`](config.yaml) file.
 
 Here is a description of the files that have been extracted:
@@ -92,4 +92,4 @@ python -m examples.tabsyn.ensemble_attack.compute_attack_success
 ```
 
 The results will both printed on the console and saved in the file
-`examples/tabsyn/results/attack_success_for_xgb_metaclassifier_model.txt`
+`examples/tabsyn/ensemble_attack/results/attack_success_for_xgb_metaclassifier_model.txt`

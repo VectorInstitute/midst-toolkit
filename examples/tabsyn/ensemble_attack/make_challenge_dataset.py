@@ -15,13 +15,15 @@ def make_challenge_dataset(config: DictConfig) -> None:
     log(INFO, "Making challenge dataset...")
 
     real_data = pd.read_csv(Path(config.data_dir) / f"{config.table_name}.csv")
+    random_seed = config.ensemble_attack.random_seed
 
     training_data = pd.read_csv(Path(config.results_dir) / f"{config.table_name}_sampled.csv")
     id_column = f"{config.table_name}_id"
-    untrained_data = real_data[~real_data[id_column].isin(training_data[id_column])].sample(len(training_data))
+    untrained_data = real_data[~real_data[id_column].isin(training_data[id_column])]
+    sampled_untrained_data = untrained_data.sample(len(training_data), random_state=random_seed)
 
-    challenge_data = pd.concat([training_data, untrained_data])
-    challenge_data_labels = np.concatenate([np.ones(len(training_data)), np.zeros(len(untrained_data))])
+    challenge_data = pd.concat([training_data, sampled_untrained_data])
+    challenge_data_labels = np.concatenate([np.ones(len(training_data)), np.zeros(len(sampled_untrained_data))])
 
     processed_attack_data_path = Path(config.ensemble_attack.data_paths.processed_attack_data_path)
     processed_attack_data_path.mkdir(parents=True, exist_ok=True)

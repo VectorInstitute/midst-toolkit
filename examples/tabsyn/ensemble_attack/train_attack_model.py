@@ -17,7 +17,7 @@ from midst_toolkit.common.random import set_all_random_seeds
 @hydra.main(config_path="./", config_name="config", version_base=None)
 def train_attack_model(config: DictConfig) -> None:
     """
-    Train the Ensemble Attack pipeline with CTGAN model.
+    Train the Ensemble Attack pipeline with TabSyn model.
 
     As the first step, data processing is done.
     Second step is shadow model training used for RMIA attack.

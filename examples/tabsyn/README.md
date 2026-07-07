@@ -68,8 +68,8 @@ metrics on a set of synthetic data, run the `evaluate.py` script:
 python -m midst_toolkit.evaluation.quality.scripts.midst_alpha_precision_eval \
   --synthetic_data_path examples/tabsyn/results/trans/synthetic_data/trans_synthetic.csv \
   --real_data examples/tabsyn/data/trans_sampled.csv \
-  --meta_info_path examples/gan/data/meta_info.json \
-  --save_directory examples/gan/results/
+  --meta_info_path examples/tabsyn/data/meta_info.json \
+  --save_directory examples/tabsyn/results/
 ```
 
 It will save the evaluation results under the `/results/model.txt` file.
@@ -81,8 +81,8 @@ Kolmogorov-Smirnov (KS) test, Total Variation Distance (TVD), Correlation Matrix
 and Mutual Information Difference.
 
 To compute those metrics, you can run the command below. The data files should
-be under `/data/{table_name}.csv` for the real data, `/data/{table_name}_samples.csv`
-for the sampleed data used for training, and `/results/{table_name}_synthetic.csv`
+be under `/data/{table_name}.csv` for the real data, `/data/{table_name}_sampled.csv`
+for the sampled data used for training, and `/results/{table_name}_synthetic.csv`
 for the synthetic data.
 
 ```bash

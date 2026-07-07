@@ -380,6 +380,7 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
             ),
             save_dir=Path(config.results_dir) / self.table_name,
         )
+        self.number_of_points_to_synthesize = config.ensemble_attack.shadow_training.number_of_points_to_synthesize
 
         log(INFO, "Processing TabSyn full dataset...")
         process_data(self.table_name, self.full_data_dir, self.full_data_dir)
@@ -407,8 +408,8 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
             dataset: The dataset as a pandas DataFrame.
             synthesize: Flag indicating whether to generate synthetic data after training.
                 The number of points to synthesize and the save directory is controlled by
-                the `number_of_points_to_synthesize` and `save_dir` attributes of the training
-                config. Optional, default is True.
+                the `number_of_points_to_synthesize` and `save_dir` attributes of the shadow
+                training config. Optional, default is True.
             trained_model: The trained model to fine tune. If None, a new model will be trained.
         """
         log(INFO, "Training or Fine Tuning TabSyn model...")
@@ -631,11 +632,10 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
         data_info["token_dim"] = token_dim
 
         # sample data
-        num_samples = train_z_att["num_samples"]
         in_dim = train_z_att["in_dim"]
         mean_input_emb = train_z_att["mean_input_emb"]
         tabsyn.sample(
-            num_samples,
+            self.number_of_points_to_synthesize,
             in_dim,
             mean_input_emb,
             info=data_info,

@@ -166,12 +166,23 @@ def train_tabsyn(config: DictConfig) -> None:
     log(INFO, "Training Done!")
 
 
-def _sample_data_if_needed(table_name: str, data_dir: Path, results_dir: Path, sample_size: int | None) -> str:
+def _sample_data_if_needed(
+    table_name: str,
+    data_dir: Path,
+    results_dir: Path,
+    sample_size: int | None,
+    random_seed: int | None = None,
+) -> str:
     data_name = table_name
     if sample_size:
         log(INFO, f"Sampling {sample_size} rows from data...")
         all_data = pd.read_csv(data_dir / f"{table_name}.csv")
-        sampled_data = all_data.sample(n=sample_size)
+
+        assert len(all_data) >= sample_size, (
+            f"Sample size ({sample_size}) is greater than the number of rows in the data ({len(all_data)})"
+        )
+
+        sampled_data = all_data.sample(n=sample_size, random_state=random_seed)
         results_dir.mkdir(parents=True, exist_ok=True)
 
         data_name = f"{table_name}_sampled"

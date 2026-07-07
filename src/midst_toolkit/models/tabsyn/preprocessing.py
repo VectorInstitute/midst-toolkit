@@ -164,15 +164,7 @@ def process_data(name: str, info_path: Path, data_dir: Path, data_name: str | No
         f"Test data path not found in the expected paths. Expected paths are: {raw_data_dir}/test.csv, {raw_data_dir}/test.xls."
     )
 
-    if data_path.suffix == ".csv":
-        data_df = pd.read_csv(data_path, header=info["header"])
-
-    elif data_path.suffix == ".xls":
-        data_df = pd.read_excel(data_path, sheet_name="Data", header=1)
-        data_df = data_df.drop("ID", axis=1)
-
-    else:
-        raise ValueError(f"Unsupported file type: {info['file_type']}. Supported file types are: ['csv', 'xls'].")
+    data_df = _read_data_csv_or_xls(data_path)
 
     num_rows = data_df.shape[0]
 
@@ -192,7 +184,7 @@ def process_data(name: str, info_path: Path, data_dir: Path, data_name: str | No
 
     if test_path:
         # if testing data is given
-        test_df = pd.read_csv(test_path)
+        test_df = _read_data_csv_or_xls(test_path)
         train_df = data_df
     else:
         # Train/ Test Split, 99% Training, 1% Testing (Validation set will be selected from Training set)
@@ -321,3 +313,12 @@ def process_data(name: str, info_path: Path, data_dir: Path, data_name: str | No
         num = len(info["num_col_idx"])
     log(INFO, f"Number of Numerical Columns: {num}")
     log(INFO, f"Number of Categorical Columns: {cat}")
+
+
+def _read_data_csv_or_xls(data_path: Path) -> pd.DataFrame:
+    if data_path.suffix == ".csv":
+        return pd.read_csv(data_path)
+    if data_path.suffix == ".xls":
+        data_df = pd.read_excel(data_path, sheet_name="Data", header=1)
+        return data_df.drop("ID", axis=1)
+    raise ValueError(f"Unsupported file type: {data_path.suffix}. Supported file types are: ['csv', 'xls'].")

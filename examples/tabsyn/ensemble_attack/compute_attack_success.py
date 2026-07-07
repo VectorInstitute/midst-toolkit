@@ -19,7 +19,7 @@ def compute_attack_success(config: DictConfig) -> None:
     compute_attack_success_for_given_targets(
         target_model_config=config.ensemble_attack.target_model,
         # TODO: refactor this to work better outside of the challenge context (i.e. no target ID)
-        # No target ID needed for CTGAN, but it needs at least one element in this array. The value does not matter.
+        # No target ID needed for TabSyn, but it needs at least one element in this array. The value does not matter.
         target_ids=[0],
         experiment_directory=Path(config.results_dir),
         metaclassifier_model_name=config.ensemble_attack.metaclassifier.meta_classifier_model_name,

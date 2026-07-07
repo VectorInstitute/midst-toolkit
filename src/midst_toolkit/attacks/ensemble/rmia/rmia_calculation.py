@@ -124,10 +124,8 @@ def compute_gower_for_model(
         df_synthetic = df_synthetic.sample(n=min_length, random_state=random_seed)
 
     # Drop id columns
-    id_columns_names = [col for col in df_synthetic.columns if "_id" in col]
-    df_synthetic = df_synthetic.drop(columns=id_columns_names)
-    if id_column_name in df_synthetic.columns:
-        df_synthetic = df_synthetic.drop(columns=[id_column_name])
+    df_synthetic = _drop_id_columns(df_synthetic, id_column_name)
+    df_input = _drop_id_columns(df_input, id_column_name)
 
     # Batched computation to reduce peak memory
     if batch_processing:
@@ -140,6 +138,11 @@ def compute_gower_for_model(
         )
 
     return gower_matrix
+
+
+def _drop_id_columns(df: pd.DataFrame, id_column_name: str) -> pd.DataFrame:
+    id_columns_names = [col for col in df.columns if "_id" in col] + [id_column_name]
+    return df.drop(columns=id_columns_names, errors="ignore")
 
 
 def get_rmia_gower(
