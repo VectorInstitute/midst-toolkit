@@ -29,6 +29,25 @@ class MetricBase(ABC):
         """
         raise NotImplementedError("Inheriting class must define compute")
 
+    def validate_dataframe_dtypes(self, dataframe: pd.DataFrame) -> None:
+        """
+        Validates that the dataframe does not contain string types. This is a requirement for many metrics in this
+        library, which require categorical columns to be preprocessed and encoded prior to computation.
+
+        Args:
+            dataframe: dataframe to validate.
+
+        Raises:
+            ValueError: If the dataframe contains string types.
+        """
+        any_string_dtypes = any(
+            (isinstance(dtype, pd.StringDtype) or dtype.name == "str") for dtype in dataframe.dtypes
+        )
+        if any_string_dtypes:
+            raise ValueError(
+                "Dataframe contains string types. Categorical columns must be preprocessed and encoded prior to computation."
+            )
+
 
 class SynthEvalMetric(MetricBase, ABC):
     def __init__(

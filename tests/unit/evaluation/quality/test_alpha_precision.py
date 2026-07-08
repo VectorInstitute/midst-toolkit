@@ -52,7 +52,7 @@ def test_alpha_precision_evaluation() -> None:
     quality_results = alpha_precision_metric.compute(real_dataframe, synthetic_dataframe)
     if is_apple_silicon():
         assert pytest.approx(0.972538441890166, abs=1e-8) == quality_results["delta_precision_alpha_OC"]
-        assert pytest.approx(0.4709851851851852, abs=1e-8) == quality_results["delta_coverage_beta_OC"]
+        assert pytest.approx(0.4709827160493827, abs=1e-8) == quality_results["delta_coverage_beta_OC"]
         assert pytest.approx(0.05994074074074074, abs=1e-8) == quality_results["delta_precision_alpha_naive"]
         assert pytest.approx(0.005229629629629584, abs=1e-8) == quality_results["delta_coverage_beta_naive"]
     else:

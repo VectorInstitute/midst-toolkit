@@ -83,6 +83,7 @@ class KolmogorovSmirnovAndTotalVariation(SynthEvalMetric):
             num_cols=self.numerical_columns,
             do_preprocessing=False,
             verbose=False,
+            plot_figures=False,
         )
 
         return self.syntheval_metric.evaluate(sig_lvl=self.significance_level, n_perms=self.permutations)

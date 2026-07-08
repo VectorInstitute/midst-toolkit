@@ -78,6 +78,10 @@ class HittingRate(SynthEvalMetric):
         filtered_real_data = real_data[self.all_columns]
         filtered_synthetic_data = synthetic_data[self.all_columns]
 
+        # Make sure the categorical columns are preprocessed and encoded before calling compute
+        self.validate_dataframe_dtypes(filtered_real_data)
+        self.validate_dataframe_dtypes(filtered_synthetic_data)
+
         self.syntheval_metric = SynthEvalHittingRate(
             real_data=filtered_real_data,
             synt_data=filtered_synthetic_data,
@@ -86,6 +90,7 @@ class HittingRate(SynthEvalMetric):
             num_cols=self.numerical_columns,
             do_preprocessing=False,
             verbose=False,
+            plot_figures=False,
         )
         result = self.syntheval_metric.evaluate(self.hitting_threshold)
         result["hitting_rate"] = result.pop("hit rate")

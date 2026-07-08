@@ -533,6 +533,7 @@ def match_tables(
     # Dimension of vectors
     b_array_dimension = b_array.shape[1]
 
+    index: faiss.Index
     if unique_matching:
         quantiser = faiss.IndexFlatL2(b_array_dimension)
         index = faiss.IndexIVFFlat(quantiser, b_array_dimension, n_clusters, faiss.METRIC_L2)
@@ -557,7 +558,7 @@ def match_tables(
             start = i * batch_size
             end = min((i + 1) * batch_size, a_array.shape[0])
             distance, search_indices = index.search(a_array[start:end], k=1)
-            index.remove_ids(search_indices.flatten())
+            index.remove_ids(search_indices.flatten())  # type: ignore
             all_distances.append(distance)
             all_indices.append(search_indices)
 

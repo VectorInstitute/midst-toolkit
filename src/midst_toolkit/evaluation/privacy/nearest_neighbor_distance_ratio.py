@@ -114,6 +114,12 @@ class NearestNeighborDistanceRatio(MetricBase):
                     self.meta_info, real_data, synthetic_data, holdout_data
                 )
 
+        # Make sure the categorical columns are preprocessed and encoded before calling compute
+        self.validate_dataframe_dtypes(real_data)
+        self.validate_dataframe_dtypes(synthetic_data)
+        if holdout_data is not None:
+            self.validate_dataframe_dtypes(holdout_data)
+
         synthetic_data_tensor = torch.tensor(synthetic_data.to_numpy()).to(self.device)
         real_data_tensor = torch.tensor(real_data.to_numpy()).to(self.device)
         mean_nndr, nndr_standard_error = self._compute_mean_nearest_neighbor_distance_ratio(

@@ -89,6 +89,10 @@ class MeanPropensityMeanSquaredError(SynthEvalMetric):
         assert "real" not in filtered_real_data.columns, "A column called 'real' already exists in the dataframe."
         assert "real" not in filtered_synthetic_data.columns, "A column called 'real' already exists in the dataframe."
 
+        # Make sure the categorical columns are preprocessed and encoded before calling compute
+        self.validate_dataframe_dtypes(filtered_real_data)
+        self.validate_dataframe_dtypes(filtered_synthetic_data)
+
         self.syntheval_metric = PropensityMeanSquaredError(
             real_data=filtered_real_data,
             synt_data=filtered_synthetic_data,
@@ -97,6 +101,7 @@ class MeanPropensityMeanSquaredError(SynthEvalMetric):
             num_cols=self.numerical_columns,
             do_preprocessing=False,
             verbose=False,
+            plot_figures=False,
         )
         result = self.syntheval_metric.evaluate(self.folds, self.max_iterations, self.solver)
         result["avg_pmse"] = result.pop("avg pMSE")
