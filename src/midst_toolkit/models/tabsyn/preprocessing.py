@@ -149,19 +149,36 @@ def process_data(name: str, info_path: Path, data_dir: Path, data_name: str | No
     data_path: Path
     test_path: Path | None = None
     if (raw_data_dir / "train.csv").exists():
+        log(
+            INFO,
+            f"Train data found in {raw_data_dir / 'train.csv'}. "
+            + f"Also loading test data from {raw_data_dir / 'test.csv'}.",
+        )
         data_path = raw_data_dir / "train.csv"
         test_path = raw_data_dir / "test.csv"
     elif (raw_data_dir / "train.xls").exists():
+        log(
+            INFO,
+            f"Train data found in {raw_data_dir / 'train.xls'}. "
+            + f"Also loading test data from {raw_data_dir / 'test.xls'}.",
+        )
         data_path = raw_data_dir / "train.xls"
         test_path = raw_data_dir / "test.xls"
     else:
+        log(
+            INFO,
+            f"No train.csv or train.xls data found in {raw_data_dir}. "
+            + f"Data path set to {data_dir / f'{data_name}.csv'}.",
+        )
         data_path = data_dir / f"{data_name}.csv"
 
     assert data_path.exists(), (
-        f"Train data not found in the expected paths. Expected paths are: {data_dir}/{data_name}.csv, {raw_data_dir}/train.csv, {raw_data_dir}/train.xls."
+        "Train data not found in the expected paths. "
+        + f"Expected paths are: {data_dir}/{data_name}.csv, {raw_data_dir}/train.csv, {raw_data_dir}/train.xls."
     )
     assert test_path is None or test_path.exists(), (
-        f"Test data path not found in the expected paths. Expected paths are: {raw_data_dir}/test.csv, {raw_data_dir}/test.xls."
+        "Test data path not found in the expected paths. "
+        + f"Expected paths are: {raw_data_dir}/test.csv, {raw_data_dir}/test.xls."
     )
 
     data_df = _read_data_csv_or_xls(data_path)

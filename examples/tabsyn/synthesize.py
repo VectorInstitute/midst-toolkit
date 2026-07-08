@@ -29,7 +29,10 @@ def tabsyn_synthesize(config: DictConfig) -> None:
     vae_save_dir = model_save_dir / "vae"
 
     if not (model_save_dir / "model.pt").exists() or not (vae_save_dir / "model.pt").exists():
-        log(INFO, "Trained model not found. Training the model...")
+        log(
+            INFO,
+            f"Trained model not found in {model_save_dir} or trained VAE model not found in {vae_save_dir}. Training the model...",
+        )
         train_tabsyn(config)
 
     else:
@@ -46,6 +49,7 @@ def tabsyn_synthesize(config: DictConfig) -> None:
 
     log(INFO, "Instantiating the TabSyn model...")
 
+    # TODO: refactor the return of the preprocess function so we don't need to ignore mypy here
     _, _, categories, d_numerical = preprocess(  # type: ignore[misc]
         dataset_path=dataset_path,
         ref_dataset_path=ref_dataset_path,

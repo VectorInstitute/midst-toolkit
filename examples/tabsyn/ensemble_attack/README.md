@@ -1,6 +1,6 @@
 # TabSyn Ensemble Attack Example
 
-On this example, we demonstrate how to run the [Ensemble Attack](../../ensemble_attack/README.md)
+In this example, we demonstrate how to run the [Ensemble Attack](../../ensemble_attack/README.md)
 using the [TabSyn](https://arxiv.org/abs/2310.09656) model.
 
 ## 1. Downloading data
@@ -26,7 +26,7 @@ such as which columns are numerical and which are categorical, what is the task 
     - `numerical`: a list of the columns that contain numerical information
     - `categorical`: a list of the columns that contain categorical information
     - `variable_to_predict`: the name of the target column that will be predicted
-    - `id_column_name`: the name of the column in the table that represents the rows' id.
+    - `id_column_name`: the name of the column in the table that represents each row's id.
 
 With the data present in the correct folder, we can proceed with running the attack.
 
@@ -60,6 +60,11 @@ To produce such dataset, run the following script:
 python -m examples.tabsyn.ensemble_attack.make_challenge_dataset
 ```
 
+> [!NOTE]
+> For all the commands in this file, you can specify a custom `config.yaml` file
+> by adding the option `--config-path=/path-to-config`. It should point to the folder
+> where the custom `config.yaml` file is located.
+
 ## 4. Training the attack model
 
 To train the attack models, execute the following command:
@@ -84,8 +89,8 @@ python -m examples.tabsyn.ensemble_attack.run_test_attack_model
 
 ## 6. Compute the attack success
 
-To compute the metrics about the success of the attack against the target
-synthetic data, you can run the following command:
+After the attack has been tested, you can compute the metrics about the success of
+the attack against the target synthetic data. To do so, run the following command:
 
 ```bash
 python -m examples.tabsyn.ensemble_attack.compute_attack_success

@@ -38,7 +38,7 @@ ensemble_attack:
         sample_size: 20000
     shadow_models_output_path: ${results_dir}/ensemble_attack/shadow_models
     target_model_output_path: ${results_dir}/shadow_target_model_and_data
-    training_json_config_paths: # Config json files used for tabddpm training on the trans table
+    training_json_config_paths: # Config json files used for tabsyn training on the trans table
       table_domain_file_path: ${data_dir}/trans_domain.json
       dataset_meta_file_path: ${data_dir}/dataset_meta.json
       training_config_path: ${data_dir}/trans.json  # if this is not present, it will be created by copying the example config

@@ -390,7 +390,8 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
         """
         Get the directory to save the VAE model.
 
-        Will return the save directory relative to the current self.training_config.save_dir.
+        Returns:
+            The save directory relative to the current self.training_config.save_dir.
         """
         assert self.training_config.save_dir is not None, "Save dir is not set"
         return self.training_config.save_dir / "vae"
@@ -411,6 +412,9 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
                 the `number_of_points_to_synthesize` and `save_dir` attributes of the shadow
                 training config. Optional, default is True.
             trained_model: The trained model to fine tune. If None, a new model will be trained.
+
+        Returns:
+            An EnsembleAttackTrainingResult object containing the training result.
         """
         log(INFO, "Training or Fine Tuning TabSyn model...")
         self.training_config.general.workspace_dir.mkdir(parents=True, exist_ok=True)
@@ -499,8 +503,7 @@ class EnsembleAttackTabSynModelRunner(EnsembleAttackModelRunner):
 
         # create train dataloader
         train_loader: DataLoader[TabularDataset] = DataLoader[TabularDataset](
-            # Ignoring here because this is expecting the dataset to be subclass of torch's Dataset but it isn't
-            train_data,  # type: ignore[arg-type]
+            train_data,
             batch_size=self.tabsyn_config["train"]["vae"]["batch_size"],
             shuffle=True,
             num_workers=self.tabsyn_config["train"]["vae"]["num_dataset_workers"],

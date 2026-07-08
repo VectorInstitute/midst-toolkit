@@ -30,6 +30,10 @@ To kick off training, simply run the command below from the project's root folde
 python -m examples.tabsyn.train
 ```
 
+> [!NOTE]
+> For all the commands in this file, you can specify a custom `config.yaml` file
+> by adding the option `--config-path=/path-to-config`. It should point to the folder
+> where the custom `config.yaml` file is located.
 
 ## Training results
 

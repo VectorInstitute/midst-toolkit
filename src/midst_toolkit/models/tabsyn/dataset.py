@@ -5,13 +5,14 @@ from typing import Any
 
 import numpy as np
 from torch import Tensor
+from torch.utils.data import Dataset as TorchDataset
 
 from midst_toolkit.common.dataset import Dataset, TargetInfo, Transformations
 from midst_toolkit.common.dataset_transformations import transform_dataset
 from midst_toolkit.common.enumerations import ArrayDict, DataSplit, TaskType
 
 
-class TabularDataset(Dataset):
+class TabularDataset(Dataset, TorchDataset):
     def __init__(self, numerical_features: Tensor, categorical_features: Tensor):
         """Initialize the TabularDataset.
 
@@ -45,6 +46,7 @@ class TabularDataset(Dataset):
         return self.numerical_features_tensor.shape[0]
 
 
+# TODO: refactor the return of the preprocess function or maybe break it into multiple functions
 def preprocess(
     dataset_path: Path,
     ref_dataset_path: Path,

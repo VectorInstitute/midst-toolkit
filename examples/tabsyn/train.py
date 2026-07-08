@@ -83,8 +83,7 @@ def train_tabsyn(config: DictConfig) -> None:
 
     # create train dataloader
     train_loader: DataLoader[TabularDataset] = DataLoader[TabularDataset](
-        # Ignoring here because this is expecting the dataset to be subclass of torch's Dataset but it isn't
-        train_data,  # type: ignore[arg-type]
+        train_data,
         batch_size=tabsyn_config["train"]["vae"]["batch_size"],
         shuffle=True,
         num_workers=tabsyn_config["train"]["vae"]["num_dataset_workers"],
@@ -173,6 +172,25 @@ def _sample_data_if_needed(
     sample_size: int | None,
     random_seed: int | None = None,
 ) -> str:
+    """
+    Sample the data if sample_size is provided and is > 0.
+
+    If sample_size is provided and is > 0, it will save the sampled data in
+    the `results_dir` and the `data_dir` folders under the file name
+    `{table_name}_sampled.csv` and return `{table_name}_sampled` as the data name.
+
+    Args:
+        table_name: The name of the table.
+        data_dir: The directory containing the data.
+        results_dir: The directory to save the sampled data.
+        sample_size: The number of rows to sample. If provided, it has to be
+            smaller than the number of rows in the data.
+        random_seed: The random seed to use for sampling.
+
+    Returns:
+        If data has been sampled, returns the data name of the sampled data.
+            Otherwise, returns the table name.
+    """
     data_name = table_name
     if sample_size:
         log(INFO, f"Sampling {sample_size} rows from data...")

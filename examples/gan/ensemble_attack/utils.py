@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -59,7 +60,7 @@ def make_training_config(config: DictConfig) -> dict[Any, Any]:
             "test_data_dir": base_data_dir,
             "sample_prefix": "ctgan",
             "data_dir": base_data_dir,
-            "workspace_dir": str(Path(base_data_dir) / "shadow_workspace"),
+            "workspace_dir": os.path.join(base_data_dir, "shadow_workspace"),
             "exp_name": "pre_trained_model",
         }
         json.dump(training_config, f)

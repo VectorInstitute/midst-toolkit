@@ -254,7 +254,8 @@ class Transformer(nn.Module):
             d_token: The dimension of the token.
             n_heads: The number of heads.
             d_out: The dimension of the output.
-            d_ffn_factor: The factor for the dimension of the hidden layer.
+            d_ffn_factor: Multiplier factor to apply against `d_token` to determine the
+                dimension of the hidden layer.
             attention_dropout: The dropout rate for the attention. Optional, default is 0.0.
             ffn_dropout: The dropout rate for the FFN. Optional, default is 0.0.
             residual_dropout: The dropout rate for the residual. Optional, default is 0.0.
@@ -374,7 +375,9 @@ class VAE(nn.Module):
             num_layers: The number of layers.
             hid_dim: The dimension of the hidden layer.
             n_head: The number of heads.
-            factor: The factor for the dimension of the hidden layer.
+            factor: The multiplier factor to apply against `hid_dim` to determine
+                the dimension of the hidden layers on the encoder and decoder.
+                Optional, defaults to 4.
             bias: Whether to use bias in the linear layers.
 
         Returns:
@@ -509,7 +512,8 @@ class ModelVAE(nn.Module):
             categories: The number of categories for each categorical feature.
             d_token: The dimension of the token.
             n_head: The number of heads.
-            factor: The factor for the dimension of the hidden layer.
+            factor: The multiplier factor to apply against `d_token` to determine
+                the dimension of the hidden layers of the VAE. Optional, defaults to 4.
             bias: Whether to use bias in the linear layers.
         """
         super(ModelVAE, self).__init__()
@@ -566,7 +570,8 @@ class EncoderModel(nn.Module):
             categories: The number of categories for each categorical feature.
             d_token: The dimension of the token.
             n_head: The number of heads. Optional, defaults to 1.
-            factor: The factor for the dimension of the hidden layer. Optional, defaults to 4.
+            factor: The multiplier factor to apply against `d_token` to determine
+                the dimension of the hidden layers of the VAE. Optional, defaults to 4.
             bias: Whether to use bias in the linear layers. Optional, defaults to True.
         """
         super().__init__()
