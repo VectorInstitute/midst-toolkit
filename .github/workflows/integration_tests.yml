@@ -65,3 +65,9 @@ jobs:
       - name: Install dependencies and check code
         run: |
           uv run pytest -m "integration_test" --log-cli-level=WARNING
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4.1.0
+        with:
+          name: integration-tests-artifacts
+          path: tests/integration/assets/multi_table/assertion_data/github_cleaned_tables.pkl
