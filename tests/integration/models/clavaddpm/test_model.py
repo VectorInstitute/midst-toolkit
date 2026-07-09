@@ -333,7 +333,7 @@ def test_train_multi_table(tmp_path: Path):
         # if the first layer is equal with minimal tolerance, all others should be equal as well
         # assert all(torch.allclose(model_data[layer], expected_model_data[layer]) for layer in model_layers)
 
-        with open("tests/integration/assets/multi_table/assertion_data/github_diffusion_parameters.pkl", "wb") as f:
+        with open("tests/integration/assets/multi_table/assertion_data/github_diffusion_parameters.pkl", "w") as f:
             pickle.dump(model_data, f)
 
         # TODO: Figure out if there is a good way of testing the synthetic data results
@@ -381,7 +381,7 @@ def test_train_multi_table(tmp_path: Path):
 @pytest.mark.integration_test()
 def test_clustering_reload(tmp_path: Path):
     # Setup
-    set_all_random_seeds(seed=133842, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
+    set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
     # Act
     tables, relation_order, _ = load_tables(Path("tests/integration/assets/multi_table/"))
