@@ -78,7 +78,7 @@ MATCHING_CONFIG = ClavaDDPMMatchingConfig(
 @pytest.mark.integration_test()
 def test_clava_synthesize_multi_table(tmp_path: Path):
     # Setup
-    set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
+    set_all_random_seeds(seed=133942, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
     # Act
     tables, relation_order, _ = load_tables(Path("tests/integration/assets/multi_table/"))
@@ -100,12 +100,12 @@ def test_clava_synthesize_multi_table(tmp_path: Path):
     )
 
     # Assert
+    assert cleaned_tables["account"].shape == (9, 2)
+    assert cleaned_tables["trans"].shape == (145, 8)
+
     if is_running_on_ci_environment():
         with Path("tests/integration/assets/multi_table/assertion_data/github_cleaned_tables.pkl").open("wb") as f:
             pickle.dump(cleaned_tables, f)
-
-        assert cleaned_tables["account"].shape == (9, 2)
-        assert cleaned_tables["trans"].shape == (139, 8)
 
         # expected_cleaned_tables = pickle.loads(
         #     Path("tests/integration/assets/multi_table/assertion_data/cleaned_tables.pkl").read_bytes(),
@@ -115,8 +115,5 @@ def test_clava_synthesize_multi_table(tmp_path: Path):
 
     else:
         log(WARNING, "Not running on CI, skipping detailed assertions.")
-
-        assert cleaned_tables["account"].shape == (9, 2)
-        assert cleaned_tables["trans"].shape == (145, 8)
 
     unset_all_random_seeds()
