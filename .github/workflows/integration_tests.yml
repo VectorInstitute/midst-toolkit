@@ -76,3 +76,5 @@ jobs:
             tests/integration/assets/multi_table/assertion_data/github_synthetic_data.json
             tests/integration/assets/multi_table/assertion_data/github_account_clustering.json
             tests/integration/assets/multi_table/assertion_data/github_trans_clustering.json
+            tests/integration/assets/multi_table/assertion_data/github_conditional_samples.pt
+            tests/integration/assets/single_table/assertion_data/github_diffusion_parameters.pkl
