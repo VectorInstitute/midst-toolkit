@@ -386,15 +386,7 @@ def test_clustering_reload(tmp_path: Path):
     account_original_df_as_float = tables["account"].original_data.astype(float)
     assert account_df_no_clustering.equals(account_original_df_as_float)
 
-    account_assertion_file_name = "expected_account_clustering.json"
-    trans_assertion_file_name = "expected_trans_clustering.json"
-    if is_running_on_ci_environment():
-        # TODO: Figure out if there is a good way of testing the synthetic data results
-        # on multiple platforms. https://app.clickup.com/t/868f43wp0
-        account_assertion_file_name = "expected_account_clustering_remote.json"
-        trans_assertion_file_name = "expected_trans_clustering_remote.json"
-
-    with open(f"tests/integration/assets/multi_table/assertion_data/{account_assertion_file_name}", "r") as f:
+    with open("tests/integration/assets/multi_table/assertion_data/expected_account_clustering.json", "r") as f:
         expected_account_clustering = json.load(f)
     assert tables["account"].data["account_trans_cluster"].tolist() == expected_account_clustering
 
@@ -403,7 +395,7 @@ def test_clustering_reload(tmp_path: Path):
     trans_original_df_as_float["trans_id"] = trans_original_df_as_float["trans_id"].astype(int)
     assert trans_df_no_clustering.equals(trans_original_df_as_float)
 
-    with open(f"tests/integration/assets/multi_table/assertion_data/{trans_assertion_file_name}", "r") as f:
+    with open("tests/integration/assets/multi_table/assertion_data/expected_trans_clustering.json", "r") as f:
         expected_trans_clustering = json.load(f)
     assert tables["trans"].data["account_trans_cluster"].tolist() == expected_trans_clustering
 
