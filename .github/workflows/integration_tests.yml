@@ -70,4 +70,7 @@ jobs:
         uses: actions/upload-artifact@v4.1.0
         with:
           name: integration-tests-artifacts
-          path: tests/integration/assets/multi_table/assertion_data/github_cleaned_tables.pkl
+          path: |
+            tests/integration/assets/multi_table/assertion_data/github_cleaned_tables.pkl
+            tests/integration/assets/multi_table/assertion_data/github_diffusion_parameters.pkl
+            tests/integration/assets/multi_table/assertion_data/github_synthetic_data.json

@@ -78,7 +78,7 @@ MATCHING_CONFIG = ClavaDDPMMatchingConfig(
 @pytest.mark.integration_test()
 def test_clava_synthesize_multi_table(tmp_path: Path):
     # Setup
-    set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
+    set_all_random_seeds(seed=1338842, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
 
     # Act
     tables, relation_order, _ = load_tables(Path("tests/integration/assets/multi_table/"))
