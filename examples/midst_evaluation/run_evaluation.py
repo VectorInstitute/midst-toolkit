@@ -53,7 +53,7 @@ def log_metrics(header: str, results: dict[str, float]) -> None:
     """
     log(INFO, f"\n{header}\n{SEPARATOR}\n")
     for metric_name, metric_value in results.items():
-        log(INFO, rf"Metric: {metric_name}\Score: {metric_value}")
+        log(INFO, rf"Metric: {metric_name}\tScore: {metric_value}")
     log(INFO, f"{SEPARATOR}\n")
 
 
@@ -133,7 +133,6 @@ def should_syntheval_preprocess(cfg: DictConfig, for_privacy: bool) -> bool:
         [
             cfg.ks_tv.run,
             cfg.ci_overlap.run,
-            cfg.ks_tv.run,
             cfg.correlation_diff.run,
             cfg.mean_diff.run,
             cfg.f1_score_diff.run,

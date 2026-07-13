@@ -94,7 +94,7 @@ Kolmogorov-Smirnov (KS) test, Total Variation Distance (TVD), Correlation Matrix
 and Mutual Information Difference.
 
 To compute those metrics, you can run the command below. The name of the table should be
-defined in the `dataset_meta.json` file, and the file for synthetic data should be under
+defined in the `dataset_meta.json` file, and the data files should be under
 `/data/{table_name}.csv` for the real data and `/results/{table_name}_synthetic.csv`
 for the synthetic data.
 

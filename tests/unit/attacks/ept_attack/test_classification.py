@@ -203,21 +203,32 @@ def test_train_attack_classifier_tree_models(mock_catboost, mock_xgboost, classi
     mock_model.predict_proba.assert_called_once()
 
 
-def test_train_attack_classifier_mismatched_data(attack_data):
+@pytest.mark.parametrize("classifier_type", [ClassifierType.XGBOOST, ClassifierType.CATBOOST])
+@patch("midst_toolkit.attacks.ept.classification.XGBClassifier")
+@patch("midst_toolkit.attacks.ept.classification.CatBoostClassifier")
+def test_train_attack_classifier_mismatched_data(mock_catboost, mock_xgboost, classifier_type, attack_data):
     # Tests that train_attack_classifier raises errors for mismatched data shapes
     x_train, y_train, x_test, y_test = attack_data
     column_types = [ColumnType.ERROR]
 
+    mock_model = MagicMock()
+    mock_model.predict.return_value = np.zeros(10)
+    mock_model.predict_proba.return_value = np.zeros((10, 2))
+    if classifier_type == ClassifierType.XGBOOST:
+        mock_xgboost.return_value = mock_model
+    else:
+        mock_catboost.return_value = mock_model
+
     # Test mismatches
     with pytest.raises(AssertionError, match="Mismatch in number of training samples and labels"):
-        train_attack_classifier(ClassifierType.XGBOOST, column_types, x_train.head(10), y_train, x_test, y_test)
+        train_attack_classifier(classifier_type, column_types, x_train.head(10), y_train, x_test, y_test)
 
     with pytest.raises(AssertionError, match="Mismatch in number of test samples and labels"):
-        train_attack_classifier(ClassifierType.XGBOOST, column_types, x_train, y_train, x_test.head(5), y_test)
+        train_attack_classifier(classifier_type, column_types, x_train, y_train, x_test.head(5), y_test)
 
     x_test_wrong_features = x_test.rename(columns={"feature_error": "another_feature"})
     with pytest.raises(AssertionError, match="Mismatch in number of features between train and test sets"):
-        train_attack_classifier(ClassifierType.XGBOOST, column_types, x_train, y_train, x_test_wrong_features, y_test)
+        train_attack_classifier(classifier_type, column_types, x_train, y_train, x_test_wrong_features, y_test)
 
 
 @pytest.fixture

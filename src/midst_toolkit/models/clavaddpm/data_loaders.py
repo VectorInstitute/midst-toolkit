@@ -365,7 +365,10 @@ def _split_data_and_generate_info(
         data_splits.train_data.data.loc[column_data == "?", column_name] = np.nan
     for column_name in categorical_column_names:
         column_data = data_splits.train_data.data[column_name]
-        data_splits.train_data.data.loc[column_data == "?", column_name] = "nan"
+        if pd.api.types.is_string_dtype(data_splits.train_data.data[column_name]) or pd.api.types.is_object_dtype(
+            data_splits.train_data.data[column_name]
+        ):
+            data_splits.train_data.data.loc[column_data == "?", column_name] = "nan"
 
     if data_splits.test_data is not None:
         for column_name in numerical_column_names:
@@ -373,7 +376,10 @@ def _split_data_and_generate_info(
             data_splits.test_data.data.loc[column_data == "?", column_name] = np.nan
         for column_name in categorical_column_names:
             column_data = data_splits.test_data.data[column_name]
-            data_splits.test_data.data.loc[column_data == "?", column_name] = "nan"
+            if pd.api.types.is_string_dtype(data_splits.test_data.data[column_name]) or pd.api.types.is_object_dtype(
+                data_splits.test_data.data[column_name]
+            ):
+                data_splits.test_data.data.loc[column_data == "?", column_name] = "nan"
 
     # Extract the numerical, categorical and target features
     # and convert them to numpy arrays

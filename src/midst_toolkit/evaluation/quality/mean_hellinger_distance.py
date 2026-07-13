@@ -107,6 +107,10 @@ class MeanHellingerDistance(SynthEvalMetric):
         if self.do_preprocess:
             real_data, synthetic_data = self.preprocess(real_data, synthetic_data)
 
+        # Make sure the categorical columns are preprocessed and encoded before calling compute
+        self.validate_dataframe_dtypes(real_data[self.categorical_columns])
+        self.validate_dataframe_dtypes(synthetic_data[self.categorical_columns])
+
         hellinger_distances = []
 
         for category_column in self.categorical_columns:

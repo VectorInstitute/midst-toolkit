@@ -100,10 +100,12 @@ def test_clava_synthesize_multi_table(tmp_path: Path):
     )
 
     # Assert
-    assert cleaned_tables["account"].shape == (9, 2)
-    assert cleaned_tables["trans"].shape == (145, 8)
-
     if is_running_on_ci_environment():
+        # TODO: Figure out if there is a good way of testing the synthetic data results
+        # on multiple platforms. https://app.clickup.com/t/868f43wp0
+        assert cleaned_tables["account"].shape == (9, 2)
+        assert cleaned_tables["trans"].shape == (139, 8)
+
         expected_cleaned_tables = pickle.loads(
             Path("tests/integration/assets/multi_table/assertion_data/cleaned_tables.pkl").read_bytes(),
         )
@@ -112,5 +114,8 @@ def test_clava_synthesize_multi_table(tmp_path: Path):
 
     else:
         log(WARNING, "Not running on CI, skipping detailed assertions.")
+
+        assert cleaned_tables["account"].shape == (9, 2)
+        assert cleaned_tables["trans"].shape == (145, 8)
 
     unset_all_random_seeds()

@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +41,14 @@ def make_training_config(config: DictConfig) -> dict[Any, Any]:
     Returns:
         The ensemble attack training config for the CTGAN model.
     """
+    base_data_dir = str
+    if "base_data_dir" in config:
+        base_data_dir = config.base_data_dir
+    elif "data_dir" in config:
+        base_data_dir = config.data_dir
+    else:
+        raise ValueError("Either base_data_dir or data_dir must be provided in the config.")
+
     # Saving the model config from the config.yaml into a json file
     # because that's what the ensemble attack code will be looking for
     training_config_path = Path(config.ensemble_attack.shadow_training.training_json_config_paths.training_config_path)
@@ -48,10 +57,10 @@ def make_training_config(config: DictConfig) -> dict[Any, Any]:
         training_config = OmegaConf.to_container(config.ensemble_attack.shadow_training.model_config, resolve=True)
         assert isinstance(training_config, dict), "Training config must be a dictionary."
         training_config["general"] = {
-            "test_data_dir": config.base_data_dir,
+            "test_data_dir": base_data_dir,
             "sample_prefix": "ctgan",
-            "data_dir": config.base_data_dir,
-            "workspace_dir": str(Path(config.base_data_dir) / "shadow_workspace"),
+            "data_dir": base_data_dir,
+            "workspace_dir": os.path.join(base_data_dir, "shadow_workspace"),
             "exp_name": "pre_trained_model",
         }
         json.dump(training_config, f)

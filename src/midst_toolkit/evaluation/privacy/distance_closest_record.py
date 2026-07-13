@@ -93,6 +93,12 @@ class DistanceToClosestRecordScore(MetricBase):
                 self.meta_info, real_data, synthetic_data, holdout_data
             )
 
+        # Make sure the categorical columns are preprocessed and encoded before calling compute
+        self.validate_dataframe_dtypes(real_data)
+        self.validate_dataframe_dtypes(synthetic_data)
+        if holdout_data is not None:
+            self.validate_dataframe_dtypes(holdout_data)
+
         real_data_train_tensor = torch.tensor(real_data.to_numpy()).to(self.device)
         real_data_test_tensor = torch.tensor(holdout_data.to_numpy()).to(self.device)
         synthetic_data_tensor = torch.tensor(synthetic_data.to_numpy()).to(self.device)
@@ -191,6 +197,10 @@ class MedianDistanceToClosestRecordScore(MetricBase):
 
         real_data_tensor = torch.tensor(real_data.to_numpy()).to(self.device)
         synthetic_data_tensor = torch.tensor(synthetic_data.to_numpy()).to(self.device)
+
+        # Make sure the categorical columns are preprocessed and encoded before calling compute
+        self.validate_dataframe_dtypes(real_data)
+        self.validate_dataframe_dtypes(synthetic_data)
 
         dcr_synthetic_to_real = []
         dcr_real_to_real = []

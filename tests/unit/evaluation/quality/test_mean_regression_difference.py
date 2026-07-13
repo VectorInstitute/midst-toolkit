@@ -72,17 +72,17 @@ def test_mean_regression_diff_with_preprocess() -> None:
 
     # All negative, since the synthetic data isn't as good.
     assert pytest.approx(-0.028624301482850445, abs=1e-8) == score["LinearRegression_r2_difference"]
-    assert pytest.approx(-0.003897949651049837, abs=1e-8) == score["avg_explained_variance_difference"]
+    assert pytest.approx(-0.004882042204506498, abs=1e-8) == score["avg_explained_variance_difference"]
     assert pytest.approx(-0.0006216447435568595, abs=1e-8) == score["MLPRegressor_explained_variance_difference"]
 
     # All  positive, since the synthetic data isn't as good.
     assert pytest.approx(0.8246922340902118, abs=1e-8) == score["LinearRegression_mean_squared_error_difference"]
     assert pytest.approx(0.812546726914048, abs=1e-8) == score["MLPRegressor_mean_squared_error_difference"]
-    assert pytest.approx(0.8301723069599523, abs=1e-8) == score["avg_mean_absolute_error_difference"]
-    assert pytest.approx(1.3503424674272537, abs=1e-8) == score["XGBRegressor_mean_squared_error_difference"]
-    assert pytest.approx(0.75296750664711, abs=1e-8) == score["XGBRegressor_mean_absolute_error_difference"]
+    assert pytest.approx(0.8430916534514481, abs=1e-8) == score["avg_mean_absolute_error_difference"]
+    assert pytest.approx(1.5079606175422668, abs=1e-8) == score["XGBRegressor_mean_squared_error_difference"]
+    assert pytest.approx(0.7917255461215973, abs=1e-8) == score["XGBRegressor_mean_absolute_error_difference"]
 
-    assert pytest.approx(0.44689824206215023, abs=1e-8) == score["avg_all_scores_difference"]
+    assert pytest.approx(0.4625610053299063, abs=1e-8) == score["avg_all_scores_difference"]
     unset_all_random_seeds()
 
 
@@ -104,7 +104,7 @@ def test_mean_regression_diff_with_no_categorical() -> None:
     score = metric.compute(real_data, synthetic_data, holdout_data)
     # Due to numerical fluctuations on github runners, we have slightly different values.
     if is_apple_silicon():
-        assert pytest.approx(-0.05650138480537015, abs=1e-8) == score["RandomForestRegressor_r2_difference"]
+        assert pytest.approx(-0.0564988144150147, abs=1e-8) == score["RandomForestRegressor_r2_difference"]
     else:
         assert pytest.approx(-0.05648892075668577, abs=1e-8) == score["RandomForestRegressor_r2_difference"]
 
@@ -132,16 +132,16 @@ def test_mean_regression_diff_with_poor_synthetic() -> None:
 
     # All very negative, since the synthetic data is bad.
     assert pytest.approx(-20.233048919780963, abs=1e-8) == score["LinearRegression_r2_difference"]
-    assert pytest.approx(-1.0026103570042455, abs=1e-8) == score["avg_explained_variance_difference"]
+    assert pytest.approx(-1.0023697131850724, abs=1e-8) == score["avg_explained_variance_difference"]
     assert pytest.approx(-1.0161702020509602, abs=1e-8) == score["MLPRegressor_explained_variance_difference"]
 
     # All very positive, since the synthetic data is bad. (note the labels have been normalized so these should
     # be quite small if the synthetic data were good)
     assert pytest.approx(0.28731932765609774, abs=1e-8) == score["LinearRegression_mean_squared_error_difference"]
     assert pytest.approx(0.2849491598736113, abs=1e-8) == score["MLPRegressor_mean_squared_error_difference"]
-    assert pytest.approx(0.5187444834458115, abs=1e-8) == score["avg_mean_absolute_error_difference"]
-    assert pytest.approx(0.2868712032359326, abs=1e-8) == score["XGBRegressor_mean_squared_error_difference"]
-    assert pytest.approx(0.5148243084549904, abs=1e-8) == score["XGBRegressor_mean_absolute_error_difference"]
+    assert pytest.approx(0.5186407060161016, abs=1e-8) == score["avg_mean_absolute_error_difference"]
+    assert pytest.approx(0.2868575356696965, abs=1e-8) == score["XGBRegressor_mean_squared_error_difference"]
+    assert pytest.approx(0.5145129761658609, abs=1e-8) == score["XGBRegressor_mean_absolute_error_difference"]
 
     # Make sure we're getting the verbose stuff.
     assert pytest.approx(-19.35472471634642, abs=1e-8) == score["synthetic_avg_r2"]

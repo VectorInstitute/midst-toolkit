@@ -18,6 +18,7 @@ from logging import INFO
 
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_object_dtype, is_string_dtype
 from sklearn.preprocessing import MinMaxScaler, OrdinalEncoder
 
 from midst_toolkit.common.logger import log
@@ -191,9 +192,11 @@ def get_categorical_columns(dataframe: pd.DataFrame, threshold: int) -> list[str
     categorical_variables: list[str] = []
 
     for column_name in dataframe.columns:
-        # If dtype is an object (as str columns are), assume categorical
-        if dataframe[column_name].dtype == "object" or (
-            is_column_type_numerical(dataframe, column_name) and dataframe[column_name].nunique() <= threshold
+        # If dtype is an object or string type, assume categorical
+        if (
+            is_string_dtype(dataframe[column_name])
+            or is_object_dtype(dataframe[column_name])
+            or (is_column_type_numerical(dataframe, column_name) and dataframe[column_name].nunique() <= threshold)
         ):
             categorical_variables.append(column_name)
 

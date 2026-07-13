@@ -91,6 +91,7 @@ class MeanConfidenceIntervalOverlap(SynthEvalMetric):
             num_cols=self.numerical_columns,
             do_preprocessing=False,
             verbose=False,
+            plot_figures=False,
         )
 
-        return self.syntheval_metric.evaluate(self.confidence_level.value)
+        return self.syntheval_metric.evaluate(ci="sem", confidence=self.confidence_level.value)

@@ -389,6 +389,12 @@ class MeanRegressionDifference(SynthEvalMetric):
 
         # Split the data and possibly preprocess
         train_data, validation_data, test_data = self.prepare_training_data(train_data, test_data)
+
+        # Make sure the categorical columns are preprocessed and encoded before calling compute
+        self.validate_dataframe_dtypes(train_data)
+        self.validate_dataframe_dtypes(validation_data)
+        self.validate_dataframe_dtypes(test_data)
+
         train_data_features = train_data.drop(self.label_column, axis=1, inplace=False)
         train_data_labels = train_data[[self.label_column]]
         validation_data_features = validation_data.drop(self.label_column, axis=1, inplace=False)

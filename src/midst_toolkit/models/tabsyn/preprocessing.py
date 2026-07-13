@@ -125,7 +125,7 @@ def train_val_test_split(
 
 
 # TODO: Refactor this function to get rid of the "too many statements" and "too many branches" errors from Ruff
-def process_data(name: str, info_path: Path, data_dir: Path) -> None:
+def process_data(name: str, info_path: Path, data_dir: Path, data_name: str | None = None) -> None:
     # ruff: noqa: PLR0915, PLR0912
     """Process the data for the given dataset name.
 
@@ -135,22 +135,53 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
         name: The name of the dataset.
         info_path: The directory where the info file is located.
         data_dir: The directory where the raw data is located.
+        data_name: The name of the data file. If not provided, the data file will be named after the dataset name.
     """
+    if data_name is None:
+        data_name = name
+
+    raw_data_dir = data_dir / "raw_data"
     processed_data_dir = get_processed_data_dir(data_dir)
 
-    with open(info_path / f"{name}.json", "r") as f:
+    with open(info_path / f"{name}_info.json", "r") as f:
         info = json.load(f)
 
-    data_path = info["data_path"]
-    if info["file_type"] == "csv":
-        data_df = pd.read_csv(data_path, header=info["header"])
-
-    elif info["file_type"] == "xls":
-        data_df = pd.read_excel(data_path, sheet_name="Data", header=1)
-        data_df = data_df.drop("ID", axis=1)
-
+    data_path: Path
+    test_path: Path | None = None
+    if (raw_data_dir / "train.csv").exists():
+        log(
+            INFO,
+            f"Train data found in {raw_data_dir / 'train.csv'}. "
+            + f"Also loading test data from {raw_data_dir / 'test.csv'}.",
+        )
+        data_path = raw_data_dir / "train.csv"
+        test_path = raw_data_dir / "test.csv"
+    elif (raw_data_dir / "train.xls").exists():
+        log(
+            INFO,
+            f"Train data found in {raw_data_dir / 'train.xls'}. "
+            + f"Also loading test data from {raw_data_dir / 'test.xls'}.",
+        )
+        data_path = raw_data_dir / "train.xls"
+        test_path = raw_data_dir / "test.xls"
     else:
-        raise ValueError(f"Unsupported file type: {info['file_type']}. Supported file types are: ['csv', 'xls'].")
+        log(
+            INFO,
+            f"No train.csv or train.xls data found in {raw_data_dir}. "
+            + f"Data path set to {data_dir / f'{data_name}.csv'}.",
+        )
+        data_path = data_dir / f"{data_name}.csv"
+
+    assert data_path.exists(), (
+        "Train data not found in the expected paths. "
+        + f"Expected paths are: {data_dir}/{data_name}.csv, {raw_data_dir}/train.csv, {raw_data_dir}/train.xls."
+    )
+    assert test_path is None or test_path.exists(), (
+        "Test data path not found in the expected paths. "
+        + f"Expected paths are: {raw_data_dir}/test.csv, {raw_data_dir}/test.xls."
+    )
+
+    data_df = _read_data_csv_or_xls(data_path)
 
     num_rows = data_df.shape[0]
 
@@ -168,10 +199,9 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
     cat_columns = [column_names[i] for i in cat_col_idx]
     target_columns = [column_names[i] for i in target_col_idx]
 
-    if info["test_path"]:
+    if test_path:
         # if testing data is given
-        test_path = info["test_path"]
-        test_df = pd.read_csv(test_path)
+        test_df = _read_data_csv_or_xls(test_path)
         train_df = data_df
     else:
         # Train/ Test Split, 99% Training, 1% Testing (Validation set will be selected from Training set)
@@ -216,11 +246,13 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
     for col in num_columns:
         train_df.loc[train_df[col] == "?", col] = np.nan
     for col in cat_columns:
-        train_df.loc[train_df[col] == "?", col] = "nan"
+        if pd.api.types.is_string_dtype(train_df[col]) or pd.api.types.is_object_dtype(train_df[col]):
+            train_df.loc[train_df[col] == "?", col] = "nan"
     for col in num_columns:
         test_df.loc[test_df[col] == "?", col] = np.nan
     for col in cat_columns:
-        test_df.loc[test_df[col] == "?", col] = "nan"
+        if pd.api.types.is_string_dtype(test_df[col]) or pd.api.types.is_object_dtype(test_df[col]):
+            test_df.loc[test_df[col] == "?", col] = "nan"
 
     numerical_features_train = train_df[num_columns].to_numpy().astype(np.float32)
     categorical_features_train = train_df[cat_columns].to_numpy().astype(np.int64)
@@ -300,3 +332,12 @@ def process_data(name: str, info_path: Path, data_dir: Path) -> None:
         num = len(info["num_col_idx"])
     log(INFO, f"Number of Numerical Columns: {num}")
     log(INFO, f"Number of Categorical Columns: {cat}")
+
+
+def _read_data_csv_or_xls(data_path: Path) -> pd.DataFrame:
+    if data_path.suffix == ".csv":
+        return pd.read_csv(data_path)
+    if data_path.suffix == ".xls":
+        data_df = pd.read_excel(data_path, sheet_name="Data", header=1)
+        return data_df.drop("ID", axis=1)
+    raise ValueError(f"Unsupported file type: {data_path.suffix}. Supported file types are: ['csv', 'xls'].")

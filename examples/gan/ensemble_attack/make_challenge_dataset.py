@@ -22,12 +22,15 @@ def make_challenge_dataset(config: DictConfig) -> None:
         dataset_name = Path(config.training.data_path).stem
         real_data = pd.read_csv(config.training.data_path)
 
+    random_seed = config.ensemble_attack.random_seed
+
     training_data = pd.read_csv(Path(config.results_dir) / f"{dataset_name}_sampled.csv")
     id_column = config.ensemble_attack.table_id_column_name
-    untrained_data = real_data[~real_data[id_column].isin(training_data[id_column])].sample(len(training_data))
+    untrained_data = real_data[~real_data[id_column].isin(training_data[id_column])]
+    sampled_untrained_data = untrained_data.sample(len(training_data), random_state=random_seed)
 
-    challenge_data = pd.concat([training_data, untrained_data])
-    challenge_data_labels = np.concatenate([np.ones(len(training_data)), np.zeros(len(untrained_data))])
+    challenge_data = pd.concat([training_data, sampled_untrained_data])
+    challenge_data_labels = np.concatenate([np.ones(len(training_data)), np.zeros(len(sampled_untrained_data))])
 
     processed_attack_data_path = Path(config.ensemble_attack.data_paths.processed_attack_data_path)
     processed_attack_data_path.mkdir(parents=True, exist_ok=True)
@@ -38,6 +41,8 @@ def make_challenge_dataset(config: DictConfig) -> None:
     challenge_data.to_csv(challenge_data_path, index=False)
     log(INFO, f"Saving challenge labels to {challenge_label_path}")
     np.save(challenge_label_path, challenge_data_labels)
+
+    log(INFO, "Done!")
 
 
 if __name__ == "__main__":

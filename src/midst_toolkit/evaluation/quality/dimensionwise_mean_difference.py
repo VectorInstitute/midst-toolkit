@@ -1,5 +1,5 @@
 import pandas as pd
-from syntheval.metrics.utility.metric_dimensionwise_means import MetricClassName as SynthEvalDwm
+from syntheval.metrics.utility.metric_dimensionwise_means import DimensionWiseMeans
 
 from midst_toolkit.evaluation.metrics_base import SynthEvalMetric
 
@@ -27,13 +27,14 @@ class DimensionwiseMeanDifference(SynthEvalMetric):
         if self.do_preprocess:
             real_data, synthetic_data = self.preprocess(real_data, synthetic_data)
 
-        self.syntheval_metric = SynthEvalDwm(
+        self.syntheval_metric = DimensionWiseMeans(
             real_data=real_data,
             synt_data=synthetic_data,
             cat_cols=self.categorical_columns,
             num_cols=self.numerical_columns,
             do_preprocessing=False,
             verbose=False,
+            plot_figures=False,
         )
 
         result = self.syntheval_metric.evaluate()
