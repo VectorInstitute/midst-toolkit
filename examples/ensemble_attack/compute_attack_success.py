@@ -107,7 +107,7 @@ def compute_attack_success_for_given_targets(
         f.write(f"Final TPR at FPR=0.1: {tpr_at_fpr:.4f}\n")
 
 
-@hydra.main(config_path="configs", config_name="experiment_config_same_marginal_iid", version_base=None)
+@hydra.main(config_path="configs", config_name="experiment_config_10k_44", version_base=None)
 def main(
     config: DictConfig,
 ) -> None:

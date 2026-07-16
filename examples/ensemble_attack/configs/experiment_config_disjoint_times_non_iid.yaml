@@ -1,6 +1,6 @@
 # Ensemble experiment configuration
 # This config can be used to run both the Ensemble attack training (``run_attack.py``) and testing phases (``test_attack_model.py``).
-base_experiment_dir: /projects/midst-experiments/ensemble_attack/data_distribution_knowledge/disjoint_times/non_iid # Processed data, and experiment artifacts will be stored under this directory.
+base_experiment_dir: /projects/midst-experiments/ensemble_attack/data_distribution_knowledge/disjoint_times/non_iid_run3 # Processed data, and experiment artifacts will be stored under this directory.
 base_data_config_dir: examples/ensemble_attack/data_configs # Training and data type configs are saved under this directory.
 
 # Training Pipeline Control
@@ -117,4 +117,4 @@ attack_success_computation:
   target_ids_to_test: [21, 22, 23, 24, 25, 26, 27, 28, 29, 30] # List of target model IDs to compute the attack success for.
 
 # General settings
-random_seed: 42 # Set to null for no seed, or an integer for a fixed seed
+random_seed: 44 # Set to null for no seed, or an integer for a fixed seed

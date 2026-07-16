@@ -1,16 +1,15 @@
 #!/bin/bash
 
 #SBATCH --nodes=1
-#SBATCH --exclude=gpu183
 #SBATCH --ntasks=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:a40:1
-#SBATCH --mem=100G
-#SBATCH --job-name=marginal_iid
+#SBATCH --mem=128G
+#SBATCH --job-name=same_marginal_iid_44
 #SBATCH --output=%j_%x.out
 #SBATCH --error=%j_%x.err
-#SBATCH --time=20:00:00
+#SBATCH --time=22:00:00
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=fatemeh.tavakoli@vectorinstitute.ai
 
