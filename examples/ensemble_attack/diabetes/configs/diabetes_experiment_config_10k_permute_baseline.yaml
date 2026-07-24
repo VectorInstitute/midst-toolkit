@@ -1,14 +1,14 @@
 # Ensemble experiment configuration for diabetes dataset, 10k
 # This config can be used to run both the Ensemble attack training (``run_attack.py``) and testing phases (``test_attack_model.py``).
-base_experiment_dir: /projects/midst-experiments/ensemble_attack/diabetes_experiments/10k_permute/baseline_experiment # Processed data, and experiment artifacts will be stored under this directory.
+base_experiment_dir: /projects/midst-experiments/ensemble_attack/diabetes_experiments/10k_permute/baseline_experiment/run2 # Processed data, and experiment artifacts will be stored under this directory.
 base_data_config_dir: examples/ensemble_attack/diabetes/data_configs # Training and data type configs are saved under this directory.
 
 # Training Pipeline Control
 # JUST TESTING
 pipeline:
-  run_data_processing: False # Set this to false if you have already saved the processed data
-  run_shadow_model_training: False # Set this to false if shadow models are already trained and saved
-  run_metaclassifier_training: False
+  run_data_processing: True # Set this to false if you have already saved the processed data
+  run_shadow_model_training: True # Set this to false if shadow models are already trained and saved
+  run_metaclassifier_training: True
 
 target_model: # This is only used for testing the attack on a real target model.
   target_model_directory: /projects/midst-experiments/diabetes_experiments_newer/whitebox_single_table_DI_1/50_percent_noise_permute/try_again_12/
@@ -119,4 +119,4 @@ attack_success_computation:
   target_ids_to_test: [8, 9, 10] # List of target model IDs to compute the attack success for.
 
 # General settings
-random_seed: 42 # Set to null for no seed, or an integer for a fixed seed
+random_seed: 43 # Set to null for no seed, or an integer for a fixed seed

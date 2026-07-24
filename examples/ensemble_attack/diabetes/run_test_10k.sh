@@ -5,11 +5,11 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:a100:1
-#SBATCH --mem=200G
-#SBATCH --job-name=permute_test
+#SBATCH --mem=150G
+#SBATCH --job-name=test_uniform_44
 #SBATCH --output=%j_%x_%a.out
 #SBATCH --error=%j_%x_%a.err
-#SBATCH --time=12:00:00
+#SBATCH --time=14:00:00
 #SBATCH --array=0-0
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=fatemeh.tavakoli@vectorinstitute.ai
@@ -32,7 +32,7 @@ echo "Running test for target_model_id: $TARGET_ID using all target models' chal
 
 echo "Experiments Launched"
 
-python -m examples.ensemble_attack.diabetes.test_attack_model --config-name=diabetes_experiment_config_10k_permute target_model.target_model_id=$TARGET_ID
+python -m examples.ensemble_attack.diabetes.test_attack_model --config-name=diabetes_experiment_config_10k_uniform_44 target_model.target_model_id=$TARGET_ID
 
 
 echo "Experiments Completed"

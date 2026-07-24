@@ -4,12 +4,12 @@
 #SBATCH --ntasks=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=2
-#SBATCH --gres=gpu:a100:1
-#SBATCH --mem=190G
-#SBATCH --job-name=uniform_train_diabetes
+#SBATCH --gres=gpu:a40:1
+#SBATCH --mem=120G
+#SBATCH --job-name=noisy_train_44
 #SBATCH --output=%j_%x.out
 #SBATCH --error=%j_%x.err
-#SBATCH --time=12:00:00
+#SBATCH --time=20:00:00
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=fatemeh.tavakoli@vectorinstitute.ai
 
@@ -22,6 +22,6 @@ which python
 
 echo "Experiments Launched"
 
-python -m examples.ensemble_attack.diabetes.run_attack_diabetes --config-name=diabetes_experiment_config_10k_uniform   
+python -m examples.ensemble_attack.diabetes.run_attack_diabetes --config-name=diabetes_experiment_config_10k_uniform_44
 
 echo "Experiments Completed"
