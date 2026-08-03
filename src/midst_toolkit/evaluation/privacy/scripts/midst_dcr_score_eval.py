@@ -110,5 +110,5 @@ if __name__ == "__main__":
         meta_info, real_data_train, synthetic_data, real_data_test
     )
     metric = DistanceToClosestRecordScore()
-    dcr_score = metric.compute(synthetic_data, real_data_train, real_data_test)
+    dcr_score = metric.compute(real_data_train, synthetic_data, real_data_test)
     log(INFO, f"{dataname}-{model}, DCR Score = {dcr_score}")
