@@ -76,6 +76,47 @@ MATCHING_CONFIG = ClavaDDPMMatchingConfig(
 
 
 @pytest.mark.integration_test()
+def test_clava_synthesize_single_table_without_merging_categoricals(tmp_path: Path):
+    # Setup
+    set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
+    diffusion_config = DIFFUSION_CONFIG.model_copy(
+        update={"merge_categoricals_into_numerical": False, "iterations": 100},
+    )
+
+    # Act
+    tables, relation_order, _ = load_tables(Path("tests/integration/assets/single_table/"))
+    _, models = clava_training(tables, relation_order, tmp_path, diffusion_config, device=DEVICE)
+
+    synthesizing_config = GENERAL_CONFIG.model_copy()
+    synthesizing_config.workspace_dir = tmp_path
+    synthesizing_config.data_dir = Path("tests/integration/assets/single_table/")
+
+    cleaned_tables, _, _ = clava_synthesizing(
+        tables,
+        relation_order,
+        tmp_path,
+        models,
+        synthesizing_config,
+        ClavaDDPMSamplingConfig(batch_size=99, classifier_scale=1.0),
+        MATCHING_CONFIG,
+    )
+
+    # Assert
+    synthetic_trans = cleaned_tables["trans"]
+    assert synthetic_trans.shape == (99, 8)
+
+    # Every generated value of a discrete column has to be one of the categories of the real data,
+    # which only holds if the sampled category ids are decoded with the label encoders instead of
+    # being inverse quantile transformed along with the numerical columns.
+    real_trans = tables["trans"].original_data
+    for column in ["trans_type", "operation", "k_symbol", "bank"]:
+        generated_categories = set(synthetic_trans[column].astype(float))
+        assert generated_categories <= set(real_trans[column].astype(float))
+
+    unset_all_random_seeds()
+
+
+@pytest.mark.integration_test()
 def test_clava_synthesize_multi_table(tmp_path: Path):
     # Setup
     set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)

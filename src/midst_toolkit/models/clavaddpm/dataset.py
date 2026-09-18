@@ -32,12 +32,14 @@ class ClavaDDPMDataset(Dataset):
         label_encoders_path: str | None = None,
         # TODO: Find places in code that have this kind of hardcoded random default and remove (with TESTING)
         data_split_random_state: int = 42,
+        merge_categoricals_into_numerical: bool = True,
     ) -> tuple[ClavaDDPMDataset, dict[int, LabelEncoder], list[str]]:
         """
         Generate a dataset from a pandas DataFrame.
 
-        NOTE: For now, table_metadata.n_classes has to be 0. This is because all categorical
-        features are encoded and merged with the numerical features for ClavaDDPM datasets.
+        NOTE: For now, table_metadata.n_classes has to be 0. This is because the target column is
+        never treated as a categorical feature, it is either ignored or appended to the numerical
+        features (see ``is_target_conditioned``).
 
         Args:
             data: The pandas DataFrame from which to generate the dataset.
@@ -66,6 +68,15 @@ class ClavaDDPMDataset(Dataset):
                 will be loaded from the pkl file, otherwise they will be fitted on the current data.
             data_split_random_state: The random state to use for the data split. Will be passed down to the
                 ``train_test_split`` function from sklearn. Optional, default is 42.
+            merge_categoricals_into_numerical: Whether the label encoded categorical features should be merged
+                into the numerical features. Optional, default is True.
+
+                True (the ClavaDDPM behaviour): the label encoded categorical columns are appended to the
+                    numerical columns and normalized along with them, so the resulting dataset has no
+                    categorical features and a single Gaussian backbone models every column.
+                False (the TabDDPM behaviour): the categorical columns are label encoded but kept as integer
+                    category ids in ``categorical_features``, so only the numerical columns are normalized
+                    and the categorical columns are modelled by the multinomial part of the diffusion.
 
         Returns:
             A tuple with:
@@ -128,19 +139,45 @@ class ClavaDDPMDataset(Dataset):
 
         column_orders = numerical_column_names + categorical_column_names
 
-        # Encode the categorical features and merge them with the numerical features
-        # Look for pre-fitted label encoders in the parent directories of the data
+        if merge_categoricals_into_numerical or categorical_features is None:
+            # Encode the categorical features and merge them with the numerical features
+            # Look for pre-fitted label encoders in the parent directories of the data
+            features, label_encoders = encode_and_merge_features(
+                categorical_features,
+                numerical_features,
+                noise_scale,
+                categorical_column_names=categorical_column_names,
+                label_encoders_path=label_encoders_path,
+            )
 
-        features, label_encoders = encode_and_merge_features(
+            dataset = ClavaDDPMDataset(
+                numerical_features=features,
+                categorical_features=None,
+                target=target,
+                target_info=TargetInfo(),
+                task_type=table_metadata.task_type,
+                n_classes=table_metadata.n_classes,
+            )
+
+            return transform_dataset(dataset, transformations, None), label_encoders, column_orders
+
+        if noise_scale > 0:
+            raise ValueError(
+                "noise_scale must be 0 when merge_categoricals_into_numerical is False, since the categorical "
+                "features are kept as integer category ids."
+            )
+
+        # Encoding the categorical features without merging them, by passing no numerical features.
+        encoded_categorical_features, label_encoders = encode_and_merge_features(
             categorical_features,
-            numerical_features,
+            None,
             noise_scale,
             categorical_column_names=categorical_column_names,
             label_encoders_path=label_encoders_path,
         )
 
         dataset = ClavaDDPMDataset(
-            numerical_features=features,
+            numerical_features=numerical_features,
             categorical_features=None,
             target=target,
             target_info=TargetInfo(),
@@ -148,4 +185,12 @@ class ClavaDDPMDataset(Dataset):
             n_classes=table_metadata.n_classes,
         )
 
-        return transform_dataset(dataset, transformations, None), label_encoders, column_orders
+        # The categorical features are attached after the transformations so that they are not encoded a
+        # second time by transform_dataset. That keeps the returned label encoders the only mapping between
+        # the original categories and the category ids the model sees, which is what decoding relies on.
+        transformed_dataset = transform_dataset(dataset, transformations, None)
+        transformed_dataset.categorical_features = {
+            split: split_features.astype(np.int64) for split, split_features in encoded_categorical_features.items()
+        }
+
+        return transformed_dataset, label_encoders, column_orders

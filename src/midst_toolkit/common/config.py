@@ -40,6 +40,11 @@ class ClavaDDPMDiffusionConfig(BaseModel):
     weight_decay: float
     scheduler: SchedulerType
     data_split_ratios: list[float] = [0.7, 0.2, 0.1]
+    # When True (ClavaDDPM), discrete columns are label encoded and appended to the numerical
+    # features, so the Gaussian loss is used for all the columns and the multinomial loss is
+    # never exercised. When False (TabDDPM), discrete columns stay categorical and are modelled
+    # by the multinomial part of the diffusion.
+    merge_categoricals_into_numerical: bool = True
 
     @model_validator(mode="after")
     def validate_data_split_ratios(self) -> Self:

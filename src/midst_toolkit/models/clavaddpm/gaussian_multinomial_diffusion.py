@@ -1341,6 +1341,9 @@ class GaussianMultinomialDiffusion(torch.nn.Module):
         assert self.num_classes is not None
         has_cat = self.num_classes[0] != 0
         log_z = torch.zeros((batch_size, 0), device=self.device).float()
+        if has_cat:
+            uniform_logits = torch.zeros((batch_size, len(self.num_classes_expanded)), device=self.device)
+            log_z = self.log_sample_categorical(uniform_logits)
 
         outputs = {"y": targets.long().to(self.device)}
         for i in reversed(range(0, self.num_timesteps)):

@@ -34,6 +34,11 @@ To kick off training, simply run the command below from the project's root folde
 python -m examples.training.single_table.run_training
 ```
 
+In ClavaDDPM, by default, the discrete columns are label encoded and merged into the continuous ones, so a single
+Gaussian diffusion backbone models the whole row. Setting `merge_categoricals_into_numerical` to `false` in the
+[`config.yaml`](config.yaml) file trains a TabDDPM model instead, keeping the discrete columns as
+categoricals so that they are modelled by the multinomial part of the diffusion model.
+
 
 ## Results
 

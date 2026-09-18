@@ -11,6 +11,7 @@ import torch
 from torch.nn import functional
 
 from midst_toolkit.common.config import ClavaDDPMClassifierConfig, ClavaDDPMClusteringConfig, ClavaDDPMDiffusionConfig
+from midst_toolkit.common.enumerations import DataSplit
 from midst_toolkit.common.logger import log
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.common.variables import DEVICE
@@ -25,6 +26,7 @@ from midst_toolkit.models.clavaddpm.data_loaders import (
     DomainInfo,
     NumericalColumnInfo,
     load_tables,
+    prepare_fast_dataloader,
 )
 from midst_toolkit.models.clavaddpm.enumerations import ClusteringMethod
 from midst_toolkit.models.clavaddpm.gaussian_multinomial_diffusion import GaussianLossType, SchedulerType
@@ -286,6 +288,38 @@ def test_train_single_table(tmp_path: Path):
         # https://app.clickup.com/t/868f43wp0
         log(WARNING, "Not running on CI, assertions are made with a higher tolerance.")
         assert all(torch.allclose(model_data[layer], expected_model_data[layer], atol=0.1) for layer in model_layers)
+
+    unset_all_random_seeds()
+
+
+@pytest.mark.integration_test()
+def test_train_single_table_without_merging_categoricals(tmp_path: Path):
+    # Setup
+    set_all_random_seeds(seed=133742, use_deterministic_torch_algos=True, disable_torch_benchmarking=True)
+    diffusion_config = DIFFUSION_CONFIG.model_copy(
+        update={"merge_categoricals_into_numerical": False, "iterations": 100},
+    )
+
+    # Act
+    tables, relation_order, _ = load_tables(Path("tests/integration/assets/single_table/"))
+    _, models = clava_training(tables, relation_order, tmp_path, diffusion_config, device=DEVICE)
+
+    # Assert
+    model = models[(None, "trans")]
+    assert not model.merge_categoricals_into_numerical
+
+    # The four discrete columns of the table are modelled as categoricals, so only its four
+    # continuous columns are left as numerical features.
+    assert model.num_numerical_features == 4
+    assert model.category_sizes.tolist() == [3, 5, 8, 12]
+    assert model.dataset.categorical_features is not None
+
+    # Unlike the default ClavaDDPM setup, where the multinomial loss is always 0, here it is the
+    # term that trains the discrete columns.
+    features, target = next(prepare_fast_dataloader(model.dataset, DataSplit.TRAIN, diffusion_config.batch_size))
+    multinomial_loss, gaussian_loss = model.diffusion.mixed_loss(features.to(DEVICE), {"y": target.to(DEVICE)})
+    assert multinomial_loss.item() > 0
+    assert gaussian_loss.item() > 0
 
     unset_all_random_seeds()
 
