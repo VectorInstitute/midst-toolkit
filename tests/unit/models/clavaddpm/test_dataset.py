@@ -2,6 +2,7 @@ from copy import deepcopy
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from midst_toolkit.common.dataset import (
@@ -13,6 +14,7 @@ from midst_toolkit.common.dataset import (
 from midst_toolkit.common.dataset_utils import dump_pickle
 from midst_toolkit.common.enumerations import (
     CategoricalEncoding,
+    DataSplit,
     IsTargetConditioned,
     Normalization,
     NumericalNaNPolicy,
@@ -20,6 +22,7 @@ from midst_toolkit.common.enumerations import (
 )
 from midst_toolkit.common.random import set_all_random_seeds, unset_all_random_seeds
 from midst_toolkit.models.clavaddpm.dataset import (
+    ClavaDDPMDataset,
     Dataset,
     TableMetadata,
     Transformations,
@@ -190,6 +193,103 @@ def test_get_cached_dataset(tmp_path: Path) -> None:
     dataset_cache = get_cached_dataset(type(dataset), cache_path, transformations_1)
 
     assert np.allclose(dataset_cache.numerical_features["train"], dataset.numerical_features["train"], atol=1e-8)
+
+
+def _get_table_data_frame_and_metadata() -> tuple[pd.DataFrame, TableMetadata]:
+    generator = np.random.default_rng(42)
+    n_rows = 40
+
+    data = pd.DataFrame(
+        {
+            "num_1": generator.normal(size=n_rows),
+            "num_2": generator.normal(size=n_rows),
+            "cat_1": generator.choice(["a", "b", "c"], size=n_rows),
+            "cat_2": generator.choice(["x", "y"], size=n_rows),
+            "placeholder": np.arange(n_rows),
+        }
+    )
+    table_metadata = TableMetadata(
+        categorical_column_names=["cat_1", "cat_2"],
+        numerical_column_names=["num_1", "num_2"],
+        target_column_name="placeholder",
+        n_classes=0,
+        task_type=TaskType.MULTICLASS_CLASSIFICATION,
+    )
+    return data, table_metadata
+
+
+def test_from_df_merging_categoricals_into_numerical() -> None:
+    data, table_metadata = _get_table_data_frame_and_metadata()
+
+    dataset, label_encoders, column_orders = ClavaDDPMDataset.from_df(
+        data,
+        Transformations.default(),
+        IsTargetConditioned.NONE,
+        table_metadata,
+        data_split_percentages=[0.7, 0.2, 0.1],
+    )
+
+    assert column_orders == ["num_1", "num_2", "cat_1", "cat_2"]
+    assert set(label_encoders.keys()) == {0, 1}
+
+    # All four columns are modelled as numerical features and normalized together, leaving nothing
+    # for the multinomial part of the diffusion model to do.
+    assert dataset.categorical_features is None
+    assert dataset.numerical_features is not None
+    assert dataset.numerical_features[DataSplit.TRAIN.value].shape[1] == 4
+    assert dataset.numerical_transform.n_features_in_ == 4
+    assert dataset.get_category_sizes(DataSplit.TRAIN) == []
+
+
+def test_from_df_without_merging_categoricals_into_numerical() -> None:
+    data, table_metadata = _get_table_data_frame_and_metadata()
+
+    dataset, label_encoders, column_orders = ClavaDDPMDataset.from_df(
+        data,
+        Transformations.default(),
+        IsTargetConditioned.NONE,
+        table_metadata,
+        data_split_percentages=[0.7, 0.2, 0.1],
+        merge_categoricals_into_numerical=False,
+    )
+
+    assert column_orders == ["num_1", "num_2", "cat_1", "cat_2"]
+
+    # Only the numerical columns are normalized. The categorical columns are kept as integer
+    # category ids, which is what the multinomial part of the diffusion model consumes.
+    assert dataset.numerical_features is not None
+    assert dataset.numerical_features[DataSplit.TRAIN.value].shape[1] == 2
+    assert dataset.numerical_transform.n_features_in_ == 2
+
+    assert dataset.categorical_features is not None
+    assert dataset.categorical_features[DataSplit.TRAIN.value].shape[1] == 2
+    assert np.issubdtype(dataset.categorical_features[DataSplit.TRAIN.value].dtype, np.integer)
+
+    # The category ids are within the range of the label encoders and decode back into the original
+    # categories, since the label encoders are the only encoding applied to those columns.
+    for column_index, column_name in enumerate(["cat_1", "cat_2"]):
+        category_ids = np.concatenate(
+            [dataset.categorical_features[split.value][:, column_index] for split in DataSplit],
+        )
+        label_encoder = label_encoders[column_index]
+        assert category_ids.min() >= 0
+        assert category_ids.max() < len(label_encoder.classes_)
+        assert sorted(label_encoder.inverse_transform(category_ids)) == sorted(data[column_name])
+
+
+def test_from_df_without_merging_categoricals_rejects_noise() -> None:
+    data, table_metadata = _get_table_data_frame_and_metadata()
+
+    with pytest.raises(ValueError, match="noise_scale must be 0"):
+        ClavaDDPMDataset.from_df(
+            data,
+            Transformations.default(),
+            IsTargetConditioned.NONE,
+            table_metadata,
+            data_split_percentages=[0.7, 0.2, 0.1],
+            noise_scale=0.01,
+            merge_categoricals_into_numerical=False,
+        )
 
 
 def test_get_categorical_and_numerical_column_names() -> None:

@@ -59,6 +59,7 @@ class ClavaDDPMModelArtifacts(ModelArtifacts):
     num_numerical_features: int
     category_sizes: np.ndarray
     is_regression: bool
+    merge_categoricals_into_numerical: bool = True
     inverse_transform_function: Callable[[np.ndarray], np.ndarray] | None = None
     empirical_class_dist: Tensor | None = None
     classifier: Classifier | None = None
@@ -242,11 +243,10 @@ def train_model(
         data_split_percentages=diffusion_config.data_split_ratios,
         table_metadata=table_metadata,
         noise_scale=0,
+        merge_categoricals_into_numerical=diffusion_config.merge_categoricals_into_numerical,
     )
 
-    category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
-    if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
-        category_sizes = np.array([0])
+    category_sizes = get_category_sizes(dataset, label_encoders, transformations)
 
     _, empirical_class_dist = torch.unique(torch.from_numpy(dataset.target[DataSplit.TRAIN.value]), return_counts=True)
 
@@ -303,6 +303,7 @@ def train_model(
         category_sizes=category_sizes,
         empirical_class_dist=empirical_class_dist,
         is_regression=dataset.is_regression,
+        merge_categoricals_into_numerical=diffusion_config.merge_categoricals_into_numerical,
         inverse_transform_function=inverse_transform_function,
     )
 
@@ -339,13 +340,14 @@ def train_classifier(
     Returns:
         The trained classifier model.
     """
-    dataset, _, _ = ClavaDDPMDataset.from_df(
+    dataset, label_encoders, _ = ClavaDDPMDataset.from_df(
         data_frame,
         transformations,
         is_target_conditioned=model_params.is_target_conditioned,
         data_split_percentages=classifier_config.data_split_ratios,
         table_metadata=table_metadata,
         noise_scale=0,
+        merge_categoricals_into_numerical=diffusion_config.merge_categoricals_into_numerical,
     )
     log(INFO, f"Number of dataset features: {dataset.n_features}")
     train_loader = prepare_fast_dataloader(
@@ -367,9 +369,7 @@ def train_classifier(
         target_type=TargetType.LONG,
     )
 
-    category_sizes = np.array(dataset.get_category_sizes(DataSplit.TRAIN))
-    if len(category_sizes) == 0 or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
-        category_sizes = np.array([0])
+    category_sizes = get_category_sizes(dataset, label_encoders, transformations)
     log(INFO, f"Size of categories: {category_sizes}")
 
     # TODO: understand what's going on here
@@ -451,11 +451,14 @@ def train_classifier(
     for _ in range(3000):
         test_x, test_y = next(test_loader)
         test_y = test_y.long().to(device)
-        test_x = (
-            test_x[:, 1:].to(device)
-            if model_params.is_target_conditioned == IsTargetConditioned.CONCAT
-            else test_x.to(device)
-        )
+        if model_params.is_target_conditioned == IsTargetConditioned.CONCAT:
+            # Remove the first column of the batch, which is the label.
+            test_x = test_x[:, 1:]
+        # The classifier only ever sees the numerical features, both during training (see
+        # _numerical_forward_backward_log) and during conditional sampling, where it is applied to the
+        # Gaussian part of the sample. The batch only has more columns than that when the categorical
+        # features are kept as categoricals rather than merged into the numerical ones.
+        test_x = test_x[:, : dataset.n_numerical_features].to(device)
         with torch.no_grad():
             pred = classifier(test_x, timesteps=torch.zeros(test_x.shape[0]).to(device))
             correct += (pred.argmax(dim=1) == test_y).sum().item()
@@ -464,6 +467,37 @@ def train_classifier(
     log(INFO, f"Classifier accuracy: {acc}")
 
     return classifier
+
+
+def get_category_sizes(
+    dataset: ClavaDDPMDataset,
+    label_encoders: dict[int, LabelEncoder],
+    transformations: Transformations,
+) -> np.ndarray:
+    """
+    Get the number of categories of each categorical column, as expected by the multinomial part of
+    ``GaussianMultinomialDiffusion``.
+
+    Datasets whose categorical features have been merged into the numerical ones (the ClavaDDPM
+    behaviour) or one-hot encoded have no categorical columns left to model, which is signalled with
+    a single size of 0.
+
+    Args:
+        dataset: The dataset to get the category sizes of.
+        label_encoders: The label encoders used to encode the categorical columns of the dataset, as a
+            dictionary mapping column INDEX within the categorical columns to a label encoder.
+        transformations: The transformations that were applied to the dataset.
+
+    Returns:
+        The number of categories of each categorical column, or ``[0]`` if there are none to model.
+    """
+    if dataset.categorical_features is None or transformations.categorical_encoding == CategoricalEncoding.ONE_HOT:
+        return np.array([0])
+
+    # The sizes are taken from the label encoders rather than from the train split because the encoders
+    # are fit on all the splits. Counting the categories present in the train split alone would leave
+    # the diffusion model unable to represent a category that only shows up in validation or test.
+    return np.array([len(label_encoders[index].classes_) for index in sorted(label_encoders)])
 
 
 def get_table_metadata(df: pd.DataFrame, table_domain: dict[str, Any], target_column_name: str) -> TableMetadata:

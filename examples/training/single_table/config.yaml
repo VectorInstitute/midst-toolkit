@@ -15,3 +15,6 @@ diffusion_config:
   weight_decay: 1e-05
   scheduler: cosine
   data_split_ratios: [0.99, 0.005, 0.005]
+  # Set to false to train a TabDDPM model, which models the discrete columns as categoricals with
+  # the multinomial part of the diffusion model instead of merging them into the numerical columns.
+  merge_categoricals_into_numerical: true
