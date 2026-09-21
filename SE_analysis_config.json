@@ -1,0 +1,1 @@
+{"target_vars": ["column_e"], "target_types": {"column_e": 2}, "confounder_vars": {"column_e": []}, "sensitive_vars": []}
