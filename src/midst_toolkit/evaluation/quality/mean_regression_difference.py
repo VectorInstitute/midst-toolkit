@@ -416,10 +416,10 @@ class MeanRegressionDifference(SynthEvalMetric):
             results = pd.concat((results, pd.DataFrame([metrics])))
 
         results.reset_index(inplace=True)
-        best_r2_parameters = results.parameters[results.r2.idxmax()]
-        best_explained_variance_parameters = results.parameters[results.explained_variance.idxmax()]
-        best_mean_absolute_error_parameters = results.parameters[results.mean_absolute_error.idxmin()]
-        best_mean_squared_error_parameters = results.parameters[results.mean_squared_error.idxmin()]
+        best_r2_parameters = results.parameters.iloc[results.r2.to_numpy().argmax()]
+        best_explained_variance_parameters = results.parameters.iloc[results.explained_variance.to_numpy().argmax()]
+        best_mean_absolute_error_parameters = results.parameters.iloc[results.mean_absolute_error.to_numpy().argmin()]
+        best_mean_squared_error_parameters = results.parameters.iloc[results.mean_squared_error.to_numpy().argmin()]
 
         # With each of the best parameter combinations by metric, we train a model with those parameters to be
         # evaluated on the test set.
