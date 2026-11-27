@@ -1,0 +1,509 @@
+{
+    "name": "diabetes",
+    "task_type": "regression",
+    "header": "infer",
+    "file_type": "csv",
+    "data_path": "raw_data/train.csv",
+    "val_path": "",
+    "test_path": "raw_data/test.csv",
+    "column_names": [
+        "race_categorical",
+        "gender_categorical",
+        "age_categorical",
+        "weight_categorical",
+        "admission_type_categorical",
+        "discharge_disposition_categorical",
+        "admission_source_categorical",
+        "time_in_hospital_integer",
+        "payer_code_categorical",
+        "medical_specialty_categorical",
+        "num_lab_procedures_integer",
+        "num_procedures_integer",
+        "num_medications_integer",
+        "number_outpatient_integer",
+        "number_emergency_integer",
+        "number_inpatient_integer",
+        "diag_1_categorical",
+        "diag_2_categorical",
+        "diag_3_categorical",
+        "number_diagnoses_integer",
+        "max_glu_serum_categorical",
+        "A1Cresult_categorical",
+        "metformin_categorical",
+        "repaglinide_categorical",
+        "nateglinide_categorical",
+        "chlorpropamide_categorical",
+        "glimepiride_categorical",
+        "acetohexamide_categorical",
+        "glipizide_categorical",
+        "glyburide_categorical",
+        "tolbutamide_categorical",
+        "pioglitazone_categorical",
+        "rosiglitazone_categorical",
+        "acarbose_categorical",
+        "miglitol_categorical",
+        "troglitazone_categorical",
+        "tolazamide_categorical",
+        "examide_categorical",
+        "citoglipton_categorical",
+        "insulin_categorical",
+        "glyburide-metformin_categorical",
+        "glipizide-metformin_categorical",
+        "glimepiride-pioglitazone_categorical",
+        "metformin-rosiglitazone_categorical",
+        "metformin-pioglitazone_categorical",
+        "change_categorical",
+        "diabetesMed_categorical",
+        "readmitted_categorical"
+    ],
+    "num_col_idx": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        19
+    ],
+    "cat_col_idx": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        8,
+        9,
+        16,
+        17,
+        18,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47
+    ],
+    "target_col_idx": [
+        7
+    ],
+    "require_supplied_splits": true,
+    "label_encoders_path": "diabetes_test.pkl",
+    "int_col_idx": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        19
+    ],
+    "int_columns": [
+        "num_lab_procedures_integer",
+        "num_procedures_integer",
+        "num_medications_integer",
+        "number_outpatient_integer",
+        "number_emergency_integer",
+        "number_inpatient_integer",
+        "number_diagnoses_integer"
+    ],
+    "int_col_idx_wrt_num": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+    ],
+    "column_info": {
+        "10": {},
+        "type": "numerical",
+        "max": 14.0,
+        "min": 1.0,
+        "11": {},
+        "12": {},
+        "13": {},
+        "14": {},
+        "15": {},
+        "19": {},
+        "0": {},
+        "categorizes": [
+            0,
+            1,
+            2
+        ],
+        "1": {},
+        "2": {},
+        "3": {},
+        "4": {},
+        "5": {},
+        "6": {},
+        "8": {},
+        "9": {},
+        "16": {},
+        "17": {},
+        "18": {},
+        "20": {},
+        "21": {},
+        "22": {},
+        "23": {},
+        "24": {},
+        "25": {},
+        "26": {},
+        "27": {},
+        "28": {},
+        "29": {},
+        "30": {},
+        "31": {},
+        "32": {},
+        "33": {},
+        "34": {},
+        "35": {},
+        "36": {},
+        "37": {},
+        "38": {},
+        "39": {},
+        "40": {},
+        "41": {},
+        "42": {},
+        "43": {},
+        "44": {},
+        "45": {},
+        "46": {},
+        "47": {},
+        "7": {}
+    },
+    "train_num": 128,
+    "test_num": 40,
+    "val_num": 0,
+    "idx_mapping": {
+        "0": 7,
+        "1": 8,
+        "2": 9,
+        "3": 10,
+        "4": 11,
+        "5": 12,
+        "6": 13,
+        "7": 47,
+        "8": 14,
+        "9": 15,
+        "10": 0,
+        "11": 1,
+        "12": 2,
+        "13": 3,
+        "14": 4,
+        "15": 5,
+        "16": 16,
+        "17": 17,
+        "18": 18,
+        "19": 6,
+        "20": 19,
+        "21": 20,
+        "22": 21,
+        "23": 22,
+        "24": 23,
+        "25": 24,
+        "26": 25,
+        "27": 26,
+        "28": 27,
+        "29": 28,
+        "30": 29,
+        "31": 30,
+        "32": 31,
+        "33": 32,
+        "34": 33,
+        "35": 34,
+        "36": 35,
+        "37": 36,
+        "38": 37,
+        "39": 38,
+        "40": 39,
+        "41": 40,
+        "42": 41,
+        "43": 42,
+        "44": 43,
+        "45": 44,
+        "46": 45,
+        "47": 46
+    },
+    "inverse_idx_mapping": {
+        "7": 0,
+        "8": 1,
+        "9": 2,
+        "10": 3,
+        "11": 4,
+        "12": 5,
+        "13": 6,
+        "47": 7,
+        "14": 8,
+        "15": 9,
+        "0": 10,
+        "1": 11,
+        "2": 12,
+        "3": 13,
+        "4": 14,
+        "5": 15,
+        "16": 16,
+        "17": 17,
+        "18": 18,
+        "6": 19,
+        "19": 20,
+        "20": 21,
+        "21": 22,
+        "22": 23,
+        "23": 24,
+        "24": 25,
+        "25": 26,
+        "26": 27,
+        "27": 28,
+        "28": 29,
+        "29": 30,
+        "30": 31,
+        "31": 32,
+        "32": 33,
+        "33": 34,
+        "34": 35,
+        "35": 36,
+        "36": 37,
+        "37": 38,
+        "38": 39,
+        "39": 40,
+        "40": 41,
+        "41": 42,
+        "42": 43,
+        "43": 44,
+        "44": 45,
+        "45": 46,
+        "46": 47
+    },
+    "idx_name_mapping": {
+        "0": "race_categorical",
+        "1": "gender_categorical",
+        "2": "age_categorical",
+        "3": "weight_categorical",
+        "4": "admission_type_categorical",
+        "5": "discharge_disposition_categorical",
+        "6": "admission_source_categorical",
+        "7": "time_in_hospital_integer",
+        "8": "payer_code_categorical",
+        "9": "medical_specialty_categorical",
+        "10": "num_lab_procedures_integer",
+        "11": "num_procedures_integer",
+        "12": "num_medications_integer",
+        "13": "number_outpatient_integer",
+        "14": "number_emergency_integer",
+        "15": "number_inpatient_integer",
+        "16": "diag_1_categorical",
+        "17": "diag_2_categorical",
+        "18": "diag_3_categorical",
+        "19": "number_diagnoses_integer",
+        "20": "max_glu_serum_categorical",
+        "21": "A1Cresult_categorical",
+        "22": "metformin_categorical",
+        "23": "repaglinide_categorical",
+        "24": "nateglinide_categorical",
+        "25": "chlorpropamide_categorical",
+        "26": "glimepiride_categorical",
+        "27": "acetohexamide_categorical",
+        "28": "glipizide_categorical",
+        "29": "glyburide_categorical",
+        "30": "tolbutamide_categorical",
+        "31": "pioglitazone_categorical",
+        "32": "rosiglitazone_categorical",
+        "33": "acarbose_categorical",
+        "34": "miglitol_categorical",
+        "35": "troglitazone_categorical",
+        "36": "tolazamide_categorical",
+        "37": "examide_categorical",
+        "38": "citoglipton_categorical",
+        "39": "insulin_categorical",
+        "40": "glyburide-metformin_categorical",
+        "41": "glipizide-metformin_categorical",
+        "42": "glimepiride-pioglitazone_categorical",
+        "43": "metformin-rosiglitazone_categorical",
+        "44": "metformin-pioglitazone_categorical",
+        "45": "change_categorical",
+        "46": "diabetesMed_categorical",
+        "47": "readmitted_categorical"
+    },
+    "metadata": {
+        "columns": {
+            "10": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "11": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "12": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "13": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "14": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "15": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "19": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            },
+            "0": {
+                "sdtype": "categorical"
+            },
+            "1": {
+                "sdtype": "categorical"
+            },
+            "2": {
+                "sdtype": "categorical"
+            },
+            "3": {
+                "sdtype": "categorical"
+            },
+            "4": {
+                "sdtype": "categorical"
+            },
+            "5": {
+                "sdtype": "categorical"
+            },
+            "6": {
+                "sdtype": "categorical"
+            },
+            "8": {
+                "sdtype": "categorical"
+            },
+            "9": {
+                "sdtype": "categorical"
+            },
+            "16": {
+                "sdtype": "categorical"
+            },
+            "17": {
+                "sdtype": "categorical"
+            },
+            "18": {
+                "sdtype": "categorical"
+            },
+            "20": {
+                "sdtype": "categorical"
+            },
+            "21": {
+                "sdtype": "categorical"
+            },
+            "22": {
+                "sdtype": "categorical"
+            },
+            "23": {
+                "sdtype": "categorical"
+            },
+            "24": {
+                "sdtype": "categorical"
+            },
+            "25": {
+                "sdtype": "categorical"
+            },
+            "26": {
+                "sdtype": "categorical"
+            },
+            "27": {
+                "sdtype": "categorical"
+            },
+            "28": {
+                "sdtype": "categorical"
+            },
+            "29": {
+                "sdtype": "categorical"
+            },
+            "30": {
+                "sdtype": "categorical"
+            },
+            "31": {
+                "sdtype": "categorical"
+            },
+            "32": {
+                "sdtype": "categorical"
+            },
+            "33": {
+                "sdtype": "categorical"
+            },
+            "34": {
+                "sdtype": "categorical"
+            },
+            "35": {
+                "sdtype": "categorical"
+            },
+            "36": {
+                "sdtype": "categorical"
+            },
+            "37": {
+                "sdtype": "categorical"
+            },
+            "38": {
+                "sdtype": "categorical"
+            },
+            "39": {
+                "sdtype": "categorical"
+            },
+            "40": {
+                "sdtype": "categorical"
+            },
+            "41": {
+                "sdtype": "categorical"
+            },
+            "42": {
+                "sdtype": "categorical"
+            },
+            "43": {
+                "sdtype": "categorical"
+            },
+            "44": {
+                "sdtype": "categorical"
+            },
+            "45": {
+                "sdtype": "categorical"
+            },
+            "46": {
+                "sdtype": "categorical"
+            },
+            "47": {
+                "sdtype": "categorical"
+            },
+            "7": {
+                "sdtype": "numerical",
+                "computer_representation": "Float"
+            }
+        }
+    }
+}

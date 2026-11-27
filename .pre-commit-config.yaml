@@ -8,6 +8,8 @@ repos:
     - id: check-docstring-first
     - id: check-executables-have-shebangs
     - id: debug-statements
+      # Vendored TabDiff still contains pinned pdb.set_trace() paths; drop after rewrite.
+      exclude: ^src/midst_toolkit/models/tabdiff/
     - id: end-of-file-fixer
     - id: mixed-line-ending
       args: [--fix=lf]

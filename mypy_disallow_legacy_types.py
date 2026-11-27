@@ -32,6 +32,8 @@ comma_separated_types = ", ".join(disallowed_types)
 def filter_files_to_ignore(file_paths: list[str]) -> list[str]:
     file_paths = [file_path for file_path in file_paths if file_path not in files_to_ignore]
     file_paths = [f for f in file_paths if f.endswith(tuple(file_types_to_include))]
+    # Vendored TabDiff is untyped upstream; exclude until the tabsyn-layout rewrite.
+    file_paths = [f for f in file_paths if "src/midst_toolkit/models/tabdiff/" not in f.replace("\\", "/")]
     return file_paths
 
 

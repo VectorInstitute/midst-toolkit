@@ -23,6 +23,9 @@ wheels/
 # Cursor
 .cursor
 
+# Personal local notes (not for commit)
+.notes/
+
 # macos
 *.DS_Store
 
@@ -50,6 +53,19 @@ tests/integration/attacks/tartan_federer/assets/tartan_federer_attack_results
 tests/integration/attacks/ensemble/assets/workspace
 tests/integration/assets/tabsyn/processed_data
 tests/integration/assets/tabsyn/results
+tests/integration/assets/tabdiff/_scratch
+tests/integration/assets/tabdiff/processed_data
+tests/integration/assets/tabdiff/results
+tests/integration/assets/tabdiff_diabetes/_scratch
+tests/integration/assets/tabdiff_diabetes/processed_data
+tests/integration/assets/tabdiff_diabetes/results
+# Runtime data dirs under vendored TabDiff; keep Info/*.json tracked.
+src/midst_toolkit/models/tabdiff/data/**
+!src/midst_toolkit/models/tabdiff/data/Info/
+!src/midst_toolkit/models/tabdiff/data/Info/**
+src/midst_toolkit/models/tabdiff/tabdiff/ckpt/
+src/midst_toolkit/models/tabdiff/tabdiff/result/
+src/midst_toolkit/models/tabdiff/debug/
 
 # Emitted SynthEval analysis config file during metric creation. Unfortunately cannot be turned off...
 SE_analysis_config.json

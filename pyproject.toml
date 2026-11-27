@@ -70,7 +70,12 @@ default-groups = ["dev", "docs"]
 
 [tool.ruff]
 include = ["*.py", "pyproject.toml"]
-exclude = ["mypy_disallow_legacy_types.py", "*.ipynb"]
+exclude = [
+    "mypy_disallow_legacy_types.py",
+    "*.ipynb",
+    # Vendored TabDiff is upstream-shaped; re-enable after the tabsyn-layout rewrite.
+    "src/midst_toolkit/models/tabdiff",
+]
 line-length = 119
 
 [tool.ruff.format]
@@ -125,6 +130,9 @@ ignore = [
 "__init__.py" = ["E402", "F401", "F403", "F811"]
 # Ignoring undocumented public functions, public init, magic method, and magic numbers
 "tests/*" = ["D103", "D105", "D107", "PLR2004"]
+# TabDiff tests lazy-import after load_implementation; keep matrix-style names (X, etc.).
+"tests/unit/models/tabdiff/**/*.py" = ["PLC0415", "N806", "D102"]
+"tests/integration/models/tabdiff/**/*.py" = ["PLC0415", "N806", "D102"]
 
 [tool.ruff.lint.pep8-naming]
 ignore-names = ["setUp"]

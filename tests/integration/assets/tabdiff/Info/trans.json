@@ -1,0 +1,24 @@
+{
+  "name": "trans",
+  "task_type": "regression",
+  "header": "infer",
+  "file_type": "csv",
+  "data_path": "raw_data/train.csv",
+  "val_path": "",
+  "test_path": "raw_data/test.csv",
+  "column_names": [
+    "trans_date",
+    "trans_type",
+    "operation",
+    "amount",
+    "balance",
+    "k_symbol",
+    "bank",
+    "account"
+  ],
+  "num_col_idx": [0, 4, 7],
+  "cat_col_idx": [1, 2, 5, 6],
+  "target_col_idx": [3],
+  "require_supplied_splits": true,
+  "label_encoders_path": "trans_label_encoders.pkl"
+}

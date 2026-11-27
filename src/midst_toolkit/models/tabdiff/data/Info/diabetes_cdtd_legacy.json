@@ -1,5 +1,5 @@
 {
-    "name": "diabetes",
+    "name": "diabetes_cdtd_legacy",
     "task_type": "binclass",
     "header": "infer",
     "column_names": [
@@ -42,10 +42,10 @@
         "readmitted"
     ],
     "file_type": "csv",
-    "raw_data_path": "data/diabetes/diabetic_data.csv",
-    "data_path": "data/diabetes/diabetic_train.csv",
-    "val_path": "data/diabetes/diabetic_val.csv",
-    "test_path": "data/diabetes/diabetic_test.csv",
+    "raw_data_path": "data/diabetes_cdtd_legacy/diabetic_data.csv",
+    "data_path": "data/diabetes_cdtd_legacy/diabetic_train.csv",
+    "val_path": "data/diabetes_cdtd_legacy/diabetic_val.csv",
+    "test_path": "data/diabetes_cdtd_legacy/diabetic_test.csv",
     "num_col_idx": [
         0,
         1,
